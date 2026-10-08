@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   // (found 2026-10-05).
   const { data: declined, error: declineErr } = await svc.from('bookings')
     .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partner_rejected' })
-    .in('id', targetIds).eq('status', 'pending_partner').select('id')
+    .in('id', targetIds).eq('status', 'pending_partner').select('id, class_session_id')
   if (declineErr) return NextResponse.json({ error: 'Could not decline this invitation. Please try again.' }, { status: 500 })
   if (!declined || declined.length === 0)
     return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
@@ -56,8 +56,18 @@ export async function POST(req: NextRequest) {
     if (pending.partner_parent_id) {
       const { data: initiator } = await svc
         .from('parents').select('first_name, email').eq('id', pending.partner_parent_id).single()
-      const { data: sess } = await svc
-        .from('class_sessions').select('session_date, start_time, course_type_id').eq('id', pending.class_session_id).single()
+      // Every session of the declined lesson: an hour is two, and the email
+      // gives the whole span with "(60 min)" as the invitation did (found
+      // 2026-10-07: it showed only one half's start time). The row declined
+      // may be the second half, so the earliest start is the lesson's.
+      type SessRow = { session_date: string; start_time: string; end_time: string | null; course_type_id: string }
+      const sessIds = [...new Set([pending.class_session_id, ...declined.map(r => r.class_session_id)].filter(Boolean))]
+      const { data: sessRows } = await svc
+        .from('class_sessions').select('session_date, start_time, end_time, course_type_id').in('id', sessIds)
+      const ordered = ((sessRows || []) as SessRow[]).slice().sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
+      const sess = ordered[0] || null
+      const endTime = ordered.reduce((e, x) => (x.end_time && String(x.end_time) > e ? String(x.end_time) : e), sess?.end_time ? String(sess.end_time) : '')
+      const isHour = !!pending.lesson_group_id && ordered.length > 1
       const { data: ct } = sess
         ? await svc.from('course_types').select('name').eq('id', sess.course_type_id).single()
         : { data: null }
@@ -69,9 +79,11 @@ export async function POST(req: NextRequest) {
           to: initiator.email,
           parentName: initiator.first_name,
           studentName: pStudent?.full_name || '',
-          courseName: ct?.name || '',
+          courseName: ct?.name ? (isHour ? `${ct.name} (60 min)` : ct.name) : '',
           date: sess.session_date,
-          time: formatTime12h(sess.start_time),
+          time: endTime
+            ? `${formatTime12h(sess.start_time)} \u2013 ${formatTime12h(endTime)}`
+            : formatTime12h(sess.start_time),
         })
       }
     }

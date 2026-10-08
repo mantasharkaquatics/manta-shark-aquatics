@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
+import { coachBlocksOn, overlapsAny, studentLessonsOn } from '@/lib/bookings/desk-checks'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -118,6 +119,28 @@ export async function POST(req: NextRequest) {
   })
   if (clash)
     return NextResponse.json({ error: 'The coach already has another lesson overlapping that time' }, { status: 400 })
+
+  // The target coach's time off, by its hours, and the swimmers' other
+  // lessons at the new time (found 2026-10-08). Neither was checked: a lesson
+  // could be dragged onto an afternoon the coach had blocked, or on top of the
+  // swimmer's own 1-on-4, and the family was emailed the new time. This route
+  // updates class_sessions, so the bookings double-booking guard never fires.
+  try {
+    const blocks = await coachBlocksOn(svc, coach_id, [date])
+    if (overlapsAny(blocks.get(date), spanStart, spanEnd))
+      return NextResponse.json({ error: 'The coach has time off or a block during that time' }, { status: 409 })
+    const studentIds: string[] = [...new Set(activeBookings.map(b => b.student_id as string))]
+    const busy = (await studentLessonsOn(svc, studentIds, [date], moveSessionIds))
+      .get(date)?.filter(l => l.s < spanEnd && l.e > spanStart) || []
+    if (busy.length > 0) {
+      const { data: who } = await svc.from('students').select('full_name').in('id', [...new Set(busy.map(l => l.studentId))])
+      const names = (who || []).map(w => w.full_name).join(', ') || 'A swimmer'
+      return NextResponse.json({ error: `${names} already has another lesson at that time` }, { status: 409 })
+    }
+  } catch (e) {
+    console.error('move-session checks:', e instanceof Error ? e.message : e)
+    return NextResponse.json({ error: "Could not check the coach's time off and the swimmers' lessons. Nothing was moved; please try again." }, { status: 503 })
+  }
 
   // Cancelled rows on these sessions stay where they were (found 2026-10-07),
   // as the parent-side hour reschedule already does (bookings/hour). Moving

@@ -100,18 +100,18 @@ export default function LoginPage() {
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('login.email')}</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            <label htmlFor="login-email" className="block text-sm font-medium text-[#16294a] mb-1.5">{t('login.email')}</label>
+            <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)}
               autoComplete="email" inputMode="email"
               className={field}
               placeholder="you@example.com" />
           </div>
           <div>
             <div className="flex items-baseline justify-between gap-3 mb-1.5">
-              <label className="block text-sm font-medium text-[#16294a]">{t('login.password')}</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-[#16294a]">{t('login.password')}</label>
               <Link href="/forgot-password" className="text-sm text-[#2050a0] hover:underline font-semibold">{t('login.forgot')}</Link>
             </div>
-            <PasswordField value={password} onChange={setPassword} onEnter={handleLogin}
+            <PasswordField id="login-password" value={password} onChange={setPassword} onEnter={handleLogin}
               autoComplete="current-password" className={field} placeholder="••••••••" />
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -123,6 +123,11 @@ export default function LoginPage() {
         <p className="text-center text-sm text-[#56647d] mt-6">
           {t('login.noAccount')}{' '}
           <Link href={signUpHref} className="text-[#2050a0] hover:underline font-bold">{t('login.signUp')}</Link>
+        </p>
+        {/* Coaches have no password: they sign in with a PIN on their own page.
+            A coach who lands here (an old bookmark, say) needs a way across. */}
+        <p className="text-center text-xs mt-3">
+          <Link href="/coach-login" className="text-[#56647d] hover:text-[#2050a0] hover:underline">{t('login.coachPin')}</Link>
         </p>
       </div>
     </div>

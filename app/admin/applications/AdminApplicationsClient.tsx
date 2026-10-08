@@ -85,9 +85,15 @@ export default function AdminApplicationsClient({ applications }: { applications
     f === 'open' ? t('admin.applications.filter.open') : f === 'all' ? t('admin.applications.filter.all') : statusLabel(f)
   const roleLabel = (r: string) => (ROLE_LABEL[r] ? t(ROLE_LABEL[r]) : r)
   const [rows, setRows] = useState(applications)
-  const [selectedId, setSelectedId] = useState<string | null>(applications[0]?.id ?? null)
+  /* The first applicant the default "open" filter lists, with THEIR notes in
+     the box. The box used to open empty beside the first applicant, and saving
+     a new line overwrote the notes already on file (found 2026-10-08); and the
+     first row overall could be a hired or archived applicant the list beside
+     it did not even show. */
+  const firstOpen = applications.find(r => !['hired', 'rejected', 'archived'].includes(r.status)) ?? null
+  const [selectedId, setSelectedId] = useState<string | null>(firstOpen?.id ?? null)
   const [filter, setFilter] = useState('open')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState(firstOpen?.admin_notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
   const [message, setMessage] = useState('')
   // One banner served both "Notes saved." and "Could not save.", so a failure was

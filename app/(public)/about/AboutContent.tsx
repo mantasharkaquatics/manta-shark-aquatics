@@ -5,6 +5,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
 import { localePath } from '@/lib/i18n/paths'
 import BrandRoot from '@/components/brand/BrandRoot'
+import { useFamilyStatus } from '@/lib/use-family-status'
 
 const coaches = [
   { name: 'Shane', slug: 'shane', accent: '#4a90c4', initials: 'SH' },
@@ -74,6 +75,7 @@ const css = `
 
 export default function AboutContent() {
   const t = useT()
+  const { signedIn, allAssessed } = useFamilyStatus()
   const locale = useLocale()
   const zh = locale.startsWith('zh')
   const gap = zh ? '' : ' '
@@ -205,9 +207,13 @@ export default function AboutContent() {
             {t('about.cta.p1')}<strong>{t('about.cta.pStrong')}</strong>{t('about.cta.p2')}
           </p>
           <div className="b-ctas">
-            <Link href="/register" className="b-btn gold">{t('about.cta.button')}</Link>
+            {/* A signed-in parent is not sent to a blank register form (found
+                2026-10-08): their account, or booking once every swimmer has a level. */}
+            {signedIn
+              ? <Link href={allAssessed ? '/booking' : '/dashboard'} className="b-btn gold">{t(allAssessed ? 'common.ctaBookLesson' : 'common.ctaMyAccount')}</Link>
+              : <Link href="/register" className="b-btn gold">{t('about.cta.button')}</Link>}
           </div>
-          <p className="ab-note">{t('about.cta.note')}</p>
+          {!signedIn && <p className="ab-note">{t('about.cta.note')}</p>}
         </div>
       </section>
     </BrandRoot>

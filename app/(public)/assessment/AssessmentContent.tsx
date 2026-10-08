@@ -7,6 +7,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
 import { BRAND } from '@/lib/brand'
+import { ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import BrandRoot from '@/components/brand/BrandRoot'
 
 /** Booking lives behind the login, so send a signed-out visitor to register
@@ -166,6 +167,8 @@ export default function AssessmentContent() {
         <div className="b-wrap">
           <h2>{t('assess.cta.title')}</h2>
           <p>{t('assess.cta.body')}</p>
+          {/* The assessment credit is public (owner, 2026-10-08). */}
+          <p>{t('assess.credit.short', { n: ASSESSMENT_CREDIT_LESSONS, days: ASSESSMENT_CREDIT_DAYS, points: ASSESSMENT_POINTS })}</p>
           <div className="b-ctas"><BookAssessmentButton label={t('assess.cta.button')} /></div>
           <p className="b-small">
             {t('assess.cta.note')}{' '}

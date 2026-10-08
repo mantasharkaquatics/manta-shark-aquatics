@@ -13,6 +13,11 @@ import { takeSlot, releaseSlot, ipHash as rateIpHash } from '@/lib/ip-rate-limit
 export const runtime = 'nodejs'
 
 const MAX_PER_IP_PER_HOUR = 3
+// Points at the way back in (found 2026-10-08): someone who signed up and
+// never finished, or whose address a stranger used first, does not know the
+// password -- and a reset code now goes to unverified addresses too.
+const EMAIL_TAKEN =
+  'An account with this email already exists. Please sign in, or use "Forgot your password?" on the sign-in page to get back in.'
 const MIN_FORM_SECONDS = 3
 
 function clientIp(req: Request): string | null {
@@ -111,7 +116,7 @@ export async function POST(req: Request) {
   if (existing) {
     await releaseSlot(supabase, slot.id)
     return NextResponse.json(
-      { error: 'An account with this email already exists. Please sign in instead.' },
+      { error: EMAIL_TAKEN },
       { status: 409 }
     )
   }
@@ -134,7 +139,7 @@ export async function POST(req: Request) {
     await releaseSlot(supabase, slot.id)
     if (error?.code === '23505') {
       return NextResponse.json(
-        { error: 'An account with this email already exists. Please sign in instead.' },
+        { error: EMAIL_TAKEN },
         { status: 409 }
       )
     }

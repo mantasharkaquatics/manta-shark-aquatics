@@ -19,19 +19,36 @@ type Me = {
 
 type Channel = 'email' | 'phone'
 
+/** LINK's look on a real <button>, so it can be reached with Tab and pressed
+ *  with Enter (an <a> with no href cannot). */
+const LINK_BUTTON = {
+  ...LINK,
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  font: 'inherit',
+  fontWeight: 600,
+  cursor: 'pointer',
+} as const
+
 function Panel(props: {
   channel: Channel
   target: string
   verified: boolean
   onVerified: () => void
+  onChanged: (channel: Channel) => void
 }) {
-  const { channel, target, verified, onVerified } = props
+  const { channel, target, verified, onVerified, onChanged } = props
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [cooldown, setCooldown] = useState(0)
   const [sentOnce, setSentOnce] = useState(false)
+  // Correcting a mistyped address or number (found 2026-10-08): there was no
+  // way to, so an applicant with a typo could never finish.
+  const [editing, setEditing] = useState(false)
+  const [newValue, setNewValue] = useState('')
 
   const label = channel === 'email' ? 'Email' : 'Phone'
 
@@ -88,6 +105,33 @@ function Panel(props: {
     setBusy(false)
   }
 
+  async function saveChange() {
+    setError('')
+    setNotice('')
+    setBusy(true)
+    try {
+      const res = await fetch('/api/careers/update-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, value: newValue }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Could not save the change.')
+        setBusy(false)
+        return
+      }
+      // The parent re-reads the account and re-keys this panel, so it starts
+      // over with "Send code" for the new address or number.
+      setBusy(false)
+      setEditing(false)
+      onChanged(channel)
+    } catch {
+      setError('Could not reach the server.')
+      setBusy(false)
+    }
+  }
+
   if (verified) {
     return (
       <div style={{ ...FIELD, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -99,14 +143,49 @@ function Panel(props: {
 
   return (
     <div style={{ margin: '0 0 24px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-      <label style={LABEL}>{label} — {target}</label>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px' }}>
+        <label style={LABEL} htmlFor={`code-${channel}`}>{label} — {target}</label>
+        {!editing ? (
+          <button type="button" style={{ ...LINK_BUTTON, fontSize: '13px' }}
+            onClick={() => { setEditing(true); setNewValue(''); setError(''); setNotice('') }}>
+            Change
+          </button>
+        ) : null}
+      </div>
 
       {error ? <div style={ERROR}>{error}</div> : null}
+
+      {editing ? (
+        <div>
+          <label style={LABEL} htmlFor={`new-${channel}`}>
+            {channel === 'email' ? 'Correct email address' : 'Correct mobile number'}
+          </label>
+          <input
+            id={`new-${channel}`}
+            style={{ ...INPUT, margin: '0 0 10px' }}
+            type={channel === 'email' ? 'email' : 'tel'}
+            inputMode={channel === 'email' ? 'email' : 'tel'}
+            autoComplete={channel === 'email' ? 'email' : 'tel'}
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+          />
+          <button
+            style={busy || !newValue.trim() ? BUTTON_DISABLED : BUTTON}
+            disabled={busy || !newValue.trim()}
+            onClick={saveChange}
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+          <p style={{ fontSize: '13px', textAlign: 'center', margin: '10px 0 0' }}>
+            <button type="button" style={LINK_BUTTON} onClick={() => { setEditing(false); setError('') }}>Cancel</button>
+          </p>
+        </div>
+      ) : null}
       {notice ? (
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: '0 0 10px' }}>{notice}</p>
       ) : null}
 
-      {!sentOnce ? (
+      {editing ? null : !sentOnce ? (
         <button
           style={busy || cooldown > 0 ? BUTTON_DISABLED : BUTTON}
           disabled={busy || cooldown > 0}
@@ -117,6 +196,7 @@ function Panel(props: {
       ) : (
         <>
           <input
+            id={`code-${channel}`}
             style={{ ...INPUT, letterSpacing: '6px', textAlign: 'center', margin: '0 0 10px' }}
             value={code}
             inputMode="numeric"
@@ -136,7 +216,7 @@ function Panel(props: {
             {cooldown > 0 ? (
               <span style={{ color: 'rgba(255,255,255,0.45)' }}>Resend in {cooldown}s</span>
             ) : (
-              <a style={{ ...LINK, cursor: 'pointer' }} onClick={send}>Resend code</a>
+              <button type="button" style={LINK_BUTTON} onClick={send} disabled={busy}>Resend code</button>
             )}
           </p>
         </>
@@ -151,7 +231,7 @@ export default function VerifyForm() {
   const [emailDone, setEmailDone] = useState(false)
   const [phoneDone, setPhoneDone] = useState(false)
 
-  useEffect(() => {
+  const loadMe = useCallback(() => {
     fetch('/api/careers/me')
       .then((r) => r.json())
       .then((data: Me) => {
@@ -161,6 +241,16 @@ export default function VerifyForm() {
       })
       .catch(() => setMe({ signedIn: false }))
   }, [])
+
+  useEffect(() => { loadMe() }, [loadMe])
+
+  // Bumped on every correction so the panels start over (a new number can
+  // mask to the same last four digits as the old one).
+  const [changes, setChanges] = useState({ email: 0, phone: 0 })
+  const changed = useCallback((channel: Channel) => {
+    setChanges((c) => ({ ...c, [channel]: c[channel] + 1 }))
+    loadMe()
+  }, [loadMe])
 
   useEffect(() => {
     if (emailDone && phoneDone) {
@@ -206,17 +296,26 @@ export default function VerifyForm() {
         </p>
 
         <Panel
+          key={'email:' + changes.email}
           channel="email"
           target={me.emailMasked || ''}
           verified={emailDone}
           onVerified={() => setEmailDone(true)}
+          onChanged={changed}
         />
         <Panel
+          key={'phone:' + changes.phone}
           channel="phone"
           target={me.phoneMasked || ''}
           verified={phoneDone}
           onVerified={() => setPhoneDone(true)}
+          onChanged={changed}
         />
+        {allDone ? null : (
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', margin: '0' }}>
+            Typed something wrong, or the code never arrives? Use Change to correct it.
+          </p>
+        )}
       </div>
     </main>
   )

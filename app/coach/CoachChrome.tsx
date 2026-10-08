@@ -20,5 +20,5 @@ export function CoachPortalLabel() {
 
 export function CoachSignOut() {
   const t = useT()
-  return <SignOutButton label={t('coach.signOut')} />
+  return <SignOutButton label={t('coach.signOut')} to="/coach-login" />
 }

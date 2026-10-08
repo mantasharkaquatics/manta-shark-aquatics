@@ -116,6 +116,9 @@ export default function AdminCoachesPage() {
   const [editPinId, setEditPinId] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [editPin, setEditPin] = useState('')
+  // Lifting a PIN lockout (owner, 2026-10-08: the front desk unlocks it; coaches
+  // have no email way in). null = closed; 'ask' = confirming; then the answer.
+  const [unlock, setUnlock] = useState<null | 'ask' | 'busy' | { cleared: number } | { failed: true }>(null)
 
   const load = async () => {
     const res = await fetch('/api/admin/coaches')
@@ -158,18 +161,68 @@ export default function AdminCoachesPage() {
     setEditPinId(null); setEditPin('')
   }
 
+  const unlockPin = async () => {
+    setUnlock('busy')
+    try {
+      const res = await fetch('/api/admin/coach-pin-unlock', { method: 'POST' })
+      const data = await res.json().catch(() => null)
+      setUnlock(res.ok && data?.ok ? { cleared: Number(data.cleared) || 0 } : { failed: true })
+    } catch {
+      setUnlock({ failed: true })
+    }
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.coaches.title')}</h1>
           <p className="text-gray-400 text-sm mt-1">{t('admin.coaches.summary', { active: coaches.filter(c => c.is_active).length, total: coaches.length })}</p>
         </div>
-        <button onClick={() => { setShowAdd(!showAdd); setError(null) }}
-          className="bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold px-4 py-2 rounded-lg text-sm transition-all">
-          {showAdd ? t('common.cancel') : t('admin.coaches.addCoach')}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button onClick={() => setUnlock('ask')}
+            className="border border-[#1e3a6e] text-gray-300 hover:border-[#c9a84c]/50 hover:text-[#c9a84c] px-4 py-2 rounded-lg text-sm transition-all">
+            {t('admin.coaches.unlockPin')}
+          </button>
+          <button onClick={() => { setShowAdd(!showAdd); setError(null) }}
+            className="bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] font-semibold px-4 py-2 rounded-lg text-sm transition-all">
+            {showAdd ? t('common.cancel') : t('admin.coaches.addCoach')}
+          </button>
+        </div>
       </div>
+
+      {unlock && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { if (unlock !== 'busy') setUnlock(null) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="unlock-title" className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 id="unlock-title" className="text-white font-bold text-lg">{t('admin.coaches.unlockTitle')}</h2>
+            {unlock === 'ask' || unlock === 'busy' ? (
+              <>
+                <p className="text-gray-400 text-sm mt-2 leading-relaxed">{t('admin.coaches.unlockBody')}</p>
+                <div className="flex gap-2 mt-5">
+                  <button onClick={() => setUnlock(null)} disabled={unlock === 'busy'}
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm disabled:opacity-50">{t('common.cancel')}</button>
+                  <button onClick={unlockPin} disabled={unlock === 'busy'}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[#c9a84c] hover:bg-[#b8963e] text-[#111d38] text-sm font-semibold disabled:opacity-50">
+                    {unlock === 'busy' ? t('admin.coaches.unlocking') : t('admin.coaches.unlockConfirm')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p role="status" className={`text-sm mt-2 leading-relaxed ${'failed' in unlock ? 'text-red-400' : 'text-green-400'}`}>
+                  {'failed' in unlock ? t('admin.coaches.unlockFailed')
+                    : unlock.cleared > 0 ? t('admin.coaches.unlockDone', { n: unlock.cleared })
+                    : t('admin.coaches.unlockNone')}
+                </p>
+                <div className="flex gap-2 mt-5">
+                  <button onClick={() => setUnlock(null)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-600 text-gray-300 text-sm">{t('common.close')}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-5 mb-6">

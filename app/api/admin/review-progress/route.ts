@@ -30,15 +30,15 @@ export async function POST(req: NextRequest) {
   const { history_id, updated_snapshot, note_id, note_text } = body
   const admin_id = auth.admin.id
   const supabase = auth.svc
-  if (!history_id) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  if (!history_id) return NextResponse.json({ error: 'Missing fields', code: 'missing_fields' }, { status: 400 })
 
   const { data: histRow } = await supabase
     .from('progress_history').select('coach_id, student_id, snapshot, status, lesson_key').eq('id', history_id).single()
-  if (!histRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!histRow) return NextResponse.json({ error: 'Not found', code: 'not_found' }, { status: 404 })
   // A stale tab could re-approve an approved record, or approve one another
   // admin had rejected, rewriting the live skill progress (found 2026-10-04).
   if (histRow.status !== 'pending_review') {
-    return NextResponse.json({ error: 'This progress record has already been reviewed' }, { status: 409 })
+    return NextResponse.json({ error: 'This progress record has already been reviewed', code: 'already_reviewed' }, { status: 409 })
   }
 
   // A swimmer with no level is an assessment, and that is confirmed together
@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
   const { data: who } = await supabase
     .from('students').select('current_level').eq('id', histRow.student_id).single()
   if (!who?.current_level) {
-    return NextResponse.json({ error: 'This is an assessment with no level yet. Confirm it together with its level.' }, { status: 409 })
+    return NextResponse.json({ error: 'This is an assessment with no level yet. Confirm it together with its level.', code: 'assessment_no_level' }, { status: 409 })
   }
 
   if (note_id) {
     const { data: n } = await supabase.from('lesson_notes').select('student_id, lesson_key').eq('id', note_id).single()
     if (!n || n.student_id !== histRow.student_id || (histRow.lesson_key && n.lesson_key !== histRow.lesson_key)) {
-      return NextResponse.json({ error: 'That note belongs to another lesson' }, { status: 400 })
+      return NextResponse.json({ error: 'That note belongs to another lesson', code: 'mismatch' }, { status: 400 })
     }
   }
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!approved || approved.length === 0) {
-    return NextResponse.json({ error: 'This progress record has already been reviewed' }, { status: 409 })
+    return NextResponse.json({ error: 'This progress record has already been reviewed', code: 'already_reviewed' }, { status: 409 })
   }
   // Puts the card back in Reviews. The original snapshot goes back with it, so
   // a retry starts from what the coach sent, as the admin's screen still shows.

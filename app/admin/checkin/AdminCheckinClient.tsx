@@ -45,6 +45,21 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  // The stream itself, not only the <video>'s copy of it: on unmount the ref
+  // to the element is already gone, and leaving the page by the sidebar used
+  // to leave the camera light on and the scan timer running (found 2026-10-08).
+  const streamRef = useRef<MediaStream | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      streamRef.current?.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [])
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState(false)
   const [scanLoading, setScanLoading] = useState(false)
@@ -118,6 +133,9 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     setScanning(true)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      // The page may have been left while the browser asked for the camera.
+      if (!mountedRef.current) { stream.getTracks().forEach(track => track.stop()); return }
+      streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         videoRef.current.play()
@@ -130,12 +148,15 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   }
 
   function stopCamera() {
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    streamRef.current = null
     if (videoRef.current?.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
       tracks.forEach(track => track.stop())
       videoRef.current.srcObject = null
     }
     if (intervalRef.current) clearInterval(intervalRef.current)
+    intervalRef.current = null
     setScanning(false)
   }
 

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
+import { sendEmail } from '@/lib/email'
+import { formatTime12h } from '@/lib/date'
+
+type CancelledRow = { id: string; parent_id: string | null; student_id: string | null; class_session_id: string | null; lesson_group_id: string | null }
+type SessRow = { id: string; session_date: string; start_time: string; end_time: string | null; course_type_id: string }
+type Svc = SupabaseClient
+const NO_ID = '00000000-0000-0000-0000-000000000000'
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
@@ -72,12 +79,17 @@ export async function POST(req: NextRequest) {
       .select('id').in('lesson_group_id', [...groups]).eq('status', 'pending_partner')
     for (const r of groupRows || []) ids.add(r.id)
   }
+  // Marked with why, so the desk can tell these from a decline or an expiry,
+  // and read back so only the rows really cancelled here are announced.
+  let cancelledRows: CancelledRow[] = []
   if (ids.size > 0) {
-    const { error: cancelErr } = await supabase.from('bookings')
-      .update({ status: 'cancelled' })
+    const { data: cancelled, error: cancelErr } = await supabase.from('bookings')
+      .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'partnership_revoked' })
       .in('id', [...ids])
       .eq('status', 'pending_partner')
+      .select('id, parent_id, student_id, class_session_id, lesson_group_id')
     if (cancelErr) return NextResponse.json({ error: 'Could not unlink the accounts' }, { status: 500 })
+    cancelledRows = (cancelled || []) as CancelledRow[]
   }
 
   const { error: revokeErr } = await supabase
@@ -86,5 +98,70 @@ export async function POST(req: NextRequest) {
     .eq('id', partnership_id)
   if (revokeErr) return NextResponse.json({ error: 'Could not unlink the accounts' }, { status: 500 })
 
+  await notifyUnlinkedInvites(supabase, cancelledRows)
+
   return NextResponse.json({ success: true })
+}
+
+/** Tell both families about each invitation the unlink cancelled (found
+ *  2026-10-07: declined, withdrawn and expired invitations were all
+ *  announced, this one was not -- the inviter's waiting card just vanished).
+ *  One email per family per lesson, naming that family's swimmers; an hour
+ *  (two sessions on one lesson_group_id) reads as one span, as the expiry
+ *  notice does. Best effort: the unlink has already happened. */
+async function notifyUnlinkedInvites(svc: Svc, rows: CancelledRow[]): Promise<void> {
+  if (rows.length === 0) return
+  try {
+    const uniq = (xs: (string | null)[]) => {
+      const out = [...new Set(xs.filter((x): x is string => !!x))]
+      return out.length ? out : [NO_ID]
+    }
+    const [{ data: sessData }, { data: parentData }, { data: kidData }] = await Promise.all([
+      svc.from('class_sessions').select('id, session_date, start_time, end_time, course_type_id').in('id', uniq(rows.map(r => r.class_session_id))),
+      svc.from('parents').select('id, first_name, last_name, email').in('id', uniq(rows.map(r => r.parent_id))),
+      svc.from('students').select('id, full_name').in('id', uniq(rows.map(r => r.student_id))),
+    ])
+    const sessList = (sessData || []) as SessRow[]
+    const { data: ctData } = await svc.from('course_types').select('id, name').in('id', uniq(sessList.map(x => x.course_type_id)))
+    const sessionById = new Map(sessList.map(x => [x.id, x]))
+    const parentById = new Map(((parentData || []) as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]).map(x => [x.id, x]))
+    const nameOf = new Map(((kidData || []) as { id: string; full_name: string }[]).map(k => [k.id, k.full_name]))
+    const courseName = new Map(((ctData || []) as { id: string; name: string }[]).map(c => [c.id, c.name]))
+
+    // One lesson per key: an hour's four rows share a lesson_group_id; a
+    // 30-minute invitation's two rows share their session.
+    const lessons = new Map<string, CancelledRow[]>()
+    for (const r of rows) {
+      const key = r.lesson_group_id || r.class_session_id
+      if (key) lessons.set(key, [...(lessons.get(key) || []), r])
+    }
+    for (const lessonRows of lessons.values()) {
+      const sess = [...new Set(lessonRows.map(r => r.class_session_id))]
+        .map(id => (id ? sessionById.get(id) : undefined)).filter((x): x is SessRow => !!x)
+        .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
+      if (sess.length === 0) continue
+      const first = sess[0]
+      const lastEnd = sess.reduce((e, x) => (x.end_time && String(x.end_time) > e ? String(x.end_time) : e), String(first.end_time || ''))
+      const name = courseName.get(first.course_type_id) || ''
+      const families = [...new Set(lessonRows.map(r => r.parent_id).filter((x): x is string => !!x))]
+      for (const pid of families) {
+        const p = parentById.get(pid)
+        if (!p?.email) continue
+        const otherId = families.find(x => x !== pid)
+        const other = otherId ? parentById.get(otherId) : undefined
+        await sendEmail({
+          type: 'partner_invite_unlinked',
+          to: p.email,
+          parentName: p.first_name || '',
+          partnerName: other ? `${other.first_name || ''} ${other.last_name || ''}`.trim() : '',
+          studentName: [...new Set(lessonRows.filter(r => r.parent_id === pid).map(r => (r.student_id ? nameOf.get(r.student_id) : '')).filter(Boolean))].join(' & '),
+          courseName: sess.length > 1 ? `${name} (60 min)` : name,
+          date: first.session_date,
+          time: lastEnd ? `${formatTime12h(first.start_time)} \u2013 ${formatTime12h(lastEnd)}` : formatTime12h(first.start_time),
+        })
+      }
+    }
+  } catch (e) {
+    console.error('partnership revoke: invitation-cancelled email failed:', e)
+  }
 }

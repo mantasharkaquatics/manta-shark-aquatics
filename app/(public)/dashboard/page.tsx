@@ -10,9 +10,10 @@ import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { allRows, allRowsIn } from '@/lib/db-paging'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
+import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
-import { tDb, dateTag, getT, type Locale } from '@/lib/i18n'
+import { tDb, dateTag, getT, isLocale, matchLocaleTags, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import { localePath } from '@/lib/i18n/paths'
 import NoticeModal from '@/components/NoticeModal'
@@ -34,12 +35,14 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 const MOBILE_CSS = `
 ${REPORT_SHEET_CSS}
 
+/* Every :hover below sits in @media (hover: hover): on a phone a tapped
+   card or button kept its hover colour and read as selected (AGENTS.md). */
 .msa-rail { display: grid; gap: 16px }
 .msa-addkid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   min-height: 212px; border-radius: 20px; border: 1.5px dashed #a9bfdc; background: transparent;
   color: #2050a0; font-size: 13.5px; font-weight: 800; text-decoration: none;
   transition: border-color .15s, color .15s }
-.msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) }
+@media (hover: hover) { .msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) } }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   font-size: 22px; font-weight: 400; background: #12254a; color: #fff }
 /* 「我的方案」 (owner, 2026-10-02): what the family already holds -- each fixed
@@ -74,9 +77,9 @@ ${REPORT_SHEET_CSS}
 .msa-plan-btn a, .msa-plan-btn button { display: inline-block; border: 1px solid #c9d8ee; border-radius: 999px;
   padding: 7px 14px; background: #fff; color: #2050a0; font-family: inherit; font-size: 13px; font-weight: 800;
   text-decoration: none; cursor: pointer; white-space: nowrap }
-.msa-plan-btn a:hover, .msa-plan-btn button:hover { border-color: #2050a0 }
+@media (hover: hover) { .msa-plan-btn a:hover, .msa-plan-btn button:hover { border-color: #2050a0 } }
 .msa-plan-btn .renew { background: #f09800; border-color: #f09800; color: #12254a }
-.msa-plan-btn .renew:hover { background: #d98900; border-color: #d98900 }
+@media (hover: hover) { .msa-plan-btn .renew:hover { background: #d98900; border-color: #d98900 } }
 /* The optional things -- book with another family, refer a friend, the
    suggestion box -- as one list at the foot of the page. Each row is a
    single tap target. */
@@ -85,17 +88,17 @@ ${REPORT_SHEET_CSS}
   border: 0; border-top: 1px solid #e8eef7; font-family: inherit; font-size: 13.5px; color: #3f4d66; text-align: left;
   text-decoration: none; cursor: pointer }
 .msa-more-row:first-child { border-top: 0 }
-.msa-more-row:hover { background: #f5f8fd }
+@media (hover: hover) { .msa-more-row:hover { background: #f5f8fd } }
 .msa-more-ico { width: 22px; text-align: center; flex-shrink: 0 }
 .msa-more-text { flex: 1; min-width: 0 }
 .msa-more-link { color: #2050a0; font-weight: 800; white-space: nowrap }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
 .msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 999px; padding: 16px;
   font-size: 16px; font-weight: 900; cursor: pointer; transition: background .15s }
-.msa-act-book:hover { background: #d98900 }
+@media (hover: hover) { .msa-act-book:hover { background: #d98900 } }
 .msa-act-pts { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 999px;
   border: 1px solid #d3deec; padding: 10px 20px; cursor: pointer; color: #56647d; font-size: 12px }
-.msa-act-pts:hover { border-color: #c9d8ee }
+@media (hover: hover) { .msa-act-pts:hover { border-color: #c9d8ee } }
 .msa-act-pts b { font-size: 19px; color: #12254a; font-variant-numeric: tabular-nums }
 .msa-act-pts em { font-style: normal; font-weight: 700; color: #2050a0 }
 .msa-act-pts.owe { border-color: #f5c2bd }
@@ -121,7 +124,7 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-brand { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: rgba(255,255,255,0.6); padding-top: 2px }
 .msa-mcard-qr { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 0; border-radius: 999px;
   background: #fff; color: #12254a; padding: 7px 12px; font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer }
-.msa-mcard-qr:hover { background: #fff3dc }
+@media (hover: hover) { .msa-mcard-qr:hover { background: #fff3dc } }
 .msa-mcard-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; line-height: 1.15;
   margin: 4px 0 2px; overflow-wrap: anywhere }
 .msa-mcard-age { font-size: 12.5px; color: rgba(255,255,255,0.68) }
@@ -137,14 +140,14 @@ ${REPORT_SHEET_CSS}
   border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
 .msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
   border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: #e6eeff; text-align: left; cursor: pointer }
-.msa-mcard-report:hover { background: rgba(159,184,230,0.22) }
+@media (hover: hover) { .msa-mcard-report:hover { background: rgba(159,184,230,0.22) } }
 .msa-mcard-btns button { flex: 1; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
   color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s }
-.msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) }
+@media (hover: hover) { .msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) } }
 .msa-mcard-here { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px;
   border: 0; border-radius: 12px; padding: 12px; background: #f09800; color: #12254a; font-family: inherit;
   font-size: 14px; font-weight: 900; cursor: pointer; transition: background .15s }
-.msa-mcard-here:hover:not(:disabled) { background: #d98900 }
+@media (hover: hover) { .msa-mcard-here:hover:not(:disabled) { background: #d98900 } }
 .msa-mcard-here:disabled { opacity: .75; cursor: progress }
 .msa-mcard-here.done { background: rgba(46,157,106,0.22); color: #bff0d6; cursor: default; font-weight: 800 }
 .msa-mcard-heremsg { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: #ffd9a0 }
@@ -313,11 +316,28 @@ interface Booking {
   voucher_id?: string | null
 }
 
+/** A skill as the dashboard reads it: enough to name it, place it in its level and stage, and sort it. */
+type SkillRow = { id: string; name: string; sort_order: number; level_id: string; stage: number }
+
 type MakeUpVoucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null; fromDate?: string | null; fromTime?: string | null }
 /** Why a family holds a voucher, in their words. An unknown reason shows nothing rather than a code. */
 const VOUCHER_REASONS = new Set(['leave', 'grace', 'admin', 'end_of_term', 'moved'])
 /** Whose voucher: one child, or the two of a sibling 1-on-2 (the same key either way round). */
 const voucherOwnerKey = (v: MakeUpVoucher) => [v.studentId, v.student2Id].filter(Boolean).sort().join('+')
+
+/* The language the provider is about to show (lib/i18n/provider): the one the
+   site remembers in its cookie, else the browser's. Until its words have
+   loaded the page shows English. */
+function upcomingLocale(current: Locale): Locale {
+  if (typeof document === 'undefined') return current
+  try {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + LOCALE_COOKIE + '=([^;]*)'))
+    const fromCookie = m ? decodeURIComponent(m[1]) : null
+    if (isLocale(fromCookie)) return fromCookie
+    const tags = navigator.languages?.length ? navigator.languages : [navigator.language]
+    return matchLocaleTags(tags) ?? current
+  } catch { return current }
+}
 
 // Birthdays are plain calendar dates, compared with today's LA date as plain
 // parts (found 2026-10-05). new Date('YYYY-MM-DD') is UTC midnight, which in
@@ -802,6 +822,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
     >
       <div
         onClick={e => e.stopPropagation()}
+        role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')}
         style={{
           background: '#fff', borderRadius: '20px',
           border: '1px solid #e3ebf6',
@@ -809,10 +830,11 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           textAlign: 'center', position: 'relative',
         }}
       >
-        {/* Close button */}
+        {/* Close button. Named, or a screen reader says "times". */}
         <button
           onClick={onClose}
           className="tap-auto"
+          aria-label={t('common.close')}
           style={{
             position: 'absolute', top: '16px', right: '16px',
             background: '#eef2f8', border: 'none',
@@ -820,7 +842,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
             color: '#56647d', fontSize: '16px',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
-        >×</button>
+        ><span aria-hidden="true">×</span></button>
 
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
@@ -869,6 +891,20 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   )
 }
 
+/* A countdown that ticks by itself. The whole page used to re-render once a
+   second -- every card, the calendar, every list -- for these few characters,
+   and for days at a time when a paid assessment kept its old hold time
+   (found 2026-10-08). Now only the countdown does. */
+function Countdown({ until, children }: { until: string; children: (msLeft: number) => React.ReactNode }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(iv)
+  }, [])
+  return <>{children(Math.max(0, new Date(until).getTime() - now))}</>
+}
+const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`
+
 type WalletSummary = {
   balance: number
   balancePurchased: number
@@ -880,7 +916,6 @@ type WalletSummary = {
   lessonsCompleted: number
   forgiveness: number
   lessonsPerForgiveness: number
-  history?: LedgerRow[]
 }
 const SYSTEM_ONLY_NOTES = new Set([
   'Lesson cancelled by the school',
@@ -916,22 +951,80 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
   const locale = useLocale()
   const [showHistory, setShowHistory] = useState(false)
   const [histPage, setHistPage] = useState(0)
+  /* The statement is read when it is opened, not with the page, and older
+     lines a batch at a time as the family pages back (found 2026-10-08: only
+     the newest 12 were ever fetched, so an older purchase -- and its receipt,
+     which the invoice email sends families here for -- could not be reached).
+     nextBefore is where the next batch starts; null once there is no more. */
+  const [history, setHistory] = useState<LedgerRow[] | null>(null)
+  const [nextBefore, setNextBefore] = useState<string | null>(null)
+  const [histBusy, setHistBusy] = useState(false)
+  const [histFailed, setHistFailed] = useState(false)
   // Where a swipe began. A ref, not state: it changes on every touchmove and
   // nothing on screen depends on it.
   const swipeFrom = useRef<{ x: number; y: number } | null>(null)
+  // Only the newest read may write: closing and reopening starts again.
+  const histSeq = useRef(0)
   if (!w) return null
+
+  const HIST_BATCH = 20
+  async function loadHistory(before: string | null): Promise<LedgerRow[] | null> {
+    const seq = ++histSeq.current
+    setHistBusy(true)
+    setHistFailed(false)
+    try {
+      const r = await fetch('/api/parent/wallet?only=history&history=' + HIST_BATCH + (before ? '&before=' + encodeURIComponent(before) : ''), { cache: 'no-store' })
+      if (!r.ok) throw new Error(String(r.status))
+      const j = await r.json() as { history?: LedgerRow[]; nextBefore?: string | null }
+      if (seq !== histSeq.current) return null
+      const got = j.history || []
+      // Appended to what this render shows: a later batch is only asked for
+      // from the arrow on the last page loaded.
+      const base = before && history ? history : []
+      const seen = new Set(base.map(x => x.id))
+      const all = [...base, ...got.filter(x => !seen.has(x.id))]
+      setHistory(all)
+      setNextBefore(j.nextBefore ?? null)
+      return all
+    } catch {
+      if (seq === histSeq.current) setHistFailed(true)
+      return null
+    } finally {
+      if (seq === histSeq.current) setHistBusy(false)
+    }
+  }
 
   /* The ledger is every movement of money, for ever. Left whole it was longer
      than the rest of the dashboard put together and pushed the lesson history
-     off the bottom of the page. Ten at a time, oldest stays reachable. */
+     off the bottom of the page. Ten at a time; the arrow past the last page
+     loaded fetches the next batch. */
   const HIST_PER_PAGE = 10
-  const history = w.history ?? []
-  const pageCount = Math.max(1, Math.ceil(history.length / HIST_PER_PAGE))
+  const rows = history ?? []
+  const pageCount = Math.max(1, Math.ceil(rows.length / HIST_PER_PAGE))
   // Clamped rather than stored: the list can shrink under a reload, and page 4
   // of a two-page list renders as an empty card with no explanation.
   const page = Math.min(histPage, pageCount - 1)
-  const pageRows = history.slice(page * HIST_PER_PAGE, (page + 1) * HIST_PER_PAGE)
-  const goPage = (n: number) => setHistPage(Math.min(pageCount - 1, Math.max(0, n)))
+  const pageRows = rows.slice(page * HIST_PER_PAGE, (page + 1) * HIST_PER_PAGE)
+  const hasNext = page < pageCount - 1 || !!nextBefore
+  const goPage = async (n: number) => {
+    if (n < 0 || histBusy) return
+    if (n > pageCount - 1) {
+      if (!nextBefore) return
+      const all = await loadHistory(nextBefore)
+      if (!all) return
+      setHistPage(Math.min(n, Math.max(0, Math.ceil(all.length / HIST_PER_PAGE) - 1)))
+      return
+    }
+    setHistPage(n)
+  }
+  const toggleHistory = () => {
+    const open = !showHistory
+    setShowHistory(open)
+    setHistPage(0)
+    // Read again on every opening: a booking or a cancel since the last one
+    // has added a line.
+    if (open) { setHistory(null); setNextBefore(null); loadHistory(null) }
+  }
 
   // Notes the system itself writes are English sentences; these are the ones a
   // family can see. A note a staff member typed is shown as they typed it.
@@ -1022,12 +1115,8 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
           <div style={{ fontSize: '12px', color: '#56647d', lineHeight: 1.5, marginBottom: '10px' }}>
             {t('points.card.arrearsBody')}
           </div>
-          <button
-            onClick={onBuy}
-            style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }}
-          >
-            {t('points.card.arrearsCta')}
-          </button>
+          <SettleArrearsButton owed={w.arrears}
+            style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', minHeight: '40px' }} />
         </div>
       )}
 
@@ -1041,11 +1130,10 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
         {t('points.card.buy')}
       </button>
 
-      {(w.history?.length ?? 0) > 0 && (
-        <>
-          <button onClick={() => { setShowHistory(!showHistory); setHistPage(0) }}
+      <>
+          <button onClick={toggleHistory} aria-expanded={showHistory}
             style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#56647d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
-            <span style={{ fontSize: '9px' }}>{showHistory ? '▲' : '▼'}</span>
+            <span style={{ fontSize: '9px' }} aria-hidden="true">{showHistory ? '▲' : '▼'}</span>
             {t(showHistory ? 'points.card.hideHistory' : 'points.card.showHistory')}
           </button>
           {showHistory && (
@@ -1067,6 +1155,15 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                 goPage(page + (dx < 0 ? 1 : -1))
               }}
               style={{ marginTop: '12px', borderTop: '1px solid #e3ebf6', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {history === null && !histFailed && (
+                <div style={{ fontSize: '12px', color: '#56647d' }}>{t('common.loading')}</div>
+              )}
+              {histFailed && (
+                <div style={{ fontSize: '12px', color: '#c0392b' }}>{t('err.generic')}</div>
+              )}
+              {history !== null && rows.length === 0 && (
+                <div style={{ fontSize: '12px', color: '#56647d' }}>{t('points.card.noHistory')}</div>
+              )}
               {pageRows.map(row => (
                 <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
@@ -1106,26 +1203,26 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                   </div>
                 </div>
               ))}
-              {pageCount > 1 && (
+              {(pageCount > 1 || hasNext) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
                   {/* Arrows and a counter rather than one chip per page: a year
                       of activity is dozens of pages, and that row would wrap
-                      into a block taller than the ten rows above it. */}
+                      into a block taller than the ten rows above it. The count
+                      reads "2 / 3+" while older lines are still to be fetched. */}
                   <button onClick={() => goPage(page - 1)} disabled={page === 0}
                     aria-label={t('points.card.prevPage')} className="tap-auto"
                     style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e3ebf6', background: 'transparent', color: page === 0 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: page === 0 ? 'not-allowed' : 'pointer' }}>←</button>
                   <span style={{ fontSize: '11px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
-                    {page + 1} / {pageCount}
+                    {histBusy && history !== null ? '…' : `${page + 1} / ${pageCount}${nextBefore ? '+' : ''}`}
                   </span>
-                  <button onClick={() => goPage(page + 1)} disabled={page === pageCount - 1}
+                  <button onClick={() => goPage(page + 1)} disabled={!hasNext || histBusy}
                     aria-label={t('points.card.nextPage')} className="tap-auto"
-                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e3ebf6', background: 'transparent', color: page === pageCount - 1 ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: page === pageCount - 1 ? 'not-allowed' : 'pointer' }}>→</button>
+                    style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e3ebf6', background: 'transparent', color: !hasNext ? '#9aa6ba' : '#56647d', fontSize: '12px', cursor: !hasNext ? 'not-allowed' : histBusy ? 'progress' : 'pointer' }}>→</button>
                 </div>
               )}
             </div>
           )}
-        </>
-      )}
+      </>
     </div>
   )
 }
@@ -1371,8 +1468,20 @@ export default function DashboardPage() {
      (found 2026-10-05) -- only these two and the lesson notes reload. Each has
      its own sequence so the newest call wins whoever made it, and each reads
      the language at call time from localeRef rather than its render's closure. */
-  const localeRef = useRef(locale)
-  localeRef.current = locale
+  /* The language those reads ask for. The page renders English first and
+     switches to the family's language once its words have loaded, and every
+     visit used to read the reports and notes twice, once in each (found
+     2026-10-08). They are asked for in the language the page is about to
+     switch to -- the one the site remembers, as the language provider picks
+     it -- and follow the page's language from the moment it gets there, or
+     from any other change. */
+  const [bootLang] = useState<Locale>(() => upcomingLocale(locale))
+  const [firstLang] = useState<Locale>(locale)
+  const [langBooted, setLangBooted] = useState(false)
+  if (!langBooted && (locale === bootLang || locale !== firstLang)) setLangBooted(true)
+  const dataLang: Locale = langBooted || locale === bootLang || locale !== firstLang ? locale : bootLang
+  const localeRef = useRef(dataLang)
+  localeRef.current = dataLang
   const assessSeq = useRef(0)
   const monthlySeq = useRef(0)
   async function loadAssessments() {
@@ -1408,7 +1517,9 @@ export default function DashboardPage() {
     walletReq.current = (async () => {
       try {
         const [res, tmRes] = await Promise.all([
-          fetch('/api/parent/wallet?history=12', { cache: 'no-store' }),
+          // The balance only: the points sheet reads the statement itself,
+          // when it is opened (found 2026-10-08).
+          fetch('/api/parent/wallet', { cache: 'no-store' }),
           fetch('/api/parent/team-memberships', { cache: 'no-store' }),
         ])
         if (seq !== walletSeq.current) return
@@ -1452,19 +1563,25 @@ export default function DashboardPage() {
   const [hereMsg, setHereMsg] = useState<{ id: string; text: string } | null>(null)
   useEffect(() => {
     let alive = true
+    // A school with no check-in venue set up answers enabled: false, and that
+    // does not change while the page is open: asking every minute anyway was
+    // a request a minute for nothing (found 2026-10-08).
+    const stop = () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
     async function load() {
       try {
         const r = await fetch('/api/checkin/self')
         if (!r.ok) return
         const j = await r.json()
-        if (alive) setHere(j.enabled ? j.students || {} : {})
+        if (!alive) return
+        setHere(j.enabled ? j.students || {} : {})
+        if (!j.enabled) stop()
       } catch {}
     }
-    load()
     const iv = setInterval(load, 60000)
     const onVis = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVis)
-    return () => { alive = false; clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
+    load()
+    return () => { alive = false; stop() }
   }, [])
 
   function checkInHere(student: Student) {
@@ -1482,7 +1599,7 @@ export default function DashboardPage() {
           setHere(h => ({ ...h, [student.id]: { open: false, lessonTime: null, checkedInTime: (j.lesson_times || [])[0] || '' } }))
           // A checked-in lesson can no longer be cancelled: reload so its
           // Cancel button goes now, not at the next refresh (found 2026-10-07).
-          fetchAll()
+          fetchAll({ progress: false })
         } else {
           const key = j.code === 'too_far' ? 'dash.here.tooFar' : j.code === 'weak_gps' ? 'dash.here.weak'
             : j.code === 'not_open' || j.code === 'no_lesson_today' ? 'dash.here.closed' : 'dash.here.error'
@@ -1527,10 +1644,17 @@ export default function DashboardPage() {
   // Fixed classes with lessons to come: one line each, opening the class page
   // (renew / change slot).
   const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number }[]>([])
-  useEffect(() => {
-    fetch('/api/parent/fixed-classes').then(r => r.ok ? r.json() : null)
-      .then(j => setFixedClasses(j?.classes || [])).catch(() => {})
+  // Read again after a leave (found 2026-10-08: "N left" stayed at the old
+  // number until a reload) and when the page is refreshed.
+  const loadFixedClasses = useCallback(async () => {
+    try {
+      const r = await fetch('/api/parent/fixed-classes')
+      if (!r.ok) return
+      const j = await r.json()
+      setFixedClasses(j?.classes || [])
+    } catch {}
   }, [])
+  useEffect(() => { loadFixedClasses() }, [loadFixedClasses])
   // The reminder email's button lands here with ?vouchers=1.
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('vouchers') !== '1') return
@@ -1645,7 +1769,7 @@ export default function DashboardPage() {
   const [pendingPartnerBookings, setPendingPartnerBookings] = useState<any[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   /* The list opens on the next two days that have lessons and grows two days at
      a time. Counting lessons instead of days used to cut a busy Thursday in half. */
   const UPCOMING_DAYS = 2
@@ -1661,6 +1785,7 @@ export default function DashboardPage() {
      phone, where the collapsed page is barely taller than the screen, dropped
      you at the footer. */
   const upcomingRef = useRef<HTMLElement | null>(null)
+  const invitesRef = useRef<HTMLElement | null>(null)
   const scrollUpcomingRef = useRef(false)
   const collapseUpcoming = () => {
     scrollUpcomingRef.current = true
@@ -1690,7 +1815,7 @@ export default function DashboardPage() {
     try {
       const r = await fetch('/api/stripe/trial-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
       const j = await r.json().catch(() => ({}))
-      if (j.state === 'confirmed' || j.state === 'released') { await fetchAll(); return }
+      if (j.state === 'confirmed' || j.state === 'released') { await fetchAll({ progress: false }); return }
       // Paid by bank transfer and still clearing: nothing to count down to.
       if (j.state === 'open' && !j.expiresAt) trialCheckedAt.current.set(id, Infinity)
     } catch { /* the next tick past the hold tries again */ }
@@ -1699,30 +1824,33 @@ export default function DashboardPage() {
     }
   }
   useEffect(() => {
-    for (const b of upcomingBookings) {
-      if (b.status !== 'pending_payment') continue
-      const last = trialCheckedAt.current.get(b.id)
-      if (last === undefined) { syncTrial(b.id); continue }
-      const ends = b.pending_expires_at ? new Date(b.pending_expires_at).getTime() : null
-      if (ends != null && now >= ends && last < ends && now - last > 3000) syncTrial(b.id)
-      else if (ends != null && now >= ends && last >= ends && now - last > 15000) syncTrial(b.id)
-    }
-  }, [upcomingBookings, now])
-  /* The 1-second tick re-renders the whole dashboard, so it runs only while
-     something on the page has an expiry to count down to (a pending invite,
-     reschedule, partner booking or an assessment awaiting payment -- the
-     trial-sync effect above also needs the tick to notice a hold running out).
-     It used to run every second all day on every visit (found 2026-10-05).
-     Otherwise it ticks once a minute: the check-in window and the 24-hour
-     cancel line are read from the clock at render and relied on these
-     re-renders to move on time. */
-  const hasCountdown = pendingPartnerBookings.length > 0
-    || upcomingBookings.some(b => !!b.pending_expires_at)
+    const pend = upcomingBookings.filter(b => b.status === 'pending_payment')
+    for (const b of pend) if (!trialCheckedAt.current.has(b.id)) syncTrial(b.id)
+    const timed = pend.filter(b => b.pending_expires_at)
+    if (timed.length === 0) return
+    // Watched every second without re-rendering anything: when a hold runs
+    // out, Stripe is asked again (and every 15s after, until it answers).
+    const iv = setInterval(() => {
+      const n = Date.now()
+      for (const b of timed) {
+        const last = trialCheckedAt.current.get(b.id)
+        if (last === undefined) continue
+        const ends = new Date(b.pending_expires_at!).getTime()
+        if (n >= ends && last < ends && n - last > 3000) syncTrial(b.id)
+        else if (n >= ends && last >= ends && n - last > 15000) syncTrial(b.id)
+      }
+    }, 1000)
+    return () => clearInterval(iv)
+  }, [upcomingBookings])
+  /* Once a minute: the check-in window and the 24-hour cancel line are read
+     from the clock at render and rely on this to move on time. The countdowns
+     tick by themselves (Countdown); the whole page used to re-render every
+     second while any lesson carried an expiry time -- which a paid assessment
+     kept until the day of the lesson (found 2026-10-08). */
   useEffect(() => {
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), hasCountdown ? 1000 : 60000)
+    const timer = setInterval(() => setNow(Date.now()), 60000)
     return () => clearInterval(timer)
-  }, [hasCountdown])
+  }, [])
 
   useEffect(() => {
     // LA time, not the device clock (found 2026-10-05).
@@ -1740,13 +1868,49 @@ export default function DashboardPage() {
      everything twice). Now fetchAll runs once, and a language change reloads
      only the language-dependent parts (found 2026-10-05). */
   useEffect(() => { fetchAll() }, [])
+  /* A tab left open in the background -- a phone keeps one for days -- showed
+     yesterday's lessons as upcoming with their Cancel buttons, and none of
+     today's bookings, invitations or vouchers (found 2026-10-08). Everything
+     is read again when the page comes back to the front after five minutes
+     or on another day, and when the day turns while it is open; the lesson
+     list alone when a lesson on it has ended. */
+  const refreshRef = useRef<(full: boolean) => void>(() => {})
+  useEffect(() => {
+    refreshRef.current = (full: boolean) => {
+      fetchAll({ progress: full })
+      if (full) { loadVouchers(); loadFixedClasses() }
+    }
+  })
+  useEffect(() => {
+    const check = () => {
+      const l = lastLoad.current
+      if (!l || document.visibilityState !== 'visible') return
+      if (getTodayLA() !== l.day || Date.now() - l.at > 5 * 60000) refreshRef.current(true)
+    }
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) check() }
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('pageshow', onShow)
+    return () => { document.removeEventListener('visibilitychange', check); window.removeEventListener('pageshow', onShow) }
+  }, [])
+  useEffect(() => {
+    const l = lastLoad.current
+    if (!l || document.visibilityState !== 'visible') return
+    if (getTodayLA() !== l.day) { refreshRef.current(true); return }
+    const nowMin = getNowMinutesLA()
+    const ended = upcomingBookings.some(b => {
+      if (b.session_date !== l.day || !b.end_time) return false
+      const [eh, em] = b.end_time.split(':').map(Number)
+      return eh * 60 + em <= nowMin
+    })
+    if (ended) refreshRef.current(false)
+  }, [now])
   const langSeen = useRef(false)
   useEffect(() => {
     // The first run is the mount; fetchAll already loads both.
     if (!langSeen.current) { langSeen.current = true; return }
     loadAssessments()
     loadMonthlyReports()
-  }, [locale])
+  }, [dataLang])
   /* The language the progress map's notes are in. Whenever it differs from the
      page's -- a switch, or a fetchAll that read the language just before one --
      the notes (and the "Swim Assessment" label) are re-read in the new one. */
@@ -1788,23 +1952,42 @@ export default function DashboardPage() {
     setNotesLang(lang)
   }
   useEffect(() => {
-    if (notesLang && notesLang !== locale) relocalizeNotes(locale)
-  }, [locale, notesLang])
+    if (notesLang && notesLang !== dataLang) relocalizeNotes(dataLang)
+  }, [dataLang, notesLang])
 
   /* Only the newest fetchAll may write. The page mounts in English and then
      switches to the reader's language, so two runs are always in flight, and
      whichever finished LAST won: a Chinese-reading parent was sometimes shown
      the English translation of a Chinese note (CC, 2026-09-14). A run that
-     has been overtaken now drops its results. */
-  const fetchSeq = useRef(0)
+     has been overtaken now drops its results.
 
-  async function fetchAll() {
+     The progress part (scores, notes, the learning map) has its own sequence:
+     a lessons-only run after an action must not throw away the progress a
+     full run is still reading. */
+  const fetchSeq = useRef(0)
+  const progressSeq = useRef(0)
+  // When the last full read finished, and on which school day: a tab left in
+  // the background is read again when it comes back (see below).
+  const lastLoad = useRef<{ at: number; day: string } | null>(null)
+
+  /* progress: false after an action -- a cancel, an accepted invitation, a
+     check-in. The lessons, the invitations and the balance change; the
+     swimmers' scores and the coaches' notes do not, and every report ever
+     written was being read again on each tap (found 2026-10-08). */
+  async function fetchAll(opts: { progress?: boolean } = {}) {
+    const withProgress = opts.progress !== false
     const seq = ++fetchSeq.current
+    const pseq = withProgress ? ++progressSeq.current : 0
     const latest = () => seq === fetchSeq.current
+    const progLatest = () => withProgress && pseq === progressSeq.current
     loadWallet()
-    loadAssessments()
-    loadMonthlyReports()
-    const { data: { user } } = await supabase.auth.getUser()
+    if (withProgress) { loadAssessments(); loadMonthlyReports() }
+    // The session this browser already holds. getUser() asked the auth server
+    // again on every load, on top of the bar and the chat asking (found
+    // 2026-10-08). The proxy has already checked the sign-in for /dashboard,
+    // and the database limits every read below to this family either way.
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     // Both of these used to be a bare `return`, which left loading at true and
     // the page on its spinner for ever. A coach or an admin who follows a link
     // here -- or anyone whose session has expired -- just watched it turn.
@@ -1817,26 +2000,56 @@ export default function DashboardPage() {
         .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
       if (admin) { router.replace('/admin'); return }
       const { data: coach } = await supabase
-        .from('coaches').select('id').eq('auth_user_id', user.id).maybeSingle()
-      if (coach) { router.replace('/coach'); return }
+        .from('coaches').select('id, is_active').eq('auth_user_id', user.id).maybeSingle()
+      // An inactive coach goes to the PIN page (which signs them out), not
+      // to /coach, which sends them back here.
+      if (coach) { router.replace(coach.is_active ? '/coach' : '/coach-login?inactive=1'); return }
       router.replace('/login')
       return
     }
     if (latest()) setParent(parentData)
 
     const today = getTodayLA()
-
-    // Lazy cleanup: remove expired pending_partner bookings
+    if (withProgress) lastLoad.current = { at: Date.now(), day: today }
+    // Expired invitations and moves are the cleanup job's to clear: it also
+    // writes to both families. The page used to delete and clear them itself
+    // from the browser, which pre-empted those emails and needed the browser
+    // to hold write access to bookings (found 2026-10-08). They are left out
+    // of the lists below instead.
     const nowIso = new Date().toISOString()
-    supabase.from('bookings').delete()
-      .eq('status', 'pending_partner')
-      .lt('pending_expires_at', nowIso)
-      .then(() => {})
-    // Clean up expired pending reschedules
-    supabase.from('bookings').update({ pending_action: null, pending_new_session_id: null, pending_expires_at: null })
-      .in('pending_action', ['reschedule', 'reschedule_initiator'])
-      .lt('pending_expires_at', nowIso)
-      .then(() => {})
+
+    /* The swimmers first, on their own: the progress reads hang off them and
+       start as soon as they arrive, beside the bookings rather than after. */
+    const studsP = Promise.resolve(supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'))
+    const histPromise: Promise<{ data: any[] | null }> | null = withProgress
+      ? studsP.then(async ({ data }): Promise<{ data: any[] | null }> => {
+          const ids = (data || []).map((s: Student) => s.id)
+          if (ids.length === 0) return { data: [] }
+          return await supabase.from('progress_history')
+            .select('student_id, session_date, snapshot, lesson_key, class_session_id')
+            .in('student_id', ids)
+            .eq('status', 'approved')
+            .order('session_date', { ascending: false })
+        })
+      : null
+    /* The curriculum for these swimmers' levels depends on nothing the history
+       reads produce, so it is chained straight onto the swimmers and runs
+       beside them instead of queueing behind. */
+    const levelSkillsPromise: Promise<{ levelIdMap: Record<string, string>; skRows: SkillRow[] }> | null = withProgress
+      ? studsP.then(async ({ data }) => {
+          const levelIdMap: Record<string, string> = {}
+          const nums = [...new Set((data || []).map((s: Student) => s.current_level).filter(Boolean))]
+          if (nums.length === 0) return { levelIdMap, skRows: [] }
+          const { data: levRows } = await supabase.from('levels').select('id, level_number').in('level_number', nums)
+          for (const l of levRows || []) levelIdMap[String(l.level_number)] = l.id
+          const ids = Object.values(levelIdMap)
+          if (ids.length === 0) return { levelIdMap, skRows: [] }
+          const { data: skRows } = await supabase
+            .from('skills').select('id, name, sort_order, level_id, stage')
+            .in('level_id', ids).order('sort_order')
+          return { levelIdMap, skRows: (skRows || []) as SkillRow[] }
+        })
+      : null
 
     /* Every booking the family has, past and future, read a page at a time
        (lib/db-paging). One request stops at 1,000 rows without a word, and
@@ -1845,7 +2058,7 @@ export default function DashboardPage() {
        id tiebreak makes the order unique, which paging needs; created_at
        first keeps the booking order the cards below were written for. */
     const [{ data: studs }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
-      supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'),
+      studsP,
       allRows(() => supabase.from('bookings')
         .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id, fixed_class_id, voucher_id')
         .eq('parent_id', parentData.id)
@@ -1859,6 +2072,15 @@ export default function DashboardPage() {
         .eq('pending_action', 'confirm')
         .gt('pending_expires_at', nowIso),
     ])
+
+    // Check-ins need only the booking ids, so they are asked for now, beside
+    // the sessions. A GET per 100 ids: every booking id in one URL grows with
+    // the family's history until the request is too long to send.
+    const bookingIdsEarly = (rawBookings || []).map((b: any) => b.id)
+    const attendanceChunks: string[][] = []
+    for (let i = 0; i < bookingIdsEarly.length; i += 100) attendanceChunks.push(bookingIdsEarly.slice(i, i + 100))
+    const attendancePromise: Promise<(Response | null)[]> = Promise.all(attendanceChunks.map(ids =>
+      fetch('/api/parent/attendance?booking_ids=' + ids.join(',')).catch(() => null)))
 
     // Query class_sessions and students separately
     const sessionIds = [...new Set((rawBookings || []).map((b: any) => b.class_session_id).filter(Boolean))] as string[]
@@ -1927,39 +2149,6 @@ export default function DashboardPage() {
           body: JSON.stringify({ session_ids: on2IdsEarly, parent_id: parentData.id }),
         }).catch(() => null)
       : Promise.resolve(null)
-    // A GET per 100 ids: every booking id in one URL grows with the family's
-    // history until the request is too long to send.
-    const bookingIdsEarly = (rawBookings || []).map((b: any) => b.id)
-    const attendanceChunks: string[][] = []
-    for (let i = 0; i < bookingIdsEarly.length; i += 100) attendanceChunks.push(bookingIdsEarly.slice(i, i + 100))
-    const attendancePromise: Promise<(Response | null)[]> = Promise.all(attendanceChunks.map(ids =>
-      fetch('/api/parent/attendance?booking_ids=' + ids.join(',')).catch(() => null)))
-    const histStudentIdsEarly = (studs || []).map((s: any) => s.id)
-    const histPromise: Promise<{ data: any[] | null }> = histStudentIdsEarly.length > 0
-      ? Promise.resolve(supabase.from('progress_history')
-          .select('student_id, session_date, snapshot, lesson_key, class_session_id')
-          .in('student_id', histStudentIdsEarly)
-          .eq('status', 'approved')
-          .order('session_date', { ascending: false })) as any
-      : Promise.resolve({ data: [] })
-    const levelNumsEarly = [...new Set((studs || []).map((s: any) => s.current_level).filter(Boolean))]
-    const levPromise: Promise<{ data: any[] | null }> = levelNumsEarly.length > 0
-      ? Promise.resolve(supabase.from('levels').select('id, level_number').in('level_number', levelNumsEarly)) as any
-      : Promise.resolve({ data: [] })
-    /* The curriculum for these swimmers' levels depends on nothing the history
-       reads produce, so it is chained straight onto the levels lookup and runs
-       beside them instead of queueing behind. */
-    const levelSkillsPromise: Promise<{ levelIdMap: Record<string, string>; skRows: any[] | null }> =
-      levPromise.then(async ({ data: levRows }) => {
-        const levelIdMap: Record<string, string> = {}
-        for (const l of levRows || []) levelIdMap[String((l as any).level_number)] = (l as any).id
-        const ids = Object.values(levelIdMap)
-        if (ids.length === 0) return { levelIdMap, skRows: null }
-        const { data: skRows } = await supabase
-          .from('skills').select('id, name, sort_order, level_id, stage')
-          .in('level_id', ids).order('sort_order')
-        return { levelIdMap, skRows: skRows as any[] | null }
-      })
     const pSessionMap: Record<string, any> = {}
     for (const s of pSessions || []) {
       const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -2098,7 +2287,10 @@ export default function DashboardPage() {
       return out
     }
 
-    const allUpcoming = mergeHours(mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b))))
+    // An invitation or a move that has run out waits for the cleanup job,
+    // which removes it and tells both families; it is not shown meanwhile.
+    const lapsed = (b: Booking) => b.status === 'pending_partner' && !!b.pending_expires_at && new Date(b.pending_expires_at).getTime() <= Date.parse(nowIso)
+    const allUpcoming = mergeHours(mergeBySession(parseBookings(rawBookings || []).filter(b => !isLessonPast(b) && !lapsed(b))))
     const allPast = mergeHours(parseBookings(rawBookings || []).filter(b => isLessonPast(b)))
 
     // Fetch attendance for ALL bookings (incl. today's) so Upcoming cards can show check-in status
@@ -2121,225 +2313,200 @@ export default function DashboardPage() {
     // No display cap: the history list already paginates at 10 per page, and the
     // Month view reads this same array — capping it made older months lose lessons.
     if (latest()) setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
-    // Fetch each student's latest approved progress_history
-    const studentIdList = (studs || []).map((s: any) => s.id)
+    if (!withProgress || !histPromise || !levelSkillsPromise) return
     // The language this progress map's notes and "Swim Assessment" label are
     // in, read now (not from this run's render closure). notesLang records it
     // so relocalizeNotes can catch up if the language changed meanwhile.
     const progLang: Locale = localeRef.current
     const tProg = getT(progLang)
-    if (studentIdList.length > 0) {
-      const { data: histRows } = await histPromise
+    const { data: histRows } = await histPromise
 
-      // Group all records by student
-      const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number>; lesson_key: string | null; class_session_id: string | null }[]> = {}
-      for (const row of histRows || []) {
-        const sid = (row as any).student_id
-        if (!allByStudent[sid]) allByStudent[sid] = []
-        allByStudent[sid].push({
-          session_date: (row as any).session_date,
-          snapshot: (row as any).snapshot || {},
-          lesson_key: (row as any).lesson_key || null,
-          class_session_id: (row as any).class_session_id || null,
-        })
-      }
+    // Group all records by student
+    const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number>; lesson_key: string | null; class_session_id: string | null }[]> = {}
+    for (const row of histRows || []) {
+      const sid = row.student_id
+      if (!allByStudent[sid]) allByStudent[sid] = []
+      allByStudent[sid].push({
+        session_date: row.session_date,
+        snapshot: row.snapshot || {},
+        lesson_key: row.lesson_key || null,
+        class_session_id: row.class_session_id || null,
+      })
+    }
 
-      // What lesson each record belongs to, and what the coach said about it.
-      // Keyed on lesson_key so an hour lesson is one entry and two lessons on the
-      // same day stay apart - a date alone cannot tell them apart.
-      const lessonInfo: Record<string, { start_time: string; course_name: string; course_type_id: string; minutes: number }> = {}
-      const noteByKey: Record<string, string> = {}
-      const histSessionIds = [...new Set((histRows || []).map((r: any) => r.class_session_id).filter(Boolean))]
-      const histLessonKeys = [...new Set((histRows || []).map((r: any) => r.lesson_key).filter(Boolean))]
-      /* These two reads share no data, and the translations only need the notes.
-         Issued one after another they cost three round trips before the progress
-         panel could render; issued together they cost two. */
-      const [hSessionsRes, hNotesRes, hTrialRes] = await Promise.all([
-        histSessionIds.length > 0
-          ? supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', histSessionIds)
-          : Promise.resolve({ data: null }),
-        histLessonKeys.length > 0
-          ? supabase.from('lesson_notes').select('id, student_id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
-          : Promise.resolve({ data: null }),
-        // Which of these lessons were a Swim Assessment. It sits in an ordinary
-        // 1-on-1 slot, so the session's course alone reads "1-on-1 Private".
-        histSessionIds.length > 0
-          ? supabase.from('bookings').select('student_id, class_session_id').in('class_session_id', histSessionIds).eq('is_trial', true)
-          : Promise.resolve({ data: null }),
-      ])
-      const trialLesson = new Set(((hTrialRes.data as any[] | null) || []).map((b: any) => `${b.student_id}|${b.class_session_id}`))
-      {
-        const hSessions = hSessionsRes.data as any[] | null
-        for (const cs of hSessions || []) {
-          const ct = Array.isArray((cs as any).course_types) ? (cs as any).course_types[0] : (cs as any).course_types
-          lessonInfo[(cs as any).id] = {
-            start_time: (cs as any).start_time || '',
-            course_name: ct?.name || '',
-            course_type_id: ct?.id || '',
-            minutes: 30,
-          }
+    /* Names, levels and stages of every skill a record holds. The swimmers'
+       current levels come with the curriculum read above; a skill recorded at
+       another level -- before a level-up, or an assessment scored at one level
+       and placed at another -- is looked up beside the notes below rather than
+       after them. */
+    const allSkillIds = [...new Set((histRows || []).flatMap(r => Object.keys(r.snapshot || {})))]
+    const skillsReady = levelSkillsPromise.then(async ({ levelIdMap, skRows }) => {
+      const known = new Set(skRows.map(sk => sk.id))
+      const missing = allSkillIds.filter(id => !known.has(id))
+      const { data: extra } = missing.length > 0
+        ? await supabase.from('skills').select('id, name, sort_order, level_id, stage').in('id', missing)
+        : { data: [] }
+      return { levelIdMap, skRows, extraRows: (extra || []) as SkillRow[] }
+    })
+
+    // What lesson each record belongs to, and what the coach said about it.
+    // Keyed on lesson_key so an hour lesson is one entry and two lessons on the
+    // same day stay apart - a date alone cannot tell them apart.
+    const lessonInfo: Record<string, { start_time: string; course_name: string; course_type_id: string; minutes: number }> = {}
+    const noteByKey: Record<string, string> = {}
+    const histSessionIds = [...new Set((histRows || []).map(r => r.class_session_id).filter(Boolean))]
+    const histLessonKeys = [...new Set((histRows || []).map(r => r.lesson_key).filter(Boolean))]
+    /* These two reads share no data, and the translations only need the notes.
+       Issued one after another they cost three round trips before the progress
+       panel could render; issued together they cost two. */
+    const [hSessionsRes, hNotesRes, hTrialRes] = await Promise.all([
+      histSessionIds.length > 0
+        ? supabase.from('class_sessions').select('id, start_time, course_types(id, name)').in('id', histSessionIds)
+        : Promise.resolve({ data: null }),
+      histLessonKeys.length > 0
+        ? supabase.from('lesson_notes').select('id, student_id, lesson_key, language, note').in('lesson_key', histLessonKeys).eq('status', 'approved')
+        : Promise.resolve({ data: null }),
+      // Which of these lessons were a Swim Assessment. It sits in an ordinary
+      // 1-on-1 slot, so the session's course alone reads "1-on-1 Private".
+      histSessionIds.length > 0
+        ? supabase.from('bookings').select('student_id, class_session_id').in('class_session_id', histSessionIds).eq('is_trial', true)
+        : Promise.resolve({ data: null }),
+    ])
+    const trialLesson = new Set(((hTrialRes.data as any[] | null) || []).map((b: any) => `${b.student_id}|${b.class_session_id}`))
+    {
+      const hSessions = hSessionsRes.data as any[] | null
+      for (const cs of hSessions || []) {
+        const ct = Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types
+        lessonInfo[cs.id] = {
+          start_time: cs.start_time || '',
+          course_name: ct?.name || '',
+          course_type_id: ct?.id || '',
+          minutes: 30,
         }
       }
-      {
-        const hNotes = hNotesRes.data as any[] | null
-        /* Keyed by swimmer AND lesson. Two siblings in the same 1-on-2 share the
-           lesson key, and a key on the lesson alone handed both of them
-           whichever sibling's note happened to load last. */
-        for (const n of hNotes || []) noteByKey[`${(n as any).student_id}|${(n as any).lesson_key}`] = (n as any).note || ''
+    }
+    {
+      const hNotes = hNotesRes.data as any[] | null
+      /* Keyed by swimmer AND lesson. Two siblings in the same 1-on-2 share the
+         lesson key, and a key on the lesson alone handed both of them
+         whichever sibling's note happened to load last. */
+      for (const n of hNotes || []) noteByKey[`${n.student_id}|${n.lesson_key}`] = n.note || ''
 
-        /* The note is read in whatever language the family is reading the SITE
-           in. Keying it off the account setting alone meant a parent could
-           switch the page to English and still be handed a Chinese note, which
-           reads as broken however deliberate it was. Every approved note is
-           translated into all three of en / zh-Hant / zh-Hans on approval, and
-           those are exactly the site's three locales, so the lookup always has
-           something to find. The account setting stays as the fallback -- it is
-           what a family who never touches the site switcher gets -- and a
-           missing translation still falls through to the original. */
-        const wantLang = progLang || (parentData as any).preferred_language || 'en'
-        const foreignIds = (hNotes || []).filter((n: any) => n.language !== wantLang).map((n: any) => n.id)
-        if (foreignIds.length > 0) {
-          const { data: hTrans } = await supabase
-            .from('lesson_note_translations')
-            .select('lesson_note_id, text')
-            .in('lesson_note_id', foreignIds)
-            .eq('language', wantLang)
-          const keyById: Record<string, string> = {}
-          for (const n of hNotes || []) keyById[(n as any).id] = `${(n as any).student_id}|${(n as any).lesson_key}`
-          for (const t of hTrans || []) {
-            const k = keyById[(t as any).lesson_note_id]
-            if (k && (t as any).text) noteByKey[k] = (t as any).text
-          }
+      /* The note is read in whatever language the family is reading the SITE
+         in. Keying it off the account setting alone meant a parent could
+         switch the page to English and still be handed a Chinese note, which
+         reads as broken however deliberate it was. Every approved note is
+         translated into all three of en / zh-Hant / zh-Hans on approval, and
+         those are exactly the site's three locales, so the lookup always has
+         something to find. The account setting stays as the fallback -- it is
+         what a family who never touches the site switcher gets -- and a
+         missing translation still falls through to the original. */
+      const wantLang = progLang || parentData.preferred_language || 'en'
+      const foreignIds = (hNotes || []).filter(n => n.language !== wantLang).map(n => n.id)
+      if (foreignIds.length > 0) {
+        const { data: hTrans } = await supabase
+          .from('lesson_note_translations')
+          .select('lesson_note_id, text')
+          .in('lesson_note_id', foreignIds)
+          .eq('language', wantLang)
+        const keyById: Record<string, string> = {}
+        for (const n of hNotes || []) keyById[n.id] = `${n.student_id}|${n.lesson_key}`
+        for (const tr of hTrans || []) {
+          const k = keyById[tr.lesson_note_id]
+          if (k && tr.text) noteByKey[k] = tr.text
         }
-      }
-
-      // Fetch skill names (including all skills used in snapshots)
-      const allSkillIds = [...new Set((histRows || []).flatMap((r: any) => Object.keys(r.snapshot || {})))]
-      let skillNameMap: Record<string, { name: string; sort_order: number; level_id: string }> = {}
-
-      // Also fetch all skills for each student's current_level, fill missing with 0%
-      const studentLevelMap: Record<string, string | null> = {}
-      for (const s of studs || []) studentLevelMap[s.id] = s.current_level
-      const allLevelNums = [...new Set(Object.values(studentLevelMap).filter(Boolean))]
-      let levelSkillsMap: Record<string, { id: string; name: string; sort_order: number; stage: number }[]> = {}
-
-      if (allLevelNums.length > 0) {
-        const { levelIdMap, skRows } = await levelSkillsPromise
-        const allLevelIds = Object.values(levelIdMap)
-        if (allLevelIds.length > 0) {
-          for (const sk of skRows || []) {
-            skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
-            // Build levelId → skills map
-            if (!levelSkillsMap[(sk as any).level_id]) levelSkillsMap[(sk as any).level_id] = []
-            levelSkillsMap[(sk as any).level_id].push({ id: (sk as any).id, name: (sk as any).name, sort_order: (sk as any).sort_order, stage: Number((sk as any).stage) || 1 })
-          }
-          // Stage first, then the order inside the stage. sort_order alone
-          // interleaved the three stages, so a record listed a stage 3 skill
-          // above the stage 1 skills the swimmer was actually working on.
-          for (const list of Object.values(levelSkillsMap)) list.sort((a, b) => a.stage - b.stage || a.sort_order - b.sort_order)
-          // Add remaining snapshot skills (old data with mismatched level still shows names)
-          const missing = allSkillIds.filter(id => !skillNameMap[id])
-          if (missing.length > 0) {
-            const { data: extraRows } = await supabase.from('skills').select('id, name, sort_order, level_id').in('id', missing)
-            for (const sk of extraRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: (sk as any).level_id }
-          }
-          // Build levelNumber → levelId map
-          const numToLevelId = levelIdMap
-
-          const progressMap: Record<string, StudentProgress> = {}
-          for (const [sid, hists] of Object.entries(allByStudent)) {
-            const levelNum = studentLevelMap[sid]
-            const levelId = levelNum ? numToLevelId[String(levelNum)] : null
-            const allLevelSkills = levelId ? (levelSkillsMap[levelId] || []) : []
-
-            const records: ProgressRecord[] = hists.map(hist => {
-              // Use all Level skills as the base, fill in snapshot values, default missing to 0
-              const skillsForRecord = allLevelSkills.length > 0
-                ? allLevelSkills.map(sk => ({
-                    skill_id: sk.id,
-                    skill_name: sk.name,
-                    progress_percent: (hist.snapshot[sk.id] as number) ?? 0,
-                    sort_order: sk.sort_order,
-                  }))
-                : Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
-                    skill_id,
-                    skill_name: skillNameMap[skill_id]?.name || skill_id,
-                    progress_percent: pct as number,
-                    sort_order: skillNameMap[skill_id]?.sort_order || 999,
-                  })).sort((a, b) => a.sort_order - b.sort_order)
-              const info = hist.class_session_id ? lessonInfo[hist.class_session_id] : null
-              const isTrial = !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`)
-              return {
-                session_date: hist.session_date,
-                lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
-                start_time: info?.start_time || '',
-                course_name: isTrial ? tProg('common.assessment') : (info?.course_name || ''),
-                is_trial: isTrial,
-                course_type_id: isTrial ? '' : (info?.course_type_id || ''),
-                // An hour is two sessions but one lesson; the record is stored
-                // against the first half, so its own end time would read short.
-                minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
-                note: hist.lesson_key ? (noteByKey[`${sid}|${hist.lesson_key}`] || '') : '',
-                skills: skillsForRecord,
-              }
-            })
-            // The live percentage for a skill is whatever the most recent
-            // lesson that touched it recorded. Snapshots arrive newest first, so
-            // the first value wins and older lessons only fill the gaps.
-            const currentPct: Record<string, number> = {}
-            for (const hist of hists) {
-              for (const [skId, pct] of Object.entries(hist.snapshot || {})) {
-                if (!(skId in currentPct)) currentPct[skId] = pct as number
-              }
-            }
-            progressMap[sid] = {
-              student_id: sid,
-              records,
-              stages: stageProgress(allLevelSkills, currentPct),
-              allPercents: currentPct,
-              stageSkills: allLevelSkills.map(sk => ({
-                stage: Number(sk.stage) || 1,
-                skill_id: sk.id,
-                skill_name: sk.name,
-                percent: Math.max(0, Math.min(100, currentPct[sk.id] ?? 0)),
-              })),
-            }
-          }
-          if (latest()) { setStudentProgressMap(progressMap); setNotesLang(progLang) }
-        }
-      } else {
-        // Fallback when level info is missing
-        if (allSkillIds.length > 0) {
-          const { data: skillRows } = await supabase.from('skills').select('id, name, sort_order').in('id', allSkillIds)
-          for (const sk of skillRows || []) skillNameMap[(sk as any).id] = { name: (sk as any).name, sort_order: (sk as any).sort_order, level_id: '' }
-        }
-        const progressMap: Record<string, StudentProgress> = {}
-        for (const [sid, hists] of Object.entries(allByStudent)) {
-          const records: ProgressRecord[] = hists.map(hist => ({
-            session_date: hist.session_date,
-            lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
-            start_time: (hist.class_session_id ? lessonInfo[hist.class_session_id]?.start_time : '') || '',
-            is_trial: !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`),
-            course_name: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
-              ? tProg('common.assessment')
-              : (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_name : '') || '',
-            course_type_id: (hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`))
-              ? ''
-              : (hist.class_session_id ? lessonInfo[hist.class_session_id]?.course_type_id : '') || '',
-            minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
-            note: hist.lesson_key ? (noteByKey[`${sid}|${hist.lesson_key}`] || '') : '',
-            skills: Object.entries(hist.snapshot).map(([skill_id, pct]) => ({
-              skill_id, skill_name: skillNameMap[skill_id]?.name || skill_id,
-              progress_percent: pct as number, sort_order: skillNameMap[skill_id]?.sort_order || 999,
-            })).sort((a, b) => a.sort_order - b.sort_order),
-          }))
-          progressMap[sid] = { student_id: sid, records, stages: [], stageSkills: [], allPercents: {} }
-        }
-        if (latest()) { setStudentProgressMap(progressMap); setNotesLang(progLang) }
       }
     }
 
-    if (latest()) setLoading(false)
+    const { levelIdMap, skRows, extraRows } = await skillsReady
+    const skillInfo: Record<string, SkillRow> = {}
+    for (const sk of [...skRows, ...extraRows]) skillInfo[sk.id] = sk
+    // levelId -> its skills, stage first, then the order inside the stage.
+    // sort_order alone interleaved the three stages, so a record listed a
+    // stage 3 skill above the stage 1 skills the swimmer was actually working on.
+    const levelSkillsMap: Record<string, SkillRow[]> = {}
+    for (const sk of skRows) (levelSkillsMap[sk.level_id] ||= []).push(sk)
+    const byStage = (a: SkillRow, b: SkillRow) => (Number(a.stage) || 1) - (Number(b.stage) || 1) || a.sort_order - b.sort_order
+    for (const list of Object.values(levelSkillsMap)) list.sort(byStage)
+
+    const progressMap: Record<string, StudentProgress> = {}
+    for (const [sid, hists] of Object.entries(allByStudent)) {
+      const st = (studs || []).find((x: Student) => x.id === sid)
+      const levelId = st?.current_level ? levelIdMap[String(st.current_level)] : undefined
+      const allLevelSkills = levelId ? (levelSkillsMap[levelId] || []) : []
+
+      const records: ProgressRecord[] = hists.map(hist => {
+        /* A record is shown against the level it was scored at (found
+           2026-10-08). Laying every lesson over the swimmer's CURRENT level
+           turned each lesson before a level-up into the new level's skills,
+           all "not started", with the coach's scores gone. The level most of
+           the record's scores belong to is the one it was scored at: the
+           current level shows in full (unscored skills at 0), any other shows
+           the skills the coach scored. */
+        const ids = Object.keys(hist.snapshot)
+        const tally = new Map<string, number>()
+        for (const id of ids) { const l = skillInfo[id]?.level_id; if (l) tally.set(l, (tally.get(l) || 0) + 1) }
+        let recLevel = levelId
+        let best = 0
+        for (const [l, n] of tally) if (n > best || (n === best && l === levelId)) { best = n; recLevel = l }
+        const skills = allLevelSkills.length > 0 && (ids.length === 0 || recLevel === levelId)
+          ? allLevelSkills.map(sk => ({
+              skill_id: sk.id,
+              skill_name: sk.name,
+              progress_percent: hist.snapshot[sk.id] ?? 0,
+              sort_order: sk.sort_order,
+            }))
+          : ids.map(id => ({ id, sk: skillInfo[id] }))
+              .sort((a, b) => (a.sk && b.sk ? byStage(a.sk, b.sk) : a.sk ? -1 : b.sk ? 1 : 0))
+              .map(({ id, sk }) => ({
+                skill_id: id,
+                skill_name: sk?.name || id,
+                progress_percent: hist.snapshot[id],
+                sort_order: sk?.sort_order ?? 999,
+              }))
+        const info = hist.class_session_id ? lessonInfo[hist.class_session_id] : null
+        const isTrial = !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`)
+        return {
+          session_date: hist.session_date,
+          lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
+          start_time: info?.start_time || '',
+          course_name: isTrial ? tProg('common.assessment') : (info?.course_name || ''),
+          is_trial: isTrial,
+          course_type_id: isTrial ? '' : (info?.course_type_id || ''),
+          // An hour is two sessions but one lesson; the record is stored
+          // against the first half, so its own end time would read short.
+          minutes: hist.lesson_key && hist.lesson_key !== hist.class_session_id ? 60 : 30,
+          note: hist.lesson_key ? (noteByKey[`${sid}|${hist.lesson_key}`] || '') : '',
+          skills,
+        }
+      })
+      // The live percentage for a skill is whatever the most recent
+      // lesson that touched it recorded. Snapshots arrive newest first, so
+      // the first value wins and older lessons only fill the gaps.
+      const currentPct: Record<string, number> = {}
+      for (const hist of hists) {
+        for (const [skId, pct] of Object.entries(hist.snapshot || {})) {
+          if (!(skId in currentPct)) currentPct[skId] = pct
+        }
+      }
+      progressMap[sid] = {
+        student_id: sid,
+        records,
+        stages: stageProgress(allLevelSkills, currentPct),
+        allPercents: currentPct,
+        stageSkills: allLevelSkills.map(sk => ({
+          stage: Number(sk.stage) || 1,
+          skill_id: sk.id,
+          skill_name: sk.name,
+          percent: Math.max(0, Math.min(100, currentPct[sk.id] ?? 0)),
+        })),
+      }
+    }
+    if (progLatest()) {
+      setStudentProgressMap(progressMap)
+      setNotesLang(progLang)
+      setLoading(false)
+    }
   }
 
   async function confirmPartnerBooking(bookingId: string) {
@@ -2359,7 +2526,7 @@ export default function DashboardPage() {
           } else {
             setInfoModal({ title: t('dash.partner.confirmFailTitle'), message: errText(data.error, 'err.generic') })
           }
-          await fetchAll()
+          await fetchAll({ progress: false })
           setConfirmingId(null)
           return
         }
@@ -2369,7 +2536,7 @@ export default function DashboardPage() {
       setConfirmingId(null)
       return
     }
-    await fetchAll()
+    await fetchAll({ progress: false })
     setConfirmingId(null)
   }
 
@@ -2382,7 +2549,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ booking_id: bookingId }),
       })
     } catch {}
-    await fetchAll()
+    await fetchAll({ progress: false })
     setRejectingId(null)
   }
 
@@ -2418,8 +2585,8 @@ export default function DashboardPage() {
         setDoneMsg(t('dash.cancelDone.voucherBack'))
       }
     } catch { setNotice(t('dash.pend.network')) }
-    await fetchAll()
-    await Promise.all([loadVouchers(), walletReq.current])
+    await fetchAll({ progress: false })
+    await Promise.all([loadVouchers(), loadFixedClasses(), walletReq.current])
     setCancellingId(null)
   }
 
@@ -2500,6 +2667,14 @@ export default function DashboardPage() {
      invitation expired (found 2026-10-05). */
   const isOwnInvite = (b: { status?: string; pending_action?: string | null }) =>
     b.status === 'pending_partner' && b.pending_action !== 'confirm'
+  /* The other side of it: another family has invited this one's child, and
+     the answer is given in the invitations box above. The lesson is listed
+     with its own words -- it used to say "pending partner" (it is this
+     family that has to answer) and, inside 24 hours, "can't cancel online",
+     when declining above is all it takes (found 2026-10-08). */
+  const isInviteToMe = (b: { status?: string; pending_action?: string | null }) =>
+    b.status === 'pending_partner' && b.pending_action === 'confirm'
+  const toInvites = () => invitesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const askWithdraw = (b: { id: string }) => setInfoModal({
     title: t('dash.up.withdrawTitle'),
     message: t('dash.up.withdrawHelp'),
@@ -2892,7 +3067,7 @@ export default function DashboardPage() {
 
         {/* Pending partner bookings notice */}
         {pendingPartnerBookings.length > 0 && (
-          <section style={{ marginBottom: '28px' }}>
+          <section ref={invitesRef} style={{ marginBottom: '28px', scrollMarginTop: '100px' }}>
             <h2 className="msa-sec-h">⏳ {t('dash.invite.section')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {mergePendingInvites(pendingPartnerBookings).map((b: any) => {
@@ -2900,12 +3075,6 @@ export default function DashboardPage() {
                 const student = Array.isArray(b.students) ? b.students[0] : b.students
                 const coach = cs ? (Array.isArray(cs.coaches) ? cs.coaches[0] : cs.coaches) : null
                 const ct = cs ? (Array.isArray(cs.course_types) ? cs.course_types[0] : cs.course_types) : null
-                const expiresAt = new Date(b.pending_expires_at)
-                const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000))
-                const msLeft = Math.max(0, expiresAt.getTime() - now)
-                const minsLeft = Math.floor(msLeft / 60000)
-                const secsLeft = Math.floor((msLeft % 60000) / 1000)
-                const countdownStr = msLeft <= 0 ? t('dash.invite.expired') : `${minsLeft}:${String(secsLeft).padStart(2, '0')}`
                 // What accepting costs THIS family: their own seat, priced from
                 // the live price list.
                 let inviteCost: number | null = null
@@ -2930,9 +3099,11 @@ export default function DashboardPage() {
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '2px' }}>
                           {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date, intlOf(locale)) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
                         </div>
-                        <div style={{ fontSize: '11px', color: minsLeft <= 3 ? '#c0392b' : '#56647d' }}>
-                          ⏱ {t('dash.invite.countdown', { time: countdownStr })}
-                        </div>
+                        <Countdown until={b.pending_expires_at}>{ms => (
+                          <div style={{ fontSize: '11px', color: ms < 4 * 60000 ? '#c0392b' : '#56647d' }}>
+                            ⏱ {t('dash.invite.countdown', { time: ms <= 0 ? t('dash.invite.expired') : mmss(ms) })}
+                          </div>
+                        )}</Countdown>
                         {/* What accepting means if either family cancels (owner, 2026-10-07). */}
                         <div style={{ fontSize: '11.5px', color: '#56647d', marginTop: '6px', maxWidth: '520px', lineHeight: 1.5 }}>
                           {t('booking.crossAccountRule')}
@@ -2979,7 +3150,7 @@ export default function DashboardPage() {
                 const id = rescheduleActionModal.bookingId
                 setRescheduleActionModal(null)
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
-                if (res.ok) await fetchAll()
+                if (res.ok) await fetchAll({ progress: false })
                 else { const j = await res.json().catch(() => ({})); setNotice(errText(j.error, 'err.generic')) }
               }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
             </div>
@@ -3138,7 +3309,8 @@ export default function DashboardPage() {
                   const b = lessonDetail
                   const past = !!(b.session_date && b.session_date < todayDs)
                   const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
-                  const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn') : t('status.confirmed')
+                  const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn')
+                    : b.status === 'pending_partner' ? t(isInviteToMe(b) ? 'dash.up.awaitingYou' : 'dash.status.pending_partner') : t('status.confirmed')
                   const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD
                   // A merged 60-minute card carries the first half's row only; both halves
                   // are charged alike, so the lesson cost is twice that (found
@@ -3258,7 +3430,7 @@ export default function DashboardPage() {
                         </span>}
                         {!booking._group && (
                           <span className="msa-lesson-pill" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                            {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : t('dash.status.' + booking.status)}
+                            {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : isInviteToMe(booking) ? t('dash.up.awaitingYou') : t('dash.status.' + booking.status)}
                           </span>
                         )}
                       </div>
@@ -3367,30 +3539,24 @@ export default function DashboardPage() {
                             <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
                             <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}</span>
                           </div>
-                          {booking.pending_expires_at && (() => {
-                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
-                            const mins = Math.floor(ms / 60000)
-                            const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
-                          })()}
+                          {booking.pending_expires_at && (
+                            <Countdown until={booking.pending_expires_at}>{ms => (
+                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+                            )}</Countdown>
+                          )}
                         </div>
                       ) : (
                         <div>
-                          {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (() => {
-                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
-                            const mins = Math.floor(ms / 60000)
-                            const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: str })}</div>
-                          })()}
-                        {booking.status === 'pending_partner' && booking.pending_expires_at && (() => {
-                            const ms = Math.max(0, new Date(booking.pending_expires_at).getTime() - now)
-                            const mins = Math.floor(ms / 60000)
-                            const secs = Math.floor((ms % 60000) / 1000)
-                            const str = ms <= 0 ? t('dash.up.expired') : `${mins}:${String(secs).padStart(2, '0')}`
-                            return <div style={{ fontSize: '11px', color: mins < 3 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: str })}</div>
-                          })()}
+                          {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (
+                            <Countdown until={booking.pending_expires_at}>{ms => (
+                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+                            )}</Countdown>
+                          )}
+                        {booking.status === 'pending_partner' && booking.pending_expires_at && (
+                            <Countdown until={booking.pending_expires_at}>{ms => (
+                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+                            )}</Countdown>
+                          )}
                         </div>
                       )}
                     </div>
@@ -3417,7 +3583,7 @@ export default function DashboardPage() {
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
                               if (!res.ok) setNotice(errText(json.error, 'dash.resAction.failed'))
-                              await fetchAll()
+                              await fetchAll({ progress: false })
                               setReschedulingId(null)
                             }}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #b7e0cc', background: 'transparent', color: '#1f7a57', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
@@ -3450,13 +3616,11 @@ export default function DashboardPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
                               ⏱ {t('dash.pend.awaiting')}
-                              {booking.pending_expires_at && (() => {
-                                const ms = new Date(booking.pending_expires_at).getTime() - now
-                                if (ms <= 0) return null
-                                const mins = Math.floor(ms / 60000)
-                                const secs = Math.floor((ms % 60000) / 1000)
-                                return <span style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: mins < 5 ? '#c0392b' : undefined }}>· {t('dash.pend.left', { time: `${mins}:${String(secs).padStart(2, '0')}` })}</span>
-                              })()}
+                              {booking.pending_expires_at && (
+                                <Countdown until={booking.pending_expires_at}>{ms => ms <= 0 ? null : (
+                                  <span style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: ms < 5 * 60000 ? '#c0392b' : undefined }}>· {t('dash.pend.left', { time: mmss(ms) })}</span>
+                                )}</Countdown>
+                              )}
                             </div>
                             <button
                               onClick={async () => {
@@ -3520,9 +3684,6 @@ export default function DashboardPage() {
                           <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
                             🛒 {t('dash.cart.held')}
                           </div>
-                          <Link href="/booking?cart=1" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: 'transparent', color: GOLD, fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
-                            {t('dash.cart.view')}
-                          </Link>
                         </div>
                       ) : booking._group ? null : (
                         <div className="msa-lesson-actions">
@@ -3530,7 +3691,7 @@ export default function DashboardPage() {
                               treats the move as a regular lesson, and the swimmer has no
                               level yet), so its row offers one "message us" button below.
                               A checked-in lesson is happening: nothing to move. */}
-                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && (
+                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && (
                           <button
                             onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
                             disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
@@ -3552,6 +3713,13 @@ export default function DashboardPage() {
                                 onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'))}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.trialContact')}
+                              </button>
+                            )
+                            // Invited by another family: answered above.
+                            if (isInviteToMe(booking)) return (
+                              <button onClick={toInvites}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #d6cbf2', background: 'transparent', color: '#6d4fc2', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                {t('dash.up.answerInvite')}
                               </button>
                             )
                             // An invitation not yet accepted is withdrawn, not

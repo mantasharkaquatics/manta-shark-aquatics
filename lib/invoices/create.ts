@@ -19,6 +19,8 @@
 // same second can still race for the same number, a collision is retried with a
 // fresh one rather than thrown away.
 
+import { getTodayLA } from '@/lib/date'
+
 type Svc = any
 
 export class InvoiceNumberUnavailable extends Error {
@@ -56,7 +58,9 @@ export async function insertInvoice(
       )
     }
 
-    const invoice_number = `MSA-${new Date().getFullYear()}-${String(n).padStart(4, '0')}`
+    // The year in Los Angeles, as the invoice's date prints: the server's own
+    // clock is UTC, so a sale after 4pm on Dec 31 was numbered next year.
+    const invoice_number = `MSA-${getTodayLA().slice(0, 4)}-${String(n).padStart(4, '0')}`
     const { data, error } = await svc
       .from('invoices')
       .insert({ ...row, invoice_number })

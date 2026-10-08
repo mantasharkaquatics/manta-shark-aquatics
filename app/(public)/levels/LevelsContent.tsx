@@ -10,6 +10,7 @@ import { stageColor, mixHex, onColor } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import { useFamilyStatus } from '@/lib/use-family-status'
 
 /* goalCount must match the number of levels.N.goal.M keys in the locale files.
    Those goals are written by hand -- they are the promise the page makes to a
@@ -105,6 +106,7 @@ const css = `
 
 export default function LevelsContent() {
   const t = useT()
+  const { signedIn, allAssessed } = useFamilyStatus()
   const locale = useLocale()
   const [activeLevel, setActiveLevel] = useState(0)
   const [openAccordion, setOpenAccordion] = useState<number | null>(null)
@@ -262,9 +264,13 @@ export default function LevelsContent() {
             {t('levels.cta.p2b')}
           </p>
           <div className="b-ctas">
-            <Link href="/register" className="b-btn gold">{t('levels.cta.button')}</Link>
+            {/* A signed-in parent is not sent to a blank register form (found
+                2026-10-08): their account, or booking once every swimmer has a level. */}
+            {signedIn
+              ? <Link href={allAssessed ? '/booking' : '/dashboard'} className="b-btn gold">{t(allAssessed ? 'common.ctaBookLesson' : 'common.ctaMyAccount')}</Link>
+              : <Link href="/register" className="b-btn gold">{t('levels.cta.button')}</Link>}
           </div>
-          <p className="l-note">{t('levels.cta.note')}</p>
+          {!signedIn && <p className="l-note">{t('levels.cta.note')}</p>}
         </div>
       </section>
     </BrandRoot>

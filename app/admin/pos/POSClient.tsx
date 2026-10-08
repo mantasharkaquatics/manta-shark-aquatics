@@ -85,7 +85,13 @@ export default function POSClient() {
       if (tiers.length > 0) setTeamTierId(tiers[0].id)
     }).catch(() => {})
   }, [])
-  const [readerStatus, setReaderStatus] = useState<'init' | 'none' | 'connected'>('init')
+  // 'none': no reader is registered yet (the school has not bought one).
+  // 'error': there should be one but it could not be reached.
+  const [readerStatus, setReaderStatus] = useState<'init' | 'none' | 'error' | 'connected'>('init')
+  // With no reader, card cannot be taken at all; start on cash so the desk
+  // is not left looking at a Charge button that never turns on.
+  const readerDown = readerStatus === 'none' || readerStatus === 'error'
+  const readerUnavailable = (st: 'none' | 'error') => { setReaderStatus(st); setPayMethod('cash') }
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,21 +108,26 @@ export default function POSClient() {
         const term = StripeTerminal.create({
           onFetchConnectionToken: async () => {
             const res = await fetch('/api/stripe/terminal/connection-token', { method: 'POST' })
-            const data = await res.json()
-            if (data.error) throw new Error(data.error)
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok || data.error || !data.secret) throw new Error(data.error || 'connection token failed')
             return data.secret
           },
-          onUnexpectedReaderDisconnect: () => { if (mounted) setReaderStatus('none') },
+          onUnexpectedReaderDisconnect: () => { if (mounted) setReaderStatus('error') },
         })
         if (!mounted) return
         setTerminal(term)
-        const dr = await term.discoverReaders({ simulated: true }) as any
+        // Stripe's simulated reader only when asked for (test mode). It used to
+        // be hard-coded, so a real reader could never have been found.
+        const dr = await term.discoverReaders({ simulated: process.env.NEXT_PUBLIC_STRIPE_TERMINAL_SIMULATED === 'true' }) as any
         if (!mounted) return
+        if (dr.error) { readerUnavailable('error'); return }
         if (dr.discoveredReaders?.length > 0) {
           const cr = await term.connectReader(dr.discoveredReaders[0]) as any
-          setReaderStatus(cr.error ? 'none' : 'connected')
-        } else { setReaderStatus('none') }
-      } catch { if (mounted) setReaderStatus('none') }
+          if (!mounted) return
+          if (cr.error) readerUnavailable('error')
+          else setReaderStatus('connected')
+        } else { readerUnavailable('none') }
+      } catch { if (mounted) readerUnavailable('error') }
     }
     init()
     return () => { mounted = false }
@@ -125,8 +136,20 @@ export default function POSClient() {
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return }
     const timer = setTimeout(async () => {
+      // Commas, parentheses and quotes are .or() syntax: typed into the box
+      // ("Smith, John") they broke the filter and nothing came back. A full
+      // name ("John Smith") matched no single column, so it also found
+      // nobody; two words now also try first + last name, either order.
+      const q = search.replace(/[,()"\\]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (!q) { setSearchResults([]); return }
+      const conds = [`first_name.ilike.%${q}%`, `last_name.ilike.%${q}%`, `email.ilike.%${q}%`]
+      const words = q.split(' ')
+      if (words.length >= 2) {
+        const a = words[0], b = words[words.length - 1]
+        conds.push(`and(first_name.ilike.%${a}%,last_name.ilike.%${b}%)`, `and(first_name.ilike.%${b}%,last_name.ilike.%${a}%)`)
+      }
       const { data } = await supabase.from('parents').select('id, first_name, last_name, email')
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`).limit(6)
+        .or(conds.join(',')).limit(6)
       setSearchResults(data || [])
     }, 300)
     return () => clearTimeout(timer)
@@ -434,13 +457,13 @@ export default function POSClient() {
   const reset = () => {
     setStep('select'); setSelectedParent(null); setTopupDollars(String(TOPUP_PRESETS[1])); setBonusPoints(''); setIsTrial(false)
     setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
-    setStudents([]); setSelectedStudentId(null); setPayMethod('card'); setIsTeam(false); setTeamMonths('1')
+    setStudents([]); setSelectedStudentId(null); setPayMethod(readerDown ? 'cash' : 'card'); setIsTeam(false); setTeamMonths('1')
     setSearch(''); setSearchResults([]); setError(null); setRecovery(null); setProcessing(false); setShowCashConfirm(false)
 
   }
 
   const readerDot = readerStatus === 'connected' ? '#10b981' : readerStatus === 'init' ? '#f59e0b' : '#6b7280'
-  const readerLabel = readerStatus === 'connected' ? t('admin.pos.reader.connected') : readerStatus === 'init' ? t('admin.pos.reader.init') : t('admin.pos.reader.none')
+  const readerLabel = readerStatus === 'connected' ? t('admin.pos.reader.connected') : readerStatus === 'init' ? t('admin.pos.reader.init') : readerStatus === 'error' ? t('admin.pos.reader.error') : t('admin.pos.reader.none')
 
   // Cash confirmation modal
   if (cashConfirmOpen) {
@@ -829,9 +852,9 @@ export default function POSClient() {
           )}
           <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
+            {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : payMethod === 'card' && readerDown ? t('admin.pos.cta.useCash') : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
           </button>
-          {payMethod === 'card' && readerStatus === 'none' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.noReader')}</p>}
+          {readerDown && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{readerStatus === 'error' ? t('admin.pos.readerError') : t('admin.pos.noReader')}</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.readerReady')}</p>}
         </div>
       </div>

@@ -6,6 +6,9 @@ import { requireStaff, requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { isLevelNumber } from '@/lib/levels'
 import { pendingOverlay, pictureAsOf } from '@/lib/skill-progress-sync'
+import { NOT_REAL_BOOKING_STATUSES } from '@/app/coach/real-booking'
+
+const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff()
@@ -18,6 +21,39 @@ export async function GET(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  /* A coach reads only a swimmer in a lesson they teach (owner, 2026-10-08).
+     This answered any student id for any staff member, so a coach account
+     could read every child's name, level and scores. Same test as the report
+     itself (/api/coach/lesson-note): the session is this coach's, and the
+     swimmer has a real booking in it -- or, for an hour lesson, in its other
+     half (a real booking sharing a lesson_group_id with one in this session).
+     Both coach screens that call this pass the session the swimmer is booked
+     in. Admins are unchanged. */
+  if (staff.role === 'coach') {
+    const { data: caller } = await supabase
+      .from('coaches').select('id').eq('auth_user_id', staff.user.id).eq('is_active', true).maybeSingle()
+    if (!caller || !classSessionId) return NextResponse.json({ error: 'Not your lesson' }, { status: 403 })
+    const { data: session } = await supabase
+      .from('class_sessions').select('id, coach_id').eq('id', classSessionId).maybeSingle()
+    if (!session || session.coach_id !== caller.id) {
+      return NextResponse.json({ error: 'Not your lesson' }, { status: 403 })
+    }
+    const { data: inSession } = await supabase
+      .from('bookings').select('student_id, lesson_group_id')
+      .eq('class_session_id', classSessionId).not('status', 'in', NOT_REAL)
+    const rows: { student_id: string | null; lesson_group_id: string | null }[] = inSession || []
+    let booked = rows.some(b => b.student_id === studentId)
+    const groups = [...new Set(rows.map(b => b.lesson_group_id).filter((g): g is string => !!g))]
+    if (!booked && groups.length > 0) {
+      const { data: inGroup } = await supabase
+        .from('bookings').select('id')
+        .eq('student_id', studentId).in('lesson_group_id', groups)
+        .not('status', 'in', NOT_REAL).limit(1)
+      booked = !!inGroup?.length
+    }
+    if (!booked) return NextResponse.json({ error: 'This swimmer is not booked in this lesson.' }, { status: 403 })
+  }
 
   const { data: student } = await supabase
     .from('students')
@@ -36,6 +72,8 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('student_id', studentId)
       .eq('class_session_id', classSessionId)
+      // A report an admin sent back is the coach's to file again.
+      .neq('status', 'rejected')
       .limit(1)
     todayLocked = !!(todayHistoryRows && todayHistoryRows.length > 0)
   } else {
@@ -44,6 +82,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('student_id', studentId)
       .eq('session_date', today)
+      .neq('status', 'rejected')
       .limit(1)
     todayLocked = !!(todayHistoryRows && todayHistoryRows.length > 0)
   }
@@ -110,7 +149,12 @@ export async function GET(req: NextRequest) {
      reports still in Reviews are laid over it: the recorder opens on the marks
      they last sent, and the next report carries them forward rather than
      quietly sending the older approved values back. */
-  if (!assessment) Object.assign(progressMap, await pendingOverlay(supabase, studentId))
+  const pending = assessment ? {} : await pendingOverlay(supabase, studentId)
+  Object.assign(progressMap, pending)
+  // Which of those marks are still waiting in Reviews, so the Today panel can
+  // say "pending" instead of looking like the report never arrived.
+  const skillIds = new Set((skills || []).map((k: { id: string }) => k.id))
+  const pendingSkillIds = Object.keys(pending).filter(id => skillIds.has(id))
 
   return NextResponse.json({
     // In an assessment the student row still has no level; `level` here is the
@@ -120,6 +164,7 @@ export async function GET(req: NextRequest) {
     assessment,
     skills: skills || [],
     progress: progressMap,
+    pendingSkillIds,
     todayLocked,
     coachDefaultLanguage: me?.default_note_language || 'en'
   })
@@ -160,7 +205,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Each skill score must be a whole number from 0 to 100' }, { status: 400 })
     }
   }
-  if (!coach_id) return NextResponse.json({ error: 'This session has no assigned coach' }, { status: 400 })
+  if (!coach_id) return NextResponse.json({ error: 'This session has no assigned coach', code: 'no_coach' }, { status: 400 })
 
   // Verify coach exists
   const { data: coach } = await supabase
@@ -184,7 +229,7 @@ export async function POST(req: NextRequest) {
   // coach's Progress page. Written here, the scores would go straight into
   // the live table with no level and nothing to review.
   if (!gateStudent?.current_level) {
-    return NextResponse.json({ error: 'This swimmer has no level yet. Assign one on the Levels page first.' }, { status: 409 })
+    return NextResponse.json({ error: 'This swimmer has no level yet. Assign one on the Levels page first.', code: 'no_level' }, { status: 409 })
   }
 
   let allowed: Set<string> | null = null

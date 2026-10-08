@@ -17,12 +17,17 @@ export default async function CoachLayout({ children }: { children: React.ReactN
     { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  // Coaches sign in with a PIN; the parent login page has nothing for them.
+  if (!user) redirect('/coach-login')
   // Same off-boarding gate as the API routes: an inactive coach is sent away
-  // from the portal, not just refused by the endpoints behind it.
-  const { data: coach } = await supabase.from('coaches').select('id, first_name, last_name')
-    .eq('auth_user_id', user.id).eq('is_active', true).single()
+  // from the portal, not just refused by the endpoints behind it. Not to
+  // /dashboard -- that page sends anyone with a coach row back here, and the
+  // two bounced off each other forever. The PIN page signs them out and says
+  // the account is no longer active.
+  const { data: coach } = await supabase.from('coaches').select('id, first_name, last_name, is_active')
+    .eq('auth_user_id', user.id).maybeSingle()
   if (!coach) redirect('/dashboard')
+  if (!coach.is_active) redirect('/coach-login?inactive=1')
 
   // The portal carries its own language, taken from the coach's account, and
   // persist={false} keeps it there: a coach who reads Chinese at the pool should

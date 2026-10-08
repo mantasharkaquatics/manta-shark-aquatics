@@ -59,17 +59,42 @@
 
 ## 3. 排程
 
-- [ ] 把補抓手續費排進 cron-job.org（每天一次即可）：
-      `POST /api/admin/finance/sync-fees`，帶 header `x-internal-key: <CRON_SECRET>`。
-      ACH 收款要結算後才有手續費，webhook 當下抓不到，靠這個補。
-      也可以不排，改成需要時到 Finance 頁按按鈕。
+網站本身不會自己跑任何排程（Vercel Hobby 的 cron 不可靠，已全部搬到 cron-job.org）。
+下面每一個工作都只有 cron-job.org 去打它時才會做；沒排上就是**安靜地不做**，
+網站和 email 不會有任何錯誤訊息。
+
+共同設定：網址都是 `https://www.mantasharkaquatics.net` 開頭；時區選
+`America/Los_Angeles`；開啟 save responses；`<CRON_SECRET>` 是 Vercel production
+環境變數 `CRON_SECRET` 的值。**Vercel 上一定要有 `CRON_SECRET`**：沒設的話
+這些路由一律回 401（2026-10-08 起，`lib/cron-auth.ts`），工作就全部停擺。
+
+| 工作 | 方法與網址 | 時間 | Header | 不排會怎樣 |
+|---|---|---|---|---|
+| cleanup-pending | `GET /api/cron/cleanup-pending-bookings` | 每 15 分鐘（`*/15 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | 沒付款的評估課、一對二邀請、購物車會一直佔住時段 |
+| sms-reminder | `GET /api/cron/sms-reminder` | 每 30 分鐘（`*/30 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | 上課前一天的簡訊提醒不會寄 |
+| monthly-reports | `GET /api/cron/monthly-reports` | 每小時第 5 分（`5 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | AI 月報不會產生，也不會寄給家長 |
+| daily-points | `GET /api/cron/daily-points` | 每天一次，清晨，例如 3:10（`10 3 * * *`） | `Authorization: Bearer <CRON_SECRET>` | 見下方 |
+| sync-fees | `POST /api/admin/finance/sync-fees` | 每天一次即可 | `x-internal-key: <CRON_SECRET>`（注意：不是 Authorization） | ACH 收款的 Stripe 手續費不會補進 Finance 頁（也可以不排，需要時到 Finance 頁按按鈕） |
+
+- [x] cleanup-pending（cron-job.org 名稱「MSA cleanup-pending every 15min」）
+- [x] sms-reminder（「MSA sms-reminder 25h window / 30min」）
+- [ ] monthly-reports —— 2026-09-30 正在新增，建好後確認有一次 200
+- [ ] **daily-points —— 還沒排上 cron-job.org（2026-10-08 確認清單裡沒有）。**
+      這支一次做五件事，全站只有它會做：贈點滿一年到期、轉介紹雙方各 40 點、
+      評估後 60 天內上滿 8 堂發 85 點折抵、補課券到期前一週提醒並把過期的券
+      標成過期、固定班最後一堂前三週寄續報信。沒排的話這些全部不會發生，
+      可是網站和 email 都跟家長說會有。建好後手動 Run 一次，回應裡應看到
+      `referralsAwarded`、`assessmentCreditsAwarded`、`renewalsSent` 等欄位。
+- [ ] sync-fees（選擇性）
+- [ ] 刪掉 cron-job.org 上的「token-convert」：它打的路由已隨舊代幣制度移除，
+      每晚都失敗。
 
 ## 4. 讓 Google 找得到
 
 兩個地方要同時改，只改一個沒有用：
 
 - [ ] `app/robots.ts` 第 8 行 `SEARCH_ENGINES_ALLOWED = false` → `true`
-- [ ] `app/layout.tsx` 第 25–26 行的 `robots: { index: false, … }` 整塊刪掉
+- [ ] `app/layout.tsx` metadata 裡標著 `PRE-LAUNCH` 的 `robots: { index: false, … }` 整塊刪掉
 
 ## 5. 法務
 

@@ -3,9 +3,13 @@ import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
 import {
-  generateMonth, approveReport, sendReadyMonths, lessonsByStudent,
+  generateMonth, approveReport, sendReadyMonths, emailPendingReports, emailFamilyReports, lessonsByStudent,
   isMonth, monthOf, monthEnd, previousMonth, nextMonth,
 } from '@/lib/monthly-reports'
+
+/** A database row as the API returns it (untyped client). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any
 
 export const runtime = 'nodejs'
 // Writing reports waits on the model; approving waits on two translations.
@@ -28,24 +32,37 @@ export async function GET(req: NextRequest) {
     month = newest?.[0]?.month || (monthEnd(monthOf(today)) === today ? monthOf(today) : previousMonth(monthOf(today)))
   }
 
-  const [{ data: rows }, { data: allMonths }, eligible] = await Promise.all([
+  // The month menu runs from the oldest month with reports to the newest.
+  // It used to read every report's month in one go, which stopped at 1,000
+  // rows and dropped months from the menu (found 2026-10-08); the two ends
+  // are two one-row reads.
+  const [{ data: rows }, { data: oldest }, { data: newestRow }, eligible] = await Promise.all([
     svc.from('monthly_reports')
       .select('id, student_id, parent_id, month, status, data, summary, focus, summary_i18n, focus_i18n, generated_at, approved_at, sent_at, emailed_at, feedback, feedback_comment, feedback_at')
       .eq('month', month),
-    svc.from('monthly_reports').select('month'),
+    svc.from('monthly_reports').select('month').order('month', { ascending: true }).limit(1),
+    svc.from('monthly_reports').select('month').order('month', { ascending: false }).limit(1),
     lessonsByStudent(svc, month).then(r => r.byStudent.size).catch(() => null),
   ])
+  const allMonths: { month: string }[] = []
+  const first = oldest?.[0]?.month
+  const lastMonth = newestRow?.[0]?.month
+  if (isMonth(first) && isMonth(lastMonth)) {
+    // Bounded, in case of a stray far-past row: ten years of months at most.
+    for (let m = lastMonth; m >= first && allMonths.length < 120; m = previousMonth(m)) allMonths.push({ month: m })
+  }
   const studentIds = (rows || []).map((r: any) => r.student_id)
   const parentIds = [...new Set((rows || []).map((r: any) => r.parent_id))]
   const noteIds = (rows || []).flatMap((r: any) => (r.data?.notes || []).map((n: any) => n.id))
   const [{ data: students }, { data: parents }, { data: notes }, { data: noteTrans }] = await Promise.all([
     studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : { data: [] },
-    parentIds.length ? svc.from('parents').select('id, first_name, last_name').in('id', parentIds) : { data: [] },
+    parentIds.length ? svc.from('parents').select('id, first_name, last_name, email').in('id', parentIds) : { data: [] },
     noteIds.length ? svc.from('lesson_notes').select('id, note, language').in('id', noteIds) : { data: [] },
     noteIds.length ? svc.from('lesson_note_translations').select('lesson_note_id, language, text').in('lesson_note_id', noteIds) : { data: [] },
   ])
   const studentName = new Map((students || []).map((s: any) => [s.id, s.full_name]))
   const parentName = new Map((parents || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
+  const parentHasEmail = new Map((parents || []).map((p: Row) => [p.id, !!p.email]))
   const noteText = new Map((notes || []).map((n: any) => [n.id, n.note]))
   const noteLang = new Map((notes || []).map((n: any) => [n.id, n.language]))
   const trans = new Map<string, Record<string, string>>()
@@ -55,6 +72,8 @@ export async function GET(req: NextRequest) {
     ...r,
     studentName: studentName.get(r.student_id) || r.data?.studentName || '',
     parentName: parentName.get(r.parent_id) || '',
+    // Released but not emailed: the page says so, and offers to send it.
+    parentHasEmail: parentHasEmail.get(r.parent_id) ?? true,
     noteTexts: (r.data?.notes || []).map((n: any) => ({ date: n.date, coachName: n.coachName, text: noteText.get(n.id) || '' })),
     // For "Preview as family": each note in the language it was recorded in, and its translations.
     previewNotes: (r.data?.notes || []).map((n: any) => ({
@@ -91,9 +110,21 @@ export async function POST(req: NextRequest) {
   }
 
   const id = String(body.id || '')
-  const { data: row } = await svc.from('monthly_reports').select('id, student_id, month, status').eq('id', id).maybeSingle()
-  if (!row) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
-  if (row.status === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
+  const { data: row } = await svc.from('monthly_reports').select('id, student_id, parent_id, month, status').eq('id', id).maybeSingle()
+  if (!row) return NextResponse.json({ error: 'Report not found', code: 'not_found' }, { status: 404 })
+
+  // The family's email for this month, now: one that has not gone (a failed
+  // send, or one past the hourly retries), or again for a family who says it
+  // never arrived. Released reports only.
+  if (action === 'email') {
+    if (row.status !== 'sent') return NextResponse.json({ error: 'This report has not been released yet', code: 'not_sent' }, { status: 409 })
+    const r = await emailFamilyReports(svc, row.parent_id, String(row.month), { force: true })
+    if (r === 'no_email') return NextResponse.json({ error: 'This family has no email address', code: 'no_email' }, { status: 409 })
+    if (r !== 'sent') return NextResponse.json({ error: 'The email did not go out. Try again in a minute.', code: 'email_failed' }, { status: 502 })
+    return NextResponse.json({ ok: true, emailedAt: new Date().toISOString() })
+  }
+
+  if (row.status === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family', code: 'already_sent' }, { status: 409 })
 
   if (action === 'regenerate') {
     const r = await generateMonth(svc, row.month, { budgetMs: 25_000, studentIds: [row.student_id] })
@@ -123,8 +154,13 @@ export async function POST(req: NextRequest) {
     const result = await approveReport(svc, id, auth.admin.id, summary, focus)
     if (result === 'sent') return NextResponse.json({ error: 'This report has already been sent to the family' }, { status: 409 })
     if (result === 'translation') return NextResponse.json({ error: 'The translation did not come back, so nothing was approved. Try again in a minute.' }, { status: 502 })
-    // The last approval of a finished month sends the whole month.
-    const sent = await sendReadyMonths(svc).catch(e => { console.error('monthly reports: send after approve failed', e); return [] })
+    // The last approval of a finished month releases the whole month. The
+    // emails start here, a few seconds' worth; the hourly cron sends the rest
+    // and retries any that fail (lib/monthly-reports emailPendingReports).
+    const sent = await sendReadyMonths(svc).catch(e => { console.error('monthly reports: release after approve failed', e); return [] })
+    if (sent.some(r => r.sent > 0)) {
+      await emailPendingReports(svc, { budgetMs: 10_000 }).catch(e => console.error('monthly reports: email after approve failed', e))
+    }
     return NextResponse.json({ ok: true, sent })
   }
 

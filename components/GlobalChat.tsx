@@ -33,8 +33,19 @@ export default function GlobalChat() {
       if (data?.id) await claimGuestChat()
       if (alive) setParentId(data?.id ?? null)
     }
-    supabase.auth.getUser().then(({ data: { user } }) => apply(user?.id))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => { apply(session?.user?.id) })
+    /* The subscription alone, as in Navbar (found 2026-10-08): subscribing
+       replays INITIAL_SESSION, so an extra getUser() ran the parents lookup and
+       claimGuestChat twice for every page load. TOKEN_REFRESHED, or a repeat
+       event for the same account, changes nothing here. setTimeout: Supabase
+       warns that calling the client inside this callback can deadlock. */
+    let lastUid: string | null | undefined
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') return
+      const uid = session?.user?.id ?? null
+      if (uid === lastUid) return
+      lastUid = uid
+      setTimeout(() => { apply(uid ?? undefined) }, 0)
+    })
     return () => { alive = false; subscription.unsubscribe() }
   }, [])
 

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // Every assessment booking, newest first, with its lesson time: the page
     // has to tell "booked, not taken yet" from "taken" from "the school
     // cancelled it" (found 2026-10-07). A swimmer has only a handful.
-    svc.from('bookings').select('id, status, cancellation_reason, created_at, class_session_id')
+    svc.from('bookings').select('id, status, cancellation_reason, created_at, class_session_id, pending_expires_at')
       .eq('student_id', studentId).eq('is_trial', true).order('created_at', { ascending: false }).limit(20),
     // Paid (e.g. at POS) but not yet scheduled: an unused assessment credit exists
     svc.from('lesson_credits').select('id')
@@ -65,8 +65,11 @@ export async function GET(req: NextRequest) {
   // cancelled (found 2026-10-07).
   //   eligible         -- may book (and pay for) an assessment
   //   prepaid          -- paid, not scheduled yet: pick a time
-  //   booked           -- an assessment booking that has not ended yet
-  //                       (held for payment or confirmed)
+  //   awaiting_payment -- held for the family but not paid yet; it is paid
+  //                       or cancelled on the dashboard, and the hold ends at
+  //                       pendingExpiresAt (found 2026-10-08: it read
+  //                       "booked, waiting for the assessment")
+  //   booked           -- a paid assessment booking that has not ended yet
   //   school_cancelled -- the newest assessment was cancelled by the school;
   //                       it is still owed and the desk will rebook it (the
   //                       same test as the admin Reviews card,
@@ -89,10 +92,12 @@ export async function GET(req: NextRequest) {
     return !cs.end_time || toMin(cs.end_time) > nowMin
   }
   const newest = trials[0]
-  let reason: 'eligible' | 'prepaid' | 'booked' | 'school_cancelled' | 'done'
+  const held = active.find(b => b.status === 'pending_payment')
+  let reason: 'eligible' | 'prepaid' | 'awaiting_payment' | 'booked' | 'school_cancelled' | 'done'
   if (st.current_level != null) reason = 'done'
   else if (hasCredit) reason = 'prepaid'
   else if (eligible) reason = 'eligible'
+  else if (held) reason = 'awaiting_payment'
   else if (active.some(notEnded)) reason = 'booked'
   else if (!hasActiveTrial && st.trial_used_at && newest?.status === 'cancelled'
     && (SCHOOL_CANCEL_REASONS as readonly string[]).includes(newest.cancellation_reason)) reason = 'school_cancelled'
@@ -105,5 +110,6 @@ export async function GET(req: NextRequest) {
     hasActiveTrial,
     hasLevel: st.current_level != null,
     reason,
+    pendingExpiresAt: held?.pending_expires_at ?? null,
   })
 }

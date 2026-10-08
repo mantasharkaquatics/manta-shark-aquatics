@@ -15,6 +15,12 @@ const MAX_PER_HOUR = 5
 // Per network, on top of the per-number limit: one machine looping through
 // many different numbers was never slowed by the per-number count.
 const MAX_PER_IP_PER_HOUR = 10
+// Account lookups per network, one budget shared with
+// app/api/auth/send-email-otp (found 2026-10-08): "already registered" used
+// to be answered before any limit, so the endpoint could be asked about every
+// number on a list for free. Every answer counts, taken or not.
+const REGISTER_LOOKUP_SCOPE = 'register-lookup'
+const MAX_LOOKUPS_PER_IP_PER_HOUR = 30
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
@@ -32,6 +38,15 @@ export async function POST(req: NextRequest) {
   const supabase = serviceClient()
 
   if (context === 'register') {
+    const lookup = await takeSlots(supabase, [
+      { scope: REGISTER_LOOKUP_SCOPE, key: ipHash(req), max: MAX_LOOKUPS_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    ])
+    if (lookup.result === 'error') {
+      return NextResponse.json({ error: 'Failed to verify phone number. Please try again.' }, { status: 500 })
+    }
+    if (lookup.result === 'limited') {
+      return NextResponse.json({ error: 'Too many codes requested from this network. Please try again later.', code: 'OTP_IP_HOURLY_CAP' }, { status: 429 })
+    }
     // Same reasoning as the email check: a coach's number is already on file.
     const taken = await phoneHasAccount(supabase, normalizedPhone)
     if (taken === null) {

@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05
 
 export async function POST(req: NextRequest) {
   try {
-    const { planId, studentId, points: pointsDollars } = await req.json()
+    const { planId, studentId, points: requestedDollars, settleArrears } = await req.json()
 
     // Swim Team is still a monthly membership and still comes through here.
     // Everything else is now a points top-up.
@@ -136,6 +136,18 @@ export async function POST(req: NextRequest) {
     // Not a package any more: the parent names a dollar amount and the wallet
     // is credited one point per dollar. lib/points.ts holds what a lesson
     // costs; nothing about the price of lessons belongs in this route.
+    // Settling arrears (owner, 2026-10-08): a family whose payment came back
+    // pays exactly what it owes -- at least the minimum top-up, the rest of
+    // which stays as purchased points -- instead of a whole 10-lesson pack.
+    // Worked out here from the wallet, not taken from the page.
+    let pointsDollars = requestedDollars
+    if (settleArrears === true) {
+      const svcW = createSvcClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { data: w } = await svcW.from('point_wallets').select('balance_purchased').eq('parent_id', parent.id).maybeSingle()
+      const owed = w && Number(w.balance_purchased) < 0 ? Math.ceil(-Number(w.balance_purchased)) : 0
+      if (owed <= 0) return NextResponse.json({ error: 'NO_ARREARS' }, { status: 400 })
+      pointsDollars = Math.max(owed, MIN_TOPUP_DOLLARS)
+    }
     const dollars = Math.floor(Number(pointsDollars))
     if (!Number.isFinite(dollars) || dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS) {
       return NextResponse.json({ error: 'INVALID_AMOUNT' }, { status: 400 })

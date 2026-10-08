@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
 import { addDaysStr, issueVoucher, VOUCHER_DAYS } from '@/lib/vouchers'
+import { allRows } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
@@ -25,8 +26,12 @@ export async function GET() {
     parentIds.length ? svc.from('parents').select('id, first_name, last_name').in('id', parentIds) : Promise.resolve({ data: [] as any[] }),
     studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : Promise.resolve({ data: [] as any[] }),
     bookingIds.length ? svc.from('bookings').select('id, class_session_id').in('id', bookingIds) : Promise.resolve({ data: [] as any[] }),
-    // For the issue form: every family and their swimmers.
-    svc.from('parents').select('id, first_name, last_name, students(id, full_name, current_level)').order('last_name'),
+    // For the issue form: every family and their swimmers. Paged: one read
+    // stopped at the API's 1,000-row cap, and families late in name order
+    // could not be given a voucher (found 2026-10-08). id breaks name ties so
+    // pages cannot overlap.
+    allRows(() => svc.from('parents').select('id, first_name, last_name, students(id, full_name, current_level)').order('last_name').order('id'))
+      .then(r => { if (r.error) console.error('vouchers families: read failed:', r.error.message || r.error); return r }),
   ])
   const sessIds = [...new Set((bs || []).map((b: any) => b.class_session_id))]
   const { data: sess } = sessIds.length

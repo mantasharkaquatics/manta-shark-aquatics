@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { NAV_GROUPS } from './nav-groups'
 import { useT } from '@/lib/i18n/provider'
+import { useUnreadChats } from './components/MessagesNavBadge'
 
 function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
@@ -16,12 +17,18 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   const [reviewCount, setReviewCount] = useState<number | null>(null)
   useEffect(() => {
     let alive = true
-    fetch('/api/admin/review-count')
+    const load = (fresh: boolean) => fetch('/api/admin/review-count' + (fresh ? '?fresh=1' : ''))
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (alive && d && typeof d.total === 'number') setReviewCount(d.total) })
       .catch(() => {})
-    return () => { alive = false }
+    load(false)
+    // Reviews clears cards without reloading the page; it says so here.
+    const onChange = () => { load(true) }
+    window.addEventListener('admin:reviews-changed', onChange)
+    return () => { alive = false; window.removeEventListener('admin:reviews-changed', onChange) }
   }, [pathname])
+  // Conversations waiting for a person (an AI handoff, or a parent writing in).
+  const unreadChats = useUnreadChats(pathname)
 
   return (
     <>
@@ -56,6 +63,11 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
                     {item.href === '/admin/reviews' && reviewCount !== null && reviewCount > 0 && (
                       <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
                         {reviewCount > 99 ? '99+' : reviewCount}
+                      </span>
+                    )}
+                    {item.href === '/admin/messages' && unreadChats > 0 && (
+                      <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
+                        {unreadChats > 99 ? '99+' : unreadChats}
                       </span>
                     )}
                   </Link>

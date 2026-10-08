@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 
@@ -9,8 +8,16 @@ type ImpactLesson = { start: string; end: string; course_type_id: string | null;
 
 type TimeOff = { id: string; date: string; reason: string | null; created_at: string; start_time: string | null; end_time: string | null }
 
+// The route's refusals that the form already has words for.
+const SUBMIT_ERROR_KEYS: Record<string, string> = {
+  date: 'coach.timeOff.errDate',
+  past: 'coach.timeOff.errPast',
+  times: 'coach.timeOff.errTimes',
+  order: 'coach.timeOff.errOrder',
+  clash: 'coach.timeOff.errClash',
+}
+
 export default function CoachTimeOffClient({
-  coach,
   timeOffList: initial,
   lockedIds: initialLocked,
   today,
@@ -20,7 +27,6 @@ export default function CoachTimeOffClient({
   lockedIds: string[]
   today: string
 }) {
-  const supabase = createClient()
   const t = useT()
   const locale = useLocale()
   const [timeOffList, setTimeOffList] = useState<TimeOff[]>(initial)
@@ -123,13 +129,18 @@ export default function CoachTimeOffClient({
       if (lessons && lessons.length > 0) { setConfirmKey(key); return }
     }
     setSubmitting(true)
-    const { data, error: err } = await supabase
-      .from('coach_time_off')
-      .insert({ coach_id: coach.id, date, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime })
-      .select()
-      .single()
-    if (err) {
-      setError(t('coach.timeOff.errSend'))
+    // Through the server (found 2026-10-08): a browser insert ran nothing, so
+    // the desk was never told about lessons this time off covers. The route
+    // saves it and, when lessons are booked in it, alerts the desk.
+    const res = await fetch('/api/coach/time-off', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, reason: reason || null, start_time: allDay ? null : startTime, end_time: allDay ? null : endTime }),
+    }).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    const data: TimeOff | null = res?.ok ? json?.item ?? null : null
+    if (!data) {
+      setError(t(SUBMIT_ERROR_KEYS[String(json?.code || '')] || 'coach.timeOff.errSend'))
     } else {
       setTimeOffList(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
       setDate('')
@@ -138,7 +149,9 @@ export default function CoachTimeOffClient({
       setStartTime('')
       setEndTime('')
       setConfirmKey('')
-      setSuccess(t('coach.timeOff.done', { date: formatDate(date) }))
+      setSuccess(Number(json?.affected) > 0
+        ? t('coach.timeOff.doneNotified', { date: formatDate(date) })
+        : t('coach.timeOff.done', { date: formatDate(date) }))
     }
     setSubmitting(false)
   }

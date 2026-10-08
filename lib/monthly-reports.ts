@@ -21,13 +21,17 @@
 
 import { POLISH_MODEL, SUPPORTED_NOTE_LANGUAGES, LANGUAGE_NAMES } from '@/lib/ai/models'
 import { loadGlossary } from '@/lib/ai/translate-note'
-import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, laWallTimeToUtcMs } from '@/lib/date'
 import { getT, tDb, type Locale } from '@/lib/i18n/all'
 import { stageProgress, stageNameKey, type StageProgress } from '@/lib/levels'
 import { masteryOf, MASTERY_LABEL } from '@/lib/mastery'
 import { TEAM_SLUG } from '@/lib/points'
 import { sendEmail } from '@/lib/email'
 import { allRows, allRowsIn } from '@/lib/db-paging'
+
+/** A database row as the API returns it (untyped client). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any
 
 type Svc = any
 
@@ -227,8 +231,23 @@ export async function buildReportData(
   for (const l of lessons) if (l.coachName) count.set(l.coachName, (count.get(l.coachName) || 0) + 1)
   const mainCoach = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-  // Skills of the current level, and where each stood at both ends of the month.
-  const level = student?.current_level != null ? Number(student.current_level) : null
+  // The level and stage as they stood at the END of the month, not today: a
+  // report written (or rewritten) in the first days of the next month used to
+  // take the swimmer's level and stage of that day, so a September report read
+  // "L4 Stage 1" with L4's skills all at zero because the swimmer moved up on
+  // October 2nd (found 2026-10-08). The first level/stage change after the
+  // month's last day says where they were before it; with none, today's
+  // values are the month-end values.
+  const { data: laterMoves } = await svc.from('level_upgrades')
+    .select('from_level, from_stage, upgraded_at').eq('student_id', studentId)
+    .gte('upgraded_at', new Date(laWallTimeToUtcMs(nextMonth(month), '00:00')).toISOString())
+    .order('upgraded_at', { ascending: true }).limit(1)
+  const firstAfter = laterMoves?.[0]
+  const levelAtEnd = firstAfter ? firstAfter.from_level : student?.current_level
+  const stageAtEnd = firstAfter ? firstAfter.from_stage : student?.current_stage
+
+  // Skills of that level, and where each stood at both ends of the month.
+  const level = levelAtEnd != null && levelAtEnd !== '' ? Number(levelAtEnd) : null
   let stages: StageProgress[] = []
   let stageSkills: ReportData['stageSkills'] = []
   let otherSkills: NonNullable<ReportData['otherSkills']> = []
@@ -247,7 +266,7 @@ export async function buildReportData(
     const atStart = percentsAt(hist || [], d => d < month)
     const list = (skills || []).map((s: any) => ({ id: s.id, name: s.name, stage: Number(s.stage) || 1, sort: Number(s.sort_order) || 0 }))
     stages = stageProgress(list, atEnd)
-    const stored = Number(student?.current_stage)
+    const stored = Number(stageAtEnd)
     stage = (stored === 1 || stored === 2 || stored === 3 ? stored : (stages.find(p => !p.complete)?.stage ?? 3)) as 1 | 2 | 3
     stageSkills = list.filter((s: any) => s.stage === stage).sort((a: any, b: any) => a.sort - b.sort)
       .map((s: any) => ({ id: s.id, name: s.name, start: atStart[s.id] ?? 0, end: atEnd[s.id] ?? 0 }))
@@ -544,10 +563,18 @@ export async function approveReport(svc: Svc, id: string, adminId: string, summa
 // ---- Sending ---------------------------------------------------------------------
 
 /**
- * Sends every month that is ready: all of its reports approved, and the month
- * over (today is on or after the 1st of the next one). The rows are marked sent
- * first -- that is what puts them on the dashboard -- and then each family gets
- * one email naming their swimmers. Safe to run as often as you like.
+ * Releases every month that is ready: all of its reports approved, and the
+ * month over (today is on or after the 1st of the next one). Marking the rows
+ * sent is what puts them on the families' dashboards, the whole month at once
+ * (owner's rule). Safe to run as often as you like.
+ *
+ * It no longer emails. The emails used to go out here, one family after
+ * another inside the same request that released the month (the last
+ * "Approve", or the cron after up to 45 s of writing), so a timeout or a
+ * refused send left families on "sent" with no email, and nothing ever looked
+ * at them again (found 2026-10-08). The email is now per family and tracked:
+ * emailPendingReports sends what has not gone, a family at a time, within a
+ * time budget, and the hourly cron retries whatever is still unsent.
  */
 export async function sendReadyMonths(svc: Svc, today = getTodayLA()) {
   const { data: waiting, error: waitErr } = await allRows(() => svc.from('monthly_reports')
@@ -574,34 +601,93 @@ export async function sendReadyMonths(svc: Svc, today = getTodayLA()) {
     const { data: claimed } = await svc.from('monthly_reports')
       .update({ status: 'sent', sent_at: new Date().toISOString() })
       .eq('month', month).eq('status', 'approved')
-      .select('id, parent_id, student_id')
+      .select('id')
     result.push({ month, sent: (claimed || []).length, heldBy: 0, heldEarly: 0 })
-    if (!claimed?.length) continue
-    await emailFamilies(svc, month, claimed)
   }
   return result
 }
 
-async function emailFamilies(svc: Svc, month: string, rows: { id: string; parent_id: string; student_id: string }[]) {
-  const parentIds = [...new Set(rows.map(r => r.parent_id))]
-  const [{ data: parents }, { data: students }] = await Promise.all([
-    svc.from('parents').select('id, email, first_name, preferred_language').in('id', parentIds),
-    svc.from('students').select('id, full_name').in('id', rows.map(r => r.student_id)),
-  ])
-  const nameOf = new Map<string, string>((students || []).map((s: any) => [s.id, s.full_name]))
-  for (const p of parents || []) {
-    const mine = rows.filter(r => r.parent_id === p.id)
-    if (!p.email || mine.length === 0) continue
-    try {
-      const ok = await sendEmail({
-        type: 'monthly_report', to: p.email, parentName: p.first_name || '',
-        lang: p.preferred_language || 'en', month,
-        studentNames: mine.map(r => nameOf.get(r.student_id) || '').filter(Boolean),
-        reportId: mine[0].id,
-      })
-      if (ok) await svc.from('monthly_reports').update({ emailed_at: new Date().toISOString() }).in('id', mine.map(r => r.id))
-    } catch (e) {
-      console.error(`monthly report ${month}: email to parent ${p.id} failed`, e)
-    }
+/** How long after release a report's email is still retried (once an hour, by the cron). */
+export const EMAIL_RETRY_DAYS = 7
+/** Resend takes about two emails a second; one at a time with a gap stays under it. */
+const EMAIL_GAP_MS = 600
+
+/**
+ * Emails every family whose released reports have not been emailed yet -- one
+ * email per family per month naming all their swimmers, as before -- until
+ * the time budget runs out. emailed_at on a report is the family's sent
+ * status: it is claimed before the send (so two runs cannot both send) and
+ * given back when the send fails, so the next run tries again. Reports
+ * released more than EMAIL_RETRY_DAYS ago are left alone (a bad address
+ * would otherwise be tried every hour forever); the admin page shows them as
+ * not emailed, with a button to send by hand (emailFamilyReports).
+ * A family with no email on file is skipped and shows the same way.
+ */
+export async function emailPendingReports(svc: Svc, opts: { budgetMs?: number } = {}) {
+  const started = Date.now()
+  const budget = opts.budgetMs ?? 20_000
+  const since = new Date(Date.now() - EMAIL_RETRY_DAYS * 86400000).toISOString()
+  const { data: rows, error } = await allRows(() => svc.from('monthly_reports')
+    .select('id, parent_id, student_id, month')
+    .eq('status', 'sent').is('emailed_at', null).gte('sent_at', since)
+    .order('id'))
+  if (error) throw new Error('monthly report: unsent emails read failed: ' + (error.message || error))
+  const families = new Map<string, { parentId: string; month: string }>()
+  for (const r of rows) families.set(`${r.parent_id}|${r.month}`, { parentId: r.parent_id, month: String(r.month) })
+  let emailed = 0, failed = 0, skipped = 0
+  for (const { parentId, month } of families.values()) {
+    if (Date.now() - started > budget) break
+    const r = await emailFamilyReports(svc, parentId, month)
+    if (r === 'sent') emailed++
+    else if (r === 'failed') failed++
+    else skipped++
+    if (r === 'sent' || r === 'failed') await new Promise(res => setTimeout(res, EMAIL_GAP_MS))
   }
+  return { waiting: families.size, emailed, failed, skipped }
+}
+
+/**
+ * The one email to one family for one month: every report of theirs that is
+ * released. `force` sends again even when it already went (the admin's
+ * "send again" for a family who says they never got it).
+ */
+export async function emailFamilyReports(svc: Svc, parentId: string, month: string, { force = false } = {}): Promise<'sent' | 'failed' | 'no_email' | 'nothing'> {
+  const { data: mine } = await svc.from('monthly_reports')
+    .select('id, student_id, emailed_at').eq('parent_id', parentId).eq('month', month).eq('status', 'sent')
+  const rows = (mine || []).filter((r: Row) => force || !r.emailed_at)
+  if (rows.length === 0) return 'nothing'
+  const { data: p } = await svc.from('parents').select('id, email, first_name, preferred_language').eq('id', parentId).maybeSingle()
+  if (!p?.email) return 'no_email'
+
+  // The claim: only the run that stamps the rows sends.
+  const claimAt = new Date().toISOString()
+  let claim = svc.from('monthly_reports').update({ emailed_at: claimAt }).in('id', rows.map((r: Row) => r.id))
+  if (!force) claim = claim.is('emailed_at', null)
+  const { data: claimed } = await claim.select('id, student_id')
+  if (!claimed || claimed.length === 0) return 'nothing'
+
+  let ok = false
+  try {
+    const { data: students } = await svc.from('students').select('id, full_name')
+      .in('id', (mine || []).map((r: Row) => r.student_id))
+    const nameOf = new Map<string, string>((students || []).map((s: Row) => [s.id, s.full_name]))
+    ok = await sendEmail({
+      type: 'monthly_report', to: p.email, parentName: p.first_name || '',
+      lang: p.preferred_language || 'en', month,
+      studentNames: (mine || []).map((r: Row) => nameOf.get(r.student_id) || '').filter(Boolean),
+      reportId: (mine || [])[0].id,
+    })
+  } catch (e) {
+    console.error(`monthly report ${month}: email to parent ${parentId} failed`, e)
+  }
+  if (!ok) {
+    // Give the claim back so the next run tries again. A forced resend puts
+    // back what was there before (null where it had never gone).
+    for (const r of rows) {
+      await svc.from('monthly_reports').update({ emailed_at: force ? (r.emailed_at ?? null) : null })
+        .eq('id', r.id).eq('emailed_at', claimAt)
+    }
+    return 'failed'
+  }
+  return 'sent'
 }

@@ -19,7 +19,7 @@ export default async function CoachTimeOffPage() {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/coach-login')
 
   const { data: coach } = await supabase
     .from('coaches')

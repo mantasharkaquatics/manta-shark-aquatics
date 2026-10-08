@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
     .eq('id', recommendation_id)
     .single()
 
-  if (!rec) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!rec) return NextResponse.json({ error: 'Not found', code: 'not_found' }, { status: 404 })
   // Two admins, or one double click: the second answer must not move the
   // swimmer again or write a second history row.
   if (rec.status !== 'pending') {
-    return NextResponse.json({ error: 'This recommendation has already been answered' }, { status: 409 })
+    return NextResponse.json({ error: 'This recommendation has already been answered', code: 'already_answered' }, { status: 409 })
   }
 
   const levelToAssign = action === 'modified' ? final_level : rec.recommended_level
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     .select('id')
   if (claimErr) return NextResponse.json({ error: claimErr.message }, { status: 500 })
   if (!claimed || claimed.length === 0) {
-    return NextResponse.json({ error: 'This recommendation has already been answered' }, { status: 409 })
+    return NextResponse.json({ error: 'This recommendation has already been answered', code: 'already_answered' }, { status: 409 })
   }
 
   // A rejection is the admin's veto. The student's level and the upgrade

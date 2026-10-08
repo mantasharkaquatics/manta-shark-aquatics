@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { levelNameKey } from '@/lib/levels'
 import { STAGES } from '@/lib/levels'
+import { MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 import { isRealBooking } from './real-booking'
 
 
@@ -22,6 +22,8 @@ type Booking = {
   status: string
   lesson_group_id: string | null
   is_trial?: boolean
+  /** The session this booking is in (app/coach/page.tsx), kept through the hour merge. */
+  session_id?: string
   // Null when the embed comes back without the student (RLS, deleted row).
   students: Student | null
 }
@@ -42,6 +44,8 @@ type Skill = {
   sort_order: number
   stage: number | null
   progress: number
+  /** Sent by a coach, still waiting for an admin in Reviews. */
+  pending: boolean
 }
 
 export default function CoachDashboardClient({
@@ -53,7 +57,6 @@ export default function CoachDashboardClient({
   todaySessions: Session[]
   today: string
 }) {
-  const supabase = createClient()
   const t = useT()
   const locale = useLocale()
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
@@ -66,6 +69,7 @@ export default function CoachDashboardClient({
   const [openStage, setOpenStage] = useState<number | null>(null)
   const [allComplete, setAllComplete] = useState(false)
   const [levelName, setLevelName] = useState('')
+  const [loadFailed, setLoadFailed] = useState(false)
 
   const formatTime = (t: string) => {
     const [h, m] = t.split(':')
@@ -84,7 +88,13 @@ export default function CoachDashboardClient({
   // B's and paint A's skills under B's name; a stale response is ignored.
   const latestStudentRef = useRef<string | null>(null)
 
-  const loadStudentSkills = async (student: Student) => {
+  /* Read through /api/coach/progress, the same answer the Progress page gets
+     (found 2026-10-08). This panel used to read student_skill_progress
+     straight from the browser, which only changes once an admin approves a
+     report: a coach who had just sent one came back here to the old numbers
+     and took it for unsaved. The route lays the coach's reports still in
+     Reviews over the approved scores and says which ones those are. */
+  const loadStudentSkills = async (student: Student, sessionId: string | undefined) => {
     latestStudentRef.current = student.id
     const stale = () => latestStudentRef.current !== student.id
     setSelectedStudent(student)
@@ -92,60 +102,36 @@ export default function CoachDashboardClient({
     setOpenStage(null)
     setAllComplete(false)
     setLevelName('')
+    setLoadFailed(false)
     setLoadingSkills(true)
 
-    // Convert level_number to int for the query
-    const levelNum = parseInt(student.current_level || '')
-    if (isNaN(levelNum)) {
+    // No level yet: the lesson is an assessment, scored on the Progress page.
+    if (isNaN(parseInt(student.current_level || '')) || !sessionId) {
       setLoadingSkills(false)
       return
     }
 
-    const { data: levelData } = await supabase
-      .from('levels')
-      .select('id, name')
-      .eq('level_number', levelNum)
-      .single()
-
+    const res = await fetch(`/api/coach/progress?student_id=${encodeURIComponent(student.id)}&class_session_id=${encodeURIComponent(sessionId)}`).catch(() => null)
+    const data = res && res.ok ? await res.json().catch(() => null) : null
     if (stale()) return
-    if (!levelData) {
+    if (!data) {
+      setLoadFailed(true)
       setLoadingSkills(false)
       return
     }
 
-    setLevelName(levelData.name)
-
-    const { data: skillList } = await supabase
-      .from('skills')
-      .select('id, name, sort_order, stage')
-      .eq('level_id', levelData.id)
-      .eq('is_active', true)
-      .order('stage')
-      .order('sort_order')
-
-    if (stale()) return
-    if (!skillList || skillList.length === 0) {
-      setLoadingSkills(false)
-      return
-    }
-
-    const { data: progressData } = await supabase
-      .from('student_skill_progress')
-      .select('skill_id, progress_percent')
-      .eq('student_id', student.id)
-      .in('skill_id', skillList.map(s => s.id))
-
-    if (stale()) return
-    const progressMap: Record<string, number> = {}
-    progressData?.forEach(p => { progressMap[p.skill_id] = p.progress_percent })
-
-    const combined = skillList.map(s => ({
-      ...s,
+    setLevelName(data.student?.level?.name || '')
+    if (data.student) setSelectedStudent({ ...student, current_stage: data.student.current_stage ?? student.current_stage })
+    const progressMap: Record<string, number> = data.progress || {}
+    const pending = new Set<string>(Array.isArray(data.pendingSkillIds) ? data.pendingSkillIds : [])
+    const combined: Skill[] = ((data.skills || []) as Omit<Skill, 'progress' | 'pending'>[]).map(s => ({
+      id: s.id, name: s.name, sort_order: s.sort_order, stage: s.stage,
       progress: progressMap[s.id] ?? 0,
+      pending: pending.has(s.id),
     }))
 
     setSkills(combined)
-    setAllComplete(combined.every(s => s.progress === 100))
+    setAllComplete(combined.length > 0 && combined.every(s => s.progress === 100))
     setLoadingSkills(false)
   }
 
@@ -206,7 +192,7 @@ export default function CoachDashboardClient({
                     {activeBookings(session).map(booking => (
                       <button
                         key={booking.id}
-                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); if (booking.students) loadStudentSkills(booking.students) }}
+                        onClick={e => { e.stopPropagation(); setSelectedSession(session); setSelectedBooking(booking); if (booking.students) loadStudentSkills(booking.students, booking.session_id || session.id) }}
                         className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
                           selectedStudent?.id === booking.students?.id
                             ? 'bg-[#c9a84c]/20 border border-[#c9a84c]/50'
@@ -272,8 +258,11 @@ export default function CoachDashboardClient({
                   just flows and the page scrolls; the cap stays from md up, where a
                   mouse wheel makes it a convenience rather than a trap. */}
               <div className="p-5 space-y-3 md:max-h-[500px] md:overflow-y-auto">
+                {skills.length > 0 && skills.some(k => k.pending) && (
+                  <p className="text-amber-300/90 text-xs">{t('coach.today.pendingNote')}</p>
+                )}
                 {skills.length === 0 ? (
-                  <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t('coach.today.noSkills') : t('coach.today.assessHint')}</p>
+                  <p className="text-gray-400 text-sm">{loadFailed ? t('coach.progress.loadFailed') : selectedStudent.current_level ? t('coach.today.noSkills') : t('coach.today.assessHint')}</p>
                 ) : STAGES.flatMap(st => {
                   const inStage = skills.filter(k => Number(k.stage || 1) === st)
                   if (inStage.length === 0) return []
@@ -301,10 +290,18 @@ export default function CoachDashboardClient({
                     </button>
                   ), ...(expanded ? inStage : []).map(skill => (
                   <div key={skill.id}>
-                    <div className="flex items-center justify-between mb-2">
+                    {/* The same words the Progress page marks with, not a
+                        percentage, and a "pending review" tag on a mark that is
+                        still waiting for an admin (found 2026-10-08). */}
+                    <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-gray-300 text-sm">{tDb(locale, 'skills', skill.id, skill.name)}</span>
-                      <span className={`text-sm font-semibold ${skill.progress === 100 ? 'text-[#c9a84c]' : 'text-gray-400'}`}>
-                        {skill.progress}%
+                      <span className="flex items-center gap-1.5 flex-shrink-0">
+                        {skill.pending && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 whitespace-nowrap">{t('coach.today.pending')}</span>
+                        )}
+                        <span className="text-sm font-semibold whitespace-nowrap" style={{ color: MASTERY_COLOR[masteryOf(skill.progress)] }}>
+                          {t(masteryKey(masteryOf(skill.progress)))}
+                        </span>
                       </span>
                     </div>
                     {/* A bar, not a row of buttons. This panel is read-only, and six
@@ -312,7 +309,7 @@ export default function CoachDashboardClient({
                         thing anyone does is tap them and conclude the app is broken.
                         Recording happens under Progress, where the chips do work. */}
                     <div className="w-full bg-[#0d1529] rounded-full h-1.5">
-                      <div className="bg-[#c9a84c] h-1.5 rounded-full transition-all" style={{ width: `${skill.progress}%` }} />
+                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${MASTERY_FILL[masteryOf(skill.progress)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(skill.progress)] }} />
                     </div>
                   </div>
                   ))]

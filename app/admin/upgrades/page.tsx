@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AdminUpgradesClient from './AdminUpgradesClient'
+import { allRowsOrLog, allRowsIn } from '@/lib/db-paging'
+
+/** A database row as the API returns it (untyped client). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any
 
 export default async function AdminUpgradesPage() {
   const cookieStore = await cookies()
@@ -60,13 +65,38 @@ export default async function AdminUpgradesPage() {
 
   const { data: levels } = await svc.from('levels').select('id, level_number, name').order('sort_order')
   const { data: skills } = await svc.from('skills').select('id, name, sort_order, level_id, stage').order('stage').order('sort_order')
-  const { data: students } = await svc.from('students').select('id, full_name, current_level, current_stage, is_active, parent_id').eq('is_active', true).order('full_name')
+  // Every active swimmer, a page at a time: the API stops at 1,000 rows, and
+  // the search below only finds who was read (found 2026-10-08). Ordered by a
+  // unique key after the name so the pages do not overlap.
+  const students = await allRowsOrLog('levels page students', () => svc.from('students')
+    .select('id, full_name, current_level, current_stage, is_active, parent_id')
+    .eq('is_active', true).order('full_name').order('id'))
 
-  const parentIds = [...new Set((students || []).map((s: any) => s.parent_id).filter(Boolean))]
-  const { data: parents } = await svc.from('parents').select('id, first_name, last_name').in('id', parentIds)
+  const parentIds = [...new Set(students.map((s: Row) => s.parent_id).filter(Boolean))] as string[]
+  const { data: parents, error: parentsErr } = await allRowsIn(parentIds, c => svc.from('parents')
+    .select('id, first_name, last_name').in('id', c).order('id'))
+  if (parentsErr) console.error('levels page parents: read failed:', parentsErr.message || parentsErr)
   const pMap: Record<string, any> = {}
-  for (const p of parents || []) pMap[p.id] = p
-  const studentsNorm = (students || []).map((s: any) => ({ ...s, parents: pMap[s.parent_id] || null }))
+  for (const p of parents) pMap[p.id] = p
+
+  /* A swimmer with no level who has a paid Swim Assessment and no assessment
+     report: setting a level by hand here would leave the family without the
+     report, its email and the 85-point credit. The page points such a swimmer
+     to Reviews, where the missed assessment is backfilled (owner, 2026-10-08). */
+  const unleveled = students.filter((s: Row) => !s.current_level).map((s: Row) => s.id as string)
+  const [{ data: trials }, { data: reports }] = await Promise.all([
+    allRowsIn(unleveled, c => svc.from('bookings').select('id, student_id')
+      .in('student_id', c).eq('is_trial', true).eq('status', 'confirmed').order('id')),
+    allRowsIn(unleveled, c => svc.from('student_assessments').select('student_id')
+      .in('student_id', c).order('student_id')),
+  ])
+  const reported = new Set(reports.map((r: Row) => r.student_id))
+  const paidAssessment = new Set(trials.map((b: Row) => b.student_id).filter((id: string) => !reported.has(id)))
+  const studentsNorm = students.map((s: Row) => ({
+    ...s,
+    parents: pMap[s.parent_id] || null,
+    paidAssessment: !s.current_level && paidAssessment.has(s.id),
+  }))
 
 
 

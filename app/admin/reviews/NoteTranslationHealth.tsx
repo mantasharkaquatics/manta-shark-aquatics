@@ -24,6 +24,7 @@ export default function NoteTranslationHealth() {
     try {
       const r = await fetch('/api/admin/note-translations', { method: 'POST' })
       const j = await r.json()
+      if (!r.ok) throw new Error('repair failed')
       setResult(j.left === 0
         ? t(j.fixed === 1 ? 'admin.reviews.tr.fixedOne' : 'admin.reviews.tr.fixedMany', { n: j.fixed ?? '' })
         : t('admin.reviews.tr.fixedPartial', { fixed: j.fixed ?? '', tried: j.tried ?? '', left: j.left ?? '' }))

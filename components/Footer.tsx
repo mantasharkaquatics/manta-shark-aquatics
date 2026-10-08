@@ -60,7 +60,7 @@ export default function Footer() {
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '16px' }}>{t('footer.contact')}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.62)', lineHeight: 1.8 }}>
-              info@mantasharkaquatics.net<br />
+              <a href="mailto:info@mantasharkaquatics.net" style={{ color: 'inherit', textDecoration: 'none' }}>info@mantasharkaquatics.net</a><br />
               {t('footer.location')}<br />
               {t('footer.hours')}
             </p>
@@ -76,8 +76,11 @@ export default function Footer() {
             </div>
           </div>
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
-          {t('footer.copyright', { year: 2026 })}
+        {/* The year is the visitor's, not a literal. Pages are prerendered, so
+            after New Year the server HTML can still say last year until the
+            next deploy; the browser corrects it, hence suppressHydrationWarning. */}
+        <div suppressHydrationWarning style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
+          {t('footer.copyright', { year: new Date().getFullYear() })}
         </div>
       </div>
     </footer>

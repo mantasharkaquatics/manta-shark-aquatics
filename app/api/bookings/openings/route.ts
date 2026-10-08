@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { isBlocked, type CoachBlock } from '@/lib/availability'
+import { type CoachBlock } from '@/lib/availability'
 import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
-import { renewalHolds, heldSeats, allRows, allRowsIn } from '@/lib/fixed-classes'
+import { renewalHolds, allRows, allRowsIn } from '@/lib/fixed-classes'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
+import { privateSlotOpen } from '@/lib/bookings/private-slot'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -220,24 +221,13 @@ export async function GET(req: NextRequest) {
           // Only today can fall inside the lead time; checking every slot of 60
           // days reformatted the clock thousands of times.
           if (ds === today && !meetsLeadTime(ds, t)) continue
-          if (isBlocked(blocks, c.id, t, toTime(end))) continue
-          if (busy.some(iv => m < iv.e && end > iv.s)) continue
-          if (heldSeats(holds, c.id, ds, m, end, ct.id) > 0) continue
-          // A lesson of this kind already at this time has room or it does not.
-          const same = sess.find((s: any) => s.course_type_id === ct.id && toMin(s.start_time) === m)
-          if (same && same.enrolled_count + seats > same.max_students) continue
-          // Anything ELSE running in the coach's lane blocks the time, whether
-          // or not a same-course session exists here. This used to be skipped
-          // whenever one did -- and cancellations leave empty 'open' sessions
-          // behind -- so a time showed as bookable over another course's
-          // lesson and the server then refused it (found 2026-10-05). Same
-          // rule as evalSlot in lib/fixed-classes.
-          if (sess.some((s: any) => {
-            if (s === same || s.enrolled_count <= 0) return false
-            const ss = toMin(s.start_time)
-            const se = s.end_time ? toMin(s.end_time) : ss + LESSON_MIN
-            return m < se && end > ss
-          })) continue
+          // Blocks, the swimmers' own lessons, renewal holds, room for every
+          // seat in a same-course lesson, and anything ELSE in the coach's
+          // lane (found 2026-10-05: an empty session left by a cancellation
+          // used to hide the lesson overlapping it). Shared with the public
+          // preview (api/public/schedule) and the same rule as evalSlot in
+          // lib/fixed-classes.
+          if (!privateSlotOpen({ coachId: c.id, date: ds, startMin: m, endMin: end, courseTypeId: ct.id, seats, blocks, sessions: sess, busy, holds })) continue
           ;((days[ds] ||= {})[t] ||= []).push(c.id)
         }
       }

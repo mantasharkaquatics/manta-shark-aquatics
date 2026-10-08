@@ -15,16 +15,35 @@ type ImpactItem = {
   student_name: string; parent_name: string; course_name: string; course_type_id?: string | null; date: string; time: string
 }
 
-export default function AdminTimeOffClient({ coaches, initialList, pastList, impactStats, today }: {
+type Stat = { pending: number; notified: number; handled: number }
+
+// The badge numbers, from a block's impact list: the same rule the page uses
+// on the server (page.tsx), counted in lessons rather than booking rows.
+function statFromItems(items: ImpactItem[]): Stat {
+  const lessons = (xs: ImpactItem[]) => new Set(xs.map(i => i.lesson_key || i.booking_id)).size
+  return {
+    pending: lessons(items.filter(i => !i.notice_sent_at)),
+    notified: lessons(items.filter(i => i.status !== 'cancelled' && i.notice_sent_at)),
+    handled: lessons(items.filter(i => i.status === 'cancelled' && i.notice_sent_at)),
+  }
+}
+
+export default function AdminTimeOffClient({ coaches, initialList, pastList, impactStats: initialStats, impactError, today }: {
   coaches: Coach[]
   initialList: Item[]
   pastList: Item[]
-  impactStats: Record<string, { pending: number; notified: number; handled: number }>
+  impactStats: Record<string, Stat>
+  /** The page could not read the affected lessons, so the badges are missing. */
+  impactError?: boolean
   today: string
 }) {
   const t = useT()
   const locale = useLocale()
   const [list, setList] = useState<Item[]>(initialList)
+  // Kept in step with every impact list this page loads: a block created here
+  // and a block just handled used to keep the badge they had at page load
+  // (none for a new block) until a reload (found 2026-10-08).
+  const [impactStats, setImpactStats] = useState<Record<string, Stat>>(initialStats)
   const [coachId, setCoachId] = useState('')
   const [date, setDate] = useState('')
   const [allDay, setAllDay] = useState(true)
@@ -51,19 +70,22 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     return `${hh}:${String(m).padStart(2, '0')} ${ap}`
   }
 
-  const loadImpact = async (blockId: string) => {
+  const loadImpact = async (blockId: string): Promise<ImpactItem[] | null> => {
     setImpact(prev => ({ ...prev, [blockId]: { loading: true, items: [], error: '' } }))
     const res = await fetch('/api/admin/time-off/impact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'list', block_id: blockId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    if (!res || !res.ok) {
       setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: [], error: data.error || t('admin.timeOff.err.loadFailed') } }))
-    } else {
-      setImpact(prev => ({ ...prev, [blockId]: { loading: false, items: data.items || [], error: '' } }))
+      return null
     }
+    const items: ImpactItem[] = data.items || []
+    setImpact(prev => ({ ...prev, [blockId]: { loading: false, items, error: '' } }))
+    setImpactStats(prev => ({ ...prev, [blockId]: statFromItems(items) }))
+    return items
   }
 
   const toggleExpand = (id: string) => {
@@ -121,7 +143,16 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       setStartTime('')
       setEndTime('')
       setReason('')
-      setSuccess(t('admin.timeOff.blockCreated'))
+      // Say straight away whether lessons are already booked in the new
+      // block, and open it so the cancel button is right there. "Block
+      // created" alone left the desk thinking nothing needed doing.
+      const items = data.block?.id ? await loadImpact(data.block.id) : null
+      const booked = items ? statFromItems(items).pending : 0
+      if (items === null) setSuccess(t('admin.timeOff.blockCreatedCheck'))
+      else if (booked > 0) {
+        setExpanded(data.block.id)
+        setSuccess(t('admin.timeOff.blockCreatedAffected', { n: booked }))
+      } else setSuccess(t('admin.timeOff.blockCreated'))
     }
     setSubmitting(false)
   }
@@ -257,6 +288,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.timeOff.title')}</h1>
         <p className="text-gray-400 mt-1">{t('admin.timeOff.subtitle')}</p>
+        {impactError && <p className="text-amber-300 text-sm mt-3">{t('admin.timeOff.statsFailed')}</p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">

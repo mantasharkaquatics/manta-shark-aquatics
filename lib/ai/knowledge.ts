@@ -48,7 +48,7 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
       const shape = presetLessons(p)
       return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} × ${shape.slug})` : '$' + p.toLocaleString('en-US')
     }).join(', ')}. A parent wanting a different amount must be sent to the front desk. There is no volume discount on the purchase itself.`,
-    `Swim Assessment (one per swimmer, 30 min, 1-on-1): $${(TRIAL_PRICE_CENTS / 100).toFixed(0)} paid by card, not from the wallet. It is required before any lesson can be booked, because the booking calendar needs the swimmer's level. Taking ${ASSESSMENT_CREDIT_LESSONS} lessons within ${ASSESSMENT_CREDIT_DAYS} days of it earns the fee back as ${ASSESSMENT_POINTS} bonus points (see ASSESSMENT CREDIT).`,
+    `Swim Assessment (one per swimmer, 30 min, 1-on-1): $${(TRIAL_PRICE_CENTS / 100).toFixed(0)} paid by card, not from the wallet. It is required before any lesson can be booked, because the booking calendar needs the swimmer's level. When the swimmer then takes ${ASSESSMENT_CREDIT_LESSONS} lessons within ${ASSESSMENT_CREDIT_DAYS} days of it (paid with purchased points or a make-up voucher; Swim Team does not count; a 60-minute lesson counts as 2), the family gets the fee back as ${ASSESSMENT_POINTS} bonus points (see ASSESSMENT CREDIT).`,
     'Price per swimmer per 30 minutes:',
     ...Object.entries(BASE_POINTS).map(([slug, pts]) => `  ${slug}: ${pts} points ($${pts})`),
     'A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 with two children from the same family pays for two swimmers.',

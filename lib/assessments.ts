@@ -148,6 +148,21 @@ export async function countCreditLessons(
   return paid.filter((b: any) => inWindow.has(b.class_session_id)).length
 }
 
+/** Was this swimmer's Swim Assessment payment taken back (a chargeback or a
+ *  returned payment)? The assessment purchase is found through its
+ *  assessment credit, which every way of paying for one writes. */
+export async function assessmentPaymentReversed(svc: Svc, studentId: string): Promise<boolean> {
+  const { data: credits, error } = await svc.from('lesson_credits')
+    .select('purchase_id').eq('student_id', studentId).eq('is_trial', true)
+  if (error) throw new Error(error.message)
+  const ids = [...new Set((credits || []).map((c: { purchase_id: string | null }) => c.purchase_id).filter(Boolean))] as string[]
+  if (ids.length === 0) return false
+  const { data: rev, error: revErr } = await svc.from('purchases')
+    .select('id').in('id', ids).not('reversed_at', 'is', null).limit(1)
+  if (revErr) throw new Error(revErr.message)
+  return !!(rev && rev.length > 0)
+}
+
 /**
  * Pays every assessment credit that has now reached 8 lessons, and closes the
  * ones whose 60 days are over. Run daily with the other points jobs.
@@ -182,6 +197,23 @@ export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: numb
           .update({ credit_status: 'expired' }).eq('id', r.id).eq('credit_status', 'pending').select('id')
         if (closed && closed.length) expired++
       }
+      continue
+    }
+
+    // An assessment whose payment was charged back (or returned) earns no
+    // credit: the family would get the fee back twice (owner, 2026-10-08).
+    // The webhook closes the credit when the dispute arrives; this catches a
+    // report confirmed after that, which starts out pending again.
+    let reversed = false
+    try { reversed = await assessmentPaymentReversed(svc, r.student_id) } catch (e) {
+      console.error(`assessment credit ${r.id}: could not check the assessment payment:`, e)
+      failed++
+      continue
+    }
+    if (reversed) {
+      const { data: closed } = await svc.from('student_assessments')
+        .update({ credit_status: 'expired' }).eq('id', r.id).eq('credit_status', 'pending').select('id')
+      if (closed && closed.length) expired++
       continue
     }
 

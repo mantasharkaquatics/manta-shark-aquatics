@@ -5,6 +5,9 @@ import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
 import { TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+import { renewalHolds, heldSeats, allRows } from '@/lib/fixed-classes'
+import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
+import { privateSlotOpen } from '@/lib/bookings/private-slot'
 
 // The week ahead, for the public programme pages (owner, 2026-09-28): each of
 // /programs/private, /programs/group and /programs/team shows the open times of
@@ -124,17 +127,25 @@ export async function GET(req: NextRequest) {
   }
 
   const slug = kind === 'private' ? '1on1' : kind === 'semi' ? '1on2' : '1on4'
-  const [{ data: ct }, { data: sessRows }, { data: legacyRows }] = await Promise.all([
+  // The same inputs bookings/openings and bookings/group-classes read (found
+  // 2026-10-07: this preview had fallen behind them): only sessions with
+  // someone in them, paged past the 1,000-row cap; sessions held by a live
+  // 1-on-2 invitation, which look full; and renewal holds. A visitor is
+  // nobody's family, so every family's hold counts.
+  const [{ data: ct }, { data: sessRows }, { data: legacyRows }, inviteHeld, holds] = await Promise.all([
     svc.from('course_types').select('id, max_students, duration_minutes').eq('slug', slug).single(),
-    svc.from('class_sessions').select('coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students')
-      .gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']),
+    allRows(() => svc.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students')
+      .gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']).gt('enrolled_count', 0).order('id')),
     kind === 'group'
       ? Promise.resolve({ data: [] as any[] })
       : svc.from('coach_availability').select('coach_id, day_of_week, start_time, end_time').eq('is_active', true),
+    inviteHeldSessions(svc, { from, to }),
+    renewalHolds(svc, from, to, null),
   ])
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
   const sessBy: Record<string, any[]> = {}
-  for (const s of sessRows || []) (sessBy[s.coach_id + '|' + s.session_date] ||= []).push(s)
+  const sessSeen = new Set((sessRows || []).map(s => s.id))
+  for (const s of [...(sessRows || []), ...inviteHeld.filter(h => !sessSeen.has(h.id))]) (sessBy[s.coach_id + '|' + s.session_date] ||= []).push(s)
   const sStart = (x: any) => toMin(x.start_time)
   const sEnd = (x: any) => x.end_time ? toMin(x.end_time) : sStart(x) + LESSON_MIN
 
@@ -157,8 +168,11 @@ export async function GET(req: NextRequest) {
             if (ds === from && !meetsLeadTime(ds, t)) continue
             if (isBlocked(blocks, cid, t, toTime(m + dur))) continue
             if (sess.some(x => x.course_type_id !== ct.id && x.enrolled_count > 0 && m < sEnd(x) && m + dur > sStart(x))) continue
+            // Seats a renewal hold keeps count as taken (bookings/group-classes).
+            const held = heldSeats(holds, cid, ds, m, m + dur, ct.id)
+            if (held === Infinity) continue
             const own = sess.find(x => x.course_type_id === ct.id && sStart(x) === m)
-            if (own && own.enrolled_count >= ct.max_students) continue
+            if ((own ? own.enrolled_count : 0) + held >= ct.max_students) continue
             seen.set(`${t}|${band}`, { time: t, band })
           }
         }
@@ -169,6 +183,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Private and semi-private: any coach free at that time ──
+  // The booking page's rule (lib/bookings/private-slot), minus the swimmer's
+  // own lessons: a 1-on-2 needs both seats.
+  const seats = kind === 'semi' ? 2 : 1
   const days = dates.map(ds => {
     const dow = dowOf(ds)
     const times = new Set<string>()
@@ -188,11 +205,7 @@ export async function GET(req: NextRequest) {
           const t = toTime(m), end = m + LESSON_MIN
           if (times.has(t)) continue
           if (ds === from && !meetsLeadTime(ds, t)) continue
-          if (isBlocked(blocks, cid, t, toTime(end))) continue
-          const same = sess.find(s => s.course_type_id === ct.id && sStart(s) === m)
-          if (same) {
-            if (same.enrolled_count + 1 > same.max_students) continue
-          } else if (sess.some(s => s.enrolled_count > 0 && m < sEnd(s) && end > sStart(s))) continue
+          if (!privateSlotOpen({ coachId: cid, date: ds, startMin: m, endMin: end, courseTypeId: ct.id, seats, blocks, sessions: sess, holds })) continue
           times.add(t)
         }
       }

@@ -38,7 +38,7 @@ export default async function CoachDashboardPage() {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/coach-login')
 
   const { data: coach } = await supabase
     .from('coaches')
@@ -79,6 +79,9 @@ export default async function CoachDashboardPage() {
     course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
     bookings: (s.bookings || []).filter(isRealBooking).map((b: any) => ({
       ...b,
+      // The booking's own session survives mergeHourHalves: the skills panel
+      // asks /api/coach/progress with it, which checks the swimmer is booked there.
+      session_id: s.id,
       students: Array.isArray(b.students) ? b.students[0] : b.students,
     })),
   }))

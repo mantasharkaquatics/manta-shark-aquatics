@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatTime12h } from '@/lib/date'
 import AdminLessonNoteReview from '../upgrades/AdminLessonNoteReview'
 import AlertModal from '@/components/AlertModal'
@@ -10,6 +12,7 @@ import { LEVEL_NAMES, LEVEL_COLORS, LEVEL_NUMBERS } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey, type Mastery } from '@/lib/mastery'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
+import type { TimeOffActionItem } from '@/lib/time-off'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string }
@@ -21,6 +24,7 @@ type PendingProgress = {
   session_info: { start_time: string; end_time: string; course_name: string; course_type_id?: string | null } | null
   /** Set when this report is a swimmer's assessment: the level arrives with it. */
   assessment?: { recommendation_id: string; recommended_level: number }
+  coach_id?: string | null
 }
 type Recommendation = {
   id: string; recommended_level: number; notes: string | null; created_at: string; previous_recommended_level: number | null
@@ -35,6 +39,17 @@ type MissingProgress = {
   current_level: string | null
   session: { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; ct: { id?: string; name: string } | null; coach: { first_name: string } | null } | null
   existingProgress: Record<string, number>
+  /** The lesson was a paid Swim Assessment (lib/admin/review-queues). */
+  assessment?: boolean
+}
+
+/** A report sent back to its coach, waiting for them to file it again. */
+type SentBack = {
+  id: string
+  student_name: string
+  coach_name: string
+  session_date: string | null
+  reason: string | null
 }
 
 /** A cancelled lesson whose points never reached the wallet (lib/admin/review-queues.ts). */
@@ -63,6 +78,57 @@ function masteryLabel(t: TFunction, m: Mastery): string {
   return m === 0 ? t('admin.progress.mastery0') : t(masteryKey(m))
 }
 
+/**
+ * The admin's words for a failed request. The routes answer in English (for
+ * logs) with a `code`; the cases the desk will meet each have a line here, and
+ * anything else gets the generic line for that button, never the raw English.
+ */
+const ERROR_KEYS: Record<string, string> = {
+  pick_recommendation: 'admin.reviews.err.pickRecommendation',
+  pick_level: 'admin.reviews.err.pickLevel',
+  already_confirmed: 'admin.reviews.err.alreadyDone',
+  already_reviewed: 'admin.reviews.err.alreadyDone',
+  already_answered: 'admin.reviews.err.alreadyDone',
+  already_filed: 'admin.reviews.err.alreadyFiled',
+  has_level: 'admin.reviews.err.hasLevel',
+  no_level: 'admin.reviews.err.noLevel',
+  assessment_no_level: 'admin.reviews.err.noLevel',
+  busy: 'admin.reviews.err.busy',
+  mismatch: 'admin.reviews.err.mismatch',
+  not_found: 'admin.reviews.err.notFound',
+  note_too_long: 'admin.reviews.err.noteTooLong',
+  not_assessment: 'admin.reviews.err.notAssessment',
+  no_coach: 'admin.reviews.err.noCoach',
+  reason_required: 'admin.reviews.sendBack.err.reason',
+  reason_too_long: 'admin.reviews.sendBack.err.reasonTooLong',
+  needs_migration: 'admin.reviews.sendBack.err.migration',
+}
+function errorText(t: TFunction, data: unknown, fallbackKey: string): string {
+  const code = String((data as { code?: unknown } | null)?.code || '')
+  return t(ERROR_KEYS[code] || fallbackKey)
+}
+
+/**
+ * The level a report was scored at: the level most of its snapshot's skills
+ * belong to. Not the swimmer's level today -- a report still waiting after the
+ * swimmer was moved used to list the NEW level's skills, all "not taught",
+ * and hide every mark the coach made (found 2026-10-08).
+ */
+function reportLevelNumber(p: PendingProgress, levels: Level[]): string {
+  if (p.assessment) return String(p.assessment.recommended_level)
+  const byLevel: Record<string, number> = {}
+  const skillLevel = new Map(p.skills.map(sk => [sk.id, sk.level_id]))
+  for (const id of Object.keys(p.snapshot || {})) {
+    const lv = skillLevel.get(id)
+    if (lv) byLevel[lv] = (byLevel[lv] || 0) + 1
+  }
+  const top = Object.entries(byLevel).sort((a, b) => b[1] - a[1])[0]
+  const lvl = top ? levels.find(l => l.id === top[0]) : null
+  return lvl ? String(lvl.level_number) : String(p.student?.current_level ?? '')
+}
+
+const SENDBACK_REASON_MAX = 300
+
 /** "Oct 2, 03:35 PM": the date in the admin's language, the clock time kept as 12-hour English. */
 function dateTimeLabel(iso: string, locale: Locale): string {
   const d = new Date(iso)
@@ -83,6 +149,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   missingProgressList: initialMissing,
   refundOwedList: initialRefundOwed,
   assessmentRebookList,
+  coachTimeOffList = [],
+  sentBackList = [],
 }: {
   adminId: string
   levels: Level[]
@@ -93,18 +161,41 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   missingProgressList: MissingProgress[]
   refundOwedList: RefundOwed[]
   assessmentRebookList: AssessmentRebook[]
+  coachTimeOffList?: TimeOffActionItem[]
+  sentBackList?: SentBack[]
 }) {
   const t = useT()
   const locale = useLocale()
+  const router = useRouter()
   const [recommendations, setRecommendations] = useState(initialRecs)
   const [pendingProgressList, setPendingProgressList] = useState(initialPending)
   const [pastPendingProgressList, setPastPendingProgressList] = useState(initialPastPending)
+  const [missingProgressList, setMissingProgressList] = useState(initialMissing)
+  /* Cards are taken off the screen one by one as they are confirmed; the page
+     is never reloaded for it, so what is typed on the OTHER cards (scores,
+     note text, the assessment's course and frequency) stays (found
+     2026-10-08). When the server's lists do change (router.refresh() after a
+     missing record is filed, which adds a card to the pending list), they are
+     taken in here -- minus anything already handled on this screen. The edits
+     live in their own maps keyed by card id, so they survive that too. */
+  const [handled, setHandled] = useState<Set<string>>(new Set())
+  const [seenProps, setSeenProps] = useState({ initialRecs, initialPending, initialPastPending, initialMissing })
+  if (seenProps.initialRecs !== initialRecs || seenProps.initialPending !== initialPending
+    || seenProps.initialPastPending !== initialPastPending || seenProps.initialMissing !== initialMissing) {
+    setSeenProps({ initialRecs, initialPending, initialPastPending, initialMissing })
+    setRecommendations(initialRecs.filter(x => !handled.has(x.id)))
+    setPendingProgressList(initialPending.filter(x => !handled.has(x.id)))
+    setPastPendingProgressList(initialPastPending.filter(x => !handled.has(x.id)))
+    setMissingProgressList(initialMissing.filter(x => !handled.has(x.id)))
+  }
+  const markHandled = (id: string) => setHandled(prev => new Set(prev).add(id))
+  // The sidebar's count, asked for again (app/admin/AdminNav.tsx).
+  const nudgeBadge = () => { try { window.dispatchEvent(new Event('admin:reviews-changed')) } catch {} }
   const [editingPendingId, setEditingPendingId] = useState<string | null>(null)
   const [editedSnapshots, setEditedSnapshots] = useState<Record<string, Record<string, number>>>({})
   const [editedNotes, setEditedNotes] = useState<Record<string, string>>({})
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
-  const [missingProgressList, setMissingProgressList] = useState(initialMissing)
   const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
   const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
   const [expandedMissing, setExpandedMissing] = useState<Set<string>>(new Set())
@@ -112,10 +203,17 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   const [assessRec, setAssessRec] = useState<Record<string, AssessmentRec>>({})
   const [refundOwedList, setRefundOwedList] = useState(initialRefundOwed)
   const [retryingRefund, setRetryingRefund] = useState<string | null>(null)
+  // Send back to the coach (owner, 2026-10-08): which card has the box open, and its text.
+  const [sendBackOpen, setSendBackOpen] = useState<string | null>(null)
+  const [sendBackReason, setSendBackReason] = useState<Record<string, string>>({})
+  const [sentBack, setSentBack] = useState<SentBack[]>(sentBackList)
+  // Backfilling a missed assessment from its missing-progress card.
+  const [backfillLevel, setBackfillLevel] = useState<Record<string, string>>({})
+  const [backfillRec, setBackfillRec] = useState<Record<string, AssessmentRec>>({})
 
   const waiting = missingProgressList.length + pendingProgressList.length
     + pastPendingProgressList.length + recommendations.length + refundOwedList.length
-    + assessmentRebookList.length
+    + assessmentRebookList.length + coachTimeOffList.length
 
   // One booking at a time; the route re-checks everything before moving points.
   async function retryRefund(r: RefundOwed) {
@@ -171,13 +269,14 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setAlertMsg(data.error || t('admin.reviews.err.reviewFailed'))
+      setAlertMsg(errorText(t, data, 'admin.reviews.err.reviewFailed'))
       setReviewingId(null)
       return
     }
+    markHandled(rec.id)
     setRecommendations(prev => prev.filter(r => r.id !== rec.id))
     setReviewingId(null)
-    window.location.reload()
+    nudgeBadge()
   }
 
   async function reviewProgress(p: PendingProgress) {
@@ -221,15 +320,86 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     if (!res || !res.ok) {
       const data = res ? await res.json().catch(() => ({})) : {}
       setAlertMsg(!res ? t('admin.reviews.err.offline')
-        : (data as any).error || t('admin.reviews.err.publishFailed'))
+        : errorText(t, data, 'admin.reviews.err.publishFailed'))
       setReviewingId(null)
       return
     }
+    markHandled(historyId)
     setPendingProgressList(prev => prev.filter(x => x.id !== historyId))
     setPastPendingProgressList(prev => prev.filter(x => x.id !== historyId))
-    setEditingPendingId(null)
+    if (editingPendingId === historyId) setEditingPendingId(null)
     setReviewingId(null)
-    window.location.reload()
+    nudgeBadge()
+  }
+
+  /* Back to the coach (owner, 2026-10-08): the report is voided, never
+     applied, and the lesson goes back on the coach's Progress page with this
+     reason for them to record again. */
+  async function sendBackReport(p: PendingProgress) {
+    const reason = (sendBackReason[p.id] || '').trim()
+    if (!reason) { setAlertMsg(t('admin.reviews.sendBack.err.reason')); return }
+    setReviewingId(p.id)
+    const res = await fetch('/api/admin/report-sendback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history_id: p.id, reason, recommendation_id: p.assessment?.recommendation_id }),
+    }).catch(() => null)
+    setReviewingId(null)
+    if (!res) { setAlertMsg(t('admin.reviews.err.offline')); return }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setAlertMsg(errorText(t, data, 'admin.reviews.sendBack.err.failed')); return }
+    markHandled(p.id)
+    setPendingProgressList(prev => prev.filter(x => x.id !== p.id))
+    setPastPendingProgressList(prev => prev.filter(x => x.id !== p.id))
+    setSendBackOpen(null)
+    setSentBack(prev => [...prev, {
+      id: p.id, student_name: p.student?.full_name || '', coach_name: p.coach?.first_name || '',
+      session_date: p.session_date, reason: data.reasonSaved === false ? null : reason,
+    }])
+    setAlertMsg(data.reasonSaved === false ? t('admin.reviews.sendBack.doneNoReason') : t('admin.reviews.sendBack.done'))
+    nudgeBadge()
+  }
+
+  /* A paid assessment the coach never filed (owner, 2026-10-08): filed and
+     confirmed here through the same confirm as a coach's assessment card, so
+     the family gets the report, the email and the credit (its 60 days from
+     today). */
+  async function backfillAssessment(s: MissingProgress, shown: Record<string, number>) {
+    const level = backfillLevel[s.id]
+    const rec = backfillRec[s.id]
+    if (!level) { setAlertMsg(t('admin.reviews.err.pickLevel')); return }
+    if (!rec?.course || !rec?.frequency) { setAlertMsg(t('admin.reviews.err.pickRecommendation')); return }
+    setSubmittingMissing(s.id)
+    const res = await fetch('/api/admin/backfill-assessment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_id: s.student_id,
+        class_session_id: s.session?.id,
+        level: Number(level),
+        snapshot: shown,
+        recommended_course: rec.course,
+        weekly_frequency: rec.frequency,
+        recommendation_note: rec.note?.trim() || undefined,
+      }),
+    }).catch(() => null)
+    setSubmittingMissing(null)
+    if (!res) { setAlertMsg(t('admin.reviews.err.offline')); return }
+    const data = await res.json().catch(() => ({}))
+    if (res.ok || data.queued) {
+      markHandled(s.id)
+      setMissingProgressList(prev => prev.filter(x => x.id !== s.id))
+      // Filed but not confirmed: it is now an assessment card in the pending list.
+      if (!res.ok) {
+        setAlertMsg(t('admin.reviews.backfill.queued', { reason: errorText(t, data, 'admin.reviews.err.publishFailed') }))
+        router.refresh()
+      } else {
+        setAlertMsg(t('admin.reviews.backfill.done'))
+      }
+      nudgeBadge()
+      return
+    }
+    setAlertMsg(errorText(t, data, 'admin.reviews.err.submitFailed'))
   }
 
   function setEditedPct(historyId: string, skillId: string, pct: number) {
@@ -263,13 +433,167 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       return
     }
     if (res.ok) {
+      markHandled(listId)
       setMissingProgressList(prev => prev.filter(s => s.id !== listId))
-      window.location.reload()
+      // The record now waits for review: fetch the lists again so its card
+      // appears below, without a reload that would drop other cards' edits.
+      router.refresh()
+      nudgeBadge()
     } else {
       const data = await res.json().catch(() => ({}))
-      setAlertMsg(data.error || t('admin.reviews.err.submitFailed'))
+      setAlertMsg(errorText(t, data, 'admin.reviews.err.submitFailed'))
     }
     setSubmittingMissing(null)
+  }
+
+  /** One pending report card; today's and earlier days' differ only in the header and border. */
+  function pendingCard(p: PendingProgress, past: boolean) {
+    const lvl = p.student?.current_level || ''
+    const skillMap: Record<string, string> = {}
+    for (const sk of p.skills) skillMap[sk.id] = tDb(locale, 'skills', sk.id, sk.name)
+    // Show all skills of the level the report was scored at (incl. missing
+    // from the snapshot), snapshot values as defaults. An assessment's scores
+    // are for the level the coach recommends.
+    const scoredLevel = reportLevelNumber(p, levels)
+    const scoredLvlObj = levels.find(l => String(l.level_number) === scoredLevel)
+    const levelSkillIds = p.skills
+      .filter((sk: any) => scoredLvlObj && sk.level_id === scoredLvlObj.id)
+      .sort((a: any, b: any) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
+    const allEntries: [string, number][] = levelSkillIds.length > 0
+      ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
+      : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
+    // Scored before the swimmer's level was changed: say so, the marks are the old level's.
+    const scoredElsewhere = !p.assessment && !!lvl && !!scoredLevel && scoredLevel !== String(lvl)
+    const isEditing = editingPendingId === p.id
+    const edited = editedSnapshots[p.id] || {}
+    const courseLabel = p.session_info
+      ? (p.assessment ? t('common.assessment') : (p.session_info.course_type_id ? tDb(locale, 'course_types', p.session_info.course_type_id, p.session_info.course_name) : p.session_info.course_name))
+      : ''
+    const busy = reviewingId === p.id
+    return (
+      <div key={p.id} className={`bg-[#111d38] rounded-xl border p-5 ${past ? 'border-orange-500/30' : 'border-[#1e3a6e]'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <p className="text-white font-semibold">{p.student?.full_name}</p>
+            {past ? (
+              <p className="text-gray-400 text-xs">
+                {new Date(p.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}
+                {p.session_info ? ` · ${courseLabel} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
+                {` · ${t('admin.coachName', { name: p.coach?.first_name ?? '' })} · ${lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')}`}
+              </p>
+            ) : (
+              <p className="text-gray-400 text-xs">
+                {p.session_info ? `${courseLabel} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
+                {t('admin.coachName', { name: p.coach?.first_name ?? '' })} · {lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+            {scoredElsewhere && (
+              <p className="text-amber-400 text-xs mt-0.5">{t('admin.reviews.scoredAtLevel', { n: scoredLevel, now: lvl })}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setEditingPendingId(isEditing ? null : p.id)}
+              className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
+            >
+              {isEditing ? t('admin.reviews.doneEditing') : t('admin.progress.edit')}
+            </button>
+            <button
+              onClick={() => setSendBackOpen(sendBackOpen === p.id ? null : p.id)}
+              disabled={busy}
+              className="px-3 py-2 rounded-lg border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/10 transition-all disabled:opacity-50"
+            >
+              {t('admin.reviews.sendBack.button')}
+            </button>
+            <button
+              onClick={() => reviewProgress(p)}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {busy ? t('admin.reviews.publishing')
+                : p.assessment ? t('admin.reviews.confirmLevelPublish', { n: overrideLevel[p.id] || p.assessment.recommended_level })
+                : t('admin.reviews.confirmPublish')}
+            </button>
+          </div>
+        </div>
+        {sendBackOpen === p.id && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+            <p className="text-red-300 text-xs font-semibold mb-1">{t('admin.reviews.sendBack.heading', { name: p.coach?.first_name ?? '' })}</p>
+            <p className="text-gray-500 text-xs mb-2">{t('admin.reviews.sendBack.hint')}</p>
+            <textarea
+              value={sendBackReason[p.id] || ''}
+              onChange={e => setSendBackReason(prev => ({ ...prev, [p.id]: e.target.value.slice(0, SENDBACK_REASON_MAX) }))}
+              rows={2}
+              placeholder={t('admin.reviews.sendBack.placeholder')}
+              className="w-full rounded-lg bg-[#0a1428] border border-[#1e3a6e] text-gray-200 text-sm px-3 py-2 placeholder:text-gray-600 focus:outline-none focus:border-red-400/60"
+            />
+            <div className="flex justify-end gap-2 mt-2">
+              <button onClick={() => setSendBackOpen(null)}
+                className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400 text-xs">{t('common.cancel')}</button>
+              <button onClick={() => sendBackReport(p)} disabled={busy || !(sendBackReason[p.id] || '').trim()}
+                className="px-3 py-1.5 rounded-lg bg-red-500/80 text-white font-semibold text-xs disabled:opacity-50">
+                {busy ? t('admin.reviews.processing') : t('admin.reviews.sendBack.confirm')}
+              </button>
+            </div>
+          </div>
+        )}
+        {p.assessment && (
+          <AssessmentPanel
+            recommendedLevel={p.assessment.recommended_level}
+            level={overrideLevel[p.id]}
+            onLevel={n => setOverrideLevel(prev => ({ ...prev, [p.id]: n }))}
+            rec={assessRec[p.id] || { note: '' }}
+            onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
+          />
+        )}
+        {(p as any).note && (
+          <AdminLessonNoteReview
+            note={(p as any).note}
+            value={editedNotes[p.id] ?? (p as any).note.note}
+            onChange={v => setEditedNotes(prev => ({ ...prev, [p.id]: v }))}
+          />
+        )}
+        {isEditing && (
+          <div className="space-y-2 mt-3">
+            {allEntries.map(([skillId, pct]) => {
+              const skillName = skillMap[skillId] || skillId
+              const p2 = (edited[skillId] ?? pct) as number
+              return (
+                <div key={skillId} className="flex items-center gap-3">
+                  <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                  <div className="flex gap-1">
+                    {MASTERY_LEVELS.map(b => (
+                      <button
+                        key={b}
+                        onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
+                        className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
+                      >{masteryLabel(t, b)}</button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {!isEditing && (
+          <div className="space-y-2 mt-2">
+            {allEntries.map(([skillId, pct]) => {
+              const skillName = skillMap[skillId] || skillId
+              const p2 = (edited[skillId] ?? pct) as number
+              return (
+                <div key={skillId} className="flex items-center gap-3">
+                  <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
+                  <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
+                  </div>
+                  <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{masteryLabel(t, masteryOf(p2))}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -284,6 +608,44 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
       </div>
 
       <NoteTranslationHealth />
+
+      {/* Coach time off covering booked lessons (owner, 2026-10-08): families
+          will arrive to no coach unless the desk acts, so it comes first. It
+          stays until "Cancel & notify" has been run on the Time Off page. */}
+      {coachTimeOffList.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            {t('admin.reviews.timeOff.heading')}
+            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{coachTimeOffList.length}</span>
+          </h2>
+          <p className="text-gray-400 text-xs mb-4">{t('admin.reviews.timeOff.hint')}</p>
+          <div className="space-y-3">
+            {coachTimeOffList.map(o => (
+              <div key={o.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-4 flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-white font-semibold">
+                    {o.coach_name || '—'}
+                    <span className="text-gray-400 font-normal text-sm"> · {new Date(o.date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })} · {o.start_time && o.end_time ? `${formatTime12h(o.start_time)}–${formatTime12h(o.end_time)}` : t('admin.reviews.timeOff.allDay')}</span>
+                  </p>
+                  <p className="text-red-300 text-sm font-semibold mt-0.5">{t('admin.reviews.timeOff.affects', { n: o.lessons.length })}</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {o.lessons.map((l, i) => (
+                      <li key={i} className="text-gray-400 text-xs">
+                        <span className="whitespace-nowrap">{formatTime12h(l.start)}–{formatTime12h(l.end)}</span>
+                        {l.students.length > 0 ? ` · ${l.students.join(', ')}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <Link href="/admin/time-off"
+                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all">
+                  {t('admin.reviews.timeOff.open')}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Refunds not completed: money first. */}
       {refundOwedList.length > 0 && (
@@ -374,49 +736,79 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
           <div className="space-y-4">
             {missingProgressList.map(s => {
               const prog = missingProgress[s.id] || s.existingProgress || {}
+              // A missed assessment is scored against the level the admin picks for it.
+              const backfill = !s.current_level && !!s.assessment
+              const skillLevel = backfill ? (backfillLevel[s.id] || '') : String(s.current_level ?? '')
               const levelSkills = skills.filter(sk => {
                 const lvl = levels.find(l => l.id === sk.level_id)
-                return lvl && String(lvl.level_number) === String(s.current_level)
+                return lvl && skillLevel && String(lvl.level_number) === skillLevel
               })
+              const expanded = expandedMissing.has(s.id)
+              // A backfill starts from nothing on file: only what is marked here.
+              const backfillShown: Record<string, number> = missingProgress[s.id] || {}
               return (
                 <div key={s.id} className="bg-[#111d38] rounded-xl border border-red-500/30 p-5 cursor-pointer"
                   onClick={() => setExpandedMissing(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-4 gap-3">
                     <div>
                       <p className="text-white font-semibold flex items-center gap-2">
                         {s.full_name}
-                        <span className="text-gray-500 text-xs">{expandedMissing.has(s.id) ? '▲' : '▼'}</span>
+                        <span className="text-gray-500 text-xs">{expanded ? '▲' : '▼'}</span>
                       </p>
                       <p className="text-gray-400 text-xs">
                         {s.session?.session_date ? `${new Date(s.session.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })} · ` : ''}
                         {s.session?.session_date === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) && (
                           <span className="text-[#c9a84c] font-semibold">{t('admin.reviews.today')} · </span>
                         )}
-                        {s.session ? `${t('admin.coachName', { name: s.session.coach?.first_name ?? '' })} · ${s.session.ct?.id ? tDb(locale, 'course_types', s.session.ct.id, s.session.ct.name) : s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : t('admin.reviews.scheduled')}
+                        {s.session ? `${t('admin.coachName', { name: s.session.coach?.first_name ?? '' })} · ${s.assessment ? t('common.assessment') : s.session.ct?.id ? tDb(locale, 'course_types', s.session.ct.id, s.session.ct.name) : s.session.ct?.name} · ${formatTime12h(s.session.start_time)}–${formatTime12h(s.session.end_time)}` : t('admin.reviews.scheduled')}
                         {s.current_level ? ` · ${t('admin.levelN', { n: s.current_level })}` : ''}
                       </p>
                     </div>
-                    {/* No level means this was the assessment. Its report carries
-                        the level, and the coach files it on the day from their
-                        Progress page. Once the day has gone that page no longer
-                        lists it, so the way out is a level set by hand first. */}
-                    {!s.current_level ? (
-                      <span className="text-xs text-gray-500 text-right max-w-[260px]">{t('admin.reviews.missing.assessmentHint')}</span>
+                    {/* No level means this lesson was the assessment, whose
+                        report carries the level. The coach files it on the day;
+                        once the day has gone their page no longer lists it, so
+                        a missed one is backfilled here (owner, 2026-10-08) and
+                        goes through the same confirm, report and email. */}
+                    {backfill ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); setExpandedMissing(prev => new Set(prev).add(s.id)) }}
+                        className="px-4 py-2 rounded-lg bg-[#c9a84c]/20 border border-[#c9a84c]/40 text-[#c9a84c] font-semibold text-sm hover:bg-[#c9a84c]/30 transition-all shrink-0"
+                      >
+                        {t('admin.reviews.backfill.open')}
+                      </button>
+                    ) : !s.current_level ? (
+                      <span className="text-xs text-gray-500 text-right max-w-[260px]">{t('admin.reviews.missing.noLevelHint')}</span>
                     ) : (
                     <button
                       onClick={e => { e.stopPropagation(); submitMissingProgress(s.id, s.student_id, s.session?.coach_id || null, s.session?.session_date || null, s.session?.id || null, s.existingProgress || {}) }}
                       disabled={submittingMissing === s.id}
-                      className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50"
+                      className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition-all disabled:opacity-50 shrink-0"
                     >
                       {submittingMissing === s.id ? t('admin.progress.saving') : t('admin.reviews.missing.fillSubmit')}
                     </button>
                     )}
                   </div>
-                  {levelSkills.length > 0 && expandedMissing.has(s.id) && (
+                  {backfill && expanded && (
+                    <div onClick={e => e.stopPropagation()} className="cursor-default">
+                      <p className="text-gray-400 text-xs mb-3">{t('admin.reviews.missing.assessmentHint')}</p>
+                      <AssessmentPanel
+                        recommendedLevel={null}
+                        level={backfillLevel[s.id]}
+                        onLevel={n => {
+                          // A new level is a new list of skills: the marks start over.
+                          if (n !== backfillLevel[s.id]) setMissingProgress(prev => { const x = { ...prev }; delete x[s.id]; return x })
+                          setBackfillLevel(prev => ({ ...prev, [s.id]: n }))
+                        }}
+                        rec={backfillRec[s.id] || { note: '' }}
+                        onRec={next => setBackfillRec(prev => ({ ...prev, [s.id]: next }))}
+                      />
+                    </div>
+                  )}
+                  {levelSkills.length > 0 && expanded && (
                     <div className="space-y-2">
                       {levelSkills.map(sk => {
-                        const pct = prog[sk.id] ?? 0
+                        const pct = (backfill ? backfillShown[sk.id] : prog[sk.id]) ?? 0
                         const options = MASTERY_LEVELS.map(b => MASTERY_VALUE[b])
                         return (
                           <div key={sk.id}>
@@ -429,7 +821,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                                 <button key={v}
                                   onClick={e => { e.stopPropagation(); setMissingProgress(prev => ({
                                     ...prev,
-                                    [s.id]: { ...(prev[s.id] || s.existingProgress || {}), [sk.id]: v }
+                                    [s.id]: { ...(prev[s.id] || (backfill ? {} : s.existingProgress) || {}), [sk.id]: v }
                                   }))}}
                                   className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                                     pct === v
@@ -443,6 +835,17 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                         )
                       })}
                     </div>
+                  )}
+                  {backfill && expanded && (
+                    <button
+                      onClick={e => { e.stopPropagation(); backfillAssessment(s, backfillShown) }}
+                      disabled={submittingMissing === s.id || !backfillLevel[s.id]}
+                      className="mt-4 w-full py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+                    >
+                      {submittingMissing === s.id ? t('admin.reviews.publishing')
+                        : backfillLevel[s.id] ? t('admin.reviews.backfill.confirm', { n: backfillLevel[s.id] })
+                        : t('admin.reviews.err.pickLevel')}
+                    </button>
                   )}
                 </div>
               )
@@ -459,111 +862,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
             <span className="bg-[#c9a84c] text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
-            {pendingProgressList.map(p => {
-              const lvl = p.student?.current_level || ''
-              const skillMap: Record<string, string> = {}
-              for (const sk of p.skills) skillMap[sk.id] = tDb(locale, 'skills', sk.id, sk.name)
-              // Show all skills (incl. missing from snapshot); snapshot values as defaults
-              // An assessment's scores are for the level the coach recommends.
-              const scoredLevel = p.assessment ? String(p.assessment.recommended_level) : String(p.student?.current_level)
-              const levelSkillIds = p.skills
-                .filter((sk: any) => {
-                  const lvlObj = levels.find(l => String(l.level_number) === scoredLevel)
-                  return lvlObj && sk.level_id === lvlObj.id
-                })
-                .sort((a: any, b: any) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
-              const allEntries: [string, number][] = levelSkillIds.length > 0
-                ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
-                : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
-              const isEditing = editingPendingId === p.id
-              const edited = editedSnapshots[p.id] || {}
-              return (
-                <div key={p.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-white font-semibold">{p.student?.full_name}</p>
-                      <p className="text-gray-400 text-xs">
-                        {p.session_info ? `${p.assessment ? t('common.assessment') : (p.session_info.course_type_id ? tDb(locale, 'course_types', p.session_info.course_type_id, p.session_info.course_name) : p.session_info.course_name)} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)} · ` : ''}
-                        {t('admin.coachName', { name: p.coach?.first_name ?? '' })} · {lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')} · {new Date(p.created_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setEditingPendingId(isEditing ? null : p.id)}
-                        className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
-                      >
-                        {isEditing ? t('admin.reviews.doneEditing') : t('admin.progress.edit')}
-                      </button>
-                      <button
-                        onClick={() => reviewProgress(p)}
-                        disabled={reviewingId === p.id}
-                        className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
-                      >
-                        {reviewingId === p.id ? t('admin.reviews.publishing')
-                          : p.assessment ? t('admin.reviews.confirmLevelPublish', { n: overrideLevel[p.id] || p.assessment.recommended_level })
-                          : t('admin.reviews.confirmPublish')}
-                      </button>
-                    </div>
-                  </div>
-                  {p.assessment && (
-                    <AssessmentPanel
-                      recommendedLevel={p.assessment.recommended_level}
-                      level={overrideLevel[p.id]}
-                      onLevel={n => setOverrideLevel(prev => ({ ...prev, [p.id]: n }))}
-                      rec={assessRec[p.id] || { note: '' }}
-                      onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
-                    />
-                  )}
-                  {(p as any).note && (
-                    <AdminLessonNoteReview
-                      note={(p as any).note}
-                      value={editedNotes[p.id] ?? (p as any).note.note}
-                      onChange={v => setEditedNotes(prev => ({ ...prev, [p.id]: v }))}
-                    />
-                  )}
-                  {isEditing && (
-                    <div className="space-y-2 mt-3">
-                      {allEntries.map(([skillId, pct]) => {
-                        const skillName = skillMap[skillId] || skillId
-                        const p2 = (edited[skillId] ?? pct) as number
-                        return (
-                          <div key={skillId} className="flex items-center gap-3">
-                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                            <div className="flex gap-1">
-                              {MASTERY_LEVELS.map(b => (
-                                <button
-                                  key={b}
-                                  onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
-                                  className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{masteryLabel(t, b)}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {!isEditing && (
-                    <div className="space-y-2 mt-2">
-                      {allEntries.map(([skillId, pct]) => {
-                        const skillName = skillMap[skillId] || skillId
-                        const p2 = (edited[skillId] ?? pct) as number
-                        const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
-                        return (
-                          <div key={skillId} className="flex items-center gap-3">
-                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
-                            </div>
-                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{masteryLabel(t, masteryOf(p2))}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {pendingProgressList.map(p => pendingCard(p, false))}
           </div>
         </div>
       )}
@@ -576,116 +875,10 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
             <span className="bg-orange-500 text-[#111d38] text-xs px-2 py-0.5 rounded-full font-bold">{pastPendingProgressList.length}</span>
           </h2>
           <div className="space-y-4">
-            {pastPendingProgressList.map(p => {
-              const lvl = p.student?.current_level || ''
-              const skillMap: Record<string, string> = {}
-              for (const sk of p.skills) skillMap[sk.id] = tDb(locale, 'skills', sk.id, sk.name)
-              // Show all skills (incl. missing from snapshot); snapshot values as defaults
-              // An assessment's scores are for the level the coach recommends.
-              const scoredLevel = p.assessment ? String(p.assessment.recommended_level) : String(p.student?.current_level)
-              const levelSkillIds = p.skills
-                .filter((sk: any) => {
-                  const lvlObj = levels.find(l => String(l.level_number) === scoredLevel)
-                  return lvlObj && sk.level_id === lvlObj.id
-                })
-                .sort((a: any, b: any) => (a.stage || 1) - (b.stage || 1) || a.sort_order - b.sort_order)
-              const allEntries: [string, number][] = levelSkillIds.length > 0
-                ? levelSkillIds.map((sk: any) => [sk.id, (p.snapshot || {})[sk.id] ?? 0])
-                : Object.entries(p.snapshot || {}).map(([k, v]) => [k, v as number])
-              const isEditing = editingPendingId === p.id
-              const edited = editedSnapshots[p.id] || {}
-              return (
-                <div key={p.id} className="bg-[#111d38] rounded-xl border border-orange-500/30 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-white font-semibold">{p.student?.full_name}</p>
-                      <p className="text-gray-400 text-xs">
-                        {new Date(p.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}
-                        {p.session_info ? ` · ${p.assessment ? t('common.assessment') : (p.session_info.course_type_id ? tDb(locale, 'course_types', p.session_info.course_type_id, p.session_info.course_name) : p.session_info.course_name)} · ${formatTime12h(p.session_info.start_time)}–${formatTime12h(p.session_info.end_time)}` : ''}
-                        {` · ${t('admin.coachName', { name: p.coach?.first_name ?? '' })} · ${lvl ? t('admin.levelN', { n: lvl }) : t('admin.reviews.noLevelYet')}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setEditingPendingId(isEditing ? null : p.id)}
-                        className="px-3 py-2 rounded-lg border border-gray-600 text-gray-300 font-semibold text-sm hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all"
-                      >
-                        {isEditing ? t('admin.reviews.doneEditing') : t('admin.progress.edit')}
-                      </button>
-                      <button
-                        onClick={() => reviewProgress(p)}
-                        disabled={reviewingId === p.id}
-                        className="px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-50"
-                      >
-                        {reviewingId === p.id ? t('admin.reviews.publishing')
-                          : p.assessment ? t('admin.reviews.confirmLevelPublish', { n: overrideLevel[p.id] || p.assessment.recommended_level })
-                          : t('admin.reviews.confirmPublish')}
-                      </button>
-                    </div>
-                  </div>
-                  {p.assessment && (
-                    <AssessmentPanel
-                      recommendedLevel={p.assessment.recommended_level}
-                      level={overrideLevel[p.id]}
-                      onLevel={n => setOverrideLevel(prev => ({ ...prev, [p.id]: n }))}
-                      rec={assessRec[p.id] || { note: '' }}
-                      onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
-                    />
-                  )}
-                  {(p as any).note && (
-                    <AdminLessonNoteReview
-                      note={(p as any).note}
-                      value={editedNotes[p.id] ?? (p as any).note.note}
-                      onChange={v => setEditedNotes(prev => ({ ...prev, [p.id]: v }))}
-                    />
-                  )}
-                  {isEditing && (
-                    <div className="space-y-2 mt-3">
-                      {allEntries.map(([skillId, pct]) => {
-                        const skillName = skillMap[skillId] || skillId
-                        const p2 = (edited[skillId] ?? pct) as number
-                        return (
-                          <div key={skillId} className="flex items-center gap-3">
-                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                            <div className="flex gap-1">
-                              {MASTERY_LEVELS.map(b => (
-                                <button
-                                  key={b}
-                                  onClick={() => setEditedPct(p.id, skillId, MASTERY_VALUE[b])}
-                                  className={`px-2 py-1 rounded text-[10px] border transition-all ${masteryOf(p2) === b ? 'bg-[#c9a84c] text-[#111d38] border-[#c9a84c]' : 'border-gray-700 text-gray-500 hover:border-[#c9a84c]/40'}`}
-                                >{masteryLabel(t, b)}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {!isEditing && (
-                    <div className="space-y-2 mt-2">
-                      {allEntries.map(([skillId, pct]) => {
-                        const skillName = skillMap[skillId] || skillId
-                        const p2 = (edited[skillId] ?? pct) as number
-                        const color = p2 >= 70 ? '#3ecf8e' : p2 >= 30 ? '#f5a623' : p2 > 0 ? '#f56565' : 'rgba(255,255,255,0.1)'
-                        return (
-                          <div key={skillId} className="flex items-center gap-3">
-                            <p className="text-gray-300 text-xs w-48 flex-shrink-0">{skillName}</p>
-                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${MASTERY_FILL[masteryOf(p2)]}%`, backgroundColor: MASTERY_COLOR[masteryOf(p2)] }} />
-                            </div>
-                            <span className="text-xs w-24 text-right" style={{ color: MASTERY_COLOR[masteryOf(p2)] }}>{masteryLabel(t, masteryOf(p2))}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {pastPendingProgressList.map(p => pendingCard(p, true))}
           </div>
         </div>
       )}
-
       {/* Pending level recommendations */}
       {recommendations.length > 0 && (
         <div className="mb-8">
@@ -773,6 +966,31 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+      {/* Reports sent back to their coach, waiting to be filed again. Not
+          counted: nothing here is the admin's to do. */}
+      {sentBack.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            {t('admin.reviews.sentBack.heading')}
+            <span className="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">{sentBack.length}</span>
+          </h2>
+          <p className="text-gray-500 text-xs mb-3">{t('admin.reviews.sentBack.hint')}</p>
+          <div className="space-y-2">
+            {sentBack.map(b => (
+              <div key={b.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] px-4 py-3">
+                <p className="text-white text-sm font-semibold">
+                  {b.student_name || '—'}
+                  <span className="text-gray-400 font-normal text-xs">
+                    {b.session_date ? ` · ${new Date(b.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })}` : ''}
+                    {b.coach_name ? ` · ${t('admin.coachName', { name: b.coach_name })}` : ''}
+                  </span>
+                </p>
+                {b.reason && <p className="text-gray-400 text-xs mt-0.5">{t('admin.reviews.sentBack.reason', { reason: b.reason })}</p>}
+              </div>
+            ))}
           </div>
         </div>
       )}

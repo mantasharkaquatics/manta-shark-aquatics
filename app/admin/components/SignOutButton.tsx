@@ -2,13 +2,16 @@
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-export default function SignOutButton({ label }: { label?: string } = {}) {
+/* `to` is where the page goes afterwards. The coach portal passes /coach-login
+   so the next coach on a shared pool iPad lands on the PIN boxes, not the
+   home page. */
+export default function SignOutButton({ label, to = '/' }: { label?: string; to?: string } = {}) {
   const supabase = createClient()
   const router = useRouter()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    router.push('/')
+    router.push(to)
   }
 
   return (

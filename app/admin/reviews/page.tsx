@@ -45,5 +45,7 @@ export default async function AdminReviewsPage() {
     missingProgressList={queues.missingProgressList}
     refundOwedList={queues.refundOwedList}
     assessmentRebookList={queues.assessmentRebookList}
+    coachTimeOffList={queues.coachTimeOffList}
+    sentBackList={queues.sentBackList}
   />
 }

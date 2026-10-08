@@ -9,6 +9,7 @@ import { sendRenewalNotices, HOLD_RELEASE_DAYS } from '@/lib/fixed-classes'
 import { addDaysStr } from '@/lib/vouchers'
 import { formatTime12h } from '@/lib/date'
 import { allRows } from '@/lib/db-paging'
+import { requireCron } from '@/lib/cron-auth'
 
 export const runtime = 'nodejs'
 
@@ -36,9 +37,8 @@ export const runtime = 'nodejs'
 // what is due at that moment and what has not already been expired, and a
 // referral is claimed before it is paid, so it is never paid twice.
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCron(req)
+  if (denied) return denied
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   // Paged: one read stopped at 1,000 wallets, and every family past that had

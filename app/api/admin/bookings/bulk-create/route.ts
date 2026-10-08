@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
-import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
+import { formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { coachBlocksOn, overlapsAny, studentLessonsOn } from '@/lib/bookings/desk-checks'
+import { allRows } from '@/lib/db-paging'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -18,7 +20,17 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 // "now" come from lib/date.ts LA helpers. Same-day bookings are allowed as long
 // as the start time has not passed in LA.
 
-type Candidate = { date: string; status: 'ok' | 'past' | 'coach_time_off' | 'conflict' | 'full' | 'skipped' }
+type Candidate = { date: string; status: 'ok' | 'past' | 'coach_time_off' | 'conflict' | 'full' | 'student_busy' | 'skipped' }
+
+// Why a date was refused at commit, for the desk's error line.
+const WHY: Record<string, string> = {
+  coach_time_off: 'the coach has time off or a block then',
+  conflict: 'the coach has another class then',
+  full: 'the class is full',
+  student_busy: 'the swimmer already has another lesson then',
+  skipped: 'skipped',
+  past: 'past',
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^\d{2}:\d{2}(:\d{2})?$/
@@ -40,31 +52,35 @@ function minutesToTime(mins: number): string {
 
 async function evaluateDates(
   svc: any,
-  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[]; hour?: boolean; durationMinutes?: number }
+  opts: { coachId: string; courseTypeId: string; startTime: string; startDate: string; count: number; spotsNeeded: number; skipDates: string[]; hour?: boolean; durationMinutes?: number; studentIds: string[]; dates?: string[] }
 ): Promise<Candidate[]> {
-  const { coachId, courseTypeId, startTime, startDate, count, spotsNeeded, skipDates, hour, durationMinutes } = opts
-  const today = getTodayLA()
-  const nowMins = getNowMinutesLA()
+  const { coachId, courseTypeId, startTime, startDate, count, spotsNeeded, skipDates, hour, durationMinutes, studentIds } = opts
   const startMins = timeToMinutes(startTime)
+  // The whole lesson: both halves of an hour.
+  const spanStart = startMins
+  const spanEnd = startMins + (durationMinutes || 30) * (hour ? 2 : 1)
 
-  // Generate enough weekly candidates to cover skips/conflicts (safety cap)
-  const maxWeeks = count * 3 + 12
+  // A preview walks forward week by week, with enough spare weeks to cover
+  // skips and conflicts (safety cap). A commit checks exactly the dates the
+  // desk confirmed: it used to regenerate 3,012 weeks here, one URL too long
+  // for the API, and the failed read let every date through (found 2026-10-08).
   const allDates: string[] = []
-  for (let i = 0; i < maxWeeks; i++) allDates.push(addDays(startDate, i * 7))
+  if (opts.dates) allDates.push(...[...new Set(opts.dates)].sort())
+  else for (let i = 0; i < count * 3 + 12; i++) allDates.push(addDays(startDate, i * 7))
 
-  const { data: timeOffRows } = await svc
-    .from('coach_time_off')
-    .select('date')
-    .eq('coach_id', coachId)
-    .in('date', allDates)
-  const timeOffSet = new Set((timeOffRows || []).map((r: any) => r.date))
+  // Time off counts only where its hours touch this lesson; a whole-day
+  // block touches everything.
+  const blocks = await coachBlocksOn(svc, coachId, allDates)
+  const lessons = await studentLessonsOn(svc, studentIds, allDates)
 
-  const { data: sessRows } = await svc
+  const { data: sessRows, error: sessErr } = await allRows(() => svc
     .from('class_sessions')
     .select('id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
     .eq('coach_id', coachId)
     .in('session_date', allDates)
     .in('status', ['open', 'full'])
+    .order('id'))
+  if (sessErr) throw new Error(`class_sessions read failed: ${sessErr.message || sessErr}`)
   // A 1-on-2 invitation still waiting for its answer holds its session; its
   // seats are not in enrolled_count yet (lib/bookings/invite-holds).
   const inviteHeld = await sessionsHeldByInvites(svc, (sessRows || []).filter((r: any) => (r.enrolled_count || 0) <= 0).map((r: any) => r.id))
@@ -80,20 +96,18 @@ async function evaluateDates(
   let okCount = 0
 
   for (const date of allDates) {
-    if (okCount >= count) break
+    if (!opts.dates && okCount >= count) break
     let status: Candidate['status'] = 'ok'
 
     // Past dates are allowed: this API is admin-only (requireAdmin) and past
     // bookings are legitimate back-entries of lessons that already happened
     // (credits deducted as normal). Conflict/time-off/capacity checks still apply.
     if (skipSet.has(date)) status = 'skipped'
-    else if (timeOffSet.has(date)) status = 'coach_time_off'
+    else if (overlapsAny(blocks.get(date), spanStart, spanEnd)) status = 'coach_time_off'
     else if (hour) {
       // An hour occupies two halves and the second one starts OFF the grid, so a
       // lesson at the next grid slot overlaps it without sharing a start time.
       // Equality would miss that; the whole span has to be tested as an interval.
-      const spanStart = startMins
-      const spanEnd = startMins + (durationMinutes || 30) * 2
       const clash = (sessByDate.get(date) || []).some((s: any) => {
         if ((s.enrolled_count || 0) <= 0) return false
         const ss = timeToMinutes(s.start_time)
@@ -110,6 +124,8 @@ async function evaluateDates(
       if (foreign) status = 'conflict'
       else if (matching && matching.enrolled_count + spotsNeeded > matching.max_students) status = 'full'
     }
+    // The swimmer's own lessons, any coach, any course.
+    if (status === 'ok' && overlapsAny(lessons.get(date), spanStart, spanEnd)) status = 'student_busy'
 
     if (status === 'ok') okCount++
     candidates.push({ date, status })
@@ -213,10 +229,17 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(skip_dates) && skip_dates.some((d: any) => typeof d !== 'string' || !DATE_RE.test(d))) {
       return NextResponse.json({ error: 'Invalid skip_dates format' }, { status: 400 })
     }
-    const candidates = await evaluateDates(svc, {
-      coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
-      startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [], hour: !!hour, durationMinutes: ct.duration_minutes,
-    })
+    let candidates: Candidate[]
+    try {
+      candidates = await evaluateDates(svc, {
+        coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
+        startDate: start_date, count, spotsNeeded, skipDates: skip_dates || [], hour: !!hour, durationMinutes: ct.duration_minutes,
+        studentIds: [student1.id, student2?.id].filter(Boolean),
+      })
+    } catch (e) {
+      console.error('bulk-create preview:', e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: "Could not read the coach's schedule. Please try again." }, { status: 503 })
+    }
     // Only the dates that can actually be booked are quoted -- showing a total
     // that includes dates the operator is about to be told are full would make
     // the number they read out to the family wrong.
@@ -254,16 +277,23 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(dates) || dates.length < 1 || dates.length > 50 || dates.some((d: any) => typeof d !== 'string' || !DATE_RE.test(d))) {
       return NextResponse.json({ error: 'Invalid dates' }, { status: 400 })
     }
-    // Re-validate every confirmed date server-side
-    const candidates = await evaluateDates(svc, {
-      coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
-      startDate: dates[0], count: 1000, spotsNeeded, skipDates: [], hour: !!hour, durationMinutes: ct.duration_minutes,
-    })
+    // Re-validate every confirmed date server-side: exactly those dates.
+    let candidates: Candidate[]
+    try {
+      candidates = await evaluateDates(svc, {
+        coachId: coach_id, courseTypeId: course_type_id, startTime: start_time,
+        startDate: dates[0], count: dates.length, spotsNeeded, skipDates: [], hour: !!hour, durationMinutes: ct.duration_minutes,
+        studentIds: [student1.id, student2?.id].filter(Boolean), dates,
+      })
+    } catch (e) {
+      console.error('bulk-create commit check:', e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: "Could not read the coach's schedule, so nothing was booked. Please try again." }, { status: 503 })
+    }
     const statusByDate = new Map(candidates.map(c => [c.date, c.status]))
     for (const d of dates) {
       const st = statusByDate.get(d)
       if (st !== 'ok') {
-        return NextResponse.json({ error: `Date ${d} is no longer available (${st || 'out of range'})` }, { status: 409 })
+        return NextResponse.json({ error: `Date ${d} is no longer available: ${(st && WHY[st]) || 'out of range'}.` }, { status: 409 })
       }
     }
 

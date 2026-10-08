@@ -52,8 +52,10 @@ export default function AccountPage() {
         .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
       if (admin) { router.replace('/admin'); return }
       const { data: coach } = await supabase
-        .from('coaches').select('id').eq('auth_user_id', user.id).maybeSingle()
-      if (coach) { router.replace('/coach'); return }
+        .from('coaches').select('id, is_active').eq('auth_user_id', user.id).maybeSingle()
+      // An inactive coach goes to the PIN page (which signs them out), not
+      // to /coach, which sends them back here.
+      if (coach) { router.replace(coach.is_active ? '/coach' : '/coach-login?inactive=1'); return }
       router.replace('/login')
       return
     }
@@ -84,23 +86,29 @@ export default function AccountPage() {
     }
     setAdding(true)
     setAddError(null)
-    const { error } = await supabase.from('students').insert({
-      parent_id: parent.id,
-      full_name: newName.trim(),
-      date_of_birth: newDob,
-      current_level: null,
-      is_active: true,
-      added_by_parent: true,
-      sort_order: students.length + 1,
-    })
-    if (error) {
-      const k = errorKey(error.message)
-      setAddError(t('account.err.addFailed') + (k ? t(k) : error.message))
+    /* Through the server (found 2026-10-08): it checks the three-swimmer limit
+       and writes the row itself, so the browser no longer needs -- or has --
+       write access to students. */
+    let res: Response | null = null
+    let j: { error?: string; code?: string } = {}
+    try {
+      res = await fetch('/api/parent/students', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob }),
+      })
+      j = await res.json().catch(() => ({}))
+    } catch { res = null }
+    if (!res || !res.ok) {
+      const why = !res ? t('cart.err.network')
+        : j.code === 'LIMIT' ? t('account.limitReached', { n: MAX_STUDENTS })
+        : j.code === 'DOB_FUTURE' ? t('register.err.dobFuture')
+        : j.code === 'DOB' ? t('register.err.studentDob')
+        : (() => { const k = errorKey(j.error); return k ? t(k) : (j.error || t('err.generic')) })()
+      setAddError(t('account.err.addFailed') + why)
       setAdding(false)
       setConfirmingAdd(false)
       return
     }
-    await supabase.from('parents').update({ last_activity_at: new Date().toISOString() }).eq('id', parent.id)
     setNewName('')
     setNewDob('')
     setShowAddForm(false)

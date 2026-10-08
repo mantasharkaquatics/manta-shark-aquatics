@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
+import { alertAdmin } from '@/lib/admin-alert'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -194,8 +195,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true })
       }
       // Not a duplicate. The points are already in the wallet and that is the
-      // part the family can see, so this is loud but not fatal.
+      // part the family can see, so this is not fatal -- but a missing
+      // purchase row is missing revenue, so a person is told (2026-10-08).
       console.error('Purchase row insert failed:', purchaseErr.message)
+      await alertAdmin('Points purchase not recorded', [
+        `Parent ${parent_id} paid $${(amount_cents / 100).toFixed(2)} and the ${points} points are in their wallet, but the purchase record could not be written (${purchaseErr.message}).`,
+        `Add the purchase by hand. Stripe checkout ${session.id}, payment ${paymentIntentId || 'unknown'}.`,
+      ])
     }
 
     // What Stripe kept. Asked for rather than calculated, and entirely
@@ -239,6 +245,12 @@ export async function POST(req: NextRequest) {
             amount: amount_cents / 100,
           })
         }
+      } else {
+        console.error(`Invoice create failed for session ${session.id}: HTTP ${invoiceRes.status}`)
+        await alertAdmin('Points purchase invoice not created', [
+          `Parent ${parent_id} bought ${points} points ($${(amount_cents / 100).toFixed(2)}); the points are in their wallet, but the invoice could not be created, so it is missing from the Sales page and the family got no receipt.`,
+          `Create it by hand. Stripe checkout ${session.id}.`,
+        ])
       }
     } catch (invoiceErr) {
       console.error('Invoice create error:', invoiceErr)
@@ -318,6 +330,25 @@ export async function POST(req: NextRequest) {
       } catch (e: any) {
         console.error(`charge.dispute.closed ${dispute.id}: could not resolve the checkout:`, e?.message)
       }
+    }
+    return NextResponse.json({ received: true })
+  }
+
+  // ---- A REFUND MADE IN THE STRIPE DASHBOARD ------------------------------
+  // The site's own refunds (lib/refunds, the duplicate team subscription
+  // below) carry metadata and are already handled where they are made. A
+  // refund made by hand in Stripe used to change nothing here: the points
+  // stayed spendable and the Sales page still counted the money (found
+  // 2026-10-08). Owner's decision: do NOT take the points back automatically
+  // -- tell the school (family, amount, points) and let a person decide. The
+  // refunded amount is recorded on the purchase, so the Sales page marks it.
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge
+    try {
+      await dashboardRefund(charge)
+    } catch (e) {
+      console.error(`charge.refunded ${charge.id}:`, e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: 'refund handling failed' }, { status: 503 })
     }
     return NextResponse.json({ received: true })
   }
@@ -494,11 +525,14 @@ export async function POST(req: NextRequest) {
     // the session id is the key the ledger was written under, and it is
     // available even in the case where the purchase row insert failed.
     let topUp: { sessionId: string; parentId: string; amountCents: number } | null = null
+    let assessmentSessionId: string | null = null
     try {
       const list = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 })
       const cs = list.data[0]
       if (cs && cs.metadata?.kind === 'points' && cs.metadata?.parent_id) {
         topUp = { sessionId: cs.id, parentId: cs.metadata.parent_id, amountCents: cs.amount_total ?? 0 }
+      } else if (cs && cs.metadata?.type === 'trial_lesson') {
+        assessmentSessionId = cs.id
       }
     } catch (e: any) {
       // Without the session we cannot safely reverse anything. Fail the
@@ -527,8 +561,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // A card decline during checkout, a Swim Assessment, a team subscription:
-    // none of those put points in a wallet, so there is nothing to take back.
+    // A Swim Assessment charged back (online, or by card at the desk): no
+    // points to take back, but its 85-point assessment credit must not be
+    // paid out for it, and the school has to know (owner, 2026-10-08). It
+    // used to be ignored entirely.
+    if (!topUp && isDispute) {
+      const r = await assessmentChargeback(paymentIntentId, assessmentSessionId, obj)
+      if (r) return r
+    }
+
+    // A card decline during checkout, a team subscription: neither put points
+    // in a wallet, so there is nothing to take back.
     if (!topUp || topUp.amountCents <= 0) return NextResponse.json({ received: true })
 
     // A dispute can be for part of the payment; take back only that part, in
@@ -568,9 +611,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'reversal failed' }, { status: 500 })
     }
 
-    await supabase.from('purchases')
+    // The points are already back; this marks the payment itself, which the
+    // Sales page and the finance page read. A failure used to be dropped
+    // silently, leaving the payment counted as revenue (found 2026-10-08):
+    // the alert names it so a person can mark it.
+    const { error: markErr } = await supabase.from('purchases')
       .update({ reversed_at: new Date().toISOString(), reversal_reason: reason })
       .eq(terminalSale ? 'stripe_payment_intent_id' : 'stripe_session_id', topUp.sessionId)
+      .is('reversed_at', null)
+    if (markErr) {
+      console.error(`${event.type}: could not mark purchase ${topUp.sessionId} reversed:`, markErr.message)
+      await alertAdmin('Reversed payment not marked', [
+        `The points for payment ${topUp.sessionId} ($${(reverseCents / 100).toFixed(2)}, parent ${topUp.parentId}) were taken back after ${reason === 'chargeback' ? 'a chargeback' : 'a bank return'}, but the payment itself could not be marked as reversed (${markErr.message}).`,
+        'Until it is, the Sales and finance pages still count it as revenue.',
+      ])
+    }
 
     // Give back the lessons they have not swum, which pays down most of the
     // debt on its own. Anything left is for a human to chase.
@@ -630,21 +685,21 @@ export async function POST(req: NextRequest) {
             : `您 $${dollars} 的付款銀行沒有完成，所以這筆點數已從您的帳戶扣回。`)
             + (n > 0 ? `\n\n我們已取消 ${n} 堂您還沒上的課，並退回那些點數。以下課程不會進行：\n${lessonLines}` : '')
             + `\n\n${reclaimed.arrearsAfter > 0 ? `您的點數目前不足 ${owedPts} 點，結清之前無法預約。` : '目前已沒有欠款，可以直接預約。'}`
-            + '\n\n在「點數與價目」頁面用信用卡付款即可馬上結清。如果您認為有誤，直接在這裡回覆我們。'
+            + '\n\n在「我的頁面」的點數區用信用卡補上欠款即可馬上結清（最少 $50，多付的會留作點數）。如果您認為有誤，直接在這裡回覆我們。'
         } else if (lang === 'zh-Hans') {
           body = (chargeback
             ? `您已通过银行撤回 $${dollars} 的付款，所以这笔点数已从您的账户扣回。`
             : `您 $${dollars} 的付款银行没有完成，所以这笔点数已从您的账户扣回。`)
             + (n > 0 ? `\n\n我们已取消 ${n} 堂您还没上的课，并退回那些点数。以下课程不会进行：\n${lessonLines}` : '')
             + `\n\n${reclaimed.arrearsAfter > 0 ? `您的点数目前不足 ${owedPts} 点，结清之前无法预约。` : '目前已没有欠款，可以直接预约。'}`
-            + '\n\n在「点数与价目」页面用信用卡付款即可马上结清。如果您认为有误，直接在这里回复我们。'
+            + '\n\n在「我的页面」的点数区用信用卡补上欠款即可马上结清（最少 $50，多付的会留作点数）。如果您认为有误，直接在这里回复我们。'
         } else {
           body = (chargeback
             ? `Your bank has reversed your $${dollars} payment at your request, so those points have been removed from your wallet.`
             : `Your $${dollars} payment didn't complete at the bank, so those points have been removed from your wallet.`)
             + (n > 0 ? `\n\nWe've cancelled ${n} lesson${n === 1 ? '' : 's'} you hadn't taken yet and returned those points. These lessons will not take place:\n${lessonLines}` : '')
             + `\n\n${reclaimed.arrearsAfter > 0 ? `Your balance is now ${owedPts} points short, so booking is paused until it's settled.` : 'Nothing further is owed and you can book again straight away.'}`
-            + '\n\nPaying by card on the Points & Pricing page clears this right away. If you think this is a mistake, just reply here.'
+            + '\n\nPaying what you owe by card from the points card on your Dashboard clears this right away (at least $50; anything extra stays as points). If you think this is a mistake, just reply here.'
         }
         await supabase.from('chat_messages').insert({ thread_id: th.id, sender_type: 'ai', body })
         await supabase.from('chat_threads')
@@ -741,7 +796,9 @@ async function cancelDuplicateTeamSubscription(session: Stripe.Checkout.Session,
         const pi = typeof piRef === 'string' ? piRef : piRef?.id
         if (!pi) continue
         if (p.status === 'paid') {
-          const r = await stripe.refunds.create({ payment_intent: pi })
+          // Marked as the site's own, so charge.refunded does not report it
+          // as a refund someone made by hand.
+          const r = await stripe.refunds.create({ payment_intent: pi, metadata: { msa_source: 'duplicate_team_subscription' } })
           refunded += r.amount || 0
         } else {
           pending = true
@@ -768,4 +825,150 @@ async function cancelDuplicateTeamSubscription(session: Stripe.Checkout.Session,
   } catch (e) {
     console.error('duplicate-subscription alert failed:', e)
   }
+}
+
+/* A Swim Assessment payment charged back (owner, 2026-10-08). Found by its
+   checkout session (online) or its payment intent (card at the desk). The
+   purchase is marked reversed -- which is what settleAssessmentCredits reads,
+   so the 85-point assessment credit is never paid for it -- the credit is
+   closed if it is still open, and the school is told once (the first event
+   that marks the purchase; charge.dispute.funds_withdrawn after .created finds
+   it marked). Returns null when the payment is not an assessment. */
+async function assessmentChargeback(paymentIntentId: string, sessionId: string | null, dispute: { id?: string; amount?: number }): Promise<NextResponse | null> {
+  const { data: rows, error } = await supabase.from('purchases')
+    .select('id, parent_id, amount_cents, reversed_at, stripe_session_id')
+    .or(`stripe_payment_intent_id.eq.${paymentIntentId}${sessionId ? `,stripe_session_id.eq.${sessionId}` : ''}`)
+  if (error) {
+    console.error(`dispute ${dispute?.id}: could not look up the assessment payment:`, error.message)
+    return NextResponse.json({ error: 'could not resolve assessment' }, { status: 503 })
+  }
+  const purchaseIds = (rows || []).map(r => r.id)
+  const { data: credits, error: creditErr } = purchaseIds.length
+    ? await supabase.from('lesson_credits').select('student_id, purchase_id').in('purchase_id', purchaseIds).eq('is_trial', true)
+    : { data: [] as { student_id: string; purchase_id: string }[], error: null }
+  if (creditErr) {
+    console.error(`dispute ${dispute?.id}: could not look up the assessment credit:`, creditErr.message)
+    return NextResponse.json({ error: 'could not resolve assessment' }, { status: 503 })
+  }
+  // Not an assessment: neither an assessment checkout nor a desk sale with an
+  // assessment credit.
+  if (!sessionId && (!credits || credits.length === 0)) return null
+
+  const { data: marked, error: markErr } = purchaseIds.length
+    ? await supabase.from('purchases')
+        .update({ reversed_at: new Date().toISOString(), reversal_reason: 'chargeback' })
+        .in('id', purchaseIds).is('reversed_at', null).select('id')
+    : { data: [] as { id: string }[], error: null }
+  if (markErr) {
+    console.error(`dispute ${dispute?.id}: could not mark the assessment payment reversed:`, markErr.message)
+    return NextResponse.json({ error: 'could not mark assessment' }, { status: 503 })
+  }
+  // An earlier delivery already did all of this.
+  if (purchaseIds.length > 0 && (!marked || marked.length === 0)) return NextResponse.json({ received: true })
+
+  const studentIds = [...new Set((credits || []).map(c => c.student_id).filter(Boolean))]
+  let creditState = 'no assessment report yet (the credit will not be paid when one is made)'
+  if (studentIds.length > 0) {
+    const { data: rep } = await supabase.from('student_assessments')
+      .select('student_id, credit_status, credit_awarded_at').in('student_id', studentIds)
+    const { error: closeErr } = await supabase.from('student_assessments')
+      .update({ credit_status: 'expired' }).in('student_id', studentIds).eq('credit_status', 'pending')
+    if (closeErr) console.error(`dispute ${dispute?.id}: could not close the assessment credit (settleAssessmentCredits still skips it):`, closeErr.message)
+    const r0 = (rep || [])[0]
+    if (r0?.credit_status === 'awarded') creditState = `the 85-point assessment credit was ALREADY GIVEN${r0.credit_awarded_at ? ` on ${String(r0.credit_awarded_at).slice(0, 10)}` : ''} -- take it back by hand if you decide to`
+    else if (r0) creditState = 'the 85-point assessment credit has been cancelled'
+  }
+
+  const parentId = rows?.[0]?.parent_id || null
+  const [{ data: parent }, { data: students }] = await Promise.all([
+    parentId ? supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle() : Promise.resolve({ data: null }),
+    studentIds.length ? supabase.from('students').select('full_name').in('id', studentIds) : Promise.resolve({ data: [] as { full_name: string | null }[] }),
+  ])
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : (parentId ? `parent ${parentId}` : 'an unknown family')
+  const who = (students || []).map(x => x.full_name).filter(Boolean).join(', ') || 'a swimmer'
+  console.error(`\u26a0\ufe0f ASSESSMENT CHARGEBACK dispute=${dispute?.id} payment=${paymentIntentId} purchases=${purchaseIds.join(',') || 'none'}`)
+  await alertAdmin('Swim Assessment payment disputed', [
+    `${family} disputed the Swim Assessment payment for ${who} with their bank ($${((Number(dispute?.amount) || 0) / 100).toFixed(2)}, dispute ${dispute?.id || 'unknown'}, payment ${paymentIntentId}).`,
+    purchaseIds.length ? 'The payment is now marked as disputed: it is left out of the Sales total and earns no assessment credit.' : 'No purchase record was found for this payment, so nothing could be marked -- check it by hand.',
+    `Assessment credit: ${creditState}.`,
+    'Respond to the dispute in the Stripe dashboard.',
+  ])
+  return NextResponse.json({ received: true })
+}
+
+/* charge.refunded for a refund not made by the site (see the handler). */
+async function dashboardRefund(charge: Stripe.Charge) {
+  const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id ?? null
+  if (!piId) return
+  const refunds = (await stripe.refunds.list({ charge: charge.id, limit: 100 })).data
+  const byHand = refunds.filter(r => !r.metadata?.ledger_id && !r.metadata?.msa_source && r.status !== 'failed' && r.status !== 'canceled')
+  if (byHand.length === 0) return
+
+  // What was bought: a points top-up or an assessment online (checkout
+  // session), or a desk card sale (purchase under the payment intent).
+  const cs = (await stripe.checkout.sessions.list({ payment_intent: piId, limit: 1 })).data[0] || null
+  const kind = cs?.metadata?.kind === 'points' ? 'points' : cs?.metadata?.type === 'trial_lesson' ? 'assessment' : cs ? 'other' : 'desk'
+  if (kind === 'other') return // a Swim Team subscription or anything else: not covered here
+  const { data: rows, error } = await supabase.from('purchases')
+    .select('id, parent_id, amount_cents, refunded_cents, lesson_package_id')
+    .or(`stripe_payment_intent_id.eq.${piId}${cs ? `,stripe_session_id.eq.${cs.id}` : ''}`)
+    .limit(1)
+  if (error) throw new Error('purchase lookup: ' + error.message)
+  const p = rows?.[0] || null
+  if (!p && kind === 'desk') return // a card payment the site never recorded
+
+  // Record how much went back, so the Sales page marks it. Charge-wide and
+  // cumulative, so a repeated delivery writes the same number.
+  const refundedCents = Math.min(Number(p?.amount_cents) || 0, charge.amount_refunded || 0)
+  let recorded = false
+  if (p && refundedCents > (Number(p.refunded_cents) || 0)) {
+    const { error: upErr } = await supabase.from('purchases')
+      .update({ refunded_cents: refundedCents }).eq('id', p.id).eq('refunded_cents', Number(p.refunded_cents) || 0)
+    if (upErr) throw new Error('purchase refund mark: ' + upErr.message)
+    recorded = true
+  } else if (p) {
+    // Already recorded by an earlier delivery: the school was told then.
+    return
+  }
+
+  // Which family, and what the points side looks like.
+  const parentId = p?.parent_id || cs?.metadata?.parent_id || null
+  const { data: parent } = parentId
+    ? await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle()
+    : { data: null }
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : (parentId ? `parent ${parentId}` : 'an unknown family')
+  const thisTime = byHand.reduce((a, r) => a + (r.amount || 0), 0)
+  const lines = [
+    `${family}: $${(thisTime / 100).toFixed(2)} was refunded in the Stripe dashboard (payment ${piId}${cs ? `, checkout ${cs.id}` : ''}; $${((charge.amount_refunded || 0) / 100).toFixed(2)} of $${((charge.amount || 0) / 100).toFixed(2)} refunded in all).`,
+  ]
+  let isPoints = kind === 'points'
+  let isAssessment = kind === 'assessment'
+  if (kind === 'desk' && p) {
+    // A desk sale of points has a purchase ledger line; an assessment has a credit.
+    const [{ data: led }, { data: cr }] = await Promise.all([
+      supabase.from('point_ledger').select('id').eq('reason', 'purchase').eq('stripe_session_id', piId).limit(1),
+      supabase.from('lesson_credits').select('id').eq('purchase_id', p.id).eq('is_trial', true).limit(1),
+    ])
+    isPoints = !!(led && led.length > 0)
+    isAssessment = !isPoints && !!(cr && cr.length > 0)
+  }
+  if (isPoints) {
+    const pts = Math.floor((charge.amount_refunded || 0) / 100)
+    lines.push(`This was a points purchase of ${Math.round((Number(p?.amount_cents) || charge.amount || 0) / 100)} points. The ${pts} refunded points were NOT taken out of the family's wallet. If they should be, deduct them by hand on the family's points page.`)
+  } else if (!isAssessment) {
+    lines.push('This was a front-desk card sale that is neither points nor a Swim Assessment; nothing else was changed.')
+  } else {
+    lines.push('This was a Swim Assessment payment.')
+    // A full refund of an assessment that has not been booked yet removes the
+    // prepaid assessment, so it cannot be booked for free afterwards.
+    if (p && (charge.amount_refunded || 0) >= (charge.amount || 0)) {
+      const { data: voided } = await supabase.from('lesson_credits')
+        .update({ used_credits: 1 }).eq('purchase_id', p.id).eq('is_trial', true).eq('used_credits', 0).select('id')
+      lines.push(voided && voided.length > 0
+        ? 'Its prepaid assessment had not been booked yet; it has been removed from the account.'
+        : 'If the assessment is still booked, cancel it by hand if that was intended.')
+    }
+  }
+  lines.push(recorded ? 'The Sales page now shows this payment as refunded.' : 'No purchase record was found, so the Sales page could not be updated.')
+  await alertAdmin('Refund made in the Stripe dashboard', lines)
 }

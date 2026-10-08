@@ -12,7 +12,8 @@
  * fine on every admin page, which is why the badge fetches this from the
  * client after paint and the route caches the answer.
  */
-import { getTodayLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { timeOffNeedingAction, type TimeOffActionItem } from '@/lib/time-off'
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 import { pictureAsOfRows } from '@/lib/skill-progress-sync'
@@ -273,6 +274,54 @@ async function loadAssessmentsToRebook(svc: any, withDetails: boolean): Promise<
   }).sort((a: AssessmentRebookItem, b: AssessmentRebookItem) => String(a.cancelled_at || '').localeCompare(String(b.cancelled_at || '')))
 }
 
+export type SentBackItem = {
+  id: string
+  student_id: string
+  student_name: string
+  coach_name: string
+  session_date: string | null
+  reason: string | null
+  sent_back_at: string | null
+}
+
+/**
+ * Lesson reports an admin sent back to the coach (owner, 2026-10-08;
+ * /api/admin/report-sendback), still waiting for the coach to file again. Not
+ * counted in the badge: nothing here is the admin's to do. Shown so a report
+ * that never came back is not forgotten. The reason needs
+ * docs/migration-report-sendback.sql; before it is run the list still shows,
+ * without one.
+ */
+async function loadSentBack(svc: any): Promise<SentBackItem[]> {
+  // With the migration run, only rows sent back through this flow (an older
+  // 'rejected' row, if any exists, has no sent_back_at).
+  const probe = await svc.from('progress_history').select('id, sent_back_at').limit(1)
+  const rows: any[] = probe.error
+    ? await allRowsOrLog('review-queues sent-back', () => svc.from('progress_history')
+        .select('id, student_id, coach_id, session_date').eq('status', 'rejected').order('id'))
+    : await allRowsOrLog('review-queues sent-back', () => svc.from('progress_history')
+        .select('id, student_id, coach_id, session_date, sent_back_reason, sent_back_at')
+        .eq('status', 'rejected').not('sent_back_at', 'is', null).order('id'))
+  if (rows.length === 0) return []
+  const sIds = [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] as string[]
+  const cIds = [...new Set(rows.map((r: any) => r.coach_id).filter(Boolean))] as string[]
+  const [ss, cs] = await Promise.all([
+    inChunks(sIds, c => svc.from('students').select('id, full_name').in('id', c).order('id')),
+    inChunks(cIds, c => svc.from('coaches').select('id, first_name').in('id', c).order('id')),
+  ])
+  const sMap = new Map<string, any>(ss.map((x: any) => [x.id, x]))
+  const cMap = new Map<string, any>(cs.map((x: any) => [x.id, x]))
+  return rows.map((r: any): SentBackItem => ({
+    id: r.id,
+    student_id: r.student_id,
+    student_name: sMap.get(r.student_id)?.full_name || '',
+    coach_name: cMap.get(r.coach_id)?.first_name || '',
+    session_date: r.session_date ?? null,
+    reason: r.sent_back_reason ?? null,
+    sent_back_at: r.sent_back_at ?? null,
+  })).sort((a, b) => String(a.session_date || '').localeCompare(String(b.session_date || '')))
+}
+
 export type ReviewQueues = {
   assessmentRebookList: AssessmentRebookItem[]
   recommendations: any[]
@@ -280,6 +329,11 @@ export type ReviewQueues = {
   pastPendingProgressList: any[]
   missingProgressList: any[]
   refundOwedList: RefundOwedItem[]
+  /** Coach time off covering booked lessons the office has not handled
+   *  (owner, 2026-10-08; lib/time-off.ts). */
+  coachTimeOffList: TimeOffActionItem[]
+  /** Informational only; not part of any count. Empty when withDetails is off. */
+  sentBackList: SentBackItem[]
 }
 
 export async function loadReviewQueues(
@@ -295,6 +349,16 @@ export async function loadReviewQueues(
     console.error('review-queues: refund-owed queue failed:', e)
     return [] as RefundOwedItem[]
   })
+  const coachTimeOffPromise = timeOffNeedingAction(svc, getTodayLA(), getNowMinutesLA(), withDetails).catch((e: unknown) => {
+    console.error('review-queues: coach time-off queue failed:', e)
+    return [] as TimeOffActionItem[]
+  })
+  const sentBackPromise = withDetails
+    ? loadSentBack(svc).catch((e: unknown) => {
+        console.error('review-queues: sent-back list failed:', e)
+        return [] as SentBackItem[]
+      })
+    : Promise.resolve([] as SentBackItem[])
 
   // Two-step query: pending recommendations
   const { data: recs } = await svc
@@ -450,7 +514,7 @@ export async function loadReviewQueues(
   // booking ever made, which passed the API's 1,000-row cap long ago.
   const pastBookingsRaw = await allRows(() => svc
     .from('bookings')
-    .select('id, student_id, class_session_id, lesson_group_id')
+    .select('id, student_id, class_session_id, lesson_group_id, is_trial')
     .eq('status', 'confirmed')
     .order('id'))
 
@@ -490,6 +554,7 @@ export async function loadReviewQueues(
         student_id: b.student_id,
         lessonKey: b.lesson_group_id || b.class_session_id,
         session: sessionMap[b.class_session_id],
+        isTrial: !!b.is_trial,
       }))
       .filter((c: any) => c.student_id)
 
@@ -537,6 +602,8 @@ export async function loadReviewQueues(
         if (String(c.session.start_time) < cur.start) cur.start = c.session.start_time
         if (String(c.session.end_time) > cur.end) cur.end = c.session.end_time
       }
+      const assessmentLessons = new Set<string>(missingCandidates
+        .filter((c: any) => c.isTrial).map((c: any) => `${c.student_id}|${c.lessonKey}`))
       const dedupKey = new Set<string>()
       const dedupedCandidates = missingCandidates.filter((c: any) => {
         const key = `${c.student_id}|${c.lessonKey}`
@@ -604,6 +671,9 @@ export async function loadReviewQueues(
               student_id: c.student_id,
               session: sp ? { ...c.session, start_time: sp.start, end_time: sp.end } : c.session,
               existingProgress: withDetails ? pictureAsOf(c.student_id, c.session?.session_date) : {},
+              // A paid Swim Assessment: with no level yet, the card offers to
+              // backfill it (/api/admin/backfill-assessment).
+              assessment: (assessmentLessons.has(`${c.student_id}|${c.lessonKey}`)) || undefined,
             }
           })
       }
@@ -612,20 +682,23 @@ export async function loadReviewQueues(
 
   const refundOwedList = await refundOwedPromise
   const assessmentRebookList = await assessmentRebookPromise
+  const coachTimeOffList = await coachTimeOffPromise
+  const sentBackList = await sentBackPromise
 
-  return { assessmentRebookList, recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList }
+  return { assessmentRebookList, recommendations, pendingProgressList, pastPendingProgressList, missingProgressList, refundOwedList, coachTimeOffList, sentBackList }
 }
 
 /** Just the totals, for the sidebar badge. Skips the display-only enrichment. */
-export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number; assessmentRebook: number }> {
+export async function countReviewQueues(svc: any): Promise<{ total: number; missing: number; pending: number; recommendations: number; refundOwed: number; assessmentRebook: number; coachTimeOff: number }> {
   const q = await loadReviewQueues(svc, { withDetails: false })
   const pending = q.pendingProgressList.length + q.pastPendingProgressList.length
   return {
-    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length + q.assessmentRebookList.length,
+    total: q.missingProgressList.length + pending + q.recommendations.length + q.refundOwedList.length + q.assessmentRebookList.length + q.coachTimeOffList.length,
     missing: q.missingProgressList.length,
     pending,
     recommendations: q.recommendations.length,
     refundOwed: q.refundOwedList.length,
     assessmentRebook: q.assessmentRebookList.length,
+    coachTimeOff: q.coachTimeOffList.length,
   }
 }

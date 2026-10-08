@@ -76,15 +76,15 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
   const selCls = "bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-2 py-2.5 text-sm"
   return (
     <div className="grid grid-cols-3 gap-2">
-      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls}>
+      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls} aria-label={t('register.dob.month')}>
         <option value="">{t('register.dob.month')}</option>
         {months.map(mm => <option key={mm} value={mm}>{monthName(mm, monthTag)}</option>)}
       </select>
-      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls}>
+      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls} aria-label={t('register.dob.day')}>
         <option value="">{t('register.dob.day')}</option>
         {days.map(dd => <option key={dd} value={dd}>{Number(dd)}</option>)}
       </select>
-      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls}>
+      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls} aria-label={t('register.dob.year')}>
         <option value="">{t('register.dob.year')}</option>
         {years.map(yr => <option key={yr} value={String(yr)}>{yr}</option>)}
       </select>
@@ -173,6 +173,13 @@ export default function RegisterClient() {
       if (!u?.email) return
       for (const table of ['parents', 'admins', 'coaches'] as const) {
         const { data, error } = await supabase.from(table).select('id').eq('auth_user_id', u.id).limit(1)
+        // A family that already has its account gets nothing from a blank
+        // sign-up form (found 2026-10-08): carry on to where they were going.
+        if (table === 'parents' && !error && data && data.length > 0) {
+          const next = safeNext()
+          router.replace(next && !next.startsWith('/register') ? next : '/dashboard')
+          return
+        }
         if (error || (data && data.length > 0)) return
       }
       setFinish({ userId: u.id, email: u.email })
@@ -385,6 +392,10 @@ export default function RegisterClient() {
       setError(t('register.err.fillAll')); return
     }
     if (!finish && password !== password2) { setError(t('register.err.passwordMismatch')); return }
+    // Checked here, on the page that has the password boxes (found
+    // 2026-10-08): it used to surface only from signUp on step 2, which has
+    // no password field to fix. Same minimum as Supabase's (err.passwordShort).
+    if (!finish && password.length < 6) { setError(t('err.passwordShort')); return }
     if (!emailOk) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
     setError(''); setStep(2)
@@ -404,7 +415,11 @@ export default function RegisterClient() {
     // goes straight to the family record and never signs up twice.
     if (!finish) {
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
-      if (authError || !authData.user) { setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return }
+      if (authError || !authData.user) {
+        // A password problem can only be fixed on step 1, where the boxes are.
+        if (errorKey(authError?.message) === 'err.passwordShort') setStep(1)
+        setError(tErr(authError?.message, 'register.err.signupFailed')); setLoading(false); return
+      }
       setFinish({ userId: authData.user.id, email })
     }
     // Then the family record, on the server (found 2026-10-05): it checks the
@@ -505,8 +520,8 @@ export default function RegisterClient() {
             ) : null}
             {referralOpen && (
               <div>
-                <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.referral')}</label>
-                <input value={referralCode} onChange={e => { setReferralLinkBad(false); setReferralAuto(false); setReferralCode(cleanReferral(e.target.value)) }}
+                <label htmlFor="reg-referral" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.referral')}</label>
+                <input id="reg-referral" value={referralCode} onChange={e => { setReferralLinkBad(false); setReferralAuto(false); setReferralCode(cleanReferral(e.target.value)) }}
                   placeholder={t('register.referralPlaceholder')} autoCapitalize="characters" autoComplete="off"
                   className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm tracking-[0.2em] ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
                 {referralLinkBad ? (
@@ -518,24 +533,25 @@ export default function RegisterClient() {
             )}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.firstName')} <span className="text-red-600">*</span></label>
-                <input value={firstName} onChange={e => setFirstName(e.target.value)}
+                <label htmlFor="reg-first" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.firstName')} <span className="text-red-600">*</span></label>
+                <input id="reg-first" value={firstName} onChange={e => setFirstName(e.target.value)} autoComplete="given-name"
                   className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.lastName')} <span className="text-red-600">*</span></label>
-                <input value={lastName} onChange={e => setLastName(e.target.value)}
+                <label htmlFor="reg-last" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.lastName')} <span className="text-red-600">*</span></label>
+                <input id="reg-last" value={lastName} onChange={e => setLastName(e.target.value)} autoComplete="family-name"
                   className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.email')} <span className="text-red-600">*</span></label>
+              <label htmlFor="reg-email" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.email')} <span className="text-red-600">*</span></label>
               {/* "Send Verification Code" will not wrap, so beside it the email
                   field was squeezed to about a third of a phone screen -- you
                   could not see the address you were typing. Stacked below sm. */}
               <div className="flex flex-col sm:flex-row gap-2">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk || !!finish}
+                <input id="reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk || !!finish}
+                  autoComplete="email" inputMode="email"
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {emailOk ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
@@ -549,7 +565,8 @@ export default function RegisterClient() {
               {emailOtpSent && !emailOk && (
                 <div className="flex gap-2 mt-2">
                   <input
-                    type="text" inputMode="numeric" maxLength={6}
+                    type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code"
+                    aria-label={t('register.emailCodePh')}
                     value={emailOtpCode}
                     onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.emailCodePh')}
@@ -564,12 +581,13 @@ export default function RegisterClient() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.phone')} <span className="text-red-600">*</span></label>
+              <label htmlFor="reg-phone" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.phone')} <span className="text-red-600">*</span></label>
               {/* "Send Verification Code" will not wrap, so beside it the email
                   field was squeezed to about a third of a phone screen -- you
                   could not see the address you were typing. Stacked below sm. */}
               <div className="flex flex-col sm:flex-row gap-2">
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
+                <input id="reg-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
+                  autoComplete="tel"
                   placeholder="(555) 123-4567"
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {phoneVerified ? (
@@ -584,7 +602,8 @@ export default function RegisterClient() {
               {phoneOtpSent && !phoneVerified && (
                 <div className="flex gap-2 mt-2">
                   <input
-                    type="text" inputMode="numeric" maxLength={6}
+                    type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code"
+                    aria-label={t('register.smsCodePh')}
                     value={phoneOtpCode}
                     onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.smsCodePh')}
@@ -603,9 +622,10 @@ export default function RegisterClient() {
               <p className="text-xs font-semibold text-[#2050a0] uppercase tracking-wider mb-3">{t('register.addrHeading')}</p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.addr1')} <span className="text-red-600">*</span></label>
+                  <label htmlFor="reg-addr1" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.addr1')} <span className="text-red-600">*</span></label>
                   <div className="relative">
                     <input
+                      id="reg-addr1" autoComplete="address-line1"
                       ref={addressInputRef}
                       value={addressLine1}
                       onChange={e => handleAddressInput(e.target.value)}
@@ -626,27 +646,27 @@ export default function RegisterClient() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.addr2')} <span className="text-[#56647d] font-normal">{t('register.optional')}</span></label>
-                  <input value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
+                  <label htmlFor="reg-addr2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.addr2')} <span className="text-[#56647d] font-normal">{t('register.optional')}</span></label>
+                  <input id="reg-addr2" autoComplete="address-line2" value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
                     placeholder={t('register.aptPh')}
                     className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.city')} <span className="text-red-600">*</span></label>
-                    <input value={city} onChange={e => setCity(e.target.value)}
+                    <label htmlFor="reg-city" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.city')} <span className="text-red-600">*</span></label>
+                    <input id="reg-city" autoComplete="address-level2" value={city} onChange={e => setCity(e.target.value)}
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.zip')} <span className="text-red-600">*</span></label>
-                    <input value={zipCode} onChange={e => setZipCode(e.target.value)}
+                    <label htmlFor="reg-zip" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.zip')} <span className="text-red-600">*</span></label>
+                    <input id="reg-zip" autoComplete="postal-code" value={zipCode} onChange={e => setZipCode(e.target.value)}
                       placeholder="90210" maxLength={10}
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.state')} <span className="text-red-600">*</span></label>
-                  <select value={state} onChange={e => setState(e.target.value)}
+                  <label htmlFor="reg-state" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.state')} <span className="text-red-600">*</span></label>
+                  <select id="reg-state" autoComplete="address-level1" value={state} onChange={e => setState(e.target.value)}
                     className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm">
                     <option value="">{t('register.selectState')}</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -660,16 +680,17 @@ export default function RegisterClient() {
             {!finish && <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
-                  <PasswordField value={password} onChange={setPassword} autoComplete="new-password"
+                  <label htmlFor="reg-password" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
+                  <PasswordField id="reg-password" value={password} onChange={setPassword} autoComplete="new-password"
                     className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
-                  <PasswordField value={password2} onChange={setPassword2} autoComplete="new-password"
+                  <label htmlFor="reg-password2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
+                  <PasswordField id="reg-password2" value={password2} onChange={setPassword2} autoComplete="new-password"
                     className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
                 </div>
               </div>
+              <p className={`text-xs mt-1.5 ${password && password.length < 6 ? 'text-red-600' : 'text-[#56647d]'}`}>{t('register.passwordHint')}</p>
               {password2 && (password2 === password
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
@@ -695,8 +716,8 @@ export default function RegisterClient() {
                 <p className="text-sm font-semibold text-[#16294a] mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-600">*</span>}</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-[#56647d] mb-1">{t('register.fullName')}</label>
-                    <input value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
+                    <label htmlFor={`reg-student-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.fullName')}</label>
+                    <input id={`reg-student-${i}`} value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>

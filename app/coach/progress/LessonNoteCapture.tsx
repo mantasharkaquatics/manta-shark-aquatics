@@ -29,6 +29,17 @@ function pickMimeType(): string | undefined {
   return undefined
 }
 
+/* The longest take (found 2026-10-08). Nothing stopped a recording, and the
+   take goes to /api/coach/lesson-note in one request, which Vercel refuses
+   past 4.5MB: a coach who left it running while helping in the water got
+   "could not send" on every retry. Three minutes is plenty for a lesson note.
+   Speech is recorded at 32kbps (about 0.7MB for three minutes); even a
+   browser that ignores that and records 128kbps AAC stays under 3MB. The
+   countdown shows from the start and turns amber in the last 30 seconds. */
+export const MAX_SECONDS = 180
+const WARN_SECONDS = 30
+const AUDIO_BITS = 32000
+
 /* One player URL per take, however many times its card is reopened. A take
    now outlives the recorder (see the cleanup below), so its URL does too: it is
    revoked when the coach throws the take away, not when the card closes. */
@@ -48,6 +59,8 @@ export default function LessonNoteCapture({
   const [seconds, setSeconds] = useState(initial?.seconds ?? 0)
   const [audioUrl, setAudioUrl] = useState<string | null>(() => initial ? urlFor(initial.blob) : null)
   const [message, setMessage] = useState('')
+  // The last take was cut off at MAX_SECONDS rather than stopped by the coach.
+  const [hitLimit, setHitLimit] = useState(false)
 
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
@@ -87,12 +100,14 @@ export default function LessonNoteCapture({
     chunksRef.current = []
     setSeconds(0)
     setMessage('')
+    setHitLimit(false)
     setPhase('idle')
     onChange(null)
   }
 
   const start = async () => {
     setMessage('')
+    setHitLimit(false)
     try {
       // The whole of our noise handling: OS level, free, no added latency.
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -101,7 +116,7 @@ export default function LessonNoteCapture({
       streamRef.current = stream
 
       const mimeType = pickMimeType()
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType, audioBitsPerSecond: AUDIO_BITS } : { audioBitsPerSecond: AUDIO_BITS })
       chunksRef.current = []
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       recorder.onstop = () => {
@@ -122,6 +137,7 @@ export default function LessonNoteCapture({
       tickRef.current = setInterval(() => {
         secondsRef.current += 1
         setSeconds(secondsRef.current)
+        if (secondsRef.current >= MAX_SECONDS) { setHitLimit(true); stop() }
       }, 1000)
       setPhase('recording')
     } catch {
@@ -137,6 +153,8 @@ export default function LessonNoteCapture({
   }
 
   const mmss = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  const left = Math.max(0, MAX_SECONDS - seconds)
+  const leftText = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
 
   return (
     <div className="bg-[#0d1529] rounded-xl border border-[#1e3a6e] p-4 mb-3">
@@ -159,10 +177,13 @@ export default function LessonNoteCapture({
 
       {phase === 'recording' && (
         <div>
-          <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="flex items-center justify-center gap-2 mb-1">
             <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
             <span className="text-white text-xl font-mono">{mmss}</span>
           </div>
+          <p className={`text-center text-xs mb-3 ${left <= WARN_SECONDS ? 'text-amber-300 font-semibold' : 'text-gray-500'}`}>
+            {t('coach.note.timeLeft', { time: leftText })}
+          </p>
           <button
             onClick={stop}
             className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg text-sm"
@@ -175,6 +196,7 @@ export default function LessonNoteCapture({
       {phase === 'review' && (
         <div className="space-y-2">
           {audioUrl && <audio controls src={audioUrl} className="w-full" />}
+          {hitLimit && <p className="text-amber-300 text-xs">{t('coach.note.limitReached', { min: MAX_SECONDS / 60 })}</p>}
           <div className="flex items-center justify-between">
             <span className="text-green-400 text-xs">{t('coach.note.recorded')} {mmss}</span>
             <button

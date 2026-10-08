@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApplicant, isFullyVerified } from '@/lib/applicant-auth'
+import { serviceClient } from '@/lib/api-auth'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,20 @@ export async function GET() {
     return NextResponse.json({ signedIn: false }, { status: 200 })
   }
 
+  // So the apply page can show "already received" instead of a blank form
+  // that is refused only after it has all been filled in (found 2026-10-08).
+  const fullyVerified = isFullyVerified(applicant)
+  let hasApplied = false
+  if (fullyVerified) {
+    const { data: prior } = await serviceClient()
+      .from('coach_applications')
+      .select('id')
+      .eq('applicant_id', applicant.id)
+      .limit(1)
+      .maybeSingle()
+    hasApplied = Boolean(prior)
+  }
+
   return NextResponse.json({
     signedIn: true,
     firstName: applicant.legal_first_name,
@@ -27,6 +42,7 @@ export async function GET() {
     phoneMasked: maskPhone(applicant.phone),
     emailVerified: Boolean(applicant.email_verified_at),
     phoneVerified: Boolean(applicant.phone_verified_at),
-    fullyVerified: isFullyVerified(applicant),
+    fullyVerified,
+    hasApplied,
   })
 }

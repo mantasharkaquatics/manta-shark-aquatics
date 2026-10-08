@@ -3,6 +3,10 @@ import { requireAdmin } from '@/lib/api-auth'
 import { applyPoints, walletSummary, WalletInArrears } from '@/lib/points-wallet'
 import { MAX_TOPUP_DOLLARS } from '@/lib/points'
 
+/** A database row as the API returns it (untyped client). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any
+
 export const runtime = 'nodejs'
 
 // Adjusting a family's points by hand.
@@ -42,6 +46,15 @@ export async function GET(req: NextRequest) {
     : { data: [] as any[] }
   const nameOf = new Map((fams || []).map((f: any) => [f.id, `${f.first_name || ''} ${f.last_name || ''}`.trim()]))
 
+  // "admin:<id>" is who adjusted it by hand: the statement shows their name,
+  // not the id (found 2026-10-08). Unresolved ids are left to the page.
+  const adminIds = [...new Set((rows || []).map((r: Row) => String(r.actor || ''))
+    .filter(a => a.startsWith('admin:')).map(a => a.slice(6)).filter(Boolean))]
+  const { data: admins } = adminIds.length
+    ? await auth.svc.from('admins').select('id, first_name, last_name').in('id', adminIds)
+    : { data: [] as Row[] }
+  const adminName = new Map((admins || []).map((a: Row) => [a.id, `${a.first_name || ''} ${a.last_name || ''}`.trim()]))
+
   return NextResponse.json({
     ...summary,
     referral: {
@@ -59,6 +72,7 @@ export async function GET(req: NextRequest) {
       note: r.note,
       amountCents: r.amount_cents,
       actor: r.actor,
+      actorName: String(r.actor || '').startsWith('admin:') ? (adminName.get(String(r.actor).slice(6)) || null) : null,
     })),
   })
 }
@@ -74,12 +88,12 @@ export async function POST(req: NextRequest) {
   const n = Math.trunc(Number(points))
   if (!parent_id) return NextResponse.json({ error: 'parent_id required' }, { status: 400 })
   if (!Number.isFinite(n) || n === 0)
-    return NextResponse.json({ error: 'Enter a number of points to add or take away' }, { status: 400 })
+    return NextResponse.json({ error: 'Enter a number of points to add or take away', code: 'no_points' }, { status: 400 })
   if (Math.abs(n) > MAX_ADJUST)
-    return NextResponse.json({ error: `One adjustment cannot exceed ${MAX_ADJUST.toLocaleString('en-US')} points` }, { status: 400 })
+    return NextResponse.json({ error: `One adjustment cannot exceed ${MAX_ADJUST.toLocaleString('en-US')} points`, code: 'too_many', max: MAX_ADJUST }, { status: 400 })
   const reasonText = String(note || '').trim()
   if (reasonText.length < 3)
-    return NextResponse.json({ error: 'A reason is required — the parent sees it on their statement' }, { status: 400 })
+    return NextResponse.json({ error: 'A reason is required — the parent sees it on their statement', code: 'reason_required' }, { status: 400 })
 
   try {
     const res = await applyPoints(auth.svc, {
@@ -98,9 +112,9 @@ export async function POST(req: NextRequest) {
     // A wallet in arrears refuses every deduction; this used to surface as the
     // generic "Could not adjust" 500 (found 2026-10-04).
     if (e instanceof WalletInArrears)
-      return NextResponse.json({ error: `This family owes ${e.owed} points from a returned payment; a deduction cannot be made until it is settled.` }, { status: 400 })
+      return NextResponse.json({ error: `This family owes ${e.owed} points from a returned payment; a deduction cannot be made until it is settled.`, code: 'in_arrears', owed: e.owed }, { status: 400 })
     if (e?.name === 'InsufficientPoints')
-      return NextResponse.json({ error: `This family only has ${e.available} points` }, { status: 409 })
+      return NextResponse.json({ error: `This family only has ${e.available} points`, code: 'insufficient', available: e.available }, { status: 409 })
     console.error('admin points adjust failed:', e)
     return NextResponse.json({ error: 'Could not adjust the points' }, { status: 500 })
   }

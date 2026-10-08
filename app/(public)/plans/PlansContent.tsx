@@ -11,11 +11,14 @@ import {
   BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
   OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED,
+  ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS,
 } from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import SettleArrearsButton from '@/components/SettleArrearsButton'
+import { useFamilyStatus } from '@/lib/use-family-status'
 
 // The pricing page under the points system. Every number here is read from
 // lib/points.ts -- the same module the booking route charges from -- so the
@@ -110,13 +113,11 @@ const css = `
   }
 `
 
-function TeamTierList() {
+type TeamTier = { id: string; name: string; level_min: number; level_max: number; min_stage?: number; max_stage?: number; spots_left: number; monthly_price_cents: number }
+
+function TeamTierList({ tiers }: { tiers: TeamTier[] }) {
   const t = useT()
   const locale = useLocale()
-  const [tiers, setTiers] = useState<{ id: string; name: string; level_min: number; level_max: number; min_stage?: number; max_stage?: number; spots_left: number }[]>([])
-  useEffect(() => {
-    fetch('/api/team/tiers').then(r => r.ok ? r.json() : null).then(d => { if (d?.tiers) setTiers(d.tiers) }).catch(() => {})
-  }, [])
   if (tiers.length === 0) return null
   return (
     <div className="p-tiers">
@@ -136,12 +137,30 @@ function TeamTierList() {
   )
 }
 
-/** The Swim Team button still buys a plan, because Swim Team is still a plan. */
-function TeamButton() {
+/** The Swim Team button still buys a plan, because Swim Team is still a plan.
+ *
+ *  Not for a visitor who is not signed in (found 2026-10-08): the squads
+ *  start at Level 4 and a new swimmer has no level until the assessment, so
+ *  "Join" sent a new family through sign-up to a checkout where their child
+ *  could not be chosen. Signed out, the next step is the assessment; a
+ *  member who is simply signed out still has a way in. */
+function TeamButton({ signedIn }: { signedIn: boolean | null }) {
   const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  if (signedIn === false) {
+    return (
+      <>
+        <p className="fine">{t('plans.team.newFamily')}</p>
+        <Link href={localePath('/assessment', locale)} className="b-btn gold" style={{ width: '100%' }}>{t('plans.team.assessBtn')}</Link>
+        <p className="fine" style={{ margin: '14px 0 0', textAlign: 'center' }}>
+          <Link href={'/login?next=' + encodeURIComponent('/checkout?plan=team')} style={{ color: BRAND.yellow }}>{t('plans.team.memberSignIn')}</Link>
+        </p>
+      </>
+    )
+  }
   return (
     <button
       type="button"
@@ -179,6 +198,14 @@ function TopUp() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsAssessment, setNeedsAssessment] = useState(false)
+  // A signed-in family in arrears sees what it owes and can pay exactly that
+  // (owner, 2026-10-08). Signed out, the wallet answers 401 and nothing shows.
+  const [owed, setOwed] = useState(0)
+  useEffect(() => {
+    fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
+      .then(j => { if (j && Number(j.arrears) > 0) setOwed(Number(j.arrears)) })
+      .catch(() => {})
+  }, [])
 
   const chosen = topUpAmount(course, lessons)
   // Always true for the grid as it stands. Kept anyway: it is the guard that
@@ -217,6 +244,13 @@ function TopUp() {
 
   return (
     <div className="p-card">
+      {owed > 0 && (
+        <div className="p-warn" style={{ marginTop: 0, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('points.card.arrearsTitle', { n: num(owed) })}</div>
+          <div style={{ marginBottom: 12 }}>{t('points.card.arrearsBody')}</div>
+          <SettleArrearsButton owed={owed} className="b-btn gold" />
+        </div>
+      )}
       {/* Which class, first. The points are not tied to one -- the note below
           says so -- but a parent thinking about buying is thinking about a
           class, not about a balance. */}
@@ -299,12 +333,15 @@ export default function PlansContent() {
   // it gets its own row below with a dollar price instead of a points one.
   // The squad fee comes from team_tiers (what the checkout charges), not a
   // number written here. Squads can differ, so a spread reads "from $X".
-  const [teamFees, setTeamFees] = useState<number[]>([])
+  // One read for the whole page: the squad list further down uses the same
+  // answer (it used to fetch it a second time).
+  const [teamTiers, setTeamTiers] = useState<TeamTier[]>([])
   useEffect(() => {
     fetch('/api/team/tiers').then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.tiers) setTeamFees(d.tiers.map((x: { monthly_price_cents: number }) => x.monthly_price_cents / 100).filter((n: number) => n > 0)) })
+      .then(d => { if (d?.tiers) setTeamTiers(d.tiers) })
       .catch(() => {})
   }, [])
+  const teamFees = teamTiers.map(x => x.monthly_price_cents / 100).filter(n => n > 0)
   const teamFee = teamFees.length ? Math.min(...teamFees) : null
 
   // A signed-in family whose every swimmer already has a level has done the
@@ -312,22 +349,7 @@ export default function PlansContent() {
   // 2026-10-05). Hide that card and point the closing call to booking. Read
   // after paint and only for display; anyone signed out, or with a swimmer
   // still to assess, keeps the assessment-first page.
-  const [allAssessed, setAllAssessed] = useState(false)
-  useEffect(() => {
-    let live = true
-    ;(async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-        const { data: p } = await supabase.from('parents').select('id').eq('auth_user_id', session.user.id).maybeSingle()
-        if (!p) return
-        const { data: kids } = await supabase.from('students').select('current_level').eq('parent_id', p.id).eq('is_active', true)
-        if (live && kids && kids.length > 0 && kids.every((k: { current_level: number | null }) => k.current_level != null)) setAllAssessed(true)
-      } catch { /* display only */ }
-    })()
-    return () => { live = false }
-  }, [])
+  const { signedIn, allAssessed } = useFamilyStatus()
   const teamFeeVaries = teamFees.some(n => n !== teamFee)
 
   const lessonRows = [
@@ -393,6 +415,10 @@ export default function PlansContent() {
                     <small>{t('points.price.assessNote')}</small>
                   </span>
                 </div>
+                {/* The assessment credit is public (owner, 2026-10-08). */}
+                <p className="p-fine" style={{ padding: '8px 0 12px', borderBottom: `1px solid ${BRAND.line}` }}>
+                  {t('assess.credit.short', { n: ASSESSMENT_CREDIT_LESSONS, days: ASSESSMENT_CREDIT_DAYS, points: ASSESSMENT_POINTS })}
+                </p>
                 {lessonRows.map(row => (
                   <div key={row.key} className="p-row">
                     <span>{t('points.price.row.' + row.key)}</span>
@@ -458,9 +484,9 @@ export default function PlansContent() {
               </div>
             </div>
             <div>
-              <TeamTierList />
+              <TeamTierList tiers={teamTiers} />
               <p className="fine">{t('points.team.notPoints')}</p>
-              <TeamButton />
+              <TeamButton signedIn={signedIn} />
             </div>
           </div>
         </div>

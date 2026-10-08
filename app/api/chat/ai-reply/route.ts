@@ -15,6 +15,10 @@ import { ASSESSMENT_MAX_DAYS } from '@/lib/assessment-slot'
 import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { LEAVE_WINDOW_DAYS } from '@/lib/vouchers'
 import { allRows, allRowsIn } from '@/lib/db-paging'
+import { graceUsedThisMonth } from '@/lib/vouchers'
+import { translate } from '@/lib/i18n/all'
+import { takeSlots, keyHash } from '@/lib/ip-rate-limit'
+import { claimsCompletedCancellation } from '@/lib/ai/reply-guards'
 
 // The fixed texts this route posts itself (the catch-all fallback and the two
 // guard replacements) used to be English only, even to a parent writing in
@@ -26,7 +30,7 @@ import { allRows, allRowsIn } from '@/lib/db-paging'
 // than in the locale files: these are message bodies stored in the thread,
 // not UI chrome.
 type ReplyLang = 'en' | 'zh-Hant' | 'zh-Hans'
-const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard', Record<ReplyLang, string>> = {
+const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited', Record<ReplyLang, string>> = {
   fallback: {
     en: 'Thanks for your message! A member of our team will get back to you shortly.',
     'zh-Hant': '謝謝您的訊息！我們的團隊成員會盡快回覆您。',
@@ -41,6 +45,11 @@ const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard', Record<ReplyLang
     en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
     'zh-Hant': '剛剛沒能為您保留這個時段，所以沒有預約，也沒有收取任何費用。我們已通知團隊成員，會盡快與您聯繫。',
     'zh-Hans': '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，会尽快与您联系。',
+  },
+  rateLimited: {
+    en: 'You have sent a lot of messages in a short time, so automatic replies are paused for now. A team member has been notified and will reply to you here.',
+    'zh-Hant': '您在短時間內傳送了很多訊息，自動回覆先暫停一下。我們已通知團隊成員，會在這裡回覆您。',
+    'zh-Hans': '您在短时间内发送了很多消息，自动回复先暂停一下。我们已通知团队成员，会在这里回复您。',
   },
 }
 // Common characters that differ between the two scripts, pair for pair.
@@ -60,6 +69,19 @@ function replyLang(text: string | null | undefined, preferred: string | null | u
 }
 const MODEL = 'claude-sonnet-4-6'
 const CANCEL_LOCK_MINUTES = 24 * 60
+
+// A signed-in parent's messages that reach the model (owner, 2026-10-08).
+// The guest chat was fenced; this one was not, so one account looping on the
+// send button could run Claude calls without end. Past either limit the
+// assistant is not called: the thread is flagged for the desk and the parent
+// told, once, that a person will reply. Counted in ip_rate_hits through
+// lib/ip-rate-limit (keyed on a hash of the parent id); that table keeps a
+// day, which is the longest window here.
+const PARENT_PER_HOUR = 30
+const PARENT_PER_DAY = 150
+// The chat box takes 800 characters (as the guest chat does); a longer parent
+// message did not come from it and is cut before it reaches the model.
+const MAX_PARENT_LEN = 800
 
 // Real elapsed minutes, through lib/date like cancelLesson itself (found
 // 2026-10-07). This used to count every day as 1440 wall-clock minutes, so in
@@ -296,7 +318,7 @@ export async function POST(req: NextRequest) {
 
   let historyQuery = svc
     .from('chat_messages')
-    .select('id, sender_type, body')
+    .select('id, sender_type, body, metadata')
     .eq('thread_id', thread_id)
     .order('created_at', { ascending: false })
     .limit(12)
@@ -336,13 +358,80 @@ export async function POST(req: NextRequest) {
     await svc.from('chat_threads').update(upd).eq('id', thread_id)
   }
 
+  // The per-parent fence (PARENT_PER_HOUR / PARENT_PER_DAY), after the claim so
+  // a duplicate call for the same message is not counted twice. A table error
+  // lets the message through (logged): a parent's support chat should not go
+  // silent because a counter could not be written.
+  {
+    const key = keyHash('parent-chat', parent.id)
+    const slots = await takeSlots(svc, [
+      { scope: 'parent-chat-hour', key, max: PARENT_PER_HOUR, windowMs: 60 * 60 * 1000 },
+      { scope: 'parent-chat-day', key, max: PARENT_PER_DAY, windowMs: 24 * 60 * 60 * 1000 },
+    ])
+    if (slots.result === 'error') console.error('[ai-reply] rate limit could not be counted; letting the message through')
+    if (slots.result === 'limited') {
+      // Told once: when the assistant's last word was already this notice,
+      // further messages only flag the thread for the desk.
+      const lastOurs = [...recent].reverse().find(m => m.sender_type !== 'parent')
+      if (lastOurs?.sender_type === 'ai' && lastOurs.metadata?.rate_limited) {
+        await svc.from('chat_threads').update({ unread_by_admin: true }).eq('id', thread_id)
+        return NextResponse.json({ ok: true, skipped: true, reason: 'rate_limited' })
+      }
+      await postAiMessage(CANNED.rateLimited[lang], true, { rate_limited: true })
+      return NextResponse.json({ ok: true, escalated: true, limited: true })
+    }
+  }
+
   const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
   const cookieHeader = req.headers.get('cookie') || ''
   let escalate = false
   let cancelSucceededThisTurn = false
+  let cancelAlreadyDoneThisTurn = false
   let trialBookSucceededThisTurn = false
 
   // ---------- helpers used by multiple tools ----------
+  type LessonBooking = {
+    id: string; student_id: string; class_session_id: string; status: string
+    partner_booking_id: string | null; points_charged: number | null; is_trial: boolean
+    lesson_group_id: string | null; voucher_id: string | null; fixed_class_id: string | null
+  }
+  type LessonSession = { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; course_type_id: string }
+  // What cancelling this lesson now would do, in the words of
+  // lib/bookings/cancel.ts (docs/fixed-class-spec.md). The model used to see
+  // only "cancellable_online" and could not tell a fixed-class lesson (leave ->
+  // voucher, no points back), a make-up (voucher back, or spent inside 24h), a
+  // 1-on-2 shared with another family (both families cancelled; inside 24h not
+  // online at all) or a sibling 1-on-2 (both children's grace) from a single
+  // lesson (found 2026-10-08). The button names are the dashboard's own, in the
+  // language the parent is writing in.
+  function cancelRule(r: {
+    kind: 'single' | 'fixed_class' | 'make_up' | 'assessment'
+    slug: string; status: string; started: boolean; late: boolean
+    shared: boolean; siblings: boolean; kidNames: string[]; graceUsedBy: string[]
+  }): string {
+    if (r.kind === 'assessment') return "A Swim Assessment can't be cancelled or moved online; the team handles it (escalate_to_human)."
+    if (r.started) return 'This lesson has already started or happened today; it can no longer be cancelled.'
+    if (r.status !== 'confirmed') return 'This lesson cannot be cancelled online; the team can help (escalate_to_human).'
+    const late = (key: string) => `the dashboard button "${translate(lang, key)}"`
+    if (!r.late) {
+      if (r.kind === 'make_up') return 'More than 24 hours ahead: cancelling gives the make-up voucher back to the family (same dates; extended to 7 days from today if fewer are left). No points are involved. A make-up cannot be rescheduled.'
+      if (r.kind === 'fixed_class') {
+        if (r.slug === '1on2' && (r.shared || !r.siblings)) return 'Fixed-class 1-on-2 that cannot be turned into a make-up voucher online; the team handles it (escalate_to_human).'
+        return `More than 24 hours ahead: this is LEAVE from a fixed class. The points are NOT returned; the lesson becomes a make-up voucher${r.siblings ? ' for both children' : ''}, for a make-up dated within ${LEAVE_WINDOW_DAYS} days before or after this lesson. A fixed-class lesson cannot be rescheduled.`
+      }
+      if (r.shared) return 'More than 24 hours ahead: this 1-on-2 is shared with ANOTHER family and is one lesson, so cancelling cancels it for BOTH families and both get their points back in full. Tell the parent this before they confirm.'
+      if (r.siblings) return `More than 24 hours ahead: both children's seats (${r.kidNames.join(' & ')}) are one lesson and are cancelled together; the points for both come back in full.`
+      return 'More than 24 hours ahead: cancelling returns the points in full (or the parent can reschedule).'
+    }
+    // Inside 24 hours. The chat itself never cancels these.
+    if (r.kind === 'make_up') return `Inside 24 hours: cancelling SPENDS the make-up voucher (nothing comes back, and the monthly grace does not apply). The parent can still do it with ${late('dash.up.cancelLate')}; this chat cannot.`
+    if (r.shared) return 'Inside 24 hours, shared with another family: it cannot be cancelled online at all; the parent must contact the team (escalate_to_human).'
+    if (r.slug === '1on2' && !r.siblings) return 'Inside 24 hours: this 1-on-2 cannot be cancelled online; the team handles it (escalate_to_human).'
+    const who = r.siblings ? `BOTH children's (${r.kidNames.join(' & ')})` : `${r.kidNames[0] || 'the child'}'s`
+    if (r.graceUsedBy.length) return `Inside 24 hours: the points are not returned, and this month's grace is already used by ${r.graceUsedBy.join(' & ')}, so it cannot be cancelled online. Offer to pass it to the team.`
+    return `Inside 24 hours: the points are not returned. The parent can use ${who} monthly grace with ${late(r.kind === 'fixed_class' ? 'dash.up.leaveLate' : 'dash.up.cancelLate')} on their dashboard: the lesson becomes a make-up voucher valid 4 weeks (not points). This chat cannot do it.`
+  }
+
   async function fetchLessonRows(pastNotFuture: boolean) {
     // Paged and ordered by id: one unpaged read stops at 1,000 rows without a
     // word, and the rows it dropped were whichever the database returned last
@@ -352,8 +441,9 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       // lesson_group_id and voucher_id ride along for get_reschedule_link: a
       // 60-minute lesson needs its group id on the booking page, and a make-up
-      // cannot be moved at all (found 2026-10-07).
-      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial, lesson_group_id, voucher_id')
+      // cannot be moved at all (found 2026-10-07). fixed_class_id: what a
+      // cancellation does depends on it (cancelRule above).
+      .select('id, student_id, class_session_id, status, partner_booking_id, points_charged, is_trial, lesson_group_id, voucher_id, fixed_class_id')
       .eq('parent_id', parent!.id)
       // Only lessons the family actually holds (found 2026-10-07). A cart item
       // (in_cart) or a hold waiting on Stripe (pending_payment) is not a booked
@@ -361,30 +451,56 @@ export async function POST(req: NextRequest) {
       // cart item, which the server refuses.
       .not('status', 'in', '("cancelled","pending_partner","in_cart","pending_payment")')
       .order('id', { ascending: true }))
-    const rows: any[] = bookings
+    const rows = bookings as LessonBooking[]
     if (!rows.length) return []
     const sessionIds = [...new Set(rows.map(b => b.class_session_id).filter(Boolean))] as string[]
-    const { data: sessions } = await allRowsIn(sessionIds, chunk => svc
+    const { data: sessionData } = await allRowsIn(sessionIds, chunk => svc
       .from('class_sessions')
       .select('id, session_date, start_time, end_time, coach_id, course_type_id')
       .in('id', chunk)
       .order('id', { ascending: true }))
-    const sMap = new Map(sessions.map((s: any) => [s.id, s]))
-    const coachIds = [...new Set(sessions.map((s: any) => s.coach_id).filter(Boolean))]
-    const ctIds = [...new Set(sessions.map((s: any) => s.course_type_id).filter(Boolean))]
+    const sessions = sessionData as LessonSession[]
+    const sMap = new Map(sessions.map(s => [s.id, s]))
+    const coachIds = [...new Set(sessions.map(s => s.coach_id).filter(Boolean))]
+    const ctIds = [...new Set(sessions.map(s => s.course_type_id).filter(Boolean))]
     const studentIds = [...new Set(rows.map(b => b.student_id).filter(Boolean))]
     const [coachRes, ctRes, stuRes] = await Promise.all([
       coachIds.length ? svc.from('coaches').select('id, first_name, last_name').in('id', coachIds) : Promise.resolve({ data: [] }),
       ctIds.length ? svc.from('course_types').select('id, name, slug').in('id', ctIds) : Promise.resolve({ data: [] }),
       studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : Promise.resolve({ data: [] }),
     ])
-    const cMap = new Map((coachRes.data || []).map((c: any) => [c.id, c]))
-    const ctMap = new Map((ctRes.data || []).map((c: any) => [c.id, c]))
-    const stuMap = new Map((stuRes.data || []).map((s: any) => [s.id, s]))
-    const out = []
+    const cMap = new Map(((coachRes.data || []) as { id: string; first_name: string; last_name: string }[]).map(c => [c.id, c]))
+    const ctMap = new Map(((ctRes.data || []) as { id: string; name: string; slug: string }[]).map(c => [c.id, c]))
+    const stuMap = new Map(((stuRes.data || []) as { id: string; full_name: string }[]).map(x => [x.id, x]))
+    const slugOf = (s: LessonSession) => ctMap.get(s.course_type_id)?.slug || ''
+
+    // One entry per LESSON, as the dashboard shows it (found 2026-10-08): the
+    // two halves of a 60-minute lesson used to reach the model as two 30-minute
+    // lessons ("you have two lessons on Thursday"; "cancel the 9:40 one" took
+    // the whole hour), and the two seats of a sibling 1-on-2 as two lessons.
+    // Keyed like the dashboard: a 60-minute group (both children when it is a
+    // 1-on-2), else a 1-on-2 session, else the booking itself.
+    type Part = { b: LessonBooking; s: LessonSession }
+    const groups = new Map<string, Part[]>()
     for (const b of rows) {
-      const s: any = sMap.get(b.class_session_id)
+      const s = sMap.get(b.class_session_id)
       if (!s) continue
+      const slug = slugOf(s)
+      const key = b.lesson_group_id
+        ? 'G|' + b.lesson_group_id + (slug === '1on2' ? '' : '|' + b.student_id)
+        : slug === '1on2' && !b.is_trial ? 'S|' + b.class_session_id : 'B|' + b.id
+      const g = groups.get(key) || []
+      g.push({ b, s })
+      groups.set(key, g)
+    }
+    const toMin = (x: string) => { const [h, m] = String(x).slice(0, 5).split(':').map(Number); return h * 60 + m }
+    const startKey = (s: LessonSession) => `${s.session_date} ${String(s.start_time).slice(0, 5)}`
+
+    const kept: { g: Part[]; mins: number; earlierToday: boolean }[] = []
+    for (const g of groups.values()) {
+      g.sort((x, y) => startKey(x.s).localeCompare(startKey(y.s)))
+      const s = g[0].s
+      // Judged by when the lesson STARTS, as cancelLesson judges it.
       const mins = minutesUntilSession(s.session_date, s.start_time)
       // Today's lesson that has already started is still "today" to a parent
       // asking what is on today. It was in neither list, so the assistant
@@ -392,38 +508,94 @@ export async function POST(req: NextRequest) {
       // upcoming list, flagged, and never counts as cancellable.
       const earlierToday = mins < 0 && s.session_date === getTodayLA()
       if (pastNotFuture ? (mins >= 0 || earlierToday) : (mins < 0 && !earlierToday)) continue
-      const coach: any = cMap.get(s.coach_id)
-      const ct: any = ctMap.get(s.course_type_id)
-      const stu: any = stuMap.get(b.student_id)
+      kept.push({ g, mins, earlierToday })
+    }
+
+    // A 1-on-2 is shared with another family when a seat links across, or --
+    // as cancelLesson decides it -- when another family holds a confirmed seat
+    // in the same session (a desk-made pair may carry no link).
+    const pairSessions = [...new Set(kept
+      .filter(k => slugOf(k.g[0].s) === '1on2')
+      .flatMap(k => k.g.map(x => x.s.id)))]
+    const otherFamilySessions = new Set<string>()
+    if (!pastNotFuture && pairSessions.length) {
+      const { data: seats } = await allRowsIn(pairSessions, chunk => svc
+        .from('bookings')
+        .select('id, class_session_id')
+        .in('class_session_id', chunk)
+        .neq('parent_id', parent!.id)
+        .eq('status', 'confirmed')
+        .order('id', { ascending: true }))
+      for (const x of seats as { class_session_id: string }[]) otherFamilySessions.add(x.class_session_id)
+    }
+
+    // Whose monthly grace is spent already -- only asked when a lesson is
+    // inside 24 hours, the one case it decides.
+    const lateKids = !pastNotFuture
+      ? [...new Set(kept.filter(k => !k.earlierToday && k.mins < CANCEL_LOCK_MINUTES).flatMap(k => k.g.map(x => x.b.student_id)).filter(Boolean))]
+      : []
+    const graceUsed = lateKids.length ? await graceUsedThisMonth(svc, lateKids) : new Set<string>()
+    const nameOf = (id: string) => stuMap.get(id)?.full_name || 'Unknown'
+
+    const out = []
+    for (const { g, mins, earlierToday } of kept) {
+      const b = g[0].b
+      const s = g[0].s
+      const last = g[g.length - 1].s
+      const coach = cMap.get(s.coach_id)
+      const ct = ctMap.get(s.course_type_id)
+      const slug = slugOf(s)
+      const kidIds = [...new Set(g.map(x => x.b.student_id).filter(Boolean))]
+      const kidNames = kidIds.map(nameOf).sort((x, y) => x.localeCompare(y))
+      const kind = b.is_trial ? 'assessment' as const : b.voucher_id ? 'make_up' as const : b.fixed_class_id ? 'fixed_class' as const : 'single' as const
+      const shared = slug === '1on2' && g.some(x => !!x.b.partner_booking_id || otherFamilySessions.has(x.s.id))
+      const siblings = slug === '1on2' && kidIds.length > 1
+      const late = mins < CANCEL_LOCK_MINUTES
       out.push({
         booking_id: b.id,
-        student: stu?.full_name || 'Unknown',
+        student: kidNames.join(' & '),
         // An assessment sits on a 1-on-1 course type; without this the
         // assistant told a parent their Swim Assessment was a private lesson.
         course: b.is_trial ? 'Swim Assessment' : (ct?.name || 'Lesson'),
-        course_slug: b.is_trial ? 'assessment' : (ct?.slug || ''),
+        course_slug: b.is_trial ? 'assessment' : slug,
+        // single = booked one at a time; fixed_class = part of a weekly fixed
+        // class (固定班); make_up = booked with a make-up voucher (補課).
+        kind,
+        minutes: toMin(last.end_time) - toMin(s.start_time),
+        ...(slug === '1on2' ? { shared_with_other_family: shared, ...(siblings ? { both_children_of_this_family: true } : {}) } : {}),
         coach: coach ? `${coach.first_name} ${coach.last_name}` : 'TBD',
         date: s.session_date,
-        time: `${formatTime12h(s.start_time.slice(0, 5))} - ${formatTime12h(s.end_time.slice(0, 5))}`,
+        time: `${formatTime12h(s.start_time.slice(0, 5))} - ${formatTime12h(last.end_time.slice(0, 5))}`,
         status: b.status,
         minutes_until: mins,
         ...(earlierToday ? { started: true } : {}),
-        cancellable_online: mins > CANCEL_LOCK_MINUTES && !b.is_trial,
+        // Whether THIS chat's cancel_booking can do it (24 hours or more
+        // ahead, as lib/bookings/cancel.ts draws the line).
+        cancellable_online: !earlierToday && !late && !b.is_trial,
+        ...(!pastNotFuture ? {
+          if_cancelled_now: cancelRule({
+            kind, slug, status: b.status, started: earlierToday, late, shared, siblings, kidNames,
+            graceUsedBy: kidIds.filter(id => graceUsed.has(id)).map(nameOf),
+          }),
+        } : {}),
+        _ids: g.map(x => x.b.id),
         _session: s,
         _booking: b,
       })
     }
-    out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+    out.sort((a, b) => (a.date + ' ' + String(a._session.start_time).slice(0, 5)).localeCompare(b.date + ' ' + String(b._session.start_time).slice(0, 5)))
     return out
   }
 
+  // Any booking id of the lesson finds it: the model may still hold the
+  // second half's id from an earlier turn.
   async function loadOwnedUpcoming(bookingId: string) {
     const rows = await fetchLessonRows(false)
-    return rows.find(r => r.booking_id === bookingId) || null
+    return rows.find(r => r._ids.includes(bookingId)) || null
   }
 
   function pub(rows: any[]) {
-    return rows.map(({ _session, _booking, ...rest }) => rest)
+    return rows.map(({ _session, _booking, _ids, ...rest }) => rest)
   }
 
   // ---------- tool executor ----------
@@ -461,7 +633,12 @@ export async function POST(req: NextRequest) {
       }
       if (!row.cancellable_online) {
         escalate = true
-        return { error: "This lesson starts within 24 hours, so this tool cannot cancel it. Tell the family they can cancel it themselves on their dashboard with the lesson's 'Cancel (within 24 hours)' button: it uses that child's monthly grace and gives a make-up voucher instead of points (if the grace is already used this month, it cannot be cancelled online). The conversation has also been flagged for a team member." }
+        // What applies to THIS lesson (cancelRule): a make-up spends its
+        // voucher, a shared 1-on-2 cannot be cancelled online, a sibling
+        // 1-on-2 uses both children's grace, a fixed class "takes leave". It
+        // used to describe the single-lesson grace for every lesson, under a
+        // button name the dashboard does not have (found 2026-10-08).
+        return { error: `This tool cannot cancel this lesson. ${row.if_cancelled_now || ''} The conversation has also been flagged for a team member.` }
       }
       // cancelLesson, not the half-cancel: a 60-minute lesson is two booking
       // rows, and cancelling one of them while saying "done" left a coach
@@ -478,6 +655,8 @@ export async function POST(req: NextRequest) {
       // answers 409 for other refusals too, and "already cancelled" was then
       // passed on for a lesson that was still booked.
       if (result.status === 409 && result.error === 'Already cancelled') {
+        // True, and the model may say so: not a claim the guard should stop.
+        cancelAlreadyDoneThisTurn = true
         return { error: 'This lesson was already cancelled. No further action was taken.' }
       }
       if (result.status === 409) {
@@ -519,11 +698,10 @@ export async function POST(req: NextRequest) {
       // A fixed-class lesson is not moved: the family takes leave (cancel)
       // and books the make-up with the voucher that gives them.
       {
-        const { data: fb } = await svc.from('bookings').select('fixed_class_id').eq('id', row.booking_id).maybeSingle()
         // A leave voucher is NOT the four-week kind: its make-up has to fall
         // within LEAVE_WINDOW_DAYS either side of the missed lesson. The text
         // said "within four weeks", which the model passed on (found 2026-10-05).
-        if (fb?.fixed_class_id) return { error: `This lesson is part of a fixed weekly class and cannot be rescheduled. Taking leave at least 24 hours ahead turns it into a make-up voucher for a make-up dated within ${LEAVE_WINDOW_DAYS} days before or after this lesson; it can be booked right away. (Inside 24 hours, leave uses the child's monthly grace and that voucher lasts 4 weeks.)` }
+        if (row._booking.fixed_class_id) return { error: `This lesson is part of a fixed weekly class and cannot be rescheduled. Taking leave at least 24 hours ahead turns it into a make-up voucher for a make-up dated within ${LEAVE_WINDOW_DAYS} days before or after this lesson; it can be booked right away. (Inside 24 hours, leave uses the child's monthly grace and that voucher lasts 4 weeks.)` }
       }
       // A make-up lesson (booked with a voucher) is not moved either; the
       // booking route refused it only after the parent had picked a new time
@@ -678,7 +856,9 @@ export async function POST(req: NextRequest) {
       const res = await fetch(`${origin}/api/stripe/trial-checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
-        body: JSON.stringify({ studentId, coachId, date, time }),
+        // A link made in chat is also emailed (owner, 2026-10-08); one the
+        // family opens from the booking page is not.
+        body: JSON.stringify({ studentId, coachId, date, time, sendPaymentEmail: true }),
       })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok || !data.url) {
@@ -763,10 +943,14 @@ export async function POST(req: NextRequest) {
 
     const merged: { role: 'user' | 'assistant'; content: any }[] = []
     for (const m of recent) {
+      // A system line (the desk handing the chat back) is not something the
+      // assistant said.
+      if (m.sender_type === 'system') continue
       const role = m.sender_type === 'parent' ? ('user' as const) : ('assistant' as const)
+      const text = role === 'user' ? String(m.body || '').slice(0, MAX_PARENT_LEN) : m.body
       const prev = merged[merged.length - 1]
-      if (prev && prev.role === role && typeof prev.content === 'string') prev.content += '\n' + m.body
-      else merged.push({ role, content: m.body })
+      if (prev && prev.role === role && typeof prev.content === 'string') prev.content += '\n' + text
+      else merged.push({ role, content: text })
     }
     while (merged.length && merged[0].role !== 'user') merged.shift()
 
@@ -823,15 +1007,14 @@ export async function POST(req: NextRequest) {
     // Deterministic guard against hallucinated cancellations: if the model
     // claims a completed cancellation but cancel_booking did not succeed in
     // this invocation, replace the reply and flag a human.
-    const claimsCancelled =
-      /(cancelled|canceled|has been cancelled|已取消|已經取消|已经取消|取消了|取消成功|refunded|已退款|退款了)/i.test(finalText)
-    if (claimsCancelled && !cancelSucceededThisTurn) {
-      const asksConfirm = /(確認|确认|confirm|are you sure|要取消)/i.test(finalText)
-      if (!asksConfirm) {
-        console.error('[ai-reply guard] blocked hallucinated cancellation claim:', finalText.slice(0, 200))
-        escalate = true
-        finalText = CANNED.cancelGuard[lang]
-      }
+    // Only a claim that a lesson WAS cancelled or refunded counts (owner,
+    // 2026-10-08; lib/ai/reply-guards.ts): the bare words used to catch every
+    // answer about the cancellation or refund policy.
+    // scripts/chat-guard-check.mjs holds the cases.
+    if (claimsCompletedCancellation(finalText) && !cancelSucceededThisTurn && !cancelAlreadyDoneThisTurn) {
+      console.error('[ai-reply guard] blocked hallucinated cancellation claim:', finalText.slice(0, 200))
+      escalate = true
+      finalText = CANNED.cancelGuard[lang]
     }
 
     const claimsTrialBooked =

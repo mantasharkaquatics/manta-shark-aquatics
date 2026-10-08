@@ -85,12 +85,12 @@ function ResetForm() {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('reset.newPassword')}</label>
-              <PasswordField value={password} onChange={setPassword} autoComplete="new-password" className={field} />
+              <label htmlFor="reset-password" className="block text-sm font-medium text-[#16294a] mb-1.5">{t('reset.newPassword')}</label>
+              <PasswordField id="reset-password" value={password} onChange={setPassword} autoComplete="new-password" className={field} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#16294a] mb-1.5">{t('register.passwordConfirm')}</label>
-              <PasswordField value={password2} onChange={setPassword2} onEnter={save} autoComplete="new-password"
+              <label htmlFor="reset-password2" className="block text-sm font-medium text-[#16294a] mb-1.5">{t('register.passwordConfirm')}</label>
+              <PasswordField id="reset-password2" value={password2} onChange={setPassword2} onEnter={save} autoComplete="new-password"
                 className={field + (password2 && password2 !== password ? ' !border-red-500' : '')} />
               {password2 && (password2 === password
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>

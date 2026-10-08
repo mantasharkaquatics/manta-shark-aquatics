@@ -3,6 +3,7 @@
 import { LANGUAGE_LABELS } from '@/lib/ai/models'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey, UNLOCK_LEVEL, type Mastery } from '@/lib/mastery'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
 
@@ -59,13 +60,30 @@ function barColor(pct: number): string {
   return 'rgba(255,255,255,0.15)'
 }
 
-export default function AdminProgressHistoryClient({ records, skills }: {
+/** Where the server is in the list: one page of reports, for a name search or all. */
+type Pager = { page: number; pageSize: number; total: number; q: string }
+
+export default function AdminProgressHistoryClient({ records, skills, pager, loadError = false }: {
   records: Record_[]
   skills: Skill[]
+  pager: Pager
+  /** A read failed: what is shown may be incomplete (no notes, no edits). */
+  loadError?: boolean
 }) {
   const t = useT()
   const locale = useLocale()
-  const [search, setSearch] = useState('')
+  const router = useRouter()
+  // The search runs on the server (page.tsx), over every report, not only
+  // the page on screen; Enter or the button applies it.
+  const [search, setSearch] = useState(pager.q)
+  const pages = Math.max(1, Math.ceil(pager.total / pager.pageSize))
+  const go = (page: number, q = pager.q) => {
+    const sp = new URLSearchParams()
+    if (q.trim()) sp.set('q', q.trim())
+    if (page > 1) sp.set('page', String(page))
+    const qs = sp.toString()
+    router.push('/admin/progress-history' + (qs ? '?' + qs : ''))
+  }
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNote, setEditNote] = useState('')
@@ -112,11 +130,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
     return m
   }, [skills, locale])
 
-  const filtered = useMemo(() => {
-    if (!search || search.length < 2) return records
-    const q = search.toLowerCase()
-    return records.filter(r => r.student?.full_name?.toLowerCase().includes(q))
-  }, [search, records])
+  const filtered = records
 
   // Group by student
   const grouped = useMemo(() => {
@@ -136,7 +150,7 @@ export default function AdminProgressHistoryClient({ records, skills }: {
         <p className="text-gray-400 mt-1">{t('admin.progress.subtitle')}</p>
       </div>
 
-      <div className="mb-6">
+      <form className="mb-6 flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); go(1, search) }}>
         <input
           type="text"
           placeholder={t('admin.progress.searchPlaceholder')}
@@ -144,11 +158,19 @@ export default function AdminProgressHistoryClient({ records, skills }: {
           onChange={e => setSearch(e.target.value)}
           className="w-full max-w-md bg-[#111d38] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-500"
         />
-      </div>
+        <button type="submit" className="px-4 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:border-[#c9a84c]/50">{t('admin.progress.search')}</button>
+        {pager.q && (
+          <button type="button" onClick={() => { setSearch(''); go(1, '') }} className="px-3 py-2.5 rounded-lg text-gray-500 text-sm hover:text-gray-300">{t('admin.progress.clearSearch')}</button>
+        )}
+      </form>
+
+      {loadError && (
+        <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-300">{t('admin.progress.err.load')}</p>
+      )}
 
       {grouped.length === 0 ? (
         <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center text-gray-400">
-          {search.length >= 2 ? t('admin.progress.noMatches') : t('admin.progress.empty')}
+          {pager.q ? t('admin.progress.noMatches') : t('admin.progress.empty')}
         </div>
       ) : (
         <div className="space-y-6">
@@ -332,6 +354,16 @@ export default function AdminProgressHistoryClient({ records, skills }: {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {pages > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-3 text-sm">
+          <button onClick={() => go(pager.page - 1)} disabled={pager.page <= 1}
+            className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-300 disabled:opacity-40">‹ {t('admin.progress.newer')}</button>
+          <span className="text-gray-500">{t('admin.progress.pageOf', { page: pager.page, pages })}</span>
+          <button onClick={() => go(pager.page + 1)} disabled={pager.page >= pages}
+            className="px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-300 disabled:opacity-40">{t('admin.progress.older')} ›</button>
         </div>
       )}
     </div>

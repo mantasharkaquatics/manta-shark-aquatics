@@ -1,10 +1,18 @@
 'use client'
 import { useT } from '@/lib/i18n/provider'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { safeNext } from '@/lib/safe-next'
+
+/** The coach page a signed-out coach was heading for (the proxy adds ?next=),
+ *  or the portal home. Only portal paths: this page signs in coaches. */
+function coachNext(): string {
+  const next = safeNext()
+  return next && (next === '/coach' || next.startsWith('/coach/') || next.startsWith('/coach?')) ? next : '/coach'
+}
 
 type PinAnswer = { code?: string; locked?: boolean; attempts_left?: number; retry_after_seconds?: number } | null
 
@@ -19,6 +27,17 @@ export default function CoachLoginPage() {
   const [locked, setLocked] = useState(false)
   const inputs = useRef<(HTMLInputElement | null)[]>([])
   const router = useRouter()
+
+  /* ?inactive=1: the portal found this signed-in coach marked inactive. It
+     used to send them to the parent dashboard, which sent them back to the
+     portal, forever. Sign them out here so the next coach on a shared iPad can
+     use the PIN boxes, and say why. */
+  const [inactive, setInactive] = useState(false)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('inactive') !== '1') return
+    setInactive(true)
+    createClient().auth.signOut().catch(() => {})
+  }, [])
 
   /* The route answers with a code and numbers; the words are built here, in
      the page's own language. It used to print the server's English sentence,
@@ -79,7 +98,7 @@ export default function CoachLoginPage() {
         return
       }
 
-      router.push('/coach')
+      router.push(coachNext())
     } catch {
       setError(t('coach.login.network'))
     } finally {
@@ -141,14 +160,13 @@ export default function CoachLoginPage() {
           ))}
         </div>
 
+        {inactive && !error && <p className="text-amber-300 text-sm text-center mb-4">{t('coach.login.inactive')}</p>}
         {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
         {loading && <p className="text-gray-400 text-sm text-center">{t('coach.login.verifying')}</p>}
-
-        <div className="mt-8 text-center">
-          <a href="/login" className="text-gray-500 text-xs hover:text-gray-300 transition-colors">
-            {t('coach.login.emailLink')}
-          </a>
-        </div>
+        {/* No "Sign in with Email" here any more (owner, 2026-10-08): coach
+            accounts have no password, so that page was a dead end. A coach
+            locked out of PIN sign-in asks the front desk, who can unlock it
+            from Admin > Coaches. */}
       </div>
     </div>
   )

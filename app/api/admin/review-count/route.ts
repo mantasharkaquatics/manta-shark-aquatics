@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { countReviewQueues } from '@/lib/admin/review-queues'
 
@@ -17,11 +17,14 @@ export const dynamic = 'force-dynamic'
 const TTL_MS = 60_000
 let cached: { at: number; body: unknown } | null = null
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (cached && Date.now() - cached.at < TTL_MS) {
+  // ?fresh=1: Reviews has just cleared a card (the sidebar asks once per
+  // action), so the held answer is known to be out of date.
+  const fresh = req.nextUrl.searchParams.get('fresh') === '1'
+  if (!fresh && cached && Date.now() - cached.at < TTL_MS) {
     return NextResponse.json(cached.body)
   }
 
@@ -32,6 +35,6 @@ export async function GET() {
   } catch (e: unknown) {
     // A badge is never worth breaking the page over.
     console.error('review-count failed:', e)
-    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0, refundOwed: 0, assessmentRebook: 0 })
+    return NextResponse.json({ total: 0, missing: 0, pending: 0, recommendations: 0, refundOwed: 0, assessmentRebook: 0, coachTimeOff: 0 })
   }
 }

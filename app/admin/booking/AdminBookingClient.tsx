@@ -8,7 +8,7 @@ import StudentNotesPanel from '@/components/StudentNotesPanel'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { allRows } from '@/lib/db-paging'
-import { TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
@@ -71,6 +71,8 @@ interface Props {
   students: Student[]
   courseTypes: CourseType[]
   initialSessions: Session[]
+  /** Each family's points balance by parent id, read once on the server. */
+  parentBalances: Record<string, number>
 }
 
 const WORK_START = 6
@@ -354,7 +356,7 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
 // ══════════════════════════════════════════════════════════════════════
 // Main Component
 // ══════════════════════════════════════════════════════════════════════
-export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions }: Props) {
+export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions, parentBalances }: Props) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -374,7 +376,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [parentBalances, setParentBalances] = useState<Record<string, number>>({})
   const [bookMode, setBookMode] = useState<'single' | 'recurring'>('single')
   const [recurCount, setRecurCount] = useState(10)
   // Admin picks how a single-day booking is paid. Tokens are same-day/next-day
@@ -593,28 +594,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   const monthDates = getMonthDates(anchor)
 
-  // Each family's points balance, beside their name in the swimmer picker. One
-  // balance covers every course now, so this no longer depends on which course
-  // is selected -- it is loaded once with the roster.
-  useEffect(() => {
-    const uniqueParentIds = [...new Set(students.map((s: any) => {
-      const p = Array.isArray(s.parents) ? s.parents[0] : s.parents
-      return p?.id
-    }).filter(Boolean))]
-    if (uniqueParentIds.length === 0) return
-    const fetchAll = async () => {
-      const cache: Record<string, number> = {}
-      await Promise.all(uniqueParentIds.map(async (pid) => {
-        const res = await fetch(`/api/admin/points?parent_id=${pid}`)
-        if (res.ok) {
-          const w = await res.json()
-          cache[pid as string] = w.balance ?? 0
-        }
-      }))
-      setParentBalances(cache)
-    }
-    fetchAll()
-  }, [students])
+  // Each family's points balance, beside their name in the swimmer picker,
+  // comes from the page (one batched point_wallets read on the server). It
+  // used to be one /api/admin/points request per family, all at once, each
+  // doing a full wallet summary -- hundreds of requests on every page open.
 
   const [dragMove, setDragMove] = useState<any>(null)
   const [dragMoving, setDragMoving] = useState(false)
@@ -715,6 +698,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const [trialSaving, setTrialSaving] = useState(false)
   const [trialCopied, setTrialCopied] = useState(false)
   const [trialCreditStatus, setTrialCreditStatus] = useState<'none' | 'checking' | 'available' | 'active'>('none')
+  // A swimmer with no level cannot be booked into a regular lesson, from here
+  // either: bulk-create refuses it. The warning used to say an admin could go
+  // ahead and left the button on, and the booking then failed (found 2026-10-08).
+  const unassessedPicked = !isTrial && [formStudent, courseTypes.find(c => c.id === formCourse)?.slug === '1on2' ? formStudent2 : '']
+    .some(id => !!id && students.find(s => s.id === id)?.current_level == null)
 
   useEffect(() => {
     if (!isTrial || !formStudent) {
@@ -1042,7 +1030,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
             <div className="p-6 space-y-4">
               {trialUrl ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-white/60">{t('admin.booking.trial.linkCreated')}</p>
+                  <p className="text-sm text-white/60">{t('admin.booking.trial.linkCreated', { n: TRIAL_HOLD_MINUTES })}</p>
                   <div className="flex gap-2">
                     <input readOnly value={trialUrl}
                       className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
@@ -1056,7 +1044,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       {trialCopied ? t('admin.booking.copied') : t('admin.booking.copy')}
                     </button>
                   </div>
-                  <p className="text-xs text-white/30">{t('admin.booking.trial.autoConfirm')}</p>
+                  <p className="text-xs text-[#c9a84c]">{t('admin.booking.trial.autoConfirm', { n: TRIAL_HOLD_MINUTES })}</p>
                 </div>
               ) : (
                 <>
@@ -1163,6 +1151,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                                 : c.status === 'coach_time_off' ? t('admin.booking.recur.status.timeOff')
                                 : c.status === 'conflict' ? t('admin.booking.recur.status.conflict')
                                 : c.status === 'full' ? t('admin.booking.recur.status.full')
+                                : c.status === 'student_busy' ? t('admin.booking.recur.status.studentBusy')
                                 : t('admin.booking.recur.status.skipped')
                               const okIndex = recurPreview.candidates.slice(0, idx + 1).filter(x => x.status === 'ok').length
                               return (
@@ -1199,9 +1188,9 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                       )}
                     </div>
                   )}
-                  {(() => { const st = students.find(s => s.id === formStudent); return st && st.current_level == null && !isTrial ? (
+                  {unassessedPicked && (
                     <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">{t('admin.booking.noAssessmentWarn')}</p>
-                  ) : null })()}
+                  )}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>
@@ -1214,7 +1203,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {!trialUrl && (
                 <button
                   onClick={bookMode === 'recurring' ? handleRecurCommit : (isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook)}
-                  disabled={saving || trialSaving || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.points?.sufficient || recurLoading))}
+                  disabled={saving || trialSaving || unassessedPicked || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !recurPreview.points?.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
                     ? (saving ? t('admin.booking.creating') : recurPreview ? t('admin.booking.recur.confirmN', { n: recurPreview.candidates.filter(c => c.status === 'ok').length }) : t('admin.booking.recur.previewFirst'))

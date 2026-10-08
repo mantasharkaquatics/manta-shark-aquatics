@@ -2,6 +2,11 @@ import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { alertAdmin } from '@/lib/admin-alert'
+import { assessmentSlotError } from '@/lib/assessment-slot'
+
+const piOf = (session: Stripe.Checkout.Session): string | null =>
+  typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null
 
 /* Turning a paid Swim Assessment checkout into a confirmed booking.
 
@@ -9,7 +14,15 @@ import { formatTime12h } from '@/lib/date'
    (through syncTrialBooking below) when they come back from paying -- so the
    booking confirms even when the webhook is late, misconfigured or missing.
    The pending_payment -> confirmed update is the lock: whichever caller gets
-   there first does the work, and the other finds nothing to do ('noop'). */
+   there first does the work, and the other finds nothing to do ('noop').
+
+   The records of the payment (trial_used_at, the purchase, the assessment
+   credit) are written by the lock holder. Each of those writes is
+   idempotent, and if one fails the lock is handed back (confirmed ->
+   pending_payment) and this throws, so the webhook answers 500 and Stripe's
+   redelivery -- or the dashboard, or the cron -- does them again. They used
+   to fail with a log line only, and nothing ever retried them (found
+   2026-10-08). */
 export async function confirmTrialBooking(
   supabase: SupabaseClient,
   session: Stripe.Checkout.Session,
@@ -27,10 +40,11 @@ export async function confirmTrialBooking(
   if (session.payment_status !== 'paid') return 'noop'
 
   // Idempotency lock: only the pending_payment -> confirmed transition proceeds.
-  // Webhook retries and already-cancelled bookings fall through harmlessly.
+  // Webhook retries fall through harmlessly; a hold that was already released
+  // goes to paidAfterRelease below.
   const { data: locked, error: bookingErr } = await supabase
     .from('bookings')
-    .update({ status: 'confirmed' })
+    .update({ status: 'confirmed', cancellation_reason: null })
     .eq('id', booking_id)
     .eq('status', 'pending_payment')
     .select('id, parent_id, class_session_id')
@@ -40,80 +54,65 @@ export async function confirmTrialBooking(
     throw new Error('Trial booking confirm failed: ' + bookingErr.message)
   }
   if (!locked || locked.length === 0) {
-    return 'noop'
+    return paidAfterRelease(supabase, session)
   }
   const bk = locked[0]
 
-  await supabase
-    .from('students')
-    .update({ trial_used_at: new Date().toISOString() })
-    .eq('id', student_id)
-
-  // Resolve course_type_id (new checkouts carry it in metadata; fallback for older ones)
-  let course_type_id = meta.course_type_id || null
-  if (!course_type_id) {
-    const { data: ct } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
-    course_type_id = ct?.id || null
-  }
-
   const amount_cents = session.amount_total ?? 0
-
-  const { data: purchase, error: purchaseErr } = await supabase
-    .from('purchases')
-    .insert({
-      parent_id: bk.parent_id,
-      lesson_package_id: null,
-      amount_cents,
-      status: 'paid',
-      stripe_session_id: session.id,
-      paid_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-  if (purchaseErr) console.error('Trial purchase insert error:', purchaseErr)
-
-  // The prepaid Swim Assessment. Still a lesson_credits row with is_trial:
-  // the assessment is bought before a family has a wallet, so it never
-  // became points. See _archive/README.md.
-  const expiresAt = new Date()
-  expiresAt.setMonth(expiresAt.getMonth() + 12)
-  const { data: credit, error: creditErr } = await supabase
-    .from('lesson_credits')
-    .insert({
-      student_id,
-      parent_id: bk.parent_id,
-      purchase_id: purchase?.id || null,
-      course_type_id,
-      total_credits: 1,
-      used_credits: 1,
-      is_trial: true,
-      expires_at: expiresAt.toISOString(),
-    })
-    .select()
-    .single()
-  if (creditErr) console.error('Trial credit insert error:', creditErr)
-
-  if (credit) {
-    await supabase.from('bookings').update({ lesson_credit_id: credit.id }).eq('id', booking_id)
+  let credit: { id: string }
+  try {
+    credit = await recordTrialPayment(supabase, session, bk.parent_id, student_id, { bookingId: booking_id, used: true })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    // Give the lock back so the next caller writes what is missing.
+    const { error: undoErr } = await supabase.from('bookings')
+      .update({ status: 'pending_payment' }).eq('id', booking_id).eq('status', 'confirmed')
+    console.error(`Trial booking ${booking_id}: payment records failed${undoErr ? ' and the booking could not be reopened' : '; reopened for a retry'}:`, msg)
+    // Tell the school once per booking, not on every retry: the first
+    // failure stamps the (otherwise unused) cancellation_reason of the held
+    // booking, and only the call that stamps it sends the alert.
+    const { data: firstFailure } = undoErr ? { data: [{ id: booking_id }] } : await supabase.from('bookings')
+      .update({ cancellation_reason: 'payment_records_failed' })
+      .eq('id', booking_id).eq('status', 'pending_payment').is('cancellation_reason', null).select('id')
+    if (firstFailure && firstFailure.length > 0) {
+      await alertAdmin('Swim Assessment payment not fully recorded', [
+        `A Swim Assessment (booking ${booking_id}) was paid, but its payment records could not be written (${msg}).`,
+        undoErr
+          ? 'The booking shows as confirmed, but the records will NOT be retried automatically.'
+          : 'It is retried automatically (Stripe, the family\'s dashboard and the 15-minute cleanup all try again). If the booking is not confirmed within the hour, record it by hand.',
+        `Stripe checkout ${session.id}, payment ${piOf(session) || 'unknown'}, $${(amount_cents / 100).toFixed(2)}.`,
+      ])
+    }
+    throw new Error('Trial booking records failed: ' + msg)
   }
 
   const { data: invStudent } = await supabase
     .from('students').select('full_name').eq('id', student_id).single()
+  let invoiceOk = false
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
+    const invRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoices/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.CRON_SECRET || '' },
       body: JSON.stringify({
         parent_id: bk.parent_id,
-        lesson_credit_id: credit?.id || null,
+        lesson_credit_id: credit.id,
         amount: amount_cents / 100,
         payment_method: 'stripe',
         items: [{ name: `Swim Assessment - ${invStudent?.full_name || ''}`.trim().replace(/ -$/, ''), quantity: 1, unit_price: amount_cents / 100 }],
         stripe_payment_intent_id: session.payment_intent || null,
       }),
     })
+    invoiceOk = invRes.ok
   } catch (e) {
     console.error('Trial invoice error:', e)
+  }
+  // The receipt is the one record a person has to make by hand when it is
+  // missing, so say so rather than only logging it.
+  if (!invoiceOk) {
+    await alertAdmin('Swim Assessment invoice not created', [
+      `The Swim Assessment for ${invStudent?.full_name || 'a swimmer'} was paid ($${(amount_cents / 100).toFixed(2)}) and confirmed, but its invoice could not be created, so it is missing from the Sales page.`,
+      `Create the invoice by hand. Stripe checkout ${session.id}, payment ${piOf(session) || 'unknown'}.`,
+    ])
   }
 
   // Confirmation email (two-step queries; nested joins are unreliable in production)
@@ -174,6 +173,200 @@ export async function confirmTrialBooking(
 
   console.log(`✅ Trial lesson confirmed: booking ${booking_id} for student ${student_id}`)
   return 'confirmed'
+}
+
+/* The records of a paid Swim Assessment: the swimmer's assessment marked used,
+   the purchase, and the assessment credit. Every step can be repeated: the
+   purchase is found by its checkout session (unique) before one is written,
+   and the credit by its purchase. `used` says whether a booking already holds
+   the assessment (an online booking) or it is still to be scheduled (a
+   payment that arrived after its time was released). Throws on any failure. */
+async function recordTrialPayment(
+  supabase: SupabaseClient,
+  session: Stripe.Checkout.Session,
+  parentId: string,
+  studentId: string,
+  o: { bookingId?: string; used: boolean },
+): Promise<{ id: string }> {
+  const { error: usedErr } = await supabase.from('students')
+    .update({ trial_used_at: new Date().toISOString() })
+    .eq('id', studentId).is('trial_used_at', null)
+  if (usedErr) throw new Error('trial_used_at: ' + usedErr.message)
+
+  let purchaseId: string | null = null
+  const { data: seen, error: seenErr } = await supabase.from('purchases')
+    .select('id').eq('stripe_session_id', session.id).limit(1)
+  if (seenErr) throw new Error('purchase lookup: ' + seenErr.message)
+  if (seen && seen.length > 0) purchaseId = seen[0].id
+  else {
+    const row: Record<string, unknown> = {
+      parent_id: parentId,
+      lesson_package_id: null,
+      amount_cents: session.amount_total ?? 0,
+      status: 'paid',
+      stripe_session_id: session.id,
+      paid_at: new Date().toISOString(),
+    }
+    const pi = piOf(session)
+    if (pi) row.stripe_payment_intent_id = pi
+    const { data: ins, error: insErr } = await supabase.from('purchases').insert(row).select('id').single()
+    if (insErr && insErr.code !== '23505') throw new Error('purchase insert: ' + insErr.message)
+    if (ins) purchaseId = ins.id
+    else {
+      const { data: again } = await supabase.from('purchases').select('id').eq('stripe_session_id', session.id).limit(1)
+      purchaseId = again?.[0]?.id ?? null
+    }
+  }
+  if (!purchaseId) throw new Error('purchase not found after insert')
+
+  // The prepaid Swim Assessment. Still a lesson_credits row with is_trial:
+  // the assessment is bought before a family has a wallet, so it never
+  // became points. See _archive/README.md.
+  const { data: had, error: hadErr } = await supabase.from('lesson_credits')
+    .select('id, used_credits').eq('purchase_id', purchaseId).eq('is_trial', true).limit(1)
+  if (hadErr) throw new Error('credit lookup: ' + hadErr.message)
+  let creditId: string
+  if (had && had.length > 0) {
+    creditId = had[0].id
+    if (o.used && Number(had[0].used_credits) === 0) {
+      const { error: useErr } = await supabase.from('lesson_credits').update({ used_credits: 1 }).eq('id', creditId)
+      if (useErr) throw new Error('credit use: ' + useErr.message)
+    }
+  } else {
+    let course_type_id = (session.metadata || {}).course_type_id || null
+    if (!course_type_id) {
+      const { data: ct } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
+      course_type_id = ct?.id || null
+    }
+    const expiresAt = new Date()
+    expiresAt.setMonth(expiresAt.getMonth() + 12)
+    const { data: credit, error: creditErr } = await supabase.from('lesson_credits').insert({
+      student_id: studentId,
+      parent_id: parentId,
+      purchase_id: purchaseId,
+      course_type_id,
+      total_credits: 1,
+      used_credits: o.used ? 1 : 0,
+      is_trial: true,
+      expires_at: expiresAt.toISOString(),
+    }).select('id').single()
+    if (creditErr || !credit) throw new Error('credit insert: ' + (creditErr?.message || 'no row'))
+    creditId = credit.id
+  }
+
+  if (o.bookingId) {
+    const { error: linkErr } = await supabase.from('bookings').update({ lesson_credit_id: creditId }).eq('id', o.bookingId)
+    if (linkErr) throw new Error('booking link: ' + linkErr.message)
+  }
+  return { id: creditId }
+}
+
+/* A checkout that was paid after its hold had been released (owner,
+   2026-10-08). It used to answer 'noop': the $85 was taken, the booking stayed
+   cancelled, and nothing recorded or reported it.
+     - the same time is still free: the booking is put back and confirmed as
+       if it had been paid in time;
+     - it is not: the payment is recorded and kept on the account as a prepaid
+       Swim Assessment (nothing to pay again), and the school is told so the
+       desk books a new time or refunds it.
+   Nothing is ever charged: this only decides what the money already taken
+   pays for. Runs once per checkout -- a purchase for the session means an
+   earlier call already settled it. */
+async function paidAfterRelease(
+  supabase: SupabaseClient,
+  session: Stripe.Checkout.Session,
+): Promise<'confirmed' | 'noop'> {
+  const meta = session.metadata || {}
+  if (!meta.booking_id) return 'noop'
+  const { data: cur, error: curErr } = await supabase.from('bookings')
+    .select('id, status, parent_id, student_id, class_session_id')
+    .eq('id', meta.booking_id).maybeSingle()
+  if (curErr) throw new Error('Trial booking lookup failed: ' + curErr.message)
+  if (!cur || cur.status !== 'cancelled') return 'noop'
+  const { data: seen, error: seenErr } = await supabase.from('purchases')
+    .select('id').eq('stripe_session_id', session.id).limit(1)
+  if (seenErr) throw new Error('Trial purchase lookup failed: ' + seenErr.message)
+  if (seen && seen.length > 0) return 'noop'
+
+  const studentId: string = cur.student_id || meta.student_id
+  const parentId: string = cur.parent_id || meta.parent_id
+  const [{ data: cs }, { data: st }, { data: others }] = await Promise.all([
+    supabase.from('class_sessions').select('id, coach_id, session_date, start_time, status').eq('id', cur.class_session_id).maybeSingle(),
+    supabase.from('students').select('full_name, current_level, trial_used_at').eq('id', studentId).maybeSingle(),
+    supabase.from('bookings').select('id').eq('student_id', studentId).eq('is_trial', true)
+      .neq('status', 'cancelled').neq('id', cur.id).limit(1),
+  ])
+  // Still needs an assessment: no level, and no other one booked or paid.
+  const stillNeeds = !!st && st.current_level == null && !(others && others.length > 0)
+  const time = cs ? String(cs.start_time).slice(0, 5) : ''
+  let why: string | null = stillNeeds ? null : 'the swimmer already has another Swim Assessment or a level'
+
+  // 1. The same time, if it is still free.
+  if (stillNeeds && cs) {
+    why = await assessmentSlotError(supabase, { coachId: cs.coach_id, date: cs.session_date, time, studentId, minutes: 30 })
+    if (!why) {
+      const reopened = cs.status === 'cancelled'
+      if (reopened) await supabase.from('class_sessions').update({ status: 'open' }).eq('id', cs.id).eq('status', 'cancelled')
+      const { data: back, error: backErr } = await supabase.from('bookings')
+        .update({ status: 'pending_payment', cancellation_reason: null })
+        .eq('id', cur.id).eq('status', 'cancelled').select('id')
+      if (!backErr && back && back.length > 0) {
+        const r = await confirmTrialBooking(supabase, session)
+        if (r === 'confirmed') console.log(`Trial booking ${cur.id} paid after its hold was released; the same time was free and it is confirmed`)
+        return r
+      }
+      if (reopened) await supabase.from('class_sessions').update({ status: 'cancelled' }).eq('id', cs.id).eq('enrolled_count', 0)
+      // Someone else put it back first; they finish it.
+      if (!backErr) return 'noop'
+      why = backErr.message
+    }
+  } else if (stillNeeds && !cs) {
+    why = 'the held lesson could not be found'
+  }
+
+  // 2. Not free: keep the money as a prepaid assessment (or, for a swimmer
+  // who no longer needs one, just record it) and tell the school.
+  const { data: recheck } = await supabase.from('bookings').select('status').eq('id', cur.id).maybeSingle()
+  if (recheck && recheck.status !== 'cancelled') return 'noop'
+  // The purchase row is the claim: its checkout session is unique, so only
+  // one caller gets past here and the school hears about it once.
+  const row: Record<string, unknown> = {
+    parent_id: parentId, lesson_package_id: null, amount_cents: session.amount_total ?? 0,
+    status: 'paid', stripe_session_id: session.id, paid_at: new Date().toISOString(),
+  }
+  const pi = piOf(session)
+  if (pi) row.stripe_payment_intent_id = pi
+  const { error: insErr } = await supabase.from('purchases').insert(row)
+  if (insErr?.code === '23505') return 'noop'
+  if (insErr) throw new Error('Trial purchase insert failed: ' + insErr.message)
+  let creditProblem = ''
+  if (stillNeeds) {
+    try {
+      await recordTrialPayment(supabase, session, parentId, studentId, { used: false })
+    } catch (e) {
+      creditProblem = e instanceof Error ? e.message : String(e)
+      console.error(`Trial session ${session.id}: prepaid assessment not created:`, creditProblem)
+    }
+  }
+
+  const [{ data: parent }, { data: coach }] = await Promise.all([
+    supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle(),
+    cs?.coach_id ? supabase.from('coaches').select('first_name, last_name').eq('id', cs.coach_id).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : `parent ${parentId}`
+  const coachName = coach ? `${coach.first_name || ''} ${coach.last_name || ''}`.trim() : 'unknown coach'
+  console.error(`⚠️ Swim Assessment paid after its hold was released: booking ${cur.id}, session ${session.id}: ${why}`)
+  await alertAdmin('Swim Assessment paid after its time was released', [
+    `${family} paid $${((session.amount_total ?? 0) / 100).toFixed(2)} for ${st?.full_name || 'a swimmer'}'s Swim Assessment after the time held for them had already been released.`,
+    cs ? `The time was ${cs.session_date} at ${formatTime12h(time)} with ${coachName}. It could not be booked again: ${why || 'unknown reason'}.` : `It could not be booked again: ${why || 'unknown reason'}.`,
+    !stillNeeds
+      ? 'This swimmer does not need this assessment, so the payment is a duplicate: refund it in Stripe.'
+      : creditProblem
+      ? `The payment is recorded, but the prepaid Swim Assessment could not be added to the family's account (${creditProblem}). Add it by hand before booking them a new time, or refund it in Stripe.`
+      : 'The payment is kept on the family\'s account as a prepaid Swim Assessment, so they do not pay again. Book a new time for them (admin Booking, Swim Assessment), or refund it in Stripe -- a full refund also removes that prepaid assessment.',
+    `Stripe checkout ${session.id}, payment ${piOf(session) || 'unknown'}.`,
+  ])
+  return 'noop'
 }
 
 /* Give a held (pending_payment) assessment slot back. Only the request that
@@ -326,6 +519,11 @@ export async function syncTrialBooking(
       return { state: r === 'confirmed' ? 'confirmed' : 'unchanged' }
     }
   }
+  // Only a checkout Stripe says is closed gives the slot back. When the close
+  // failed and the checkout still reads 'open' it can still be paid, and
+  // releasing then was how $85 arrived for a cancelled booking (found
+  // 2026-10-08). Leave it for the next round.
+  if (session.status !== 'expired') return { state: 'unchanged' }
 
   const released = await releaseTrialHold(supabase, booking.id, booking.class_session_id, 'payment_expired')
   return { state: released ? 'released' : 'unchanged' }

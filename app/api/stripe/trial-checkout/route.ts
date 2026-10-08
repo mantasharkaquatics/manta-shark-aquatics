@@ -11,7 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05
 
 export async function POST(req: NextRequest) {
   try {
-    const { studentId, coachId, date, time } = await req.json()
+    const { studentId, coachId, date, time, sendPaymentEmail } = await req.json()
 
     if (!studentId || !coachId || !date || !time) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -59,13 +59,17 @@ export async function POST(req: NextRequest) {
     // Guard: no duplicate trial while one is pending payment or already confirmed
     const { data: existingTrial } = await svc
       .from('bookings')
-      .select('id')
+      .select('id, status')
       .eq('student_id', studentId)
       .eq('is_trial', true)
       .neq('status', 'cancelled')
       .limit(1)
     if (existingTrial && existingTrial.length > 0) {
-      return NextResponse.json({ error: 'A trial lesson is already booked or awaiting payment for this student' }, { status: 400 })
+      // An unpaid hold says so: "already booked" sent a family who had never
+      // paid away believing they had (found 2026-10-08).
+      return NextResponse.json({ error: existingTrial[0].status === 'pending_payment'
+        ? 'This swimmer has a Swim Assessment waiting for payment. Pay for it or cancel it on your dashboard.'
+        : 'A trial lesson is already booked or awaiting payment for this student' }, { status: 400 })
     }
     // A parent's own booking keeps the booking rules; the desk may override.
     if (isParentFlow) {
@@ -203,8 +207,16 @@ export async function POST(req: NextRequest) {
           parent_id: student.parent_id,
           course_type_id: courseType.id,
         },
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}${isParentFlow ? '/dashboard' : '/'}?trial=cancelled`,
+        // The family's own booking returns to their dashboard, which checks
+        // the payment itself. A link the desk made is often paid on a phone
+        // that is not signed in, so it lands on a page that confirms this
+        // payment by its checkout id (it used to land on the home page and
+        // say nothing). Leaving the payment page goes to the dashboard, where
+        // the hold can be paid or cancelled.
+        success_url: isParentFlow
+          ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?trial=success`
+          : `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?assessment=1&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?trial=cancelled`,
       })
     } catch (stripeErr) {
       await releaseTrialHold(svc, booking.id, sessId, 'checkout_failed').catch(e =>
@@ -214,8 +226,14 @@ export async function POST(req: NextRequest) {
 
     await svc.from('bookings').update({ stripe_session_id: checkoutSession.id }).eq('id', booking.id)
 
-    try {
-      await sendEmail({
+    // The "please complete payment" email goes with a link someone ELSE made
+    // -- the desk, or the AI assistant in chat (it asks for it). A family
+    // booking on the site is already on the payment page, and the email only
+    // made a second, contradicting message in their inbox next to the
+    // confirmation (owner, 2026-10-08).
+    if (!isParentFlow || sendPaymentEmail === true) {
+      try {
+        await sendEmail({
           type: 'trial_payment_link',
           to: parent?.email || '',
           parentName: parent?.first_name || 'there',
@@ -226,9 +244,12 @@ export async function POST(req: NextRequest) {
           time: formatTime12h(time),
           paymentUrl: checkoutSession.url || '',
           amount: TRIAL_PRICE_CENTS / 100,
+          // When the hold ends, on the school's clock.
+          deadline: new Date(holdEndsSec * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' }),
         })
-    } catch (e) {
-      console.error('Trial payment email error:', e)
+      } catch (e) {
+        console.error('Trial payment email error:', e)
+      }
     }
 
     return NextResponse.json({ url: checkoutSession.url })

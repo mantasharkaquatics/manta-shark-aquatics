@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
+import { requireCron } from '@/lib/cron-auth'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -23,10 +24,8 @@ function wallMs(dateStr: string, timeStr: string): number {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCron(request)
+  if (denied) return denied
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -5,6 +5,7 @@ import { formatTime12h } from '@/lib/date'
 import Stripe from 'stripe'
 import { syncTrialBooking } from '@/lib/trial-booking'
 import { mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
+import { requireCron } from '@/lib/cron-auth'
 
 type ExpiryNotice = {
   to: string
@@ -17,10 +18,8 @@ type ExpiryNotice = {
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireCron(req)
+  if (denied) return denied
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

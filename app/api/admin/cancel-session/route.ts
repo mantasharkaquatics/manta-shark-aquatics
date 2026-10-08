@@ -111,7 +111,15 @@ export async function POST(req: NextRequest) {
       // shows on the admin Reviews page until the desk books it again.
       notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? 'assessment' : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
     } else {
-      // pending_partner etc.: no credits were deducted, cancel without refund
+      // pending_partner, in_cart, an unpaid hold: no credits were deducted,
+      // cancel without refund -- and without the "Lesson Cancelled" email.
+      // These families never had a seat (a lesson sitting in a cart, or a
+      // 1-on-2 invitation nobody accepted), and were being told a lesson they
+      // never booked was cancelled (found 2026-10-08; owner: only confirmed
+      // seats are emailed). There is no "the school cancelled this
+      // invitation" email; partner_invite_withdrawn would say the other
+      // family withdrew it, which is not what happened. The row simply leaves
+      // their cart or dashboard, as the time-off flow does for an invitee.
       const { data: c } = await svc
         .from('bookings')
         .update({
@@ -125,7 +133,6 @@ export async function POST(req: NextRequest) {
         .eq('status', b.status)
         .select('id')
       if (!c || c.length === 0) continue
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: 'none' })
     }
   }
 

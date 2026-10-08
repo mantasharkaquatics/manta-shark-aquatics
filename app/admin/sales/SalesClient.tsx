@@ -40,6 +40,22 @@ const PM_RAW_KEYS: Record<string, string> = {
   cash: 'admin.sales.pmRaw.cash',
 }
 
+// A payment that did not stay (charged back, returned by the bank, refunded):
+// still listed, marked, and counted at what was kept (page.tsx sets these).
+const STATUS_KEYS: Record<string, string> = {
+  refunded: 'admin.sales.status.refunded',
+  partial: 'admin.sales.status.partial',
+  disputed: 'admin.sales.status.disputed',
+  returned: 'admin.sales.status.returned',
+}
+const STATUS_CSV: Record<string, string> = {
+  refunded: 'Refunded',
+  partial: 'Partially refunded',
+  disputed: 'Disputed',
+  returned: 'Returned by bank',
+}
+const kept = (inv: { amount?: number | null; net_amount?: number }): number => (typeof inv.net_amount === 'number' ? inv.net_amount : (inv.amount || 0))
+
 // locale is 'en' for the CSV export, which stays English for the accountant.
 function fDate(s: string, locale: Locale) {
   if (!s) return '—'
@@ -116,12 +132,13 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
     })
   }, [invoices, parentMap, search, planGroup, payMethod, dateRange])
 
-  const total = filtered.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
+  const total = filtered.reduce((sum: number, i) => sum + kept(i), 0)
+  const anyMarked = filtered.some(i => !!i.sale_status)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   function exportCSV() {
-    const rows = [['Invoice #', 'Customer', 'Email', 'Plan', 'Payment Method', 'Amount', 'Purchased At']]
+    const rows = [['Invoice #', 'Customer', 'Email', 'Plan', 'Payment Method', 'Amount', 'Status', 'Net Amount', 'Purchased At']]
     for (const inv of filtered) {
       const parent = parentMap[inv.parent_id]
       const planName = Array.isArray(inv.items) && inv.items[0]?.name ? inv.items[0].name : '—'
@@ -132,6 +149,8 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         planName,
         inv.payment_method || '—',
         `$${(inv.amount || 0).toFixed(2)}`,
+        inv.sale_status ? STATUS_CSV[inv.sale_status] || inv.sale_status : 'Paid',
+        `$${kept(inv).toFixed(2)}`,
         inv.issued_at ? `${fDate(inv.issued_at, 'en')} ${fTime(inv.issued_at)}` : '—',
       ])
     }
@@ -163,6 +182,7 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
               {hasFilter ? t('admin.sales.filteredCount', { n: filtered.length }) : t('admin.sales.totalCount', { n: invoices.length })}
             </p>
             <p className="text-[#c9a84c] text-2xl font-bold">${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            {anyMarked && <p className="text-gray-500 text-xs mt-1">{t('admin.sales.totalNote')}</p>}
           </div>
           <button onClick={exportCSV} className="bg-[#c9a84c] hover:bg-[#b8973b] text-[#1a2744] text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
             {t('admin.sales.exportCsv')}
@@ -252,7 +272,16 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                       </td>
                       <td className="px-5 py-4 text-gray-300 text-sm">{planLabel(planName)}</td>
                       <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method ? (PM_RAW_KEYS[inv.payment_method] ? t(PM_RAW_KEYS[inv.payment_method]) : inv.payment_method) : '—'}</td>
-                      <td className="px-5 py-4 text-white text-sm font-medium">${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-5 py-4 text-white text-sm font-medium">
+                        <span className={inv.sale_status && inv.sale_status !== 'partial' ? 'line-through text-gray-500' : undefined}>
+                          ${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {inv.sale_status && (
+                          <span className="block mt-1 w-fit px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 text-[10px] font-semibold">
+                            {t(STATUS_KEYS[inv.sale_status] || 'admin.sales.status.refunded', { amount: (inv.refunded_amount || 0).toFixed(2) })}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-4 text-gray-400 text-sm">
                         {fDate(inv.issued_at, locale)}<br/>
                         <span className="text-xs text-gray-600">{fTime(inv.issued_at)}</span>

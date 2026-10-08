@@ -27,24 +27,34 @@ export const RECOMMENDATION_NOTE_MAX = 300
  * Assessment report (lib/assessments), translated into their language.
  */
 export default function AssessmentPanel({ recommendedLevel, level, onLevel, rec, onRec }: {
-  recommendedLevel: number
+  /** The coach's level; null when an admin backfills an assessment the coach never filed. */
+  recommendedLevel: number | null
   level: string | undefined
   onLevel: (n: string) => void
   rec: AssessmentRec
   onRec: (next: AssessmentRec) => void
 }) {
   const t = useT()
-  const placed = String(level || recommendedLevel)
+  const placed = String(level || recommendedLevel || '')
   const chip = (on: boolean) => `px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${on
     ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]'
     : 'border-[#1e3a6e] text-gray-500 hover:border-[#c9a84c]/40'}`
   return (
     <div className="mb-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/5 p-3">
-      <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">
-        {t('admin.reviews.assess.heading', { n: recommendedLevel, name: LEVEL_NAMES[String(recommendedLevel)] ? t(`level.${recommendedLevel}.name`) : '' })}
-      </p>
-      <p className="text-gray-500 text-xs mb-2">{t('admin.reviews.assess.publishTogether', { n: recommendedLevel })}</p>
-      {level && level !== String(recommendedLevel) && (
+      {recommendedLevel == null ? (
+        <>
+          <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">{t('admin.reviews.backfill.heading')}</p>
+          <p className="text-gray-500 text-xs mb-2">{t('admin.reviews.backfill.levelHint')}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-wider mb-1">
+            {t('admin.reviews.assess.heading', { n: recommendedLevel, name: LEVEL_NAMES[String(recommendedLevel)] ? t(`level.${recommendedLevel}.name`) : '' })}
+          </p>
+          <p className="text-gray-500 text-xs mb-2">{t('admin.reviews.assess.publishTogether', { n: recommendedLevel })}</p>
+        </>
+      )}
+      {recommendedLevel != null && level && level !== String(recommendedLevel) && (
         <p className="text-amber-400 text-xs mb-2">{t('admin.reviews.assess.placingInstead', { n: level })}</p>
       )}
       <div className="flex flex-wrap gap-1.5">

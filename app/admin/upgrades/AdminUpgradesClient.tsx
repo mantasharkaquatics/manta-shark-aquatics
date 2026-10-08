@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import AlertModal from '@/components/AlertModal'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 import { useT, useLocale } from '@/lib/i18n/provider'
@@ -8,7 +9,12 @@ import { tDb, dateTag } from '@/lib/i18n'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string; stage: number | null }
-type Student = { id: string; full_name: string; current_level: string | null; current_stage: number | null; parents: { first_name: string; last_name: string } | null }
+type Student = {
+  id: string; full_name: string; current_level: string | null; current_stage: number | null
+  parents: { first_name: string; last_name: string } | null
+  /** No level, a paid Swim Assessment and no assessment report yet (page.tsx). */
+  paidAssessment?: boolean
+}
 type UpgradeHistory = {
   id: string; from_level: string | null; to_level: string
   from_stage: number | null; to_stage: number | null
@@ -67,8 +73,11 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
     return map
   }, [skills])
 
+  const sameAsCurrent = !!selectedStudent && !!selectedLevel && String(selectedStudent.current_level ?? '') === selectedLevel
+  const canAssign = !!selectedLevel && !sameAsCurrent
+
   async function handleAssign() {
-    if (!selectedStudent || !selectedLevel) return
+    if (!selectedStudent || !canAssign) return
     setSaving(true)
     setAssignError(null)
     const res = await fetch('/api/admin/assign-level', {
@@ -84,7 +93,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       setAssignError(t('admin.reviews.err.offline'))
     } else if (!res.ok) {
       const j = await res.json().catch(() => ({}))
-      setAssignError(j.error || t('admin.levels.err.assignFailed'))
+      // The server's words are English; the cases the desk meets get ours.
+      setAssignError(t(j.code === 'same_level' ? 'admin.levels.err.sameLevel'
+        : j.code === 'not_found' ? 'admin.levels.err.notFound'
+        : 'admin.levels.err.assignFailed'))
     }
     if (res?.ok) {
       const record = await res.json()
@@ -121,7 +133,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               <div className="mt-2 space-y-1">
                 {filteredStudents.map(s => (
                   <button key={s.id}
-                    onClick={() => { setSelectedStudent(s); setSelectedLevel(s.current_level || ''); setSearch(''); setShowSearch(false) }}
+                    onClick={() => { setSelectedStudent(s); setSelectedLevel(''); setAssignError(null); setSearch(''); setShowSearch(false) }}
                     className="w-full flex items-center justify-between bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-left hover:border-[#c9a84c]/50 transition-all"
                   >
                     <div>
@@ -157,6 +169,14 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
               <button onClick={() => { setSelectedStudent(null); setSelectedLevel(''); setNotes('') }}
                 className="text-gray-500 hover:text-gray-300 text-xs">{t('admin.levels.change')}</button>
             </div>
+            {/* A paid assessment the coach never filed: a level set here gives
+                the family no report and no credit. Reviews backfills it. */}
+            {selectedStudent.paidAssessment && (
+              <div className="rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/10 px-4 py-3 text-xs text-[#c9a84c]">
+                {t('admin.levels.paidAssessmentHint')}{' '}
+                <Link href="/admin/reviews" className="underline font-semibold">{t('admin.levels.goToReviews')}</Link>
+              </div>
+            )}
             <div>
               <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">{t('admin.levels.assignLevel')}</p>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
@@ -177,14 +197,20 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
             <input type="text" placeholder={t('admin.levels.notesPlaceholder')} value={notes} onChange={e => setNotes(e.target.value)}
               className="w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors placeholder-gray-600"
             />
-            <button onClick={() => setShowConfirm(true)} disabled={!selectedLevel || saving}
+            {/* Nothing is picked until the admin picks it, and the swimmer's own
+                level cannot be "assigned" again: that wrote a history row and put
+                them back to stage 1 (found 2026-10-08). */}
+            <button onClick={() => setShowConfirm(true)} disabled={!canAssign || saving}
               className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 saved ? 'bg-green-600 text-white' :
-                selectedLevel ? 'bg-[#c9a84c] text-[#111d38] hover:opacity-90' :
+                canAssign ? 'bg-[#c9a84c] text-[#111d38] hover:opacity-90' :
                 'bg-gray-700 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {saving ? t('admin.progress.saving') : saved ? t('admin.levels.assigned') : selectedLevel ? t('admin.levels.assignLevelNamed', { n: selectedLevel, name: levelName(selectedLevel) }) : t('admin.levels.assignLevelN', { n: selectedLevel })}
+              {saving ? t('admin.progress.saving') : saved ? t('admin.levels.assigned')
+                : sameAsCurrent ? t('admin.levels.alreadyAtLevel', { n: selectedLevel })
+                : selectedLevel ? t('admin.levels.assignLevelNamed', { n: selectedLevel, name: levelName(selectedLevel) })
+                : t('admin.levels.pickLevel')}
             </button>
             {assignError && <p className="text-red-400 text-xs">{assignError}</p>}
           </div>
@@ -300,7 +326,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, ad
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
 
       {/* Confirm Modal */}
-      {showConfirm && selectedStudent && selectedLevel && (
+      {showConfirm && selectedStudent && canAssign && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-white font-bold text-lg mb-1">{t('admin.levels.confirmTitle')}</h3>

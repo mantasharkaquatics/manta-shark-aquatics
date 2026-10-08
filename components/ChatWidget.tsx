@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
-import { CHAT_OPEN_EVENT } from '@/lib/chat-open'
+import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, takePendingChatOpen } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -40,6 +40,7 @@ function renderBody(text: string, linkLabel: string) {
 // lift: extra px above the bottom edge, for pages whose own sticky action bar
 // would otherwise sit under the button (the booking page on a phone).
 const GUEST_KEY = 'msa_guest_chat_key'
+const HISTORY_LIMIT = 200
 const readGuestKey = () => { try { return localStorage.getItem(GUEST_KEY) } catch { return null } }
 
 /** Hand this browser's guest conversation to the signed-in account (see
@@ -82,12 +83,21 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
 
   useEffect(() => {
     const onOpen = (e: Event) => {
+      takePendingChatOpen()
       setOpen(true)
       const text = (e as CustomEvent).detail?.text
       if (text) setInput(text)
     }
     window.addEventListener(CHAT_OPEN_EVENT, onOpen)
-    return () => window.removeEventListener(CHAT_OPEN_EVENT, onOpen)
+    // A request made before this widget was mounted (lib/chat-open), handled
+    // just after mount like an event would be.
+    const timer = setTimeout(() => {
+      const pending = takePendingChatOpen()
+      if (!pending) return
+      setOpen(true)
+      if (pending.text) setInput(pending.text)
+    }, 0)
+    return () => { clearTimeout(timer); window.removeEventListener(CHAT_OPEN_EVENT, onOpen) }
   }, [])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useIsMobile()
@@ -206,13 +216,18 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     }
   }
 
+  // The newest HISTORY_LIMIT messages, shown oldest first (found 2026-10-08).
+  // A family has one thread for life; read oldest-first with no limit, the
+  // 1,000-row cap cut off the NEWEST messages once a thread grew past it, so
+  // the desk's latest reply was not on screen.
   async function loadMessages() {
     const { data } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('thread_id', threadId)
-      .order('created_at', { ascending: true })
-    setMessages(data || [])
+      .order('created_at', { ascending: false })
+      .limit(HISTORY_LIMIT)
+    setMessages((data || []).reverse())
   }
 
   async function sendMessage(text?: string) {
@@ -343,7 +358,10 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               )}
               {msg.sender_type === 'system' ? (
               <div key={msg.id} style={{ textAlign: 'center', fontSize: '11.5px', color: '#8a97ad', padding: '2px 0' }}>
-                {msg.body}
+                {/* The desk handing the chat back: a fixed line, so it is
+                    shown in the family's language (rows from before the key
+                    carry only the English body). */}
+                {msg.metadata?.key === CHAT_HANDBACK_KEY || msg.body === CHAT_HANDBACK_EN ? t('chat.handback') : msg.body}
               </div>
             ) : (
               <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-end' : 'flex-start' }}>

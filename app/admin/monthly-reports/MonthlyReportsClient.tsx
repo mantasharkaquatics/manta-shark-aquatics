@@ -17,6 +17,8 @@ type Report = {
   generated_at: string; approved_at: string | null; sent_at: string | null; emailed_at: string | null
   feedback: 'up' | 'down' | null; feedback_comment: string | null; feedback_at: string | null
   studentName: string; parentName: string
+  /** False when the family has no email address on file. */
+  parentHasEmail?: boolean
   noteTexts: { date: string; coachName: string | null; text: string }[]
   previewNotes: { date: string; coachName: string | null; text: string; language: string; translations: Record<string, string> }[]
 }
@@ -28,6 +30,13 @@ type Payload = { month: string; months: string[]; today: string; reports: Report
 
 const monthLabel = (m: string, locale: Locale) => new Date(m + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'long', timeZone: 'UTC' })
 const dayLabel = (d: string, locale: Locale) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+
+/** Error codes from /api/admin/monthly-reports that have their own line. */
+const MONTHLY_ERROR_KEYS: Record<string, string> = {
+  no_email: 'admin.monthly.email.noAddress',
+  email_failed: 'admin.monthly.email.failed',
+  already_sent: 'admin.monthly.err.alreadySent',
+}
 
 /** Mastery chip text. Step 0 reads "Not taught" here, not the parent site's "Not taught yet". */
 function masteryLabel(t: TFunction, m: Mastery): string {
@@ -93,7 +102,8 @@ export default function MonthlyReportsClient() {
     }).catch(() => null)
     if (!r) { setAlertMsg(t('admin.reviews.err.offline')); return null }
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) { setAlertMsg(j.error || t('admin.monthly.err.generic')); return null }
+    // The route's words are English; the cases the desk meets get ours.
+    if (!r.ok) { setAlertMsg(t(MONTHLY_ERROR_KEYS[String(j.code || '')] || 'admin.monthly.err.generic')); return null }
     return j
   }
 
@@ -125,6 +135,18 @@ export default function MonthlyReportsClient() {
     await load(month)
   }
 
+  /* The family's email for this month, now: one that failed or has not gone
+     yet, or again for a family who says it never came. */
+  async function emailNow(r: Report) {
+    setBusy(r.id + 'email')
+    const j = await post({ action: 'email', id: r.id })
+    setBusy(null)
+    if (j) {
+      setNotice(t('admin.monthly.email.done'))
+      await load(month)
+    }
+  }
+
   async function act(r: Report, action: 'save' | 'approve' | 'unapprove' | 'regenerate') {
     const e = edits[r.id] || { summary: r.summary, focus: r.focus }
     setBusy(r.id + action)
@@ -142,6 +164,8 @@ export default function MonthlyReportsClient() {
   const drafts = reports.filter(r => r.status === 'draft').length
   const approved = reports.filter(r => r.status === 'approved').length
   const sent = reports.filter(r => r.status === 'sent').length
+  // Released, but the family's email has not gone (yet, or it failed).
+  const notEmailed = reports.filter(r => r.status === 'sent' && !r.emailed_at).length
   const missing = data.eligible == null ? 0 : Math.max(0, data.eligible - reports.length)
   const monthOver = data.today >= data.sendsFrom
   // The month's last day. A report written before it saw only part of the month.
@@ -168,6 +192,7 @@ export default function MonthlyReportsClient() {
         <span className="text-sm text-amber-300">{withBold(t('admin.monthly.stat.waiting'), drafts)}</span>
         <span className="text-sm text-emerald-300">{withBold(t('admin.monthly.stat.approved'), approved)}</span>
         <span className="text-sm text-sky-300">{withBold(t('admin.monthly.stat.sent'), sent)}</span>
+        {notEmailed > 0 && <span className="text-sm text-red-300">{withBold(t('admin.monthly.stat.notEmailed'), notEmailed)}</span>}
         {missing > 0 && (
           <button onClick={generate} disabled={!!busy}
             className="ml-auto px-4 py-2 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm disabled:opacity-50">
@@ -279,6 +304,24 @@ export default function MonthlyReportsClient() {
                       className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:border-[#c9a84c]/60 hover:text-[#c9a84c]">{t(p.labelKey)}</button>
                   ))}
                 </span>
+                {/* Each family's email, as it actually went (owner, 2026-10-08). */}
+                {r.status === 'sent' && (
+                  <p className="basis-full flex flex-wrap items-center gap-2 text-xs">
+                    {r.emailed_at ? (
+                      <span className="text-emerald-300">{t('admin.monthly.email.sentOn', { date: new Date(r.emailed_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' }) })}</span>
+                    ) : r.parentHasEmail === false ? (
+                      <span className="text-red-300">{t('admin.monthly.email.noAddress')}</span>
+                    ) : (
+                      <span className="text-red-300">{t('admin.monthly.email.notYet')}</span>
+                    )}
+                    {r.parentHasEmail !== false && (
+                      <button onClick={() => emailNow(r)} disabled={!!busy}
+                        className="px-2.5 py-1 rounded border border-gray-600 text-gray-300 hover:border-[#c9a84c]/60 hover:text-[#c9a84c] disabled:opacity-50">
+                        {busy === r.id + 'email' ? t('admin.monthly.email.sending') : r.emailed_at ? t('admin.monthly.email.again') : t('admin.monthly.email.now')}
+                      </button>
+                    )}
+                  </p>
+                )}
                 {r.status === 'sent' && (
                   <p className="text-sm text-gray-400">
                     {t('admin.monthly.familyAnswer', { answer: r.feedback === 'up' ? t('admin.monthly.fb.good') : r.feedback === 'down' ? t('admin.monthly.fb.question') : t('admin.monthly.fb.none') })}

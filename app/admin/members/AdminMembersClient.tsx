@@ -471,9 +471,15 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
 
   useEffect(() => {
     const id = setInterval(async () => {
+      // Only families active since the last poll (with room to spare): a read
+      // of every family stopped at 1,000, so the rest never refreshed (found
+      // 2026-10-08). Anyone who did nothing has nothing to update.
+      const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
       const { data } = await supabase
         .from('parents')
         .select('id, last_activity_at')
+        .gte('last_activity_at', since)
+        .order('id')
       if (data) {
         const m = new Map(data.map((r: any) => [r.id, r.last_activity_at]))
         setParents(prev => prev.map(p => m.has(p.id) ? { ...p, last_activity_at: m.get(p.id) ?? p.last_activity_at } : p))
@@ -483,7 +489,11 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   }, [supabase])
   const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
   const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | 'sdp' | null>>({})
-  const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null)
+  /* Which row is asking "mark absent?" / "mark checked in?", and which way.
+     The confirm used to flip whatever the row was, whichever pill was pressed:
+     pressing "Checked in" on a checked-in lesson and then "Yes" marked it
+     absent and deleted the check-in (found 2026-10-08). */
+  const [confirmingAttendance, setConfirmingAttendance] = useState<{ id: string; to: boolean } | null>(null)
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -604,7 +614,7 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
         },
       }
     })
-    setConfirmingBookingId(null)
+    setConfirmingAttendance(null)
   }
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
@@ -618,9 +628,14 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
     setParents(prev => prev.map(p => p.id === parentId ? { ...p, activity_reviewed_at: new Date().toISOString() } : p))
   }
 
+  // Phone too, digits only on both sides, so "(714) 555-0123", "714-555"
+  // and "7145550123" all find the same family; from 3 digits, so a name with a
+  // stray digit does not match every phone number (found 2026-10-08).
+  const searchDigits = search.replace(/\D/g, '')
   const filtered = parents.filter(p =>
     (p.first_name + ' ' + p.last_name + ' ' + p.email).toLowerCase().includes(search.toLowerCase()) ||
-    p.students.some(s => s.full_name.toLowerCase().includes(search.toLowerCase()))
+    p.students.some(s => s.full_name.toLowerCase().includes(search.toLowerCase())) ||
+    (searchDigits.length >= 3 && String(p.phone || '').replace(/\D/g, '').includes(searchDigits))
   )
 
   const byActivity = (a: Parent, b: Parent) => {
@@ -916,27 +931,30 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                         <span className="text-gray-500">{t('admin.coachName', { name: b.coach_name })}</span>
                                         {expandedType === 'past' && (
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
-                                            {confirmingBookingId === b.id ? (
+                                            {confirmingAttendance?.id === b.id ? (
                                               <>
-                                                <span className="text-gray-400 text-[10px]">{t('admin.members.confirmQ')}</span>
+                                                <span className="text-gray-400 text-[10px]">{t(confirmingAttendance.to ? 'admin.members.confirmCheckIn' : 'admin.members.confirmAbsent')}</span>
                                                 <button
-                                                  onClick={() => setAttendance(student.id, b, !b.checked_in)}
+                                                  onClick={() => setAttendance(student.id, b, confirmingAttendance.to)}
                                                   className="px-2 py-0.5 rounded-full border border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c] text-[10px] font-semibold"
                                                 >{t('admin.members.yes')}</button>
                                                 <button
-                                                  onClick={() => setConfirmingBookingId(null)}
+                                                  onClick={() => setConfirmingAttendance(null)}
                                                   className="px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 text-[10px] font-semibold"
                                                 >{t('admin.members.no')}</button>
                                               </>
                                             ) : (
                                               <>
+                                                {/* The pill for the state it is already in does nothing. */}
                                                 <button
-                                                  onClick={() => setConfirmingBookingId(b.id)}
-                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
+                                                  onClick={() => { if (!b.checked_in) setConfirmingAttendance({ id: b.id, to: true }) }}
+                                                  disabled={!!b.checked_in}
+                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${b.checked_in ? 'bg-green-500/25 border-green-400 text-green-300 cursor-default' : 'bg-transparent border-gray-700 text-gray-600 hover:border-green-400/40'}`}
                                                 >{t('admin.members.checkedIn')}</button>
                                                 <button
-                                                  onClick={() => setConfirmingBookingId(b.id)}
-                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
+                                                  onClick={() => { if (b.checked_in) setConfirmingAttendance({ id: b.id, to: false }) }}
+                                                  disabled={!b.checked_in}
+                                                  className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-all ${!b.checked_in ? 'bg-red-500/25 border-red-400 text-red-300 cursor-default' : 'bg-transparent border-gray-700 text-gray-600 hover:border-red-400/40'}`}
                                                 >{t('admin.members.absent')}</button>
                                               </>
                                             )}
@@ -981,6 +999,8 @@ type LedgerRow = {
   note: string | null
   amountCents: number | null
   actor: string | null
+  /** The staff member behind an "admin:<id>" actor, when found. */
+  actorName?: string | null
 }
 type WalletView = {
   balance: number
@@ -1046,7 +1066,18 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
       body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim() }),
     })
     setBusy(false)
-    if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || t('admin.members.pts.err.adjust')); return }
+    if (!res.ok) {
+      const d = await res.json().catch(() => null)
+      // The route's words are English; each case the desk meets has ours.
+      const code = String(d?.code || '')
+      setErr(code === 'insufficient' ? t('admin.members.pts.err.insufficient', { n: Number(d?.available) || 0 })
+        : code === 'in_arrears' ? t('admin.members.pts.err.arrears', { n: Number(d?.owed) || 0 })
+        : code === 'too_many' ? t('admin.members.pts.err.tooMany', { n: Number(d?.max) || 0 })
+        : code === 'reason_required' ? t('admin.members.pts.err.reason')
+        : code === 'no_points' ? t('admin.members.pts.err.noPoints')
+        : t('admin.members.pts.err.adjust'))
+      return
+    }
     setAmount(''); setNote('')
     load()
   }
@@ -1120,7 +1151,9 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   {row.note && <span className="text-gray-400 text-xs truncate max-w-[260px]" title={row.note}>{row.note}</span>}
                   <span className="text-gray-600 text-xs ml-auto">
                     {dateAndTime(new Date(row.at), locale, { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric' }, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}
-                    {row.actor && row.actor !== 'system' && row.actor !== 'parent' ? ` · ${row.actor}` : ''}
+                    {row.actor && row.actor !== 'system' && row.actor !== 'parent'
+                      ? ` · ${row.actorName || (String(row.actor).startsWith('admin:') ? t('admin.members.pts.anAdmin') : row.actor)}`
+                      : ''}
                   </span>
                 </div>
               ))}

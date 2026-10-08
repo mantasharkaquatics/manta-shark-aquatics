@@ -1,10 +1,9 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
-import { createClient } from '@/lib/supabase/client'
+import { useFamilyStatus, isSignedInNow } from '@/lib/use-family-status'
 import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage } from '@/lib/brand'
 import FitChips, { HAS_FIT } from '@/components/programs/FitChips'
 
@@ -23,15 +22,19 @@ export default function HomeContent() {
   const t = useT()
   const locale = useLocale()
   const router = useRouter()
-  const [signedIn, setSignedIn] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data }) => setSignedIn(!!data.user)).catch(() => setSignedIn(false))
-  }, [])
+  const { signedIn, allAssessed } = useFamilyStatus()
 
   // Booking lives behind the login: a signed-out visitor registers first and is
-  // carried on to booking; a signed-in one goes straight there.
-  const bookAssessment = () => router.push(signedIn ? '/booking' : '/register?next=/booking')
+  // carried on to booking; a signed-in one goes straight there. A press before
+  // the sign-in check has answered waits for it, rather than sending a
+  // signed-in parent to a blank register form (found 2026-10-08).
+  const bookAssessment = async () => {
+    const inNow = signedIn ?? await isSignedInNow()
+    router.push(inNow ? '/booking' : '/register?next=/booking')
+  }
+  // Every swimmer already has a level: the next thing is a lesson, not the
+  // assessment (same rule as /plans).
+  const bookLabel = allAssessed ? t('common.ctaBookLesson') : t('home.hero.cta')
 
   const programs = [
     { slug: 'private' },
@@ -186,7 +189,7 @@ export default function HomeContent() {
               <h1>{t('home.hero.title1')}<br /><em>{t('home.hero.title2')}</em></h1>
               <p className="h-lead">{t('home.hero.subtitle')}</p>
               <div className="h-ctas">
-                <button className="h-btn gold tap-auto" onClick={bookAssessment}>{t('home.hero.cta')} →</button>
+                <button className="h-btn gold tap-auto" onClick={bookAssessment}>{bookLabel} →</button>
                 <Link className="h-btn ghost tap-auto" href={localePath('/plans', locale)}>{t('home.hero.prices')}</Link>
               </div>
               <div className="h-facts">
@@ -331,7 +334,7 @@ export default function HomeContent() {
             <p>{t('home.final.sub')}</p>
             <div className="h-ctas">
               {signedIn
-                ? <button className="h-btn gold tap-auto" onClick={bookAssessment}>{t('home.hero.cta')}</button>
+                ? <button className="h-btn gold tap-auto" onClick={bookAssessment}>{bookLabel}</button>
                 : <Link className="h-btn gold tap-auto" href="/register">{t('home.final.cta')}</Link>}
               <Link className="h-btn ghost tap-auto" href={localePath('/plans', locale)}>{t('home.hero.prices')}</Link>
             </div>

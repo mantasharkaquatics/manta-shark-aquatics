@@ -31,7 +31,7 @@ export const FAQ: readonly FaqCategory[] = [
     // No refund question: the site does not bring refunds up (owner,
     // 2026-09-28). The rule is in the Terms, and the assistant still
     // answers it when asked (lib/ai/policies.ts, REFUNDS).
-    items: ['buy', 'referral', 'expiry', 'shared', 'teamBilling'],
+    items: ['buy', 'assessCredit', 'referral', 'expiry', 'shared', 'teamBilling'],
   },
   {
     id: 'team',

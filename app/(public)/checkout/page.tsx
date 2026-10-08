@@ -3,7 +3,9 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useT } from '@/lib/i18n/provider'
+import Link from 'next/link'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { localePath } from '@/lib/i18n/paths'
 import { errorKey } from '@/lib/i18n/errors'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
@@ -55,6 +57,7 @@ const css = `
 
 function CheckoutContent() {
   const t = useT()
+  const locale = useLocale()
   const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
@@ -174,7 +177,9 @@ function CheckoutContent() {
                   ) : (
                     <div className="co-students">
                       {students.map(st => {
-                        // Swim Team starts at Level 4.
+                        // Swim Team starts at Level 4. A greyed-out row says
+                        // why, and what comes first (found 2026-10-08: it read
+                        // only "not eligible", with no way forward).
                         const eligible = (st.current_level || 0) >= 4
                         return (
                           <button key={st.id} type="button" className="co-st" disabled={!eligible}
@@ -182,13 +187,20 @@ function CheckoutContent() {
                             onClick={() => eligible && setSelectedStudentId(st.id)}>
                             <span>{st.full_name}</span>
                             <small>
-                              {st.current_level ? t('levels.levelN', { n: st.current_level }) : t('dash.pendingAssessment')}
-                              {!eligible ? ' · ' + t('checkout.notEligible') : ''}
+                              {!st.current_level
+                                ? t('checkout.needsAssessment')
+                                : t('levels.levelN', { n: st.current_level }) + (eligible ? '' : ' · ' + t('checkout.fromLevel4'))}
                             </small>
                           </button>
                         )
                       })}
                     </div>
+                  )}
+                  {/* A swimmer with no level yet has one next step. */}
+                  {students.some(st => !st.current_level) && (
+                    <p style={{ fontSize: 14, margin: '12px 0 0' }}>
+                      <Link href={localePath('/assessment', locale)} className="b-link">{t('checkout.bookAssessment')}</Link>
+                    </p>
                   )}
 
                   {error && <div className="co-err">{error}</div>}

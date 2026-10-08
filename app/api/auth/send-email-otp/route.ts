@@ -21,6 +21,14 @@ const MAX_PER_HOUR = 5
 // Per network, as on the SMS route: the per-address limit alone let one
 // machine mail a code to every address on a list (found 2026-10-06).
 const MAX_PER_IP_PER_HOUR = 10
+// Account lookups per network, shared with the phone route (found 2026-10-08).
+// The "already registered" answer used to come back before any limit, so a
+// script could ask it about every address on a list for free -- the very
+// thing /api/auth/forgot-password is careful not to reveal. A family
+// registering asks a handful of times; every answer, taken or not, counts.
+// Same scope and number in app/api/auth/send-otp.
+const REGISTER_LOOKUP_SCOPE = 'register-lookup'
+const MAX_LOOKUPS_PER_IP_PER_HOUR = 30
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
@@ -35,6 +43,15 @@ export async function POST(req: NextRequest) {
   )
 
   {
+    const lookup = await takeSlots(supabase, [
+      { scope: REGISTER_LOOKUP_SCOPE, key: ipHash(req), max: MAX_LOOKUPS_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    ])
+    if (lookup.result === 'error') {
+      return NextResponse.json({ error: 'Failed to verify email. Please try again.' }, { status: 500 })
+    }
+    if (lookup.result === 'limited') {
+      return NextResponse.json({ error: 'Too many codes requested from this network. Please try again later.', code: 'OTP_IP_HOURLY_CAP' }, { status: 429 })
+    }
     // Sign-up is the only caller, so the check always runs (it used to run
     // only when the body said context 'register', and a script simply left
     // that out). Coaches and admins have logins too; catching them here means

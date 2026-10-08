@@ -49,14 +49,21 @@ export async function POST(req: NextRequest) {
   }
 
   // action === 'cancel'
+  // Only a checkout Stripe confirms is closed lets the hold go. When the close
+  // failed and Stripe could not be asked (or still says 'open'), the payment
+  // page may still take $85, so nothing is cancelled (found 2026-10-08).
+  let closed = false
   try {
     await stripe.checkout.sessions.expire(booking.stripe_session_id)
+    closed = true
   } catch {
     const session = await stripe.checkout.sessions.retrieve(booking.stripe_session_id).catch(() => null)
     if (session?.status === 'complete')
       return NextResponse.json({ error: 'Payment already completed - this booking is confirmed. Please refresh the page.' }, { status: 409 })
-    // already expired -> safe to continue cleanup
+    closed = session?.status === 'expired'
   }
+  if (!closed)
+    return NextResponse.json({ error: 'We could not close the payment page just now. Please try again in a minute.' }, { status: 502 })
 
   const { data: locked } = await svc
     .from('bookings')

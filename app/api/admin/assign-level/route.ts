@@ -14,8 +14,19 @@ export async function POST(req: NextRequest) {
   const admin_id = auth.admin.id
   const supabase = auth.svc
 
+  // Assigning the level the swimmer is already in is not a change: it used to
+  // write an L3 -> L3 history row and drop the swimmer back to stage 1, a
+  // click away from the page's default (found 2026-10-08). A stage moves on
+  // approved lesson reports, never from here.
+  if (!student_id) return NextResponse.json({ error: 'Missing student', code: 'missing_fields' }, { status: 400 })
+  const { data: cur } = await supabase.from('students').select('current_level').eq('id', student_id).maybeSingle()
+  if (!cur) return NextResponse.json({ error: 'Student not found', code: 'not_found' }, { status: 404 })
+  if (cur.current_level != null && String(cur.current_level) === String(Number(level_number))) {
+    return NextResponse.json({ error: 'The swimmer is already at this level', code: 'same_level' }, { status: 409 })
+  }
+
   const moved = await setStudentLevel(supabase, { studentId: student_id, toLevel: level_number, adminId: admin_id, notes })
-  if (!moved.ok) return NextResponse.json({ error: moved.error }, { status: moved.status })
+  if (!moved.ok) return NextResponse.json({ error: moved.error, code: moved.status === 400 ? 'bad_level' : moved.status === 404 ? 'not_found' : 'server' }, { status: moved.status })
   const record = moved.record
 
   // Two-step instead of a nested join: there is no FK from level_upgrades to

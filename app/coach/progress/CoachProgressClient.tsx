@@ -43,6 +43,10 @@ const SEND_ERROR_KEYS: Record<string, string> = {
   'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.': 'coach.progress.err.scoresApprovedMeanwhile',
 }
 
+// Vercel refuses a function request body over 4.5MB; the recording and the
+// form travel together, so leave room for the rest.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
 function barColor(pct: number): string {
   if (pct >= 70) return '#3ecf8e'
   if (pct >= 30) return '#f5a623'
@@ -50,12 +54,14 @@ function barColor(pct: number): string {
   return 'rgba(255,255,255,0.1)'
 }
 
-export default function CoachProgressClient({ coach, sessions, today, completedKeys, scheduledToday = 0 }: {
+export default function CoachProgressClient({ coach, sessions, today, completedKeys, scheduledToday = 0, sentBack = {} }: {
   coach: { id: string; first_name: string }
   sessions: any[]
   today: string
   completedKeys: string[]
   scheduledToday?: number
+  /** Reports an admin sent back, by card key: the reason, and the lesson's day (page.tsx). */
+  sentBack?: Record<string, { reason: string | null; date: string }>
 }) {
   const t = useT()
   const locale = useLocale()
@@ -129,7 +135,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     }
   }
   const sessionEntries = Array.from(entryMap.values())
-    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    // A sent-back lesson from an earlier day sorts before today's.
+    .sort((a, b) => String(a.sessionDate).localeCompare(String(b.sessionDate)) || a.start_time.localeCompare(b.start_time))
     .map(e => ({ ...e, sessionTime: `${formatTime12h(e.start_time)} - ${formatTime12h(e.end_time)}` }))
 
   /* Lessons, not swimmers, for the heading (found 2026-10-05). It counted the
@@ -146,6 +153,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const add = (x: string) => { if (!(x in parent)) parent[x] = x }
     const sessionIds: string[] = []
     for (const s of sessions) {
+      // Today's lessons only; a sent-back one from another day is extra.
+      if (s.session_date && s.session_date !== today) continue
       const bookings = ((s as any).bookings || []).filter((b: any) => b.students?.id)
       if (bookings.length === 0) continue
       const sid = 's:' + s.id
@@ -225,6 +234,12 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     if (locked || completedSet.has(entryKey)) return
     const capture = captureMap[entryKey]
     if (!capture) return
+    // Past the server's upload limit the request fails before the route runs,
+    // and retrying the same take can never succeed: say why instead.
+    if (capture.blob.size > MAX_UPLOAD_BYTES) {
+      setErrorMap(prev => ({ ...prev, [entryKey]: t('coach.note.tooLong') }))
+      return
+    }
     setSavingMap(prev => ({ ...prev, [entryKey]: true }))
     setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
     const progress = { ...(studentDataMap[entryKey]?.progress || {}), ...(editsMap[entryKey] || {}) }
@@ -245,7 +260,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     const res = await fetch('/api/coach/lesson-note', { method: 'POST', body: form }).catch(() => null)
     if (!res || !res.ok) {
       const j = res ? await res.json().catch(() => ({})) : {}
-      const key = SEND_ERROR_KEYS[String(j.error || '')] || 'coach.progress.sendFailed'
+      const key = res?.status === 413 ? 'coach.note.tooLong'
+        : SEND_ERROR_KEYS[String(j.error || '')] || 'coach.progress.sendFailed'
       setErrorMap(prev => ({ ...prev, [entryKey]: t(key) }))
     }
     if (res && res.ok) {
@@ -321,7 +337,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
             const shownLevel = Number(data?.student.current_level) || Number(data?.assessedLevel) || 1
 
             return (
-              <div key={s.entryKey} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-hidden">
+              <div key={s.entryKey} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] overflow-clip">
                 {/* Header row */}
                 <button
                   onClick={() => toggleStudent(s.entryKey, s.studentId, s.sessionId)}
@@ -340,6 +356,17 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                         <span className="whitespace-nowrap">{s.sessionTime}</span>
                         {' · '}<span className="whitespace-nowrap">{s.courseName}</span>
                       </p>
+                      {/* Sent back by an admin (owner, 2026-10-08): record it again. */}
+                      {sentBack[s.entryKey] && !isCompleted && (
+                        <p className="text-amber-400 text-xs leading-snug mt-0.5">
+                          {sentBack[s.entryKey].date !== today
+                            ? `${new Date(sentBack[s.entryKey].date + 'T12:00:00').toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric', weekday: 'short' })} · `
+                            : ''}
+                          {sentBack[s.entryKey].reason
+                            ? t('coach.progress.sentBackReason', { reason: sentBack[s.entryKey].reason as string })
+                            : t('coach.progress.sentBack')}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -408,32 +435,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               />
                             )}
 
-                            <div className="flex justify-between items-center mb-3">
-                              <p className="text-gray-500 text-xs uppercase tracking-wider">{t('coach.skillProgress')}</p>
-                              <button
-                                onClick={() => sendReport(s.entryKey, s.studentId, s.sessionId, s.lessonGroupId, s.sessionDate)}
-                                disabled={saving || !canSend || !captureMap[s.entryKey] || locked || isCompleted}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                  isCompleted ? 'bg-green-700/50 text-green-400 cursor-not-allowed' :
-                                  canSend && captureMap[s.entryKey] && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
-                                  'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                }`}
-                              >
-                                {saving ? t('coach.progress.sending')
-                                  : isCompleted ? t('coach.progress.doneToday')
-                                  : locked ? t('coach.progress.locked')
-                                  // Only when nothing is on file and nothing is marked
-                                  // does "set the skills first" hold.
-                                  : !canSend ? t('coach.progress.needSkills')
-                                  : !captureMap[s.entryKey] ? t('coach.progress.needNote')
-                                  // Says so, so a coach who meant to mark something notices.
-                                  : !hasChanges ? t('coach.progress.sendNoChange')
-                                  : t('coach.progress.send')}
-                              </button>
-                            </div>
-                            {errorMap[s.entryKey] && (
-                              <p className="text-red-400 text-xs mb-3">{errorMap[s.entryKey]}</p>
-                            )}
+                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">{t('coach.skillProgress')}</p>
                             <button
                               type="button"
                               onClick={() => setTreeFor({
@@ -555,6 +557,41 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                               </div>
                                 )
                               })}
+                            </div>
+                            {/* Send sits where the coach finishes: after the last
+                                skill, not above the list (found 2026-10-08). The
+                                card was record -> Send -> a dozen skills, so by the
+                                last mark Send had scrolled away, and at text-xs /
+                                28px it was hard to hit with wet hands. Sticky, so
+                                it stays in reach at the bottom of the screen while
+                                the coach scores; full width and 48px tall. The
+                                card is overflow-clip rather than overflow-hidden
+                                for this: hidden would make the card its own scroll
+                                box and the button would never stick. */}
+                            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[#111d38]/95 backdrop-blur border-t border-[#1e3a6e]">
+                              {errorMap[s.entryKey] && (
+                                <p className="text-red-400 text-xs mb-2">{errorMap[s.entryKey]}</p>
+                              )}
+                              <button
+                                onClick={() => sendReport(s.entryKey, s.studentId, s.sessionId, s.lessonGroupId, s.sessionDate)}
+                                disabled={saving || !canSend || !captureMap[s.entryKey] || locked || isCompleted}
+                                className={`w-full min-h-12 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+                                  isCompleted ? 'bg-green-700/50 text-green-400 cursor-not-allowed' :
+                                  canSend && captureMap[s.entryKey] && !locked ? 'bg-[#c9a84c] text-[#1a2744] hover:opacity-90' :
+                                  'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                }`}
+                              >
+                                {saving ? t('coach.progress.sending')
+                                  : isCompleted ? t('coach.progress.doneToday')
+                                  : locked ? t('coach.progress.locked')
+                                  // Only when nothing is on file and nothing is marked
+                                  // does "set the skills first" hold.
+                                  : !canSend ? t('coach.progress.needSkills')
+                                  : !captureMap[s.entryKey] ? t('coach.progress.needNote')
+                                  // Says so, so a coach who meant to mark something notices.
+                                  : !hasChanges ? t('coach.progress.sendNoChange')
+                                  : t('coach.progress.send')}
+                              </button>
                             </div>
                           </>
                         )}

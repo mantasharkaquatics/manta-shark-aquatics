@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
+import { CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY } from '@/lib/chat-open'
 
 // POST { thread_id, mode: 'ai' | 'human' } — admin takeover / hand back to AI
 export async function POST(req: NextRequest) {
@@ -20,10 +21,13 @@ export async function POST(req: NextRequest) {
     if (hErr) return NextResponse.json({ error: 'Failed to take over: ' + hErr.message }, { status: 500 })
   } else {
     const cutoff = new Date().toISOString()
+    // metadata.key lets the family's chat show this line in their language
+    // (components/ChatWidget); the English body is for the admin screen.
     const { error: msgErr } = await svc.from('chat_messages').insert({
       thread_id,
       sender_type: 'system',
-      body: 'Front desk session has ended. Our AI assistant will continue to help you here.',
+      body: CHAT_HANDBACK_EN,
+      metadata: { key: CHAT_HANDBACK_KEY },
     })
     if (msgErr) return NextResponse.json({ error: 'Failed to post hand-back notice: ' + msgErr.message }, { status: 500 })
     // Cutoff: the AI only reads messages after this time; human-service conversation never re-enters AI context

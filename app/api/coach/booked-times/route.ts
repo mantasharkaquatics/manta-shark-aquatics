@@ -7,9 +7,16 @@ import { renewalHolds, minToTime } from '@/lib/fixed-classes'
 // Who may read a coach's booked times (2026-10-04). This route used to answer
 // anyone, logged in or not, with every booked student's id and -- given any
 // student_id -- that child's lessons with every coach that day. Now: a parent,
-// an active coach or an admin. Staff see everything as before; a parent sees
-// the coach's busy times, but student ids and the per-student busy list only
-// for their OWN children (what the booking page needs to grey out a clash).
+// an active coach or an admin. An admin sees everything; a parent sees the
+// coach's busy times, but student ids and the per-student busy list only for
+// their OWN children (what the booking page needs to grey out a clash).
+//
+// A coach is no longer "staff" here (owner, 2026-10-08): with any coach_id
+// and date it listed every family's student ids, which /api/coach/progress
+// then turned into names and scores. The coach portal never calls this route
+// (only the parent booking page does), so a coach is answered like a parent
+// with no children: busy times, no student ids. A coach who is also a parent
+// keeps their own children's ids.
 async function resolveCaller(svc: ReturnType<typeof serviceClient>) {
   const user = await getAuthUser()
   if (!user) return null
@@ -18,8 +25,9 @@ async function resolveCaller(svc: ReturnType<typeof serviceClient>) {
     svc.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle(),
     svc.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle(),
   ])
-  if (admin || coach) return { staff: true as const, parentId: null }
+  if (admin) return { staff: true as const, parentId: null }
   if (parent) return { staff: false as const, parentId: parent.id as string }
+  if (coach) return { staff: false as const, parentId: null }
   return null
 }
 
@@ -37,7 +45,10 @@ export async function GET(req: NextRequest) {
   // A parent's own children: the only student ids a parent caller gets back.
   let ownStudents: Set<string> | null = null
   if (!caller.staff) {
-    const { data: kids } = await supabase.from('students').select('id').eq('parent_id', caller.parentId)
+    // A coach with no parent account has no children: an empty set.
+    const { data: kids } = caller.parentId
+      ? await supabase.from('students').select('id').eq('parent_id', caller.parentId)
+      : { data: [] as { id: string }[] }
     ownStudents = new Set((kids || []).map((k: any) => k.id))
   }
 

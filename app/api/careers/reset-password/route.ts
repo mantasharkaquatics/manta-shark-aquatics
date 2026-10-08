@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const { data: applicant } = await svc
     .from('applicants')
-    .select('id')
+    .select('id, email, email_verified_at')
     .eq('email', email)
     .maybeSingle()
 
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const { data: record } = await svc
     .from('applicant_verifications')
-    .select('id, code_hash, expires_at, consumed_at, attempt_count')
+    .select('id, code_hash, destination, expires_at, consumed_at, attempt_count')
     .eq('applicant_id', applicant.id)
     .eq('channel', 'password_reset')
     .order('created_at', { ascending: false })
@@ -89,12 +89,18 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString()
 
+  // The code reached this inbox, which proves the address: an account that
+  // signed up and never verified its email is verified now (found
+  // 2026-10-08 -- such accounts can request a reset since then). Only when the
+  // code went to the address the account holds today.
+  const provesEmail = !applicant.email_verified_at && record.destination === applicant.email
   await svc
     .from('applicants')
     .update({
       password_hash: await hashPassword(password),
       failed_login_count: 0,
       locked_until: null,
+      ...(provesEmail ? { email_verified_at: now } : {}),
     })
     .eq('id', applicant.id)
 

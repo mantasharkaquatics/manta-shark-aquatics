@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   PAGE, CARD, H1, SUB, LABEL, INPUT, FIELD,
   BUTTON, BUTTON_DISABLED, ERROR, LINK, FOOT, GOLD,
@@ -39,6 +41,11 @@ export default function ApplyForm() {
   const [signedIn, setSignedIn] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [done, setDone] = useState(false)
+  // Already sent an application before (signed in again later, say): show
+  // that, not a blank form that is refused only after it is filled in.
+  const [alreadyApplied, setAlreadyApplied] = useState(false)
+  const router = useRouter()
+  const fileInput = useRef<HTMLInputElement | null>(null)
 
   const [roleApplied, setRoleApplied] = useState('swim_coach')
   const [city, setCity] = useState('')
@@ -65,12 +72,16 @@ export default function ApplyForm() {
     fetch('/api/careers/me')
       .then((r) => r.json())
       .then((me) => {
+        // Signed in but not verified yet: the verify page is the next step,
+        // not a "Please sign in" that asks for the password again.
+        if (me.signedIn && !me.fullyVerified) { router.replace('/careers/verify'); return }
         setSignedIn(Boolean(me.signedIn && me.fullyVerified))
+        setAlreadyApplied(Boolean(me.hasApplied))
         setFirstName(me.firstName || '')
         setReady(true)
       })
       .catch(() => setReady(true))
-  }, [])
+  }, [router])
 
   function earliestStart(): string {
     if (!startMonth || !startDay || !startYear) return ''
@@ -124,7 +135,22 @@ export default function ApplyForm() {
         <div style={CARD}>
           <h1 style={H1}>Please sign in</h1>
           <p style={SUB}>You need a verified account to fill out an application.</p>
-          <p style={FOOT}><a href="/careers/login" style={LINK}>Sign in</a></p>
+          <p style={FOOT}><Link href="/careers/login" style={LINK}>Sign in</Link></p>
+        </div>
+      </main>
+    )
+  }
+
+  if (alreadyApplied && !done) {
+    return (
+      <main style={PAGE}>
+        <div style={CARD}>
+          <h1 style={H1}>Application received</h1>
+          <p style={SUB}>
+            Thanks, {firstName}. You have already sent us your application, and we will be in
+            touch by email or phone. If you need to change anything, contact us.
+          </p>
+          <p style={FOOT}><Link href="/careers" style={LINK}>Back to careers</Link></p>
         </div>
       </main>
     )
@@ -139,7 +165,7 @@ export default function ApplyForm() {
             Thanks, {firstName}. We have your application and will be in touch by email or
             phone. If you do not hear from us within two weeks, feel free to follow up.
           </p>
-          <p style={FOOT}><a href="/careers" style={LINK}>Back to careers</a></p>
+          <p style={FOOT}><Link href="/careers" style={LINK}>Back to careers</Link></p>
         </div>
       </main>
     )
@@ -247,14 +273,19 @@ export default function ApplyForm() {
         </div>
 
         <div style={FIELD}>
-          <label style={LABEL}>Résumé <span style={{ color: '#e05a4a' }}>*</span></label>
+          <label style={LABEL} htmlFor="resume">Résumé <span style={{ color: '#e05a4a' }}>*</span></label>
+          {/* A real button, so the required résumé can be attached from the
+              keyboard (found 2026-10-08): the old <label> styled as a button
+              was not in the Tab order, and the file input behind it is hidden
+              so the browser's own control cannot show its non-English text. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <label htmlFor="resume" style={FILE_BTN}>Choose file</label>
-            <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+            <button type="button" id="resume" style={FILE_BTN} aria-describedby="resume-name"
+              onClick={() => fileInput.current?.click()}>Choose file</button>
+            <span id="resume-name" style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
               {resume ? resume.name : 'No file chosen'}
             </span>
           </div>
-          <input id="resume" type="file" style={{ display: 'none' }}
+          <input ref={fileInput} type="file" style={{ display: 'none' }} tabIndex={-1} aria-hidden="true"
             accept=".pdf,.doc,.docx"
             onChange={(e) => setResume(e.target.files?.[0] || null)} />
           <p style={HINT}>Required. PDF or Word, up to 5 MB.</p>

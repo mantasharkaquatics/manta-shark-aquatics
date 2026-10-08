@@ -11,24 +11,62 @@ export const runtime = 'nodejs'
 // ?history=N also returns the last N movements. The statement is the answer to
 // "where did my points go", and a family who cannot answer that question
 // themselves will ask us instead.
+//
+// The whole statement, a page at a time (found 2026-10-08): the dashboard
+// asked for 12 lines and had no way to reach the 13th, so a purchase -- the
+// only line with its receipt, which the invoice email sends families here
+// for -- dropped out of reach after a few weeks of bookings. Each page answers
+// nextBefore; passing it back as ?before= returns the lines older than that,
+// and null means there are none. ?only=history (and any ?before=) skips the
+// balance summary, which a page of older lines does not need.
+//
+// Timestamps are compared to the microsecond: the database stores them that
+// finely, and two lines a millisecond apart must not be taken as one.
+const tsMicros = (s: string): number => {
+  const ms = Date.parse(s)
+  if (isNaN(ms)) return 0
+  const frac = (String(s).match(/T\d{2}:\d{2}:\d{2}\.(\d+)/)?.[1] || '').padEnd(6, '0').slice(0, 6)
+  return Math.floor(ms / 1000) * 1_000_000 + Number(frac)
+}
+const BEFORE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:?\d{2})?$/
+
 export async function GET(req: NextRequest) {
   const ctx = await requireParent()
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   try {
-    const summary = await walletSummary(ctx.svc, ctx.parent.id)
-    const want = Number(req.nextUrl.searchParams.get('history') || 0)
-    if (!want) return NextResponse.json(summary)
+    const params = req.nextUrl.searchParams
+    // ?session=cs_... : has this top-up's checkout been credited yet? Asked by
+    // the payment success page, which used to say "points added" before the
+    // webhook had added them (found 2026-10-08).
+    const sessionId = params.get('session')
+    if (sessionId) {
+      const summary = await walletSummary(ctx.svc, ctx.parent.id)
+      const { data: hit } = await ctx.svc.from('point_ledger').select('id')
+        .eq('parent_id', ctx.parent.id).eq('reason', 'purchase').eq('stripe_session_id', sessionId).limit(1)
+      return NextResponse.json({ ...summary, credited: !!(hit && hit.length > 0) })
+    }
+    const before = params.get('before')
+    if (before != null && (!BEFORE_RE.test(before) || isNaN(Date.parse(before)))) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+    const want = Number(params.get('history') || 0)
+    if (!want) return NextResponse.json(await walletSummary(ctx.svc, ctx.parent.id))
+    const summary = (before || params.get('only') === 'history') ? null : await walletSummary(ctx.svc, ctx.parent.id)
 
     const limit = Math.min(100, Math.max(1, Math.floor(want)))
-    const { data: rows } = await ctx.svc
+    // Read past the page: lines that are merged below (a fixed class ended
+    // with a refund writes one row per half-lesson) must not push the rest
+    // of the page out.
+    const RAW = Math.min(400, limit * 4)
+    let ledgerQ = ctx.svc
       .from('point_ledger')
       .select('id, created_at, delta_purchased, delta_granted, balance_purchased_after, balance_granted_after, reason, note, amount_cents, booking_id, stripe_session_id, pricing')
       .eq('parent_id', ctx.parent.id)
+    if (before) ledgerQ = ledgerQ.lt('created_at', before)
+    const { data: rows } = await ledgerQ
       .order('created_at', { ascending: false })
-      // Read past the page: lines that are merged below (a fixed class ended
-      // with a refund writes one row per half-lesson) must not push the rest
-      // of the page out.
-      .limit(Math.min(400, limit * 4))
+      .order('id', { ascending: false })
+      .limit(RAW)
 
     // A top-up row carries a receipt. The invoice email tells the family to come
     // to the dashboard for it, so the statement line for the money has to be
@@ -153,7 +191,10 @@ export async function GET(req: NextRequest) {
       bookingId: r.booking_id,
       lesson: lessonOf(r),
       invoice: invoiceOf(r),
+      // The oldest ledger row a line stands for; a merged line covers several.
+      _min: r.created_at as string,
     }))
+    const oldestOf = (xs: { _min: string }[]) => xs.reduce((a, x) => (tsMicros(x._min) < tsMicros(a) ? x._min : a), xs[0]._min)
     /* Ending a fixed class with a refund returns each remaining lesson on its
        own ledger row -- one per half of a 60-minute lesson -- so a 10-lesson
        class put 20 lines of +65 on the family's statement. The family sees ONE
@@ -182,6 +223,7 @@ export async function GET(req: NextRequest) {
         note: null,
         bookingId: null,
         lesson: { student: kids.length ? kids.join(' & ') : null, date: ls.map(l => l.date).sort()[0], time: null, count: new Set(ls.map(l => l.lessonKey)).size },
+        _min: oldestOf(grp),
       })
     }
     /* The same for one lesson: a 60-minute lesson is two rows and a sibling
@@ -212,6 +254,7 @@ export async function GET(req: NextRequest) {
         points: grp.reduce((a: number, x: any) => a + (x.points || 0), 0),
         ...(grp[0].kept != null ? { kept: grp.reduce((a: number, x: any) => a + (x.kept || 0), 0) } : {}),
         lesson: first ? { ...first, student: kids.length ? kids.join(' & ') : null, count: 1 } : grp[0].lesson,
+        _min: oldestOf(grp),
       }
     }
     const refundKey = (r: any) => {
@@ -225,6 +268,10 @@ export async function GET(req: NextRequest) {
        although the confirmation told the family it was on their dashboard. Each
        one joins the statement as its own line: no points, the dollar amount,
        and the receipt. Merged by date and cut back to the same length. */
+    // Where each source stopped, when it filled its read: older rows exist there
+    // that this page has not seen.
+    const full: string[] = []
+    if (rows && rows.length >= RAW) full.push(rows[rows.length - 1].created_at)
     const { data: trialCredits } = await ctx.svc
       .from('lesson_credits').select('id, student_id')
       .eq('parent_id', ctx.parent.id).eq('is_trial', true)
@@ -232,10 +279,11 @@ export async function GET(req: NextRequest) {
     if (trialCredits && trialCredits.length > 0) {
       const creditIds = trialCredits.map((c: any) => c.id)
       const studentIds = [...new Set(trialCredits.map((c: any) => c.student_id).filter(Boolean))]
+      let invQ = ctx.svc.from('invoices').select('id, invoice_number, amount, created_at, lesson_credit_id')
+        .eq('parent_id', ctx.parent.id).in('lesson_credit_id', creditIds)
+      if (before) invQ = invQ.lt('created_at', before)
       const [{ data: invs }, { data: studs }] = await Promise.all([
-        ctx.svc.from('invoices').select('id, invoice_number, amount, created_at, lesson_credit_id')
-          .eq('parent_id', ctx.parent.id).in('lesson_credit_id', creditIds)
-          .order('created_at', { ascending: false }).limit(limit),
+        invQ.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit),
         studentIds.length
           ? ctx.svc.from('students').select('id, full_name').in('id', studentIds)
           : Promise.resolve({ data: [] as any[] }),
@@ -255,7 +303,9 @@ export async function GET(req: NextRequest) {
         bookingId: null,
         invoice: { id: inv.id, number: inv.invoice_number },
         payment: true,
+        _min: inv.created_at as string,
       }))
+      if (invs && invs.length >= limit) full.push(invs[invs.length - 1].created_at)
     }
     /* A late cancellation the desk makes without a refund keeps the points,
        and it moves nothing in the ledger -- the points left the wallet when the
@@ -264,11 +314,15 @@ export async function GET(req: NextRequest) {
        over. It joins the statement as an information line: which lesson, and
        how many points were not returned. Admin cancel-booking with refund:false
        is the only writer of cancelled_by 'admin' + reason 'cancelled_by_parent'. */
-    const { data: lateRows } = await ctx.svc.from('bookings')
+    let lateQ = ctx.svc.from('bookings')
       .select('id, student_id, class_session_id, cancelled_at, points_charged, points_refunded, lesson_group_id')
       .eq('parent_id', ctx.parent.id).eq('status', 'cancelled')
       .eq('cancelled_by', 'admin').eq('cancellation_reason', 'cancelled_by_parent')
-      .order('cancelled_at', { ascending: false }).limit(limit)
+      .not('cancelled_at', 'is', null)
+    if (before) lateQ = lateQ.lt('cancelled_at', before)
+    const { data: lateRows } = await lateQ
+      .order('cancelled_at', { ascending: false }).order('id', { ascending: false }).limit(limit)
+    if (lateRows && lateRows.length >= limit) full.push(lateRows[lateRows.length - 1].cancelled_at)
     // The desk's "make-up voucher" cancel and "end fixed class -> vouchers"
     // write the same admin + cancelled_by_parent pair, but the family got a
     // voucher for those -- they are not late cancellations kept without
@@ -311,15 +365,39 @@ export async function GET(req: NextRequest) {
           invoice: null,
           kept: (Number(b.points_charged) || 0) - (Number(b.points_refunded) || 0),
           _key: b.lesson_group_id || b.class_session_id,
+          _min: b.cancelled_at as string,
         }
       })
       // One lesson, one line: both halves of an hour, both seats of a sibling 1-on-2.
       lateLines = groupLesson(lateLines, (x: any) => x._key || null, combineLesson).map(({ _key, ...x }: any) => x)
     }
     const merged = [...historyLines, ...payments, ...lateLines]
-      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
-      .slice(0, limit)
-    return NextResponse.json({ ...summary, history: merged })
+      .sort((a, b) => tsMicros(b.at) - tsMicros(a.at))
+
+    /* Cut the page where nothing is split. A line is only safe to show when
+       every row it could merge with was read: lines merge with rows up to
+       WINDOW_MS older, so anything that close to where a full read stopped
+       waits for the next page. And a page ends only between lines that do not
+       overlap, so the next page -- everything older than the oldest row shown
+       -- neither repeats a row nor skips one. */
+    const floor = full.length ? Math.max(...full.map(tsMicros)) + WINDOW_MS * 1000 : -Infinity
+    const oldest = (xs: { _min: string }[]) => xs.reduce((a, x) => Math.min(a, tsMicros(x._min)), Infinity)
+    let page: typeof merged = []
+    let stop = merged.length // merged[stop] is the first line left for the next page
+    for (let i = 0; i < merged.length; i++) {
+      const at = tsMicros(merged[i].at)
+      if (at <= floor || (page.length >= limit && at < oldest(page))) { stop = i; break }
+      page.push(merged[i])
+    }
+    // Every line left out must be older than every row shown.
+    while (page.length && stop < merged.length && oldest(page) <= tsMicros(merged[stop].at)) { page.pop(); stop-- }
+    // Hundreds of rows inside ten minutes (never seen): show them rather than nothing.
+    if (page.length === 0 && merged.length > 0) { page = merged.slice(0, limit); stop = page.length }
+    const cursorLine = page.reduce<{ _min: string } | null>((a, x) => (!a || tsMicros(x._min) < tsMicros(a._min) ? x : a), null)
+    const cursor: string | null = cursorLine ? cursorLine._min : null
+    const more = stop < merged.length || full.length > 0
+    const shown = page.map(({ _min, ...x }) => x)
+    return NextResponse.json({ ...(summary || {}), history: shown, nextBefore: more ? cursor : null })
   } catch (e: any) {
     console.error('wallet summary error:', e)
     return NextResponse.json({ error: 'Could not read the wallet' }, { status: 500 })

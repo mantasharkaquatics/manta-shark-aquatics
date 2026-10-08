@@ -34,7 +34,7 @@ export default async function AdminSchedulePage() {
     { data: rawInvites },
     { data: rawReschedules },
     { data: rawCancelled },
-    { data: rawRescheduled },
+    { data: rawRescheduledNewest },
     { data: rawNewBookings },
   ] = await Promise.all([
     supabase.from('bookings')
@@ -54,14 +54,20 @@ export default async function AdminSchedulePage() {
       .select('id, updated_at, student_id, parent_id, class_session_id, pending_new_session_id, pending_action, original_booking_id')
       .eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
       .gte('updated_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('updated_at', { ascending: true }).limit(50),
+      // The newest 50, not the oldest: ascending kept the month-old moves and
+      // dropped this week's once there were more than 50 (found 2026-10-08).
+      .order('updated_at', { ascending: false }).limit(50),
     supabase.from('bookings')
       .select('id, created_at, student_id, parent_id, class_session_id, original_booking_id, lesson_group_id')
       .eq('status', 'confirmed').is('original_booking_id', null)
       .is('cancellation_reason', null)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: false }).limit(50),
+      // More rows than items: a series booked in one go is many rows but
+      // one item below.
+      .order('created_at', { ascending: false }).limit(200),
   ])
+  // The reschedule chains below are built oldest step first.
+  const rawRescheduled = [...(rawRescheduledNewest || [])].reverse()
 
   // Step 2: collect all IDs to fetch
   const allBookings = [...(rawInvites||[]), ...(rawReschedules||[]), ...(rawCancelled||[]), ...(rawRescheduled||[]), ...(rawNewBookings||[])]
@@ -290,7 +296,7 @@ export default async function AdminSchedulePage() {
           </div>
           {(() => {
             // Merge cancellations and reschedules, sorted by time
-            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; isCrossAccount?: boolean; steps?: { fromCs: any; toCs: any; updatedAt: string }[] }
+            type ActivityItem = { key: string; type: 'cancelled' | 'rescheduled' | 'new'; names: string; cs: any; newCs: any; updatedAt: string; isCrossAccount?: boolean; steps?: { fromCs: any; toCs: any; updatedAt: string }[]; seriesCount?: number }
             const items: ActivityItem[] = []
 
             // A 60-minute lesson is two bookings in two sessions, and was listed
@@ -310,11 +316,40 @@ export default async function AdminSchedulePage() {
               if (!mergedNew[key]) mergedNew[key] = []
               mergedNew[key].push(b)
             }
-            for (const group of Object.values(mergedNew)) {
-              const b0 = firstHalf(group)
-              const names = uniqueNames(group)
-              const isCrossAccountNew = new Set(group.map((b:any) => b.parent_id)).size > 1
-              items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: b0.created_at, isCrossAccount: isCrossAccountNew })
+            // A series booked in one go (the parent's basket, a recurring desk
+            // booking) was one item per date, so one family's 30 Thursdays
+            // pushed everything else off the feed (found 2026-10-08). Lessons
+            // for the same families written within two minutes of each other
+            // are one booking: one item, "N lessons from <first date>".
+            const nowMinNew = getNowMinutesLA()
+            const lessonsNew = Object.values(mergedNew).map(group => ({
+              group,
+              families: [...new Set(group.map(b => b.parent_id as string))].sort().join('|'),
+              at: Math.min(...group.map(b => new Date(b.created_at).getTime())),
+            })).sort((x, y) => x.families.localeCompare(y.families) || x.at - y.at)
+            const batches: typeof lessonsNew[] = []
+            for (const l of lessonsNew) {
+              const cur = batches[batches.length - 1]
+              const prev = cur?.[cur.length - 1]
+              if (prev && prev.families === l.families && l.at - prev.at <= 2 * 60 * 1000) cur.push(l)
+              else batches.push([l])
+            }
+            const startOf = (g: typeof lessonsNew[number]['group']) => sessionMap[firstHalf(g).class_session_id]
+            const isUpcoming = (cs: { session_date?: string; start_time?: string } | undefined) => !cs?.session_date || !cs?.start_time
+              || minutesUntil(cs.session_date, String(cs.start_time).slice(0, 5), todayDate, nowMinNew) > 0
+            for (const batch of batches) {
+              const all = batch.flatMap(l => l.group)
+              const names = uniqueNames(all)
+              const isCrossAccountNew = batch[0].families.includes('|')
+              // The series shows from its next lesson still to come.
+              const ordered = batch.map(l => l.group).sort((x, y) => {
+                const a = startOf(x), b = startOf(y)
+                return `${a?.session_date} ${a?.start_time}`.localeCompare(`${b?.session_date} ${b?.start_time}`)
+              })
+              const shown = ordered.find(g => isUpcoming(startOf(g))) || ordered[ordered.length - 1]
+              const b0 = firstHalf(shown)
+              const latest = all.reduce((m, b) => (b.created_at > m.created_at ? b : m), all[0])
+              items.push({ key: 'n-' + b0.id, type: 'new', names, cs: sessionMap[b0.class_session_id], newCs: null, updatedAt: latest.created_at, isCrossAccount: isCrossAccountNew, seriesCount: batch.length > 1 ? batch.length : undefined })
             }
 
             // Cancellations
@@ -416,7 +451,9 @@ export default async function AdminSchedulePage() {
                       </span>
                       <div>
                         <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">{t('admin.schedule.linked')}</span>}</p>
-                        {item.type === 'new' ? (
+                        {item.type === 'new' && item.seriesCount ? (
+                          <p className="text-blue-400 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {t('admin.schedule.seriesFrom', { n: item.seriesCount, date: `${fDate(item.cs?.session_date)} ${fTime(item.cs?.start_time)}` })}</p>
+                        ) : item.type === 'new' ? (
                           <p className="text-blue-400 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>
                         ) : item.type === 'cancelled' ? (
                           <p className="text-gray-500 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {fDate(item.cs?.session_date)} {fTime(item.cs?.start_time)}</p>

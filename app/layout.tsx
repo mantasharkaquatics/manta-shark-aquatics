@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Figtree, Fraunces, Nunito_Sans } from "next/font/google";
+import { Geist_Mono, Figtree, Fraunces, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
@@ -13,14 +13,14 @@ const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-display', weight: ['700', '800', '900'], style: ['normal', 'italic'] });
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-body', weight: ['400', '500', '600', '700', '800'] });
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
+// Tailwind's font-mono (globals.css --font-mono): figures on admin and coach
+// screens and the referral code on the register page. Not preloaded -- every
+// public page would otherwise download it before first paint, for nothing.
+// (Geist Sans was removed 2026-10-08: --font-geist-sans was used nowhere.)
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 const SITE_TITLE = "Manta Shark Aquatics — Swim Lessons in Brea, CA"
@@ -57,7 +57,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", figtree.variable, fraunces.variable, nunitoSans.variable)}
+      className={cn("h-full", "antialiased", geistMono.variable, "font-sans", figtree.variable, fraunces.variable, nunitoSans.variable)}
     >
       <body className="min-h-full flex flex-col">
         <ScrollRestoration />

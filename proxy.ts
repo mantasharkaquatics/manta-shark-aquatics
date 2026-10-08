@@ -6,8 +6,8 @@ import { sanitizeNext } from '@/lib/safe-next'
    so an emailed link (/dashboard/fixed-class/{id}?renew=1, /dashboard?vouchers=1)
    landed on the plain dashboard after signing in. The login page reads ?next=
    (through safeNext) and goes there once the family is in. */
-function toLogin(request: NextRequest) {
-  const url = new URL('/login', request.url)
+function toLogin(request: NextRequest, page = '/login') {
+  const url = new URL(page, request.url)
   const next = sanitizeNext(request.nextUrl.pathname + request.nextUrl.search)
   if (next) url.searchParams.set('next', next)
   return NextResponse.redirect(url)
@@ -55,9 +55,14 @@ export async function proxy(request: NextRequest) {
 
   const p = request.nextUrl.pathname
   if (p === '/coach' || p.startsWith('/coach/')) {
-    if (!user) return toLogin(request)
-    const { data: coach } = await supabase.from('coaches').select('id').eq('auth_user_id', user.id).single()
+    // Coaches sign in with a PIN, so a signed-out coach goes to the PIN page,
+    // not the parent email + password page they have no password for.
+    if (!user) return toLogin(request, '/coach-login')
+    const { data: coach } = await supabase.from('coaches').select('id, is_active').eq('auth_user_id', user.id).maybeSingle()
     if (!coach) return NextResponse.redirect(new URL('/dashboard', request.url))
+    // An inactive coach who is still signed in: the PIN page signs them out
+    // and says why. Sending them to /dashboard bounced straight back here.
+    if (!coach.is_active) return NextResponse.redirect(new URL('/coach-login?inactive=1', request.url))
   }
 
   if (request.nextUrl.pathname.startsWith('/admin')) {

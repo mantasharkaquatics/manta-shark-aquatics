@@ -33,12 +33,18 @@ export async function POST(req: NextRequest) {
 
   const { data: applicant } = await svc
     .from('applicants')
-    .select('id, email, email_verified_at, legal_first_name')
+    .select('id, email, legal_first_name')
     .eq('email', email)
     .maybeSingle()
 
   // Always report success: revealing whether an account exists is an enumeration leak.
-  if (!applicant || !applicant.email_verified_at) {
+  //
+  // An account whose email is not verified yet gets the code too (found
+  // 2026-10-08). It used to get nothing, so an applicant who signed up, left
+  // before verifying and forgot the password was locked out for good -- and so
+  // was the owner of an address someone else had signed up with. Receiving
+  // this email proves the address; reset-password marks it verified.
+  if (!applicant) {
     return NextResponse.json({ ok: true })
   }
 
@@ -53,8 +59,11 @@ export async function POST(req: NextRequest) {
 
   if (recent?.last_sent_at) {
     const elapsed = Date.now() - new Date(recent.last_sent_at).getTime()
+    // Quietly, as the parent route does (found 2026-10-08): a 429 here, which
+    // only an existing account could ever get, told a second request whether
+    // the address has applied. The first code is already on its way.
     if (elapsed < 60_000) {
-      return NextResponse.json({ error: 'Please wait a moment before requesting another code.' }, { status: 429 })
+      return NextResponse.json({ ok: true })
     }
   }
 
@@ -68,7 +77,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not send the email. Please try again.' }, { status: 500 })
   }
   if (slots.result === 'limited') {
-    return NextResponse.json({ error: 'Please wait a moment before requesting another code.' }, { status: 429 })
+    // Quietly, for the same reason as the cooldown above.
+    return NextResponse.json({ ok: true })
   }
 
   const code = generateCode()
