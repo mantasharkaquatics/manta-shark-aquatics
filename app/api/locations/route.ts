@@ -20,9 +20,12 @@ export async function GET() {
         const { data: kids } = await svc.from('students').select('id').eq('parent_id', parent.id)
         const ids = (kids || []).map((k: any) => k.id)
         if (ids.length > 0) {
+          // bookings has more than one link to class_sessions, so the embed must
+          // name its foreign key; a bare class_sessions(...) is an error, and every
+          // swimmer then fell back to the first pool (found 2026-10-09).
           const { data: rows } = await svc
             .from('bookings')
-            .select('student_id, class_sessions(session_date, location_id)')
+            .select('student_id, class_sessions!bookings_class_session_id_fkey(session_date, location_id)')
             .in('student_id', ids)
             .neq('status', 'cancelled')
             .order('created_at', { ascending: false })

@@ -36,9 +36,11 @@ export async function POST(req: NextRequest) {
 
   if (!active) {
     const today = getTodayLA()
-    const [{ data: lessons }, { data: fixed }, { data: team }] = await Promise.all([
+    const [lessonsRes, fixedRes, teamRes] = await Promise.all([
+      // bookings has more than one link to class_sessions, so the embed names
+      // its foreign key (a bare embed is an error, which read as "no lessons").
       svc.from('bookings')
-        .select('id, class_sessions!inner(session_date)')
+        .select('id, class_sessions!bookings_class_session_id_fkey!inner(session_date)')
         .eq('student_id', studentId)
         .neq('status', 'cancelled')
         .gte('class_sessions.session_date', today),
@@ -52,9 +54,13 @@ export async function POST(req: NextRequest) {
         .in('status', ['active', 'past_due'])
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
     ])
-    const lessonCount = (lessons || []).length
-    const fixedCount = (fixed || []).length
-    const teamCount = (team || []).length
+    // A failed check refuses rather than lets a swimmer with lessons through.
+    if (lessonsRes.error || fixedRes.error || teamRes.error) {
+      return NextResponse.json({ error: (lessonsRes.error || fixedRes.error || teamRes.error)!.message }, { status: 500 })
+    }
+    const lessonCount = (lessonsRes.data || []).length
+    const fixedCount = (fixedRes.data || []).length
+    const teamCount = (teamRes.data || []).length
     if (lessonCount || fixedCount || teamCount) {
       return NextResponse.json({
         error: 'This swimmer still has lessons, a fixed class or a swim team membership. Cancel those first.',

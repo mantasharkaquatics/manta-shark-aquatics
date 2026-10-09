@@ -644,9 +644,17 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setAlertMsg(d.code === 'busy'
-          ? t('admin.members.deactivateBusy', { name: student.full_name, lessons: d.lessons ?? 0, fixed: d.fixed ?? 0, team: d.team ?? 0 })
-          : t('admin.members.activeFailed'))
+        if (d.code === 'busy') {
+          // Only what is actually in the way: "still has 0 lessons" reads as a bug.
+          const items = [
+            d.lessons ? t('admin.members.busyLessons', { n: d.lessons }) : '',
+            d.fixed ? t('admin.members.busyFixed', { n: d.fixed }) : '',
+            d.team ? t('admin.members.busyTeam') : '',
+          ].filter(Boolean).join(t('admin.members.listSep'))
+          setAlertMsg(t('admin.members.deactivateBusy', { name: student.full_name, items }))
+        } else {
+          setAlertMsg(t('admin.members.activeFailed'))
+        }
         return
       }
       setParents(prev => prev.map(p => p.id !== parentId ? p : { ...p, students: p.students.map(st => st.id === student.id ? { ...st, is_active: active } : st) }))
