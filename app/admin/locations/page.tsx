@@ -15,7 +15,7 @@ const draftOf = (l: Location): Draft => ({
 })
 /* What Google Maps copies when you click a point's coordinates:
    "34.12345678, -118.12345678". Pasted into either box, it fills both. */
-const PAIR = /^\s*\(?\s*([-+]?\d+(?:\.\d+)?)\s*[,\s]\s*([-+]?\d+(?:\.\d+)?)\s*\)?\s*$/
+const PAIR = /^\s*\(?\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)?\s*$/
 
 /* The pools. Name, address and map link are what families read on lesson
    cards and in emails once more than one pool is open; "open to families" is
@@ -104,11 +104,17 @@ export default function AdminLocationsPage() {
                 inputMode={opts?.numeric ? 'decimal' : undefined}
                 onChange={e => {
                   const v = e.target.value
-                  // A pasted "lat, lng" pair fills both boxes.
-                  const pair = (key === 'lat' || key === 'lng') ? PAIR.exec(v) : null
-                  const next = pair ? { ...dr, lat: pair[1], lng: pair[2] } : { ...dr, [key]: v }
-                  setDrafts(prev => ({ ...prev, [l.id]: next })); setSaved(null)
+                  setDrafts(prev => ({ ...prev, [l.id]: { ...dr, [key]: v } })); setSaved(null)
                 }}
+                // A pasted "lat, lng" pair (what Google Maps copies) fills both
+                // boxes. Only on paste: matching while someone types "34.1, -1..."
+                // split the half-typed pair and sent the rest into the wrong box.
+                onPaste={key === 'lat' || key === 'lng' ? e => {
+                  const pair = PAIR.exec(e.clipboardData.getData('text'))
+                  if (!pair) return
+                  e.preventDefault()
+                  setDrafts(prev => ({ ...prev, [l.id]: { ...dr, lat: pair[1], lng: pair[2] } })); setSaved(null)
+                } : undefined}
                 className="mt-1 w-full rounded-lg border border-[#1e3a6e] bg-[#0d1529] px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-[#c9a84c] focus:outline-none disabled:opacity-50" />
             </label>
           )
