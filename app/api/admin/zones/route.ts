@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { requireAdmin } from '@/lib/api-auth'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA } from '@/lib/date'
@@ -13,6 +14,11 @@ import { getLocations, DEFAULT_LOCATION_ID, type Location } from '@/lib/location
 // POST → date override: { coach_id, date, clear? } | { ..., closed: true } | { ..., zones: [...] }
 
 const VALID_TYPES = ['private', 'group', 'team']
+
+// A location page lists the coaches with hours at that pool, read through the
+// public site's cache (lib/public-locations.ts, tag 'locations'). Any change
+// to a coach's blocks may change that list, so it expires with every save.
+const refreshPublicPools = () => { try { revalidateTag('locations', { expire: 0 }) } catch { /* outside a request: nothing cached to expire */ } }
 
 // Which pool each block is at. A missing location_id is the default pool, so a
 // payload from before locations (or a cached old editor tab) still saves as
@@ -167,6 +173,7 @@ export async function PUT(req: NextRequest) {
     const dow = new Date(dateStr + 'T00:00:00').getDay()
     return { rows: zones.filter((z: any) => z.weekday === dow) }
   })
+  refreshPublicPools()
   return NextResponse.json({ ok: true, count: zones.length, warnings })
 }
 
@@ -186,7 +193,7 @@ export async function POST(req: NextRequest) {
     .eq('coach_id', coach_id).eq('kind', 'date').eq('override_date', date)
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
-  if (clear) return NextResponse.json({ ok: true, mode: 'cleared' })
+  if (clear) { refreshPublicPools(); return NextResponse.json({ ok: true, mode: 'cleared' }) }
 
   if (closed) {
     const { error: insErr } = await svc.from('coach_availability_zones').insert({
@@ -195,6 +202,7 @@ export async function POST(req: NextRequest) {
     })
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
     const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { closed: true, rows: [] } : { skip: true, rows: [] })
+    refreshPublicPools()
     return NextResponse.json({ ok: true, mode: 'closed', warnings })
   }
 
@@ -217,5 +225,6 @@ export async function POST(req: NextRequest) {
   )
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
   const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: zones } : { skip: true, rows: [] })
+  refreshPublicPools()
   return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings })
 }

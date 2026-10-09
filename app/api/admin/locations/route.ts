@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getLocations, hasCheckInColumns } from '@/lib/locations'
@@ -116,5 +117,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Run docs/migration-locations-checkin.sql first', code: 'needsMigration' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+  // The public site reads the pool list through a five-minute cache
+  // (lib/public-locations.ts). Expire it now, so opening or closing a pool, or
+  // a new address, shows on the home page, footer and location pages at once.
+  revalidateTag('locations', { expire: 0 })
   return NextResponse.json({ ok: true, location: data })
 }
