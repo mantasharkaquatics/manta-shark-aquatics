@@ -15,6 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail, type EmailPayload } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 
 type Row = { class_session_id: string; parent_id: string; student_id: string | null }
 
@@ -34,7 +35,7 @@ export async function mailInviteFailed(
     const kidIds = [...new Set(opts.group.map(r => r.student_id).filter(Boolean))] as string[]
     if (sessionIds.length === 0 || parentIds.length === 0) return
     const [{ data: sess }, { data: parents }, { data: kids }] = await Promise.all([
-      svc.from('class_sessions').select('session_date, start_time, end_time, course_type_id').in('id', sessionIds),
+      svc.from('class_sessions').select('session_date, start_time, end_time, course_type_id, location_id').in('id', sessionIds),
       svc.from('parents').select('id, first_name, last_name, email').in('id', parentIds),
       kidIds.length ? svc.from('students').select('id, full_name').in('id', kidIds) : Promise.resolve({ data: [] as any[] }),
     ])
@@ -44,6 +45,7 @@ export async function mailInviteFailed(
     const last = ordered[ordered.length - 1] as any
     const { data: ct } = await svc.from('course_types').select('name').eq('id', first.course_type_id).maybeSingle()
     const kidName = new Map((kids || []).map((k: any) => [k.id, k.full_name]))
+    const location = await lessonLocationLine(svc, first.location_id)
     const namesOf = (pid: string, same: boolean) => [...new Set(opts.group
       .filter(r => (r.parent_id === pid) === same)
       .map(r => kidName.get(r.student_id || '')).filter(Boolean))].join(' & ')
@@ -66,6 +68,7 @@ export async function mailInviteFailed(
         inviteFailReason: opts.reason,
         isInviter,
         busyNames: opts.busyNames,
+        location,
       }).catch(e => console.error('invitation-failed email failed:', e))
     }
   } catch (e) {

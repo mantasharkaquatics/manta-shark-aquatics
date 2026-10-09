@@ -27,6 +27,9 @@ type Data = {
   from: string
   days: { date: string; times?: string[]; slots?: { time: string; end?: string; band?: string | null; tier_id?: string }[] }[]
   tiers?: Tier[]
+  /** Only with more than one pool open: the pool this answer is for, and the open pools. */
+  location?: string
+  locations?: { id: string; name: string }[]
 }
 
 const BANDS = ['1-2', '3-4', '5-6', '7-9']
@@ -108,29 +111,44 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
   const [band, setBand] = useState<string>('all')
   const [cache, setCache] = useState<Record<string, Data | 'error'>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  // The pool picked in the switch; null = the one the server opens on (the
+  // first open pool). The switch only exists when the answer lists more than
+  // one pool, so with one pool this stays null and nothing changes.
+  const [loc, setLoc] = useState<string | null>(null)
+  const [pools, setPools] = useState<{ id: string; name: string }[]>([])
+  const ck = sub + '|' + (loc ?? '')
 
   useEffect(() => {
-    if (cache[sub]) return
+    if (cache[ck]) return
     let alive = true
-    fetch('/api/public/schedule?kind=' + sub)
+    fetch('/api/public/schedule?kind=' + sub + (loc ? '&location=' + encodeURIComponent(loc) : ''))
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => { if (alive) setCache(c => ({ ...c, [sub]: d })) })
-      .catch(() => { if (alive) setCache(c => ({ ...c, [sub]: 'error' })) })
+      .then((d: Data) => {
+        if (!alive) return
+        if (Array.isArray(d.locations)) setPools(d.locations)
+        // Filed under the pool it is for too, so picking that pool in the
+        // switch does not ask again.
+        setCache(c => ({ ...c, [ck]: d, ...(!loc && d.location ? { [sub + '|' + d.location]: d } : {}) }))
+      })
+      .catch(() => { if (alive) setCache(c => ({ ...c, [ck]: 'error' })) })
     return () => { alive = false }
-  }, [sub, cache])
+  }, [ck, sub, loc, cache])
 
-  const data = cache[sub]
+  const data = cache[ck]
+  // The pool on screen, for the switch and for the links into booking.
+  const here = pools.length > 1 ? (loc ?? (data && data !== 'error' ? data.location : null) ?? null) : null
   const target = kind === 'team'
     ? localePath('/plans', locale) + '#team'
-    : signedIn ? '/booking' : localePath('/assessment', locale)
+    : signedIn ? '/booking' + (here ? '?location=' + encodeURIComponent(here) : '') : localePath('/assessment', locale)
   /* A signed-in family's tap on a time opens the booking page on that day
      with that time chosen (owner, 2026-10-08; it used to be the same bare
      /booking as the button below, and the parent had to find the slot again).
      The booking page reads course/date/time; the swimmer is still theirs to
-     pick, and every check runs when they confirm. */
+     pick, and every check runs when they confirm. With more than one pool the
+     link names the pool shown, so the booking page opens on it. */
   const course = sub === 'semi' ? '1on2' : kind === 'group' ? '1on4' : '1on1'
   const slotHref = (date: string, time?: string) => (kind !== 'team' && signedIn && time)
-    ? '/booking?' + new URLSearchParams({ course, date, time: time.slice(0, 5) }).toString()
+    ? '/booking?' + new URLSearchParams({ course, date, time: time.slice(0, 5), ...(here ? { location: here } : {}) }).toString()
     : target
 
   const dayName = (ds: string) => new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(ds + 'T12:00:00'))
@@ -195,6 +213,18 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
         </div>
       )}
 
+      {pools.length > 1 && (
+        <div className="wk-bar" style={{ marginBottom: '10px' }}>
+          <div className="wk-seg" role="group" aria-label={t('booking.loc.title')}>
+            {pools.map(p => (
+              <button key={p.id} type="button" aria-pressed={here === p.id} onClick={() => setLoc(p.id)}>
+                <span aria-hidden>📍</span>{p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="wk-bar">
         {kind === 'private' && (
           <div className="wk-seg" role="group" aria-label={t('programs.week.kind')}>
@@ -231,7 +261,7 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
         <div className="wk">
           {days.map(d => {
             const list = entriesFor(d)
-            const k = sub + d.date
+            const k = ck + d.date
             const shown = open[k] ? list : list.slice(0, SHOW)
             const isToday = d.date === data.from
             return (

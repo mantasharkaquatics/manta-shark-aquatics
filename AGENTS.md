@@ -165,3 +165,29 @@ that translates imports `getT` / `translate` from `@/lib/i18n/all` -- from plain
 `node scripts/i18n-check.mjs` fails on a key missing from any locale, on a key
 in the wrong one of the two files, and on orphans. It does not know about a string you never wrapped -- that part is on
 you.
+
+# Locations: the school teaches at more than one pool
+
+`locations` (docs/migration-locations.sql) holds one row per pool -- `brea`,
+`monrovia` -- with `is_active` = families can see and book it. `lib/locations.ts`
+has the type and helpers.
+
+- **Zones carry the pool.** Each block of a coach's hours
+  (`coach_availability_zones.location_id`) belongs to one pool; that is where
+  the admin decides where a coach is. A coach may be at both pools, even on
+  the same day. Coaches with no zone rows (legacy) count as Brea.
+- **Lessons get it by trigger.** `class_sessions.location_id` is filled by a
+  database trigger from the coach's zone covering the lesson start. No route
+  sets it by hand; moving a lesson re-runs it.
+- **Everything shows only when more than one pool is active**
+  (`showLocations(all)`). With one, every page, email and SMS reads exactly as
+  it did before locations: no picker, no location line, no /locations pages,
+  and `{place}` in titles is "Brea" (`lib/location-place.ts`). Build anything
+  new that way.
+- Points, prices and programs are the same at every pool. The booking page
+  keeps pools separate: pick the pool (`?location=`), then only its times.
+- Prerendered public pages read the pools through `lib/public-locations.ts`
+  (one cached read, refreshed every 300s) and treat a failed read as one pool.
+  The /zh-Hant and /zh-Hans pool pages exist only for ids present at build
+  (`app/[locale]` has `dynamicParams = false`), so a brand-new pool row needs a
+  deploy before its Chinese pages resolve.

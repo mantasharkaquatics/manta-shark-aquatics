@@ -18,19 +18,31 @@ export interface Location {
   map_url: string | null
   sort_order: number
   is_active: boolean
+  /** The "I'm here" check-in point (docs/migration-locations-checkin.sql).
+   *  Absent (undefined) before that migration has run; null = not set. */
+  lat?: number | null
+  lng?: number | null
+  checkin_radius_m?: number
 }
 
 /** The pool every existing zone and lesson belongs to. */
 export const DEFAULT_LOCATION_ID = 'brea'
 
+/** The columns every phase-1 pool row has. getLocations reads `*` instead, so
+ *  the check-in columns come along once docs/migration-locations-checkin.sql
+ *  has run and nothing breaks before it has (a fixed list naming lat/lng
+ *  would fail outright on a database without them). */
 export const LOCATION_COLUMNS = 'id, name, address, map_url, sort_order, is_active'
 
 /** Every pool, active or not, in display order. Empty before the migration. */
 export async function getLocations(svc: SupabaseClient): Promise<Location[]> {
-  const { data, error } = await svc.from('locations').select(LOCATION_COLUMNS).order('sort_order')
+  const { data, error } = await svc.from('locations').select('*').order('sort_order')
   if (error || !data) return []
   return data as Location[]
 }
+
+/** Whether the check-in columns exist yet (docs/migration-locations-checkin.sql). */
+export const hasCheckInColumns = (all: Location[]) => all.some(l => 'checkin_radius_m' in l)
 
 export const activeLocations = (all: Location[]) => all.filter(l => l.is_active)
 

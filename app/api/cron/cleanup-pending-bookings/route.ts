@@ -6,6 +6,7 @@ import Stripe from 'stripe'
 import { syncTrialBooking } from '@/lib/trial-booking'
 import { mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
 import { requireCron } from '@/lib/cron-auth'
+import { getLocations, lessonLocationLine } from '@/lib/locations'
 
 type ExpiryNotice = {
   to: string
@@ -15,6 +16,7 @@ type ExpiryNotice = {
   coachName: string
   date: string
   time: string
+  location?: string
 }
 
 export async function GET(req: NextRequest) {
@@ -109,8 +111,11 @@ export async function GET(req: NextRequest) {
       const sessionIds = [...new Set(invites.map((b: any) => b.class_session_id).filter(Boolean))]
       const { data: sessions } = await supabase
         .from('class_sessions')
-        .select('id, session_date, start_time, end_time, course_type_id, coach_id')
+        .select('id, session_date, start_time, end_time, course_type_id, coach_id, location_id')
         .in('id', sessionIds)
+      // The pool list once for every notice; lessonLocationLine gives
+      // nothing while only one pool is open to families.
+      const allLocations = await getLocations(supabase)
       const sessionById: Record<string, any> = {}
       for (const s of sessions || []) { sessionById[(s as any).id] = s }
 
@@ -186,6 +191,7 @@ export async function GET(req: NextRequest) {
             coachName: coachName[first.coach_id] || '',
             date: first.session_date,
             time: timeStr,
+            location: await lessonLocationLine(supabase, first.location_id, allLocations),
           })
         }
       }

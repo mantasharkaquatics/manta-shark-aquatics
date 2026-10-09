@@ -153,6 +153,33 @@ function takeResume(): ResumeSnap | null {
   } catch { return null }
 }
 
+/* The same read at each of the OTHER pools, for the booking page's "the other
+   pool has openings" notice. `key` names the whole question (empty = nothing
+   to ask); `read` gives each pool's cache key and fetch. Answers are kept in
+   `cache` by that key, so going back and forth between pools asks nothing
+   twice; the pools are read in parallel. Returns null until the answer for
+   this very key is in. */
+function useOtherPoolReads(
+  key: string, pools: string[], cache: Map<string, unknown>,
+  read: (pool: string) => [string, () => Promise<unknown>],
+): Record<string, unknown> | null {
+  const [ans, setAns] = useState<{ key: string; byPool: Record<string, unknown> }>({ key: '', byPool: {} })
+  useEffect(() => {
+    if (!key) return
+    let live = true
+    Promise.all(pools.map(async id => {
+      const [k, go] = read(id)
+      if (cache.has(k)) return [id, cache.get(k)] as const
+      const j = await go().catch(() => null)
+      if (j) cache.set(k, j)
+      return [id, j] as const
+    })).then(rows => { if (live) setAns({ key, byPool: Object.fromEntries(rows) }) })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+  return key && ans.key === key ? ans.byPool : null
+}
+
 function SectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -403,8 +430,14 @@ export default function BookingPage() {
   const [rescheduleLoc, setRescheduleLoc] = useState<string | null>(null)
   // The pool a booking saved before a top-up was at (restoreResume).
   const resumeLocRef = useRef<string | null>(null)
+  // The pool named in the link (?location=monrovia: a pool page, the
+  // programme preview, the AI's reschedule link). It outranks the swimmer's
+  // usual pool, so it survives the swimmer step, until the family picks a
+  // pool themselves (pickLocation). An unknown or hidden id is ignored below.
+  const urlLocRef = useRef<string | null>(null)
   const [location, setLocation] = useState<string | null | undefined>(undefined)
   useEffect(() => {
+    try { urlLocRef.current = new URLSearchParams(window.location.search).get('location') } catch {}
     fetch('/api/locations').then(r => r.ok ? r.json() : null).catch(() => null)
       .then(j => {
         setLocList(Array.isArray(j?.locations) ? j.locations : [])
@@ -413,16 +446,17 @@ export default function BookingPage() {
         setLocLoaded(true)
       })
   }, [])
-  // Which pool to open on: the lesson being moved, else the swimmer's usual
+  // Which pool to open on: the booking put back after a top-up, else the
+  // lesson being moved, else the pool the link named, else the swimmer's usual
   // pool (their latest lesson's), else the first one. Picking another swimmer
-  // starts again from theirs.
+  // starts again from there.
   useEffect(() => {
     if (!locLoaded) return
     if (!showLoc) { setLocation(locList.length === 1 ? locList[0].id : null); return }
     const known = (id: string | null | undefined): id is string => !!id && locList.some(l => l.id === id)
     const back = resumeLocRef.current
     resumeLocRef.current = null
-    const want = [back, rescheduleLoc, selectedStudent ? studentLocs[selectedStudent.id] : null].find(known)
+    const want = [back, rescheduleLoc, urlLocRef.current, selectedStudent ? studentLocs[selectedStudent.id] : null].find(known)
     setLocation(want ?? locList[0]?.id ?? null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locLoaded, selectedStudent?.id, rescheduleLoc])
@@ -548,9 +582,11 @@ export default function BookingPage() {
   const pendingFixedRef = useRef<{ start: string; time: string; coachId: string; weeks: number; ghost: Set<string>; only: boolean } | null>(null)
   const [recurSkipped, setRecurSkipped] = useState(0)
 
-  useEffect(() => {
-    if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
-    if (location === undefined) return
+  /** The group calendar's read for one pool (null = no pool filter). The
+   *  chosen pool's read and the other pools' (the "elsewhere" notice) ask the
+   *  same question; only the pool differs. */
+  function groupClassesUrl(loc: string | null): string {
+    if (!selectedStudent) return ''
     // One call for the whole view, from this week's Sunday to the end of the
     // last month on screen. It used to be one six-week call per month, which
     // overlapped and doubled the server's work.
@@ -566,12 +602,22 @@ export default function BookingPage() {
     const lastDay = expiry ?? monthEnd
     const weeks = Math.ceil((lastDay.getTime() - from.getTime()) / (7 * 86400000)) + 1
     const st = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
+    return `/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=${weeks}&start=${st}${loc ? `&location=${encodeURIComponent(loc)}` : ''}`
+  }
+  // Which read groupWeeks holds (its url): the other pools' notice waits for
+  // the chosen pool's answer, and [] alone cannot say "loaded, nothing here".
+  const [groupWeeksFor, setGroupWeeksFor] = useState('')
+  useEffect(() => {
+    if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
+    if (location === undefined) return
+    const url = groupClassesUrl(location)
     let live = true
-    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=${weeks}&start=${st}${locQ}`)
+    fetch(url)
       .then(r => r.json()).catch(() => null)
       .then(r => {
         if (!live) return
         setGroupWeeks(r?.days || [])
+        setGroupWeeksFor(url)
       })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -588,22 +634,28 @@ export default function BookingPage() {
     return () => mq.removeEventListener('change', sync)
   }, [])
 
+  // 1-on-2 may run an hour too, with a second swimmer from EITHER account -
+  // the cross-account path is group-aware now - or when moving an existing one.
+  const hourOk = selectedCourse?.slug === '1on1'
+    || (selectedCourse?.slug === '1on2' && !!selectedStudent2)
+    || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
+  const hourMode = !groupFlow && !isTrial && !!selectedStudent && !!selectedDate && lessonLength === 60 && hourOk
+  /** The hour list's question for one pool (only while hourMode). The other
+   *  pools' read for the "elsewhere" notice asks the same, at another pool. */
+  function hourOptionsBody(loc: string | null) {
+    return { action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent?.id,
+      student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
+      session_date: selectedDate ? localDs(selectedDate) : null, lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null,
+      location: loc }
+  }
   useEffect(() => {
     setSelectedHour(null)
-    // 1-on-2 may run an hour too, with a second swimmer from EITHER account -
-    // the cross-account path is group-aware now - or when moving an existing one.
-    const hourOk = selectedCourse?.slug === '1on1'
-      || (selectedCourse?.slug === '1on2' && !!selectedStudent2)
-      || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
-    if (groupFlow || isTrial || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
+    if (!hourMode) { setHourSlots([]); return }
     if (location === undefined) return
     setHourLoading(true)
     fetch('/api/bookings/hour', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
-        student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
-        session_date: localDs(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null,
-        location: location ?? null }),
+      body: JSON.stringify(hourOptionsBody(location ?? null)),
     }).then(r => r.json())
       .then(d => {
         setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || [])
@@ -1099,11 +1151,13 @@ export default function BookingPage() {
     setStep(1)
   }, [loading, isReschedule, selectedStudent, step, students])
 
-  useEffect(() => {
-    if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse || location === undefined) return
-    let live = true
-    const qs = new URLSearchParams({ course_slug: selectedCourse.slug, student_id: selectedStudent.id })
-    if (location) qs.set('location', location)
+  // The other pools' answers, by the exact question asked (see "elsewhere" below).
+  const otherReads = useRef<Map<string, unknown>>(new Map())
+  /** The openings question for one pool (null = no pool filter). The other
+   *  pools' read for the "elsewhere" notice asks the same, at another pool. */
+  function openingsQs(loc: string | null): string {
+    const qs = new URLSearchParams({ course_slug: selectedCourse?.slug || '', student_id: selectedStudent?.id || '' })
+    if (loc) qs.set('location', loc)
     // A voucher may reach past the usual 60 days; ask for openings up to its expiry.
     if (makeUp) {
       qs.set('until', makeUp.expiresOn)
@@ -1111,11 +1165,19 @@ export default function BookingPage() {
     }
     if (selectedStudent2 && !(selectedStudent2 as any).isPartner) qs.set('student2_id', selectedStudent2.id)
     else if (rescheduleSibling) qs.set('student2_id', rescheduleSibling.id)
-    fetch(`/api/bookings/openings?${qs}`)
+    return qs.toString()
+  }
+  useEffect(() => {
+    if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse || location === undefined) return
+    let live = true
+    const q = openingsQs(location)
+    fetch(`/api/bookings/openings?${q}`)
       .then(r => r.ok ? r.json() : null)
       .then((j: Openings | null) => {
         if (!live) return
         setOpenings(j)
+        // Kept for the notice too: back at the other pool, this one is "elsewhere".
+        if (j && location) otherReads.current.set(`o|${q}|${slotsRefresh}`, j)
         // One coach is no choice: behave as if they had been picked.
         if (j && j.coaches.length === 1) setCoachFilter(j.coaches[0].id)
       })
@@ -1123,6 +1185,92 @@ export default function BookingPage() {
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling, location])
+
+  // ── "The other pool has openings" (owner, 2026-10-09) ──
+  // When the chosen pool has nothing on a day (or in the whole month on
+  // screen) and another open pool does, a notice says so and offers to
+  // switch. The other pools' answers feed ONLY that notice -- their times are
+  // never drawn here, because the owner keeps each pool's times apart. Read
+  // only with more than one pool open: the 30-minute openings alongside the
+  // chosen pool's (they decide which days can be tapped), the hour list and
+  // the group calendar only once the chosen pool turns out empty. Every key
+  // carries slotsRefresh, so after a booking everything is asked again.
+  const otherPools = showLoc && location ? locList.filter(l => l.id !== location) : []
+  const herePoolName = locList.find(l => l.id === location)?.name || ''
+  const otherOpen = useOtherPoolReads(
+    otherPools.length > 0 && step === 3 && privateFlow && !!selectedStudent && !!selectedCourse
+      ? `o|${openingsQs(null)}|${slotsRefresh}|${location}` : '',
+    otherPools.map(l => l.id), otherReads.current,
+    id => { const q = openingsQs(id); return [`o|${q}|${slotsRefresh}`, () => fetch(`/api/bookings/openings?${q}`).then(r => r.ok ? r.json() : null)] },
+  ) as Record<string, Openings | null> | null
+  /** Open 30-minute times in one pool's openings on a date, under the coach filter. */
+  const openTimesIn = (o: Openings | null | undefined, ds: string) =>
+    Object.entries(o?.days[ds] || {}).filter(([tm, ids]) => bookableNow(ds, tm) && ids.some(id => coachFilter === 'any' || id === coachFilter)).length
+  /** Hour lessons on offer in one pool's hour list, under the coach filter. */
+  const hourTimesIn = (slots: any[] | null | undefined, ds: string) =>
+    (slots || []).filter((h: any) => !h.is_current && bookableNow(ds, String(h.start_time).slice(0, 5))
+      && (h.options || []).some((o: any) => coachFilter === 'any' || o.coach1_id === coachFilter)).length
+  /** Group classes a seat can still be taken in, as the calendar draws them. */
+  const groupOpenIn = (days: any[] | null | undefined) => {
+    let n = 0
+    for (const d of days || []) for (const c of d.classes || [])
+      if (meetsLeadTime(d.date, c.time) && !c.full && !c.already_booked && makeUpDateOk(d.date) && rescheduleDateOk(d.date)) n++
+    return n
+  }
+  const hourHereN = hourMode && !hourLoading && selectedDate ? hourTimesIn(hourSlots, localDs(selectedDate)) : null
+  const otherHour = useOtherPoolReads(
+    otherPools.length > 0 && step === 3 && hourHereN === 0 ? `h|${JSON.stringify(hourOptionsBody(null))}|${slotsRefresh}|${location}` : '',
+    otherPools.map(l => l.id), otherReads.current,
+    id => {
+      const body = JSON.stringify(hourOptionsBody(id))
+      return [`h|${body}|${slotsRefresh}`, () => fetch('/api/bookings/hour', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).then(r => r.ok ? r.json() : null)]
+    },
+  ) as Record<string, { slots?: any[] } | null> | null
+  const groupHereN = groupFlow && location !== undefined && groupWeeksFor !== '' && groupWeeksFor === groupClassesUrl(location) ? groupOpenIn(groupWeeks) : null
+  const otherGroup = useOtherPoolReads(
+    otherPools.length > 0 && step === 3 && groupHereN === 0 ? `g|${groupClassesUrl(null)}|${slotsRefresh}|${location}` : '',
+    otherPools.map(l => l.id), otherReads.current,
+    id => { const u = groupClassesUrl(id); return [`g|${u}|${slotsRefresh}`, () => fetch(u).then(r => r.ok ? r.json() : null)] },
+  ) as Record<string, { days?: any[] } | null> | null
+  type Elsewhere = { id: string; name: string; n: number }
+  const withRoom = (count: (id: string) => number): Elsewhere[] =>
+    otherPools.map(l => ({ id: l.id, name: l.name, n: count(l.id) })).filter(x => x.n > 0)
+  /** Other pools with a 30-minute time on a date the chosen pool has none on. */
+  function elsewhereOpen(ds: string): Elsewhere[] {
+    if (!privateFlow || !openings || !otherOpen || openTimesIn(openings, ds) > 0) return []
+    return withRoom(id => openTimesIn(otherOpen[id], ds))
+  }
+  /** The same for the selected day's list, in whichever length is shown. */
+  function elsewhereDay(ds: string): Elsewhere[] {
+    if (lessonLength === 60) return hourMode && hourHereN === 0 && otherHour ? withRoom(id => hourTimesIn(otherHour[id]?.slots, ds)) : []
+    return elsewhereOpen(ds)
+  }
+  /** Not one 30-minute time at the chosen pool on any day on screen: the
+   *  other pools' number of days with one. */
+  function elsewhereMonth(): Elsewhere[] {
+    if (!privateFlow || lessonLength !== 30 || !openings || !otherOpen) return []
+    const shown = calCells.filter((d): d is Date => !!d && isDateAvailable(d)).map(localDs)
+    if (shown.some(ds => openTimesIn(openings, ds) > 0)) return []
+    return withRoom(id => shown.filter(ds => openTimesIn(otherOpen[id], ds) > 0).length)
+  }
+  function elsewhereGroup(): Elsewhere[] {
+    return groupHereN === 0 && otherGroup ? withRoom(id => groupOpenIn(otherGroup[id]?.days)) : []
+  }
+  /** The notice: one line per other pool with room, each with a button that
+   *  switches to it (keepDate: that day stays open at the new pool). */
+  const elsewhereNote = (rows: Elsewhere[], text: (r: Elsewhere) => string, keepDate?: Date) => rows.length === 0 ? null : (
+    <div role="status" style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '12px 14px', margin: '12px 0 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {rows.map(r => (
+        <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.5, flex: '1 1 220px' }}><span aria-hidden>📍 </span>{text(r)}</span>
+          <button type="button" onClick={() => pickLocation(r.id, keepDate)}
+            style={{ minHeight: '44px', padding: '0 18px', borderRadius: '999px', border: `1.5px solid ${NAVY}`, background: NAVY, color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+            {t('booking.loc.elsewhereSee', { there: r.name })}
+          </button>
+        </div>
+      ))}
+    </div>
+  )
 
   /* The programme page's slot link (init), applied in two moves. On the course
      step, once the parent has chosen a swimmer who has a level: pick the
@@ -1340,10 +1488,13 @@ export default function BookingPage() {
    *  it does when the course changes, and every list is read again for the
    *  new pool. The 30/60 length stays: a lesson being moved or a make-up
    *  voucher sets it, and neither depends on the pool. */
-  function pickLocation(id: string) {
+  function pickLocation(id: string, keepDate?: Date) {
     if (id === location) return
+    // The family's own choice from here on, not the link's.
+    urlLocRef.current = null
     setLocation(id)
-    setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null)
+    // "See Monrovia" under an empty day keeps that day open at the new pool.
+    setSelectedDate(keepDate ?? null); setSelectedSlot(null); setSelectedHour(null)
     setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()); setGhostSel(new Set()); setRecurMsg('')
     setTimeSlots([]); setOpenDay(null)
     // Not left on screen while the new pool's answer is on its way: a tap
@@ -2471,6 +2622,9 @@ export default function BookingPage() {
                 </div>
               </div>
             )}
+            {!groupFlow && elsewhereNote(elsewhereMonth(), r => voucherRange
+              ? t('booking.loc.elsewhereRange', { here: herePoolName, there: r.name, n: r.n })
+              : t('booking.loc.elsewhereMonth', { here: herePoolName, there: r.name, n: r.n, month: t('date.month.' + (calMonth + 1)) }))}
             {!groupFlow && <div ref={calCardRef}
               onTouchStart={e => { const t0 = e.touches[0]; calTouchRef.current = { x: t0.clientX, y: t0.clientY } }}
               onTouchEnd={e => {
@@ -2516,10 +2670,14 @@ export default function BookingPage() {
                   const monthTag = !!voucherRange && (i === 0 || calCells.findIndex(c => c) === j)
                   const openHere = privateFlow && openings && lessonLength === 30 ? coachesOn(dsC) : null
                   const dotsHere = openHere ?? (privateFlow && openings && lessonLength === 60 ? coachesOnForHour(dsC) : null)
+                  // Nothing at this pool but a time at another: the day can
+                  // still be tapped, and its empty list says where to look.
+                  // A hollow ring marks it, never the other pool's coach dots.
+                  const elsewhere = openHere && openHere.length === 0 && isDateAvailable(date) ? elsewhereOpen(dsC) : []
                   // A voucher's calendar shows only days with a time it can book,
                   // so a 60-minute make-up also needs a free hour that day.
-                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0)
-                    && !(makeUp && dotsHere != null && dotsHere.length === 0)
+                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0 || elsewhere.length > 0)
+                    && !(makeUp && dotsHere != null && dotsHere.length === 0 && elsewhere.length === 0)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
                   // This calendar has no per-slot cells to mark, so the day itself
@@ -2533,6 +2691,7 @@ export default function BookingPage() {
                   const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
                     <button key={dsC}
+                      title={elsewhere.length > 0 ? t('booking.loc.elsewhereTip', { there: elsewhere.map(x => x.name).join(', ') }) : undefined}
                       onClick={() => {
                         // Re-clicking the day already open would clear its times and never refetch them.
                         if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
@@ -2544,7 +2703,7 @@ export default function BookingPage() {
                         padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
                         background: isSelected ? NAVY : hasPick ? `${GOLD}20` : 'transparent',
-                        color: isSelected ? '#fff' : hasPick ? GOLD : available ? NAVY : '#b7c2d4',
+                        color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#7b879c' : available ? NAVY : '#b7c2d4',
                         fontSize: '16px', fontWeight: isSelected || hasPick ? 700 : 500,
                         cursor: available ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
@@ -2553,13 +2712,15 @@ export default function BookingPage() {
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
                         {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
+                    )}{elsewhere.length > 0 && !isSelected && (
+                      <span aria-hidden style={{ display: 'block', width: '5px', height: '5px', borderRadius: '50%', border: '1px solid #7b879c', margin: '2px auto 0' }} />
                     )}{groupFlow && groupDates.includes(localDs(date)) && !isSelected && (
                       <span style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', margin: '2px auto 0', backgroundColor: myBandColor }} />
                     )}</button>
                   )
                 })}
               </div>
-              {voucherMonthEmpty() && (
+              {voucherMonthEmpty() && elsewhereMonth().length === 0 && (
                 <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: '13px', color: '#56647d' }}>{t('booking.makeUp.noDays')}</p>
               )}
             </div>}
@@ -2966,6 +3127,10 @@ export default function BookingPage() {
                   </div>
                   </>
                 )}
+                {elsewhereNote(elsewhereDay(localDs(selectedDate)), r => t('booking.loc.elsewhereDay', {
+                  here: herePoolName, there: r.name, n: r.n,
+                  date: selectedDate.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
+                }), selectedDate)}
               </div>
             )}
 
@@ -2975,6 +3140,7 @@ export default function BookingPage() {
               const todayDs = localDs(today)
               return (
                 <div>
+                  {elsewhereNote(elsewhereGroup(), r => t('booking.loc.elsewhereGroup', { here: herePoolName, there: r.name, n: r.n }))}
                   {/* One continuous run of weeks, starting with the week we are in.
                       Past weeks are gone, and a new month does not start a new
                       grid -- it just carries on in the same rows, with the 1st of

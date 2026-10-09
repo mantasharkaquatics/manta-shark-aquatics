@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 import { readJson, badRequest } from '@/lib/http'
 
 export async function POST(req: NextRequest) {
@@ -60,10 +61,10 @@ export async function POST(req: NextRequest) {
       // gives the whole span with "(60 min)" as the invitation did (found
       // 2026-10-07: it showed only one half's start time). The row declined
       // may be the second half, so the earliest start is the lesson's.
-      type SessRow = { session_date: string; start_time: string; end_time: string | null; course_type_id: string }
+      type SessRow = { session_date: string; start_time: string; end_time: string | null; course_type_id: string; location_id?: string | null }
       const sessIds = [...new Set([pending.class_session_id, ...declined.map(r => r.class_session_id)].filter(Boolean))]
       const { data: sessRows } = await svc
-        .from('class_sessions').select('session_date, start_time, end_time, course_type_id').in('id', sessIds)
+        .from('class_sessions').select('session_date, start_time, end_time, course_type_id, location_id').in('id', sessIds)
       const ordered = ((sessRows || []) as SessRow[]).slice().sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
       const sess = ordered[0] || null
       const endTime = ordered.reduce((e, x) => (x.end_time && String(x.end_time) > e ? String(x.end_time) : e), sess?.end_time ? String(sess.end_time) : '')
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
           time: endTime
             ? `${formatTime12h(sess.start_time)} \u2013 ${formatTime12h(endTime)}`
             : formatTime12h(sess.start_time),
+          location: await lessonLocationLine(svc, sess.location_id),
         })
       }
     }

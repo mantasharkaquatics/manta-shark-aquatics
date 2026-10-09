@@ -8,6 +8,7 @@ import { TEAM_SQUAD_CAP } from '@/lib/team-tiers'
 import { renewalHolds, heldSeats, allRows } from '@/lib/fixed-classes'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { privateSlotOpen } from '@/lib/bookings/private-slot'
+import { activeLocations, getLocations, locationParam, showLocations, zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // The week ahead, for the public programme pages (owner, 2026-09-28): each of
 // /programs/private, /programs/group and /programs/team shows the open times of
@@ -24,6 +25,12 @@ import { privateSlotOpen } from '@/lib/bookings/private-slot'
 // GET ?kind=private|semi -> { from, days: [{ date, times: ['HH:MM'] }] }
 // GET ?kind=group        -> { from, days: [{ date, slots: [{ time, band }] }] }   (band '1-2' | null = any level)
 // GET ?kind=team         -> { from, tiers: [...], days: [{ date, slots: [{ time, end, tier_id }] }] }
+//
+// With more than one pool open to families (lib/locations showLocations) every
+// answer is for ONE pool, ?location=<id> (the first open pool when absent or
+// unknown), and also carries { location, locations: [{ id, name }] } so the
+// preview can draw its pool switch. With one pool the parameter is ignored and
+// the answer is exactly what it was.
 
 const DAYS = 7
 const LESSON_MIN = 30
@@ -46,6 +53,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unknown kind' }, { status: 400 })
 
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  // No sign-in here, so the id is checked against the OPEN pools only: a
+  // hidden pool's times are not shown to the public by naming it.
+  const allLocs = await getLocations(svc)
+  const openLocs = activeLocations(allLocs)
+  const multi = showLocations(allLocs)
+  const loc: string | null = multi ? (locationParam(req.nextUrl.searchParams.get('location'), openLocs) ?? openLocs[0].id) : null
+  const locInfo = multi ? { location: loc, locations: openLocs.map(l => ({ id: l.id, name: l.name })) } : {}
+  // A coach with no zone rows is on the old weekly hours, which are Brea's.
+  const legacyHere = !loc || loc === DEFAULT_LOCATION_ID
   const from = getTodayLA()
   const to = addDays(from, DAYS - 1)
   const dates: string[] = []
@@ -56,7 +72,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: zrows }, { data: zoned }, { data: offRows }] = await Promise.all([
     svc.from('coach_availability_zones')
-      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max, team_tier_id')
+      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max, team_tier_id, location_id')
       .in('coach_id', coachIds.length ? coachIds : ['00000000-0000-0000-0000-000000000000'])
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
     svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds.length ? coachIds : ['00000000-0000-0000-0000-000000000000']),
@@ -71,12 +87,13 @@ export async function GET(req: NextRequest) {
   for (const b of (offRows || []) as CoachBlock[]) (offBy[b.coach_id + '|' + b.date] ||= []).push(b)
 
   // Same resolution as lib/zones: a day's own rows replace the weekly template,
-  // and a 'closed' row closes the day.
+  // and a 'closed' row closes the day -- at every pool, so that is checked
+  // before the rows are narrowed to the pool asked for.
   const rowsFor = (cid: string, ds: string): any[] | null => {
     const all = zonesBy[cid] || []
     const dateRows = all.filter(r => r.kind === 'date' && r.override_date === ds)
     const picked = dateRows.length > 0 ? dateRows : all.filter(r => r.kind === 'weekly' && r.weekday === dowOf(ds))
-    return picked.some(r => r.zone_type === 'closed') ? null : picked
+    return picked.some(r => r.zone_type === 'closed') ? null : picked.filter(r => zoneAtLocation(r, loc))
   }
 
   // ── Squads: their fixed weekly times, and the practices of this week ──
@@ -93,7 +110,7 @@ export async function GET(req: NextRequest) {
 
     const weeklyBy: Record<string, Map<string, any>> = {}
     for (const cid of coachIds) for (const r of zonesBy[cid] || []) {
-      if (r.kind !== 'weekly' || r.zone_type !== 'team' || !tierIds.has(r.team_tier_id)) continue
+      if (r.kind !== 'weekly' || r.zone_type !== 'team' || !tierIds.has(r.team_tier_id) || !zoneAtLocation(r, loc)) continue
       const st = String(r.start_time).slice(0, 5), en = String(r.end_time).slice(0, 5)
       // Two coaches on one squad's practice is still one practice.
       ;(weeklyBy[r.team_tier_id] ||= new Map()).set(`${r.weekday}|${st}`, { weekday: r.weekday, start: st, end: en })
@@ -123,6 +140,7 @@ export async function GET(req: NextRequest) {
         weekly: [...(weeklyBy[t.id]?.values() || [])].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
       })),
       days,
+      ...locInfo,
     }, { headers: CACHE })
   }
 
@@ -179,7 +197,7 @@ export async function GET(req: NextRequest) {
       }
       return { date: ds, slots: [...seen.values()].sort((a, b) => a.time.localeCompare(b.time) || String(a.band).localeCompare(String(b.band))) }
     })
-    return NextResponse.json({ from, days }, { headers: CACHE })
+    return NextResponse.json({ from, days, ...locInfo }, { headers: CACHE })
   }
 
   // ── Private and semi-private: any coach free at that time ──
@@ -196,6 +214,7 @@ export async function GET(req: NextRequest) {
         if (!rows) continue
         windows = rows.filter(r => r.zone_type === 'private')
       } else {
+        if (!legacyHere) continue
         windows = (legacyRows || []).filter((r: any) => r.coach_id === cid && r.day_of_week === dow)
       }
       const blocks = offBy[cid + '|' + ds] || []
@@ -212,5 +231,5 @@ export async function GET(req: NextRequest) {
     }
     return { date: ds, times: [...times].sort() }
   })
-  return NextResponse.json({ from, days }, { headers: CACHE })
+  return NextResponse.json({ from, days, ...locInfo }, { headers: CACHE })
 }

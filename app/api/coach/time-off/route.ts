@@ -4,6 +4,7 @@ import { handledTimeOffIds, bookedLessonsInRange, lessonEnded, MAX_TIME_OFF_DAYS
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
+import { getLocations, showLocations, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -131,6 +132,12 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
   const stuMap = byId(stus)
   const parMap = byId(pars)
   const ctMap = byId(cts)
+  // Which pool each lesson is at, once more than one is open to families: a
+  // coach may teach both on one day, and the desk phones accordingly.
+  const allLocations = await getLocations(svc)
+  const poolOf = (id: string | null) => showLocations(allLocations)
+    ? allLocations.find(x => x.id === (id || DEFAULT_LOCATION_ID))?.name || ''
+    : ''
 
   const dayOf = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
   const multi = lastRow.date !== row.date
@@ -161,7 +168,8 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
         const family = p ? [`${p.first_name || ''} ${p.last_name || ''}`.trim(), p.phone, p.email].filter(Boolean).join(', ') : ''
         return `${stuMap.get(s.id)?.full_name || 'Swimmer'}${family ? ` (${family})` : ''}`
       }).join('; ')
-      return `• ${multi ? dayOf(l.date) + ' ' : ''}${formatTime12h(l.start)} – ${formatTime12h(l.end)}${course ? ` · ${course}` : ''} · ${who}`
+      const pool = poolOf(l.location_id)
+      return `• ${multi ? dayOf(l.date) + ' ' : ''}${formatTime12h(l.start)} – ${formatTime12h(l.end)}${pool ? ` · ${pool}` : ''}${course ? ` · ${course}` : ''} · ${who}`
     }),
     `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.mantasharkaquatics.net'}/admin/time-off`,
   ]

@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
+import { lessonLocationLine } from '@/lib/locations'
 import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
@@ -152,10 +153,12 @@ export async function POST(req: NextRequest) {
   try {
     const { data: sess } = await svc
       .from('class_sessions')
-      .select('session_date, start_time, end_time, course_type_id, coach_id')
+      .select('session_date, start_time, end_time, course_type_id, coach_id, location_id')
       .eq('id', session_id)
       .single()
     if (sess) {
+      // Both halves of an hour are at the same pool (one coach, back to back).
+      const location = await lessonLocationLine(svc, (sess as any).location_id)
       const { data: ct } = await svc.from('course_types').select('name').eq('id', sess.course_type_id).single()
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', sess.coach_id).single()
       const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
@@ -214,6 +217,7 @@ export async function POST(req: NextRequest) {
             date: sess.session_date,
             time: timeStr,
             refundKind,
+            location,
           })
         }
       }

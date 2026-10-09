@@ -6,6 +6,8 @@ import { localePath } from '@/lib/i18n/paths'
 import { useFamilyStatus, isSignedInNow } from '@/lib/use-family-status'
 import { BRAND, HERO_GRADIENT, FONT_DISPLAY, FONT_BODY, wakeImage } from '@/lib/brand'
 import FitChips, { HAS_FIT } from '@/components/programs/FitChips'
+import { activeLocations, showLocations, type Location } from '@/lib/locations'
+import { placeName } from '@/lib/location-place'
 
 // The home page has one job: tell a new family how to start, in three steps,
 // and let them take the first one. Everything else on it -- the four ways to
@@ -18,11 +20,22 @@ const AMBER = BRAND.amber
 const YELLOW = BRAND.yellow
 const BLUE = BRAND.blue
 
-export default function HomeContent() {
+// Two pools (2026-10-09): `locations` is every pool, read by the page on the
+// server. While only one is open to families nothing below changes -- the
+// hero still says Brea and there is no locations section.
+export default function HomeContent({ locations = [] }: { locations?: Location[] }) {
   const t = useT()
   const locale = useLocale()
   const router = useRouter()
   const { signedIn, allAssessed } = useFamilyStatus()
+  const place = placeName(locations, t)
+  const pools = showLocations(locations) ? activeLocations(locations) : []
+  // Booking already set to that pool; a signed-out visitor registers first
+  // and is carried on there, as with bookAssessment above.
+  const bookAt = (id: string) => {
+    const href = '/booking?location=' + encodeURIComponent(id)
+    return signedIn === false ? '/register?next=' + encodeURIComponent(href) : href
+  }
 
   // Booking lives behind the login: a signed-out visitor registers first and is
   // carried on to booking; a signed-in one goes straight there. A press before
@@ -149,6 +162,17 @@ export default function HomeContent() {
         .h-q h4 { margin: 0 0 8px; font-size: 15px; }
         .h-q p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; }
 
+        /* Our locations: one card per pool, only with more than one open. */
+        .h-locs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+        .h-loc { border: 1px solid ${BRAND.line}; border-radius: 16px; padding: 24px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+        .h-loc h3 { margin: 0; font-family: ${FONT_DISPLAY}; font-size: 22px; color: ${NAVY}; }
+        .h-loc p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; }
+        .h-loc .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: auto; padding-top: 14px; border-top: 1px solid ${BRAND.line}; }
+        .h-loc .acts .h-btn { padding: 10px 18px; font-size: 14px; }
+        .h-loc .acts a.v { font-size: 14px; font-weight: 800; color: ${BLUE}; text-decoration: none; }
+        @media (hover: hover) { .h-loc .acts a.v:hover { text-decoration: underline; } }
+        .h-locs-sec .h-head { margin-bottom: 28px; }
+
         .h-final { background: ${HERO_GRADIENT}; color: #fff; text-align: center; }
         .h-final h2 { font-size: 44px; line-height: 1.12; font-weight: 900; }
         .h-final h2 em { color: ${YELLOW}; }
@@ -185,7 +209,7 @@ export default function HomeContent() {
         <header className="h-hero">
           <div className="h-wrap">
             <div>
-              <div className="h-eyebrow">{t('home.hero.eyebrow')}</div>
+              <div className="h-eyebrow">{t('home.hero.eyebrow', { place })}</div>
               <h1>{t('home.hero.title1')}<br /><em>{t('home.hero.title2')}</em></h1>
               <p className="h-lead">{t('home.hero.subtitle')}</p>
               <div className="h-ctas">
@@ -326,6 +350,36 @@ export default function HomeContent() {
             <p className="h-note"><Link href={localePath('/faq', locale)}>{t('home.faq.all')}</Link></p>
           </div>
         </section>
+
+        {/* OUR LOCATIONS: only once there is more than one pool to choose from.
+            Same programmes and prices everywhere, so a card is just where it
+            is, its own page, and booking already set to that pool. */}
+        {pools.length > 0 && (
+          <section className="h-sec h-why h-locs-sec">
+            <div className="h-wrap">
+              <div className="h-head">
+                <div className="h-eyebrow">{t('home.locations.eyebrow')}</div>
+                <h2>{t('home.locations.title')}</h2>
+                <p>{t('home.locations.sub')}</p>
+              </div>
+              <div className="h-locs">
+                {pools.map(l => {
+                  const addr = (l.address || '').trim()
+                  return (
+                    <div className="h-loc" key={l.id}>
+                      <h3>{l.name}</h3>
+                      {addr && addr.toLowerCase() !== l.name.trim().toLowerCase() && <p>{addr}</p>}
+                      <div className="acts">
+                        <Link className="h-btn gold tap-auto" href={bookAt(l.id)}>{t('home.locations.book')}</Link>
+                        <Link className="v" href={localePath('/locations/' + l.id, locale)}>{t('home.locations.view')} →</Link>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* CLOSING: the school's own line, kept by the owner's choice. */}
         <section className="h-sec h-final">

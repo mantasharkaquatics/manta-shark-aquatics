@@ -23,7 +23,11 @@ const LEGAL = [
   { labelKey: 'legal.smsTerms', href: '/sms-terms' },
 ]
 
-export default function Footer() {
+/* `locations` is the pools open to families, passed in by the public layouts
+   (lib/public-locations.ts) -- empty, or left out, while there is only one,
+   and then the contact column reads exactly as it always has: the town. With
+   more than one, each pool's name links to its own page instead. */
+export default function Footer({ locations = [] }: { locations?: { id: string; name: string }[] }) {
   const t = useT()
   const locale = useLocale()
 
@@ -61,7 +65,13 @@ export default function Footer() {
             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '16px' }}>{t('footer.contact')}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.62)', lineHeight: 1.8 }}>
               <a href="mailto:info@mantasharkaquatics.net" style={{ color: 'inherit', textDecoration: 'none' }}>info@mantasharkaquatics.net</a><br />
-              {t('footer.location')}<br />
+              {locations.length > 1
+                ? locations.map(l => (
+                    <span key={l.id}>
+                      <Link href={localePath('/locations/' + l.id, locale)} style={{ color: 'inherit', textDecoration: 'none' }}>{l.name}</Link><br />
+                    </span>
+                  ))
+                : <>{t('footer.location')}<br /></>}
               {t('footer.hours')}
             </p>
             {/* The last column is the staff corner: the people who work here and

@@ -80,6 +80,19 @@ export async function checkInStatus(svc: SupabaseClient, studentId: string) {
   }
 }
 
+/** The pool (class_sessions.location_id) of the lesson a check-in right now
+ *  would start from, for the parent's "I'm here" button: a family at one pool
+ *  must not tick a lesson at the other. null when no lesson is open (the
+ *  check-in itself then says so, or finds a team practice); a lesson read
+ *  before the locations migration has no pool and reads as null too. */
+export async function openLessonLocationId(svc: SupabaseClient, studentId: string): Promise<string | null> {
+  const { todays, attended } = await todaysLessons(svc, studentId)
+  const idx = openIndex(todays, attended, getNowMinutesLA())
+  if (idx === -1) return null
+  const { data } = await svc.from('class_sessions').select('location_id').eq('id', todays[idx].class_session_id).maybeSingle()
+  return ((data as any)?.location_id as string | null) || null
+}
+
 /** Swim Team: membership-based check-in (unlimited practices, no bookings).
  *  null when the swimmer has no current membership. */
 async function teamCheckIn(svc: SupabaseClient, student: { id: string; full_name: string; current_level: number | null }, method: CheckInMethod, todayStr: string, nowMin: number): Promise<CheckInResult | null> {

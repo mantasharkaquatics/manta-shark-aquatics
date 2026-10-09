@@ -7,6 +7,7 @@ import ActivityPing from '@/components/ActivityPing'
 import GlobalChat from '@/components/GlobalChat'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { FONT_BODY } from '@/lib/brand'
+import { shownLocations } from '@/lib/public-locations'
 
 // Only the two Chinese locales get a URL segment. English keeps the bare paths
 // (/plans, /levels, ...) so every existing link stays valid.
@@ -31,6 +32,8 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>
 }) {
   const { locale } = await params
+  // The footer's pool links, as in (public)/layout.tsx.
+  const pools = (await shownLocations()).map(l => ({ id: l.id, name: l.name }))
   return (
     // The language's text rides along with the page, so the first render is
     // already in Chinese (lib/i18n/index.ts).
@@ -52,7 +55,7 @@ export default async function LocaleLayout({
         <Navbar />
         <ActivityPing />
         {children}
-        <Footer />
+        <Footer locations={pools} />
         <GlobalChat />
       </div>
     </LocaleProvider>

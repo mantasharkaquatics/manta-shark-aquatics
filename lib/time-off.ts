@@ -105,11 +105,13 @@ export type BookedLesson = {
   start: string
   end: string
   course_type_id: string | null
+  /** The pool (class_sessions.location_id); both halves of an hour share it. */
+  location_id: string | null
   is_trial: boolean
   students: { id: string; parent_id: string | null }[]
 }
 
-type SessionRow = { id: string; coach_id: string; session_date: string; start_time: string; end_time: string; course_type_id: string | null }
+type SessionRow = { id: string; coach_id: string; session_date: string; start_time: string; end_time: string; course_type_id: string | null; location_id?: string | null }
 type BlockRow = { id: string; coach_id: string; date: string; start_time: string | null; end_time: string | null; reason: string | null; created_at: string | null }
 type BookingRow = { class_session_id: string; student_id: string | null; parent_id: string | null; status: string; lesson_group_id: string | null; is_trial: boolean | null; block_notice_sent_at?: string | null }
 
@@ -129,7 +131,7 @@ function lessonsOfDay(sessions: SessionRow[], bookings: BookingRow[]): BookedLes
     const en = String(s.end_time).slice(0, 5)
     let cur = byKey.get(key)
     if (!cur) {
-      cur = { date: s.session_date, start: st, end: en, course_type_id: s.course_type_id || null, is_trial: true, students: [], ids: new Set() }
+      cur = { date: s.session_date, start: st, end: en, course_type_id: s.course_type_id || null, location_id: s.location_id || null, is_trial: true, students: [], ids: new Set() }
       byKey.set(key, cur)
     }
     if (st < cur.start) cur.start = st
@@ -174,7 +176,7 @@ export async function bookedLessonsInRange(
 ): Promise<BookedLesson[] | null> {
   const { data: sessions, error } = await allRows(() => svc
     .from('class_sessions')
-    .select('id, coach_id, session_date, start_time, end_time, course_type_id')
+    .select('id, coach_id, session_date, start_time, end_time, course_type_id, location_id')
     .eq('coach_id', coachId)
     .gte('session_date', from)
     .lte('session_date', to)

@@ -1689,7 +1689,8 @@ export default function DashboardPage() {
         } else {
           const key = j.code === 'too_far' ? 'dash.here.tooFar' : j.code === 'weak_gps' ? 'dash.here.weak'
             : j.code === 'not_open' || j.code === 'no_lesson_today' ? 'dash.here.closed' : 'dash.here.error'
-          setHereMsg({ id: student.id, text: t(key) })
+          // At the other pool: say which one the lesson is at (pool names stay as-is).
+          setHereMsg({ id: student.id, text: j.code === 'wrong_pool' && j.pool ? t('dash.here.wrongPool', { pool: j.pool }) : t(key) })
         }
       } catch {
         setHereMsg({ id: student.id, text: t('dash.here.error') })

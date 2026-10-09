@@ -8,6 +8,7 @@ import Stripe from 'stripe'
 import { closeTrialCheckout } from '@/lib/trial-booking'
 import { reopenReversedAssessment } from '@/lib/assessments'
 import { getEffectiveZones } from '@/lib/zones'
+import { getLocations, lessonLocationLine } from '@/lib/locations'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -28,7 +29,7 @@ const toM = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map
 async function getAffected(svc: any, block: any) {
   const { data: sessions } = await svc
     .from('class_sessions')
-    .select('id, session_date, start_time, end_time, course_type_id, status')
+    .select('id, session_date, start_time, end_time, course_type_id, status, location_id')
     .eq('coach_id', block.coach_id)
     .eq('session_date', block.date)
   const overlapped = (sessions || []).filter((s: any) => {
@@ -59,7 +60,7 @@ async function getAffected(svc: any, block: any) {
       const missing = [...new Set(extra.map((b: any) => b.class_session_id))].filter(id => !ids.includes(id))
       if (missing.length) {
         const { data: ms } = await svc.from('class_sessions')
-          .select('id, session_date, start_time, end_time, course_type_id, status').in('id', missing)
+          .select('id, session_date, start_time, end_time, course_type_id, status, location_id').in('id', missing)
         overlapped.push(...(ms || []))
       }
     }
@@ -312,6 +313,8 @@ export async function POST(req: NextRequest) {
       const k = `${b.parent_id}|${b.lesson_group_id || b.class_session_id}`
       byLesson.set(k, [...(byLesson.get(k) || []), b])
     }
+    // The pool list once for every email; no line while one pool is open.
+    const allLocations = byLesson.size ? await getLocations(svc) : []
     for (const rows of byLesson.values()) {
       const sorted = [...rows].sort((x: any, y: any) => String((sessMap.get(x.class_session_id) as any)?.start_time || '').localeCompare(String((sessMap.get(y.class_session_id) as any)?.start_time || '')))
       const b = sorted[0]
@@ -351,6 +354,7 @@ export async function POST(req: NextRequest) {
         coachName,
         date: s.session_date,
         time: `${formatTime12h(s.start_time)} – ${formatTime12h(sLast.end_time)}`,
+        location: await lessonLocationLine(svc, s.location_id, allLocations),
       })
       if (ok) {
         sent++

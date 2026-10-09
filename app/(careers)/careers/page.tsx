@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_URL, HIRING } from '@/lib/site-config'
+import { shownLocations } from '@/lib/public-locations'
 import CareersContent from './CareersContent'
 
 // This page is deliberately EXEMPT from the pre-launch noindex in app/layout.tsx.
@@ -19,6 +20,20 @@ export const metadata: Metadata = {
 const DATE_POSTED = HIRING.datePosted
 const VALID_THROUGH = HIRING.validThrough
 
+// The pools are read for jobLocation below (a cached read, refreshed every
+// five minutes -- lib/public-locations.ts).
+export const revalidate = 300
+
+const place = (locality: string) => ({
+  '@type': 'Place',
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: locality,
+    addressRegion: 'CA',
+    addressCountry: 'US',
+  },
+})
+
 const jobPosting = {
   '@context': 'https://schema.org',
   '@type': 'JobPosting',
@@ -32,15 +47,7 @@ const jobPosting = {
     name: 'Manta Shark Aquatics',
     sameAs: SITE_URL,
   },
-  jobLocation: {
-    '@type': 'Place',
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Brea',
-      addressRegion: 'CA',
-      addressCountry: 'US',
-    },
-  },
+  jobLocation: place('Brea'),
   baseSalary: {
     '@type': 'MonetaryAmount',
     currency: 'USD',
@@ -53,7 +60,11 @@ const jobPosting = {
   },
 }
 
-export default function CareersPage() {
+export default async function CareersPage() {
+  // One pool: Brea, exactly as before. More: one Place per pool (schema.org
+  // takes a list), named as the pool is -- each name is its town.
+  const pools = await shownLocations()
+  const posting = pools.length > 1 ? { ...jobPosting, jobLocation: pools.map(l => place(l.name)) } : jobPosting
   return (
     <>
       {/* Structured data only while the role is really open. A JobPosting for a
@@ -62,7 +73,7 @@ export default function CareersPage() {
       {HIRING.open && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPosting) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(posting) }}
         />
       )}
       <CareersContent open={HIRING.open} />

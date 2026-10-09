@@ -10,6 +10,7 @@ import { closeTrialCheckout } from '@/lib/trial-booking'
 import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -274,7 +275,7 @@ async function notifyPartnerAbsent(svc: any, rows: any[]): Promise<boolean> {
     const [{ data: par }, { data: kids }, { data: sess }] = await Promise.all([
       svc.from('parents').select('first_name, email').eq('id', parentId).maybeSingle(),
       svc.from('students').select('full_name').in('id', [...new Set(rows.map(r => r.student_id).filter(Boolean))]),
-      svc.from('class_sessions').select('session_date, start_time, end_time, course_types(name), coaches(first_name, last_name)').in('id', sids)
+      svc.from('class_sessions').select('session_date, start_time, end_time, location_id, course_types(name), coaches(first_name, last_name)').in('id', sids)
         .order('start_time', { ascending: true }),
     ])
     const first: any = (sess || [])[0]
@@ -291,6 +292,7 @@ async function notifyPartnerAbsent(svc: any, rows: any[]): Promise<boolean> {
       coachName: co ? `${co.first_name || ''} ${co.last_name || ''}`.trim() : '',
       date: first.session_date,
       time: `${formatTime12h(first.start_time)} \u2013 ${formatTime12h(last.end_time)}`,
+      location: await lessonLocationLine(svc, first.location_id),
     })
   } catch (e) {
     console.error('admin cancel: partner-absent email failed', e)

@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/site-config'
 import { LOCALES, DEFAULT_LOCALE } from '@/lib/i18n'
 import { LEGAL_VERSIONS } from '@/lib/legal'
+import { shownLocations } from '@/lib/public-locations'
 
 // The public map of this site for search engines.
 //
@@ -39,11 +40,17 @@ const ENGLISH_ONLY: { path: string; lastModified?: string }[] = [
 const url = (locale: string, path: string) =>
   SITE_URL + (locale === DEFAULT_LOCALE ? '' : '/' + locale) + path
 
-export default function sitemap(): MetadataRoute.Sitemap {
+// The pool pages (/locations/{id}) exist only while more than one pool is
+// open to families, so they are listed only then. A failed read lists none:
+// the sitemap as it was before locations.
+export const revalidate = 300
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
   const entries: MetadataRoute.Sitemap = []
+  const pools = (await shownLocations()).map(l => '/locations/' + l.id)
 
-  for (const path of LOCALISED) {
+  for (const path of [...LOCALISED, ...pools]) {
     const languages: Record<string, string> = {}
     for (const l of LOCALES) languages[l] = url(l, path)
     languages['x-default'] = url(DEFAULT_LOCALE, path)
@@ -53,7 +60,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
         lastModified: now,
         changeFrequency: 'monthly',
         // The home page and the two pages a family reads before deciding.
-        priority: path === '' ? 1 : path === '/plans' || path === '/assessment' ? 0.9 : 0.7,
+        priority: path === '' ? 1 : path === '/plans' || path === '/assessment' ? 0.9 : path.startsWith('/locations/') ? 0.8 : 0.7,
         alternates: { languages },
       })
     }

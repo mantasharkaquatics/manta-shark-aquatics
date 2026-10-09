@@ -5,9 +5,10 @@ import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { getLocations, lessonLocationLine } from '@/lib/locations'
 
 type CancelledRow = { id: string; parent_id: string | null; student_id: string | null; class_session_id: string | null; lesson_group_id: string | null }
-type SessRow = { id: string; session_date: string; start_time: string; end_time: string | null; course_type_id: string }
+type SessRow = { id: string; session_date: string; start_time: string; end_time: string | null; course_type_id: string; location_id?: string | null }
 type Svc = SupabaseClient
 const NO_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -116,10 +117,11 @@ async function notifyUnlinkedInvites(svc: Svc, rows: CancelledRow[]): Promise<vo
       const out = [...new Set(xs.filter((x): x is string => !!x))]
       return out.length ? out : [NO_ID]
     }
-    const [{ data: sessData }, { data: parentData }, { data: kidData }] = await Promise.all([
-      svc.from('class_sessions').select('id, session_date, start_time, end_time, course_type_id').in('id', uniq(rows.map(r => r.class_session_id))),
+    const [{ data: sessData }, { data: parentData }, { data: kidData }, allLocations] = await Promise.all([
+      svc.from('class_sessions').select('id, session_date, start_time, end_time, course_type_id, location_id').in('id', uniq(rows.map(r => r.class_session_id))),
       svc.from('parents').select('id, first_name, last_name, email').in('id', uniq(rows.map(r => r.parent_id))),
       svc.from('students').select('id, full_name').in('id', uniq(rows.map(r => r.student_id))),
+      getLocations(svc),
     ])
     const sessList = (sessData || []) as SessRow[]
     const { data: ctData } = await svc.from('course_types').select('id, name').in('id', uniq(sessList.map(x => x.course_type_id)))
@@ -144,6 +146,7 @@ async function notifyUnlinkedInvites(svc: Svc, rows: CancelledRow[]): Promise<vo
       const lastEnd = sess.reduce((e, x) => (x.end_time && String(x.end_time) > e ? String(x.end_time) : e), String(first.end_time || ''))
       const name = courseName.get(first.course_type_id) || ''
       const families = [...new Set(lessonRows.map(r => r.parent_id).filter((x): x is string => !!x))]
+      const location = await lessonLocationLine(svc, first.location_id, allLocations)
       for (const pid of families) {
         const p = parentById.get(pid)
         if (!p?.email) continue
@@ -158,6 +161,7 @@ async function notifyUnlinkedInvites(svc: Svc, rows: CancelledRow[]): Promise<vo
           courseName: sess.length > 1 ? `${name} (60 min)` : name,
           date: first.session_date,
           time: lastEnd ? `${formatTime12h(first.start_time)} \u2013 ${formatTime12h(lastEnd)}` : formatTime12h(first.start_time),
+          location,
         })
       }
     }
