@@ -789,9 +789,22 @@ export async function POST(req: NextRequest) {
     if (name === 'get_my_students') {
       const { data: studs } = await svc
         .from('students')
-        .select('id, full_name, current_level, trial_used_at')
+        .select('id, full_name, current_level, trial_used_at, date_of_birth')
         .eq('parent_id', parent!.id)
+        // A swimmer the family or the desk has deactivated is not one to
+        // offer (adaptive-swim intake lists these as choices, 2026-10-08).
+        .neq('is_active', false)
       const ids = (studs || []).map((s: any) => s.id)
+      // Age in whole years on today's LA date, so the assistant never has to
+      // ask a signed-in family for something the account already holds.
+      const today = getTodayLA()
+      const ageOf = (dob: string | null) => {
+        if (!dob) return null
+        const [y, m, d] = String(dob).slice(0, 10).split('-').map(Number)
+        const [ty, tm, td] = today.split('-').map(Number)
+        if (!y || !m || !d) return null
+        return ty - y - ((tm < m || (tm === m && td < d)) ? 1 : 0)
+      }
       const { data: trialCreds } = ids.length
         ? await svc.from('lesson_credits').select('student_id').in('student_id', ids).eq('is_trial', true).eq('used_credits', 0)
         : { data: [] }
@@ -805,6 +818,7 @@ export async function POST(req: NextRequest) {
         return {
           student_id: s.id,
           name: s.full_name,
+          age: ageOf(s.date_of_birth),
           has_assigned_level: s.current_level != null,
           has_prepaid_assessment_credit: hasCredit,
           needs_assessment: s.current_level == null && (!s.trial_used_at || hasCredit),
