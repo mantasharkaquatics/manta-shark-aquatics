@@ -1,15 +1,13 @@
 'use client'
 
-import Link from 'next/link'
 import { useSyncExternalStore } from 'react'
-import { LocaleProvider, useT, useLocale } from '@/lib/i18n/provider'
+import { LocaleProvider } from '@/lib/i18n/provider'
 import { isLocale, type Locale } from '@/lib/i18n'
-import { localePath } from '@/lib/i18n/paths'
 import { FONT_BODY } from '@/lib/brand'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import BrandStyles from '@/components/brand/BrandStyles'
-import BrandRoot from '@/components/brand/BrandRoot'
+import NotFoundBody from '@/components/NotFoundBody'
 
 /* Every address the site does not have lands here (found 2026-10-08: it was
    Next's bare English "404 | This page could not be found", with no way back):
@@ -38,26 +36,5 @@ export default function NotFound() {
         <Footer />
       </div>
     </LocaleProvider>
-  )
-}
-
-function NotFoundBody() {
-  const t = useT()
-  const locale = useLocale()
-  return (
-    <BrandRoot>
-      <header className="b-hero">
-        <div className="b-wrap">
-          <p className="b-eyebrow">{t('notFound.eyebrow')}</p>
-          <h1>{t('notFound.title')}</h1>
-          <p className="b-lead">{t('notFound.body')}</p>
-          <div className="b-ctas">
-            <Link href={localePath('/', locale)} className="b-btn gold">{t('notFound.home')}</Link>
-            <Link href={localePath('/programs', locale)} className="b-btn ghost">{t('notFound.programs')}</Link>
-            <Link href={localePath('/assessment', locale)} className="b-btn ghost">{t('notFound.assessment')}</Link>
-          </div>
-        </div>
-      </header>
-    </BrandRoot>
   )
 }
