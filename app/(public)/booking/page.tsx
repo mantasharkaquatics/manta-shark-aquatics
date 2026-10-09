@@ -2197,7 +2197,7 @@ export default function BookingPage() {
                     style={{ textAlign: 'left', minHeight: '52px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer',
                       border: `1.5px solid ${on ? NAVY : '#d3deec'}`, background: on ? NAVY : '#fff', color: on ? '#fff' : '#16294a' }}>
                     <span style={{ display: 'block', fontSize: '15px', fontWeight: 700 }}>{l.name}</span>
-                    {l.address && (
+                    {l.address && l.address.trim().toLowerCase() !== l.name.trim().toLowerCase() && (
                       <span style={{ display: 'block', fontSize: '12.5px', fontWeight: 500, marginTop: '2px', lineHeight: 1.4, color: on ? '#d6e2f3' : '#56647d' }}>{l.address}</span>
                     )}
                   </button>

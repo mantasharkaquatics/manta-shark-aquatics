@@ -368,7 +368,7 @@ export default function ZonesEditorPage() {
                     <span style={{ color: '#e05a4a', fontWeight: 700 }}>{tierName(z.team_tier_id) || t('admin.zones.team')}</span>
                     {multiLoc && (
                       <select value={rowLoc(z)} onChange={e => setTeamLoc(i, e.target.value)} aria-label={t('admin.zones.pool')}
-                        style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(rowLoc(z))}`, borderRadius: 8, padding: '3px 8px', fontSize: 11 }}>
+                        style={{ background: '#1a2744', color: '#fff', borderTop: '1px solid rgba(255,255,255,0.2)', borderRight: '1px solid rgba(255,255,255,0.2)', borderBottom: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(rowLoc(z))}`, borderRadius: 8, padding: '3px 8px', fontSize: 11 }}>
                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     )}
@@ -394,7 +394,7 @@ export default function ZonesEditorPage() {
               </select>
               {multiLoc && (
                 <select value={newTeamLoc} onChange={e => setNewTeamLoc(e.target.value)} aria-label={t('admin.zones.pool')}
-                  style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(newTeamLoc)}`, borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
+                  style={{ background: '#1a2744', color: '#fff', borderTop: '1px solid rgba(255,255,255,0.2)', borderRight: '1px solid rgba(255,255,255,0.2)', borderBottom: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(newTeamLoc)}`, borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               )}
@@ -425,7 +425,7 @@ export default function ZonesEditorPage() {
                 {locations.map(l => (
                   <button key={l.id} onClick={() => { setBrushLoc(l.id); if (brush === 'erase') setBrush('private') }}
                     title={l.is_active ? undefined : t('admin.zones.poolHiddenTip')}
-                    style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brushLoc === l.id && brush !== 'erase' ? `2px solid ${locCol(l.id)}` : '1px solid rgba(255,255,255,0.15)', borderLeft: `4px solid ${locCol(l.id)}`, background: brushLoc === l.id && brush !== 'erase' ? 'rgba(255,255,255,0.08)' : 'transparent', color: '#fff' }}>
+                    style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', borderTop: brushLoc === l.id && brush !== 'erase' ? `2px solid ${locCol(l.id)}` : '1px solid rgba(255,255,255,0.15)', borderRight: brushLoc === l.id && brush !== 'erase' ? `2px solid ${locCol(l.id)}` : '1px solid rgba(255,255,255,0.15)', borderBottom: brushLoc === l.id && brush !== 'erase' ? `2px solid ${locCol(l.id)}` : '1px solid rgba(255,255,255,0.15)', borderLeft: `4px solid ${locCol(l.id)}`, background: brushLoc === l.id && brush !== 'erase' ? 'rgba(255,255,255,0.08)' : 'transparent', color: '#fff' }}>
                     {l.name}{l.is_active ? '' : <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.45)' }}> · {t('admin.zones.poolHidden')}</span>}
                   </button>
                 ))}
