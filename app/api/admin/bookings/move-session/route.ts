@@ -5,6 +5,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
+import { sessionLocationLine } from '@/lib/locations'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -228,6 +229,8 @@ export async function POST(req: NextRequest) {
       svc.from('students').select('id, full_name, parent_id').in('id', studentIds),
       svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single(),
     ])
+    // Read after the move: the trigger has re-placed the lesson by its new coach and time.
+    const location = await sessionLocationLine(svc, placements[0]?.id)
     for (const pa of parents || []) {
       if (!pa.email) continue
       const names = (students || []).filter((st: any) => st.parent_id === pa.id).map((st: any) => st.full_name).join(', ')
@@ -240,6 +243,7 @@ export async function POST(req: NextRequest) {
         coachName: coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : '',
         date,
         time: t12(time) + ' – ' + t12(endTime),
+        location,
       })
     }
   } catch (e) {

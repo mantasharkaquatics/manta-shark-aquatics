@@ -8,6 +8,7 @@ import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
 import { translate, isLocale } from '@/lib/i18n/all'
 import { takeSlots, releaseSlot, ipHash as rateIpHash } from '@/lib/ip-rate-limit'
+import { getLocations, activeLocations } from '@/lib/locations'
 
 // The chat for visitors who have not signed up (owner, 2026-09-28): every page
 // has the chat button, and someone who is only looking can ask about lessons
@@ -175,6 +176,8 @@ export async function POST(req: NextRequest) {
     const { staticPart, dynamicPart } = buildSystemPromptParts({
       mode: 'guest', parentName: '', knowledge: await buildKnowledgeBlock(svc),
       dateLine: `Current date (Pacific Time): ${getTodayLA()}.`,
+      // The same POOLS list a signed-in family's assistant gets.
+      pools: activeLocations(await getLocations(svc)),
     })
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

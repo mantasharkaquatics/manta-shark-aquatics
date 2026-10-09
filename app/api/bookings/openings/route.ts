@@ -6,6 +6,7 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { renewalHolds, allRows, allRowsIn } from '@/lib/fixed-classes'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { privateSlotOpen } from '@/lib/bookings/private-slot'
+import { getLocations, locationParam, zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -22,7 +23,9 @@ import { privateSlotOpen } from '@/lib/bookings/private-slot'
 // 30-minute lead time, time off and admin blocks, the student's own lessons
 // with any coach, and any other lesson already running in that coach's lane.
 //
-// GET ?course_slug=1on1|1on2&student_id=...&student2_id=...
+// GET ?course_slug=1on1|1on2&student_id=...&student2_id=...&location=...
+//   location: only the times at that pool (lib/locations.ts). Absent = every
+//   pool, as before locations existed.
 //   -> { coaches: [{ id, first_name }], preferred: coachId | null,
 //        days: { 'YYYY-MM-DD': { 'HH:MM': [coachId, ...] } } }
 
@@ -55,6 +58,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unsupported course type' }, { status: 400 })
   const student_id = q.get('student_id')
   if (!student_id) return NextResponse.json({ error: 'Missing student' }, { status: 400 })
+  const rawLoc = q.get('location')
+  const location = rawLoc ? locationParam(rawLoc, await getLocations(svc)) : null
 
   // Round trips are what this route costs, so everything that does not depend
   // on an earlier answer is asked at the same time: two rounds after sign-in.
@@ -105,7 +110,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: zrows }, { data: zoned }, { data: legacyRows }, { data: offRows }, { data: sessRows }, myRes, holds] = await Promise.all([
     svc.from('coach_availability_zones')
-      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time')
+      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, location_id')
       .in('coach_id', coachIds)
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
     // Whether a coach has ANY zone row decides which model their hours come
@@ -202,9 +207,12 @@ export async function GET(req: NextRequest) {
         const all = zonesByCoach.get(c.id) || []
         const dateRows = all.filter(r => r.kind === 'date' && r.override_date === ds)
         const picked = dateRows.length > 0 ? dateRows : all.filter(r => r.kind === 'weekly' && r.weekday === dow)
+        // A closed day closes every pool, so it is checked before narrowing.
         if (picked.some(r => r.zone_type === 'closed')) continue
-        windows = picked.filter(r => r.zone_type === 'private')
+        windows = picked.filter(r => r.zone_type === 'private' && zoneAtLocation(r, location))
       } else {
+        // The old weekly table predates locations: those hours are the first pool's.
+        if (location && location !== DEFAULT_LOCATION_ID) continue
         windows = (legacyRows || []).filter((r: any) => r.coach_id === c.id && r.day_of_week === dow)
       }
       if (windows.length === 0) continue

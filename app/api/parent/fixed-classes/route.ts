@@ -43,8 +43,11 @@ export async function GET() {
         left: st.left, next: st.next, last: st.last, total: st.total,
         renewOpen: renewOpen(st.last, today),
         holdUntil: holdLive(st.last, today) ? addDaysStr(st.last!, -HOLD_RELEASE_DAYS) : null,
+        // The pool of the next lesson, for the dashboard line; each lesson
+        // carries its own, since a coach's hours can move between pools.
+        locationId: upcoming[0]?.locationId ?? null,
         lessons: upcoming.map(l => ({
-          date: l.date, start: l.start, coachId: l.coachId, coachName: coach.get(l.coachId) || '',
+          date: l.date, start: l.start, coachId: l.coachId, coachName: coach.get(l.coachId) || '', locationId: l.locationId,
           within24h: minutesUntil(l.date, l.start, today, nowMin) < 24 * 60,
           // Any row of the lesson: cancelling one cancels the whole lesson
           // (both halves of an hour, both seats of a sibling 1-on-2).

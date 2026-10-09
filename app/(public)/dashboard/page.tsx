@@ -1,7 +1,7 @@
 'use client'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -29,6 +29,7 @@ const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT } from '@/lib/chat-open'
+import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -318,6 +319,9 @@ interface Booking {
   // Part of a fixed class (leave, not reschedule), or a make-up booked with a voucher.
   fixed_class_id?: string | null
   voucher_id?: string | null
+  /** Which pool (class_sessions.location_id); new_location_id is the pool of a pending move's target. */
+  location_id?: string | null
+  new_location_id?: string | null
 }
 
 /** A skill as the dashboard reads it: enough to name it, place it in its level and stage, and sort it. */
@@ -1317,7 +1321,31 @@ function ReferralCard({ focus }: { focus: boolean }) {
   )
 }
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+/* Where a lesson is, once the school teaches at more than one pool. The page
+   reads /api/locations once; until a second pool is open to families `show`
+   stays false and every PoolLink renders nothing, so the page is exactly what
+   it was with one pool. A link to the map, because the point is that nobody
+   drives to the wrong pool. `plain` is for lines that sit inside a button,
+   where a link cannot go. */
+type PoolInfo = { list: Location[]; show: boolean }
+const PoolsCtx = createContext<PoolInfo>({ list: [], show: false })
+function PoolLink({ id, prefix, plain, style }: { id?: string | null; prefix?: string; plain?: boolean; style?: React.CSSProperties }) {
+  const { list, show } = useContext(PoolsCtx)
+  const t = useT()
+  if (!show) return null
+  const loc = list.find(l => l.id === (id || DEFAULT_LOCATION_ID))
+  if (!loc) return null
+  const url = plain ? null : locationMapUrl(loc)
+  return <>{prefix}{url ? (
+    <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      aria-label={t('dash.pool.mapAria', { name: loc.name })} title={t('dash.pool.mapAria', { name: loc.name })}
+      style={{ color: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: '2px', ...style }}>📍 {loc.name}</a>
+  ) : <span style={{ whiteSpace: 'nowrap', ...style }}>📍 {loc.name}</span>}</>
+}
+/** Two pool ids are the same pool (a row read before the migration has none = the default pool). */
+const samePool = (a?: string | null, b?: string | null) => (a || DEFAULT_LOCATION_ID) === (b || DEFAULT_LOCATION_ID)
+
+function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string; location_id?: string | null }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -1334,13 +1362,15 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
   const day3 = (wd: number) => new Date(2026, 0, 4 + wd).toLocaleDateString(dateTag(locale), { weekday: 'short' })
   const daySep = locale === 'en' ? ', ' : '、'
   const t12tc = (v: string) => { const [h, m] = String(v).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
-  const practiceLines = (slots: { weekday: number; start_time: string; end_time: string; coach_name: string }[]) => {
-    const g: Record<string, { days: string[]; st: string; en: string; coach: string }> = {}
+  // Grouped by pool too: the same hours at Brea and at Monrovia are two lines.
+  const practiceLines = (slots: { weekday: number; start_time: string; end_time: string; coach_name: string; location_id?: string | null }[]) => {
+    const g: Record<string, { days: string[]; st: string; en: string; coach: string; loc: string }> = {}
     for (const s of slots) {
-      const k = s.start_time + '|' + s.end_time + '|' + s.coach_name
-      ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name }).days.push(day3(s.weekday))
+      const loc = s.location_id || DEFAULT_LOCATION_ID
+      const k = s.start_time + '|' + s.end_time + '|' + s.coach_name + '|' + loc
+      ;(g[k] ||= { days: [], st: s.start_time, en: s.end_time, coach: s.coach_name, loc }).days.push(day3(s.weekday))
     }
-    return Object.values(g).map(x => ({ days: x.days.length === 7 ? t('dash.team.everyDay') : x.days.join(daySep), time: `${t12tc(x.st)} – ${t12tc(x.en)}`, coach: x.coach }))
+    return Object.values(g).map(x => ({ days: x.days.length === 7 ? t('dash.team.everyDay') : x.days.join(daySep), time: `${t12tc(x.st)} – ${t12tc(x.en)}`, coach: x.coach, loc: x.loc }))
   }
   const openPortal = async (id: string) => {
     setPortalLoading(id)
@@ -1377,7 +1407,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                       {practiceLines(m.weekly_slots || []).map((ln, li) => (
                         <div key={li} style={{ fontSize: '11px', lineHeight: 1.5 }}>
                           <span style={{ color: '#16294a', fontWeight: 600 }}>{ln.days}</span>
-                          <span style={{ color: '#56647d' }}> · {ln.time}{ln.coach ? ` · ${t('dash.up.coach', { name: ln.coach })}` : ''}</span>
+                          <span style={{ color: '#56647d' }}> · {ln.time}{ln.coach ? ` · ${t('dash.up.coach', { name: ln.coach })}` : ''}<PoolLink id={ln.loc} prefix=" · " /></span>
                         </div>
                       ))}
                     </div>
@@ -1463,6 +1493,15 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
+  // The pools, read once (PoolLink). Nothing is set while only one is open.
+  const [pools, setPools] = useState<PoolInfo>({ list: [], show: false })
+  useEffect(() => {
+    let live = true
+    fetch('/api/locations', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+      .then(j => { if (live && j?.show) setPools({ list: j.locations || [], show: true }) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
   // Whose swim team card is open (a student id), from 我的方案.
   const [teamSheet, setTeamSheet] = useState<string | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
@@ -1690,7 +1729,7 @@ export default function DashboardPage() {
   useEffect(() => { loadVouchers() }, [loadVouchers])
   // Fixed classes with lessons to come: one line each, opening the class page
   // (renew / change slot).
-  const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number }[]>([])
+  const [fixedClasses, setFixedClasses] = useState<{ id: string; weekday: number; time: string; coachName: string; left: number; last: string | null; renewOpen: boolean; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; locationId?: string | null }[]>([])
   // Read again after a leave (found 2026-10-08: "N left" stayed at the old
   // number until a reload) and when the page is refreshed.
   const loadFixedClasses = useCallback(async () => {
@@ -2192,16 +2231,16 @@ export default function DashboardPage() {
     // every lesson, past and upcoming (found 2026-10-05).
     const [{ data: sessionsData }, { data: studentsData }, { data: newSessionsData }, { data: pSessions }, { data: pStudents }] = await Promise.all([
       sessionIds.length > 0
-        ? allRowsIn(sessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
+        ? allRowsIn(sessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, location_id, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       studentIds.length > 0
         ? allRowsIn(studentIds, chunk => supabase.from('students').select('id, full_name').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       newSessionIds.length > 0
-        ? allRowsIn(newSessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
+        ? allRowsIn(newSessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, location_id, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
         : Promise.resolve({ data: [] }),
       pendingSessionIds.length > 0
-        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, course_types(id, name, slug), coaches(first_name)').in('id', pendingSessionIds)
+        ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, location_id, course_types(id, name, slug), coaches(first_name)').in('id', pendingSessionIds)
         : Promise.resolve({ data: [] }),
       pendingStudentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
@@ -2317,6 +2356,8 @@ export default function DashboardPage() {
           new_coach_name: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.coach?.first_name : undefined,
           fixed_class_id: b.fixed_class_id ?? null,
           voucher_id: b.voucher_id ?? null,
+          location_id: cs?.location_id ?? null,
+          new_location_id: b.pending_new_session_id ? sessionMap[b.pending_new_session_id]?.location_id ?? null : null,
         }
       }).filter(b => b.session_date)
 
@@ -2801,6 +2842,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <PoolsCtx.Provider value={pools}>
     <div style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
@@ -3177,7 +3219,7 @@ export default function DashboardPage() {
                               weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
                               time: formatTime12h(f.time),
                             })}</b>
-                            {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })} · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
+                            {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })}<PoolLink id={f.locationId} prefix=" · " /> · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
                           </span>
                           <span className="msa-plan-btn">
                             <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
@@ -3264,7 +3306,7 @@ export default function DashboardPage() {
                           {t('dash.invite.line', { name: student?.full_name || '' })}
                         </div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '2px' }}>
-                          {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date, intlOf(locale)) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}
+                          {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date, intlOf(locale)) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}<PoolLink id={cs?.location_id} prefix=" · " />
                         </div>
                         <Countdown until={b.pending_expires_at}>{ms => (
                           <div style={{ fontSize: '11px', color: ms < 4 * 60000 ? '#c0392b' : '#56647d' }}>
@@ -3460,7 +3502,7 @@ export default function DashboardPage() {
                             <span style={{ minWidth: 0, flex: 1 }}>
                               <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: swimmerColor(b.student_name) }}>{b.student_name || '—'}</span>
                               <span style={{ display: 'block', fontSize: '11px', color: '#56647d', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : ''}{b.coach_name && b.course_name ? ' · ' : ''}{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}
+                                {b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : ''}{b.coach_name && b.course_name ? ' · ' : ''}{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}<PoolLink id={b.location_id} prefix=" · " plain />
                               </span>
                             </span>
                             <span style={{ color: '#9aa6ba', fontSize: '15px', flexShrink: 0 }}>›</span>
@@ -3503,6 +3545,7 @@ export default function DashboardPage() {
                           { label: t('booking.sum.date'), value: dateStr },
                           { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
                           { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
+                          ...(pools.show ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
                           { label: t('dash.sheet.payment'), value: funding },
                         ].map(row => (
                           <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
@@ -3578,6 +3621,7 @@ export default function DashboardPage() {
                           <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
                           {!booking._group && <> · {formatTime(booking.start_time)} — {formatTime(booking.end_time)}</>}
                           {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
+                          {!booking._group && <PoolLink id={booking.location_id} prefix=" · " />}
                           {(() => { const bc = bandColorOf(booking.level_min, booking.level_max); return bc && booking.level_min != null && booking.level_max != null ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${bc}22`, color: bc, border: `1px solid ${bc}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.lesson.levelBadge', { r: bandRange(booking.level_min, booking.level_max) })}</span> : null })()}
                         </span>
                         {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
@@ -3656,7 +3700,7 @@ export default function DashboardPage() {
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} /></div>
                                   <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
-                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}
+                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}<PoolLink id={m.location_id} prefix=" · " />
                                   </div>
                                 </div>
                                 {(m.course_slug === '1on2' && mi > 0) ? null : (
@@ -3708,7 +3752,7 @@ export default function DashboardPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date, intlOf(locale))}</span>
                             <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
-                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}</span>
+                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}{!samePool(booking.new_location_id, booking.location_id) && <PoolLink id={booking.new_location_id} prefix=" · " style={{ color: GOLD, fontWeight: 700 }} />}</span>
                           </div>
                           {booking.pending_expires_at && (
                             <Countdown until={booking.pending_expires_at}>{ms => (
@@ -4018,5 +4062,6 @@ export default function DashboardPage() {
         />
       )}
     </div>
+    </PoolsCtx.Provider>
   )
 }

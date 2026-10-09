@@ -3,6 +3,7 @@ import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { getEffectiveZones } from '@/lib/zones'
 import { renewalHolds, minToTime } from '@/lib/fixed-classes'
+import { getLocations, locationParam } from '@/lib/locations'
 
 // Who may read a coach's booked times (2026-10-04). This route used to answer
 // anyone, logged in or not, with every booked student's id and -- given any
@@ -79,7 +80,13 @@ export async function GET(req: NextRequest) {
 
   const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)
   const blocked = blockedIntervalsFor(coachBlocks, coach_id)
-  const zones = await getEffectiveZones(supabase, coach_id, session_date)
+  // The pool the family is booking at (lib/locations.ts): only that pool's
+  // zones come back. A legacy coach (no zone rows) counts as the first pool's,
+  // so at any other pool getEffectiveZones answers not-legacy with no rows and
+  // the old weekly windows below are not read. Absent = every pool.
+  const rawLoc = searchParams.get('location')
+  const location = rawLoc ? locationParam(rawLoc, await getLocations(supabase)) : null
+  const zones = await getEffectiveZones(supabase, coach_id, session_date, location)
 
   // A coach with no zone rows is still on the old coach_availability table, and
   // that day has to be resolved HERE. The booking page used to read the table

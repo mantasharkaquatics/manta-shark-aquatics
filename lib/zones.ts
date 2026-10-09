@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DEFAULT_LOCATION_ID, zoneAtLocation } from '@/lib/locations'
 
 // Coach availability zones (spec v1.0, docs/coach-availability-zones-spec.md).
 // Resolution: date rows replace the whole day; 'closed' date row = day off;
@@ -11,6 +12,8 @@ export interface ZoneRow {
   group_level_min?: number | null
   group_level_max?: number | null
   team_tier_id?: string | null
+  /** Which pool this block is at (lib/locations.ts). */
+  location_id?: string | null
 }
 
 export interface EffectiveZones {
@@ -31,20 +34,27 @@ export async function getEffectiveZones(
   svc: SupabaseClient,
   coachId: string,
   dateStr: string, // YYYY-MM-DD (LA calendar date)
+  // Only the blocks at this pool (a family booking at one location). Omitted =
+  // every block, as before locations existed.
+  locationId?: string | null,
 ): Promise<EffectiveZones> {
   // Legacy check: a coach with no zone rows at all stays on coach_availability.
   const { count } = await svc
     .from('coach_availability_zones')
     .select('id', { count: 'exact', head: true })
     .eq('coach_id', coachId)
-  if (!count || count === 0) return { legacy: true, rows: [], overridden: false }
+  if (!count || count === 0) {
+    // The old weekly table predates locations: those hours are the first pool's.
+    if (locationId && locationId !== DEFAULT_LOCATION_ID) return { legacy: false, rows: [], overridden: false }
+    return { legacy: true, rows: [], overridden: false }
+  }
 
   const dow = new Date(dateStr + 'T00:00:00').getDay()
 
   // One query for both candidate sets; date rows win if present.
   const { data } = await svc
     .from('coach_availability_zones')
-    .select('zone_type, start_time, end_time, kind, override_date, weekday, group_level_min, group_level_max, team_tier_id')
+    .select('zone_type, start_time, end_time, kind, override_date, weekday, group_level_min, group_level_max, team_tier_id, location_id')
     .eq('coach_id', coachId)
     .or(`and(kind.eq.date,override_date.eq.${dateStr}),and(kind.eq.weekly,weekday.eq.${dow})`)
 
@@ -54,8 +64,10 @@ export async function getEffectiveZones(
 
   if (picked.some(r => r.zone_type === 'closed')) return { legacy: false, rows: [], overridden: dateRows.length > 0 }
 
+  // A closed day closes every pool; only then narrow to the one asked for.
   const rows = picked
-    .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null, team_tier_id: r.team_tier_id ?? null }))
+    .filter(r => zoneAtLocation(r, locationId))
+    .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null, team_tier_id: r.team_tier_id ?? null, location_id: r.location_id ?? DEFAULT_LOCATION_ID }))
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
   return { legacy: false, rows, overridden: dateRows.length > 0 }
 }

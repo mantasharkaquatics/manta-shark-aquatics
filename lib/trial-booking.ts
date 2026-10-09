@@ -2,6 +2,7 @@ import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 
@@ -113,7 +114,7 @@ export async function confirmTrialBooking(
     const [{ data: parentRow }, { data: studentRow }, { data: sess }] = await Promise.all([
       supabase.from('parents').select('first_name, email, preferred_language').eq('id', bk.parent_id).single(),
       supabase.from('students').select('full_name').eq('id', student_id).single(),
-      supabase.from('class_sessions').select('coach_id, session_date, start_time').eq('id', bk.class_session_id).single(),
+      supabase.from('class_sessions').select('coach_id, session_date, start_time, location_id').eq('id', bk.class_session_id).single(),
     ])
     let coachName = ''
     if (sess?.coach_id) {
@@ -158,6 +159,7 @@ export async function confirmTrialBooking(
         coachName,
         date: sess.session_date,
         time: formatTime12h(String(sess.start_time).slice(0, 5)),
+        location: await lessonLocationLine(supabase, sess.location_id),
       })
     }
   } catch (e) {

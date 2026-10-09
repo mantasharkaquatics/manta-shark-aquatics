@@ -23,6 +23,7 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
+import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -135,6 +136,8 @@ type ResumeSnap = {
   basket: [string, PlanSlot][]
   plan: PlanSlot[]
   fixed: { start: string; weeks: number; ghost: string[]; only: boolean } | null
+  /** The pool the basket's times are at (absent in snapshots from before pools). */
+  location?: string | null
 }
 function dropResume() {
   try { window.sessionStorage.removeItem(RESUME_KEY) } catch {}
@@ -385,6 +388,47 @@ export default function BookingPage() {
     if (s) { setSelectedStudent(s); setLockedStudent(true) }
   }, [students])
 
+  // ── Pools (lib/locations.ts) ──
+  // The pools families can book, whether there is a choice at all (more than
+  // one open), and each swimmer's usual pool. `location` is the pool every
+  // availability read on this page asks about. It is undefined until
+  // /api/locations answers, and nothing is read before then, so a time at the
+  // wrong pool is never drawn first. With one pool open it is that pool's id
+  // (or null, no filter), no picker shows, and the page is as it was.
+  const [locList, setLocList] = useState<{ id: string; name: string; address: string | null }[]>([])
+  const [showLoc, setShowLoc] = useState(false)
+  const [studentLocs, setStudentLocs] = useState<Record<string, string>>({})
+  const [locLoaded, setLocLoaded] = useState(false)
+  // The pool of the lesson being moved (init reads it with the lesson).
+  const [rescheduleLoc, setRescheduleLoc] = useState<string | null>(null)
+  // The pool a booking saved before a top-up was at (restoreResume).
+  const resumeLocRef = useRef<string | null>(null)
+  const [location, setLocation] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    fetch('/api/locations').then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(j => {
+        setLocList(Array.isArray(j?.locations) ? j.locations : [])
+        setShowLoc(!!j?.show)
+        setStudentLocs(j?.studentLocations && typeof j.studentLocations === 'object' ? j.studentLocations : {})
+        setLocLoaded(true)
+      })
+  }, [])
+  // Which pool to open on: the lesson being moved, else the swimmer's usual
+  // pool (their latest lesson's), else the first one. Picking another swimmer
+  // starts again from theirs.
+  useEffect(() => {
+    if (!locLoaded) return
+    if (!showLoc) { setLocation(locList.length === 1 ? locList[0].id : null); return }
+    const known = (id: string | null | undefined): id is string => !!id && locList.some(l => l.id === id)
+    const back = resumeLocRef.current
+    resumeLocRef.current = null
+    const want = [back, rescheduleLoc, selectedStudent ? studentLocs[selectedStudent.id] : null].find(known)
+    setLocation(want ?? locList[0]?.id ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locLoaded, selectedStudent?.id, rescheduleLoc])
+  // `&location=...` for the GET routes; nothing while no pool is chosen.
+  const locQ = location ? `&location=${encodeURIComponent(location)}` : ''
+
   useEffect(() => {
     setIsTrial(false)
     setTrialEligible(false)
@@ -506,6 +550,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!groupFlow || !selectedStudent) { setGroupWeeks([]); return }
+    if (location === undefined) return
     // One call for the whole view, from this week's Sunday to the end of the
     // last month on screen. It used to be one six-week call per month, which
     // overlapped and doubled the server's work.
@@ -522,7 +567,7 @@ export default function BookingPage() {
     const weeks = Math.ceil((lastDay.getTime() - from.getTime()) / (7 * 86400000)) + 1
     const st = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`
     let live = true
-    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=${weeks}&start=${st}`)
+    fetch(`/api/bookings/group-classes?student_id=${selectedStudent.id}&weeks=${weeks}&start=${st}${locQ}`)
       .then(r => r.json()).catch(() => null)
       .then(r => {
         if (!live) return
@@ -530,7 +575,7 @@ export default function BookingPage() {
       })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupFlow, selectedStudent, monthsShown, slotsRefresh, makeUp])
+  }, [groupFlow, selectedStudent, monthsShown, slotsRefresh, makeUp, location])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return
@@ -551,12 +596,14 @@ export default function BookingPage() {
       || (selectedCourse?.slug === '1on2' && !!selectedStudent2)
       || (selectedCourse?.slug === '1on2' && !!rescheduleGroupIdRef.current)
     if (groupFlow || isTrial || !selectedStudent || !selectedDate || lessonLength !== 60 || !hourOk) { setHourSlots([]); return }
+    if (location === undefined) return
     setHourLoading(true)
     fetch('/api/bookings/hour', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'options', course_slug: selectedCourse?.slug, student_id: selectedStudent.id,
         student2_id: (selectedStudent2 && !(selectedStudent2 as any).isPartner) ? selectedStudent2.id : null,
-        session_date: localDs(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null }),
+        session_date: localDs(selectedDate), lesson_group_id: rescheduleGroupIdRef.current || null, voucher_id: makeUp?.id ?? null,
+        location: location ?? null }),
     }).then(r => r.json())
       .then(d => {
         setHourSlots(d?.slots || []); setHourBalance(d?.balance ?? 0); setHourRoster(d?.roster || [])
@@ -567,7 +614,7 @@ export default function BookingPage() {
       })
       .catch(() => setHourSlots([]))
       .finally(() => setHourLoading(false))
-  }, [groupFlow, isTrial, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse])
+  }, [groupFlow, isTrial, selectedStudent, selectedStudent2, selectedDate, lessonLength, selectedCourse, location])
 
   // Choosing the assessment after having looked at hour lessons must not carry
   // the 60-minute mode into it.
@@ -651,8 +698,10 @@ export default function BookingPage() {
         }
         if (ob?.class_session_id) {
           const { data: os } = await supabase.from('class_sessions')
-            .select('session_date, start_time').eq('id', ob.class_session_id).maybeSingle()
+            .select('session_date, start_time, location_id').eq('id', ob.class_session_id).maybeSingle()
           if (os) setRescheduleFrom({ date: os.session_date, start: String(os.start_time).slice(0, 5) })
+          // Moving a lesson opens on the pool it is at.
+          if (os) setRescheduleLoc((os as any).location_id || DEFAULT_LOCATION_ID)
         }
         setLoading(false)
         setStep(3)
@@ -733,9 +782,9 @@ export default function BookingPage() {
   }, [success, countdown])
 
   useEffect(() => {
-    if (!selectedDate || !selectedCoach || !selectedCourse) return
+    if (!selectedDate || !selectedCoach || !selectedCourse || location === undefined) return
     loadTimeSlots()
-  }, [selectedDate, selectedCoach, selectedCourse])
+  }, [selectedDate, selectedCoach, selectedCourse, location])
 
   async function loadTimeSlots() {
     if (!selectedDate || !selectedCoach || !selectedCourse) return
@@ -750,7 +799,7 @@ export default function BookingPage() {
     const dateStr = localDs(selectedDate)
 
     // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
-    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}`)
+    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}${locQ}`)
     const { times: bookedTimes, blocked: coachBlocked, zones, studentBusy, legacyWindows } = await bookedRes.json()
     // The second swimmer of a sibling 1-on-2 (picked, or the sibling of the
     // lesson being moved) has their own lessons too (found 2026-10-03).
@@ -768,6 +817,9 @@ export default function BookingPage() {
       const zt = zoneTypeForSlug(selectedCourse.slug)
       for (const z of zones.rows || []) {
         if (z.zone_type !== zt) continue
+        // Only the pool being booked (the server filters too; a row from
+        // before the migration has no pool and is the first one's).
+        if (location && (z.location_id || DEFAULT_LOCATION_ID) !== location) continue
         if (zt === 'group' && z.group_level_min != null && z.group_level_max != null && selectedStudent?.current_level != null && (selectedStudent.current_level < z.group_level_min || selectedStudent.current_level > z.group_level_max)) continue
         const gs = generateSlots(z.start_time, z.end_time)
         if (zt === 'group') {
@@ -776,9 +828,10 @@ export default function BookingPage() {
         }
         allSlots.push(...gs)
       }
-    } else {
+    } else if (!location || location === DEFAULT_LOCATION_ID) {
       // Legacy coach: the windows come from the same server call as everything
       // else, because coach_availability is not readable from the browser.
+      // Those hours predate pools and are the first pool's only.
       for (const a of legacyWindows || []) {
         allSlots.push(...generateSlots(a.start_time, a.end_time))
       }
@@ -1047,9 +1100,10 @@ export default function BookingPage() {
   }, [loading, isReschedule, selectedStudent, step, students])
 
   useEffect(() => {
-    if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse) return
+    if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse || location === undefined) return
     let live = true
     const qs = new URLSearchParams({ course_slug: selectedCourse.slug, student_id: selectedStudent.id })
+    if (location) qs.set('location', location)
     // A voucher may reach past the usual 60 days; ask for openings up to its expiry.
     if (makeUp) {
       qs.set('until', makeUp.expiresOn)
@@ -1068,7 +1122,7 @@ export default function BookingPage() {
       .catch(() => { if (live) setOpenings(null) })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling])
+  }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling, location])
 
   /* The programme page's slot link (init), applied in two moves. On the course
      step, once the parent has chosen a swimmer who has a level: pick the
@@ -1227,6 +1281,7 @@ export default function BookingPage() {
           student2_id: siblingPair ? selectedStudent2!.id : null,
           start_time: time, start_date: startDate, weeks,
           course_slug: selectedCourse?.slug ?? '1on4', minutes: planMinutes,
+          location: location ?? null,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -1279,6 +1334,22 @@ export default function BookingPage() {
     // The 30/60 switch belongs to the course it was set on. Kept, a 60 set on
     // 1-on-1 priced a 1-on-4 at 80 and hid its vouchers (found 2026-10-03).
     setLessonLength(30); setSelectedHour(null)
+  }
+  /** Another pool. Everything on screen -- the day, the time, the basket, a
+   *  fixed-class panel, the hour list -- was at the old one, so it goes, as
+   *  it does when the course changes, and every list is read again for the
+   *  new pool. The 30/60 length stays: a lesson being moved or a make-up
+   *  voucher sets it, and neither depends on the pool. */
+  function pickLocation(id: string) {
+    if (id === location) return
+    setLocation(id)
+    setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null)
+    setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()); setGhostSel(new Set()); setRecurMsg('')
+    setTimeSlots([]); setOpenDay(null)
+    // Not left on screen while the new pool's answer is on its way: a tap
+    // in that moment would pick a time at the old pool.
+    setOpenings(null); setGroupWeeks([])
+    if (step === 4) setStep(3)
   }
   function changeStudent() {
     setLockedStudent(false); setSelectedStudent(null); setSelectedStudent2(null)
@@ -1521,6 +1592,7 @@ export default function BookingPage() {
       plan: recurPlan,
       fixed: recurOpen && selectedSlot && selectedCoach
         ? { start: fixedStart, weeks: fixedWeeks, ghost: [...ghostSel], only: fixedOnly } : null,
+      location: location ?? null,
     }
     try { window.sessionStorage.setItem(RESUME_KEY, JSON.stringify(snap)); savedResumeRef.current = true } catch {}
   }
@@ -1533,6 +1605,8 @@ export default function BookingPage() {
   function restoreResume(r: ResumeSnap, studs: Student[], cts: CourseType[], coachs: Coach[]) {
     const s1 = studs.find(x => x.id === r.studentId)
     if (!s1) return
+    // Back on the pool the basket was chosen at, not the swimmer's usual one.
+    if (typeof r.location === 'string' && r.location) resumeLocRef.current = r.location
     setSelectedStudent(s1)
     const ct = r.courseId ? cts.find(c => c.id === r.courseId) : null
     if (!ct) { setStep(1); return }
@@ -2106,6 +2180,34 @@ export default function BookingPage() {
           </div>
         )}
 
+        {/* The pool, chosen before any time is shown: every calendar and list
+            below is for this pool only. Only with more than one pool open,
+            and once the swimmer is known (their usual pool is the default). */}
+        {showLoc && locList.length > 1 && selectedStudent && step < 4 && location !== undefined && (
+          <div style={{ marginBottom: '20px' }}>
+            <div id="msa-loc-label" style={{ fontSize: '13px', fontWeight: 700, color: '#56647d', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+              📍 {t('booking.loc.title')}
+            </div>
+            <div role="radiogroup" aria-labelledby="msa-loc-label"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+              {locList.map(l => {
+                const on = location === l.id
+                return (
+                  <button key={l.id} role="radio" aria-checked={on} onClick={() => pickLocation(l.id)}
+                    style={{ textAlign: 'left', minHeight: '52px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer',
+                      border: `1.5px solid ${on ? NAVY : '#d3deec'}`, background: on ? NAVY : '#fff', color: on ? '#fff' : '#16294a' }}>
+                    <span style={{ display: 'block', fontSize: '15px', fontWeight: 700 }}>{l.name}</span>
+                    {l.address && (
+                      <span style={{ display: 'block', fontSize: '12.5px', fontWeight: 500, marginTop: '2px', lineHeight: 1.4, color: on ? '#d6e2f3' : '#56647d' }}>{l.address}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: '13px', color: '#56647d', marginTop: '6px', lineHeight: 1.5 }}>{t('booking.loc.hint')}</div>
+          </div>
+        )}
+
         {step > 0 && selectedStudent && (
           <div style={{ marginBottom: '28px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
@@ -2346,7 +2448,11 @@ export default function BookingPage() {
             {privateFlow && (!openings || openings.coaches.length > 1) && (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...(openings?.coaches || [])].map(c => {
+                  {/* With more than one pool, a coach who has no time at this
+                      one is left out of the row rather than offering an empty
+                      calendar (the one already picked stays, to be undone). */}
+                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...(openings?.coaches || []).filter(c => !showLoc || c.id === coachFilter
+                    || Object.values(openings?.days || {}).some(d => Object.values(d).some(l => l.includes(c.id))))].map(c => {
                     const on = coachFilter === c.id
                     return (
                       <button key={c.id} onClick={() => pickFilter(c.id)}
@@ -3348,7 +3454,11 @@ export default function BookingPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 4 && (() => {
+          // Where the lesson is, once there is more than one pool to be at.
+          const locNow = showLoc ? locList.find(l => l.id === location) : undefined
+          const locRows = locNow ? [{ label: t('booking.sum.location'), value: locationLine(locNow) }] : []
+          return (
           <div>
             <SectionTitle title={t('booking.s5.title')} />
             <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', border: '1px solid #e3ebf6', marginBottom: '20px' }}>
@@ -3356,6 +3466,7 @@ export default function BookingPage() {
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                ...locRows,
                 { label: t('booking.sum.coach'), value: planOne.coachName || selectedCoach?.first_name },
                 { label: t('booking.sum.date'), value: new Date(planOne.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: (() => { const [h, m] = planOne.time.split(':').map(Number); const e = h * 60 + m + planMinutes; return `${formatTime(planOne.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
@@ -3364,6 +3475,7 @@ export default function BookingPage() {
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
                   value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
                 { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
+                ...locRows,
                 { label: t('booking.sum.coach'), value: planCoaches.length > 0 ? planCoaches.join(locale === 'en' ? ', ' : '、') : selectedCoach?.first_name },
                 // Naming one hour above a batch that spans two of them tells the
                 // family the wrong time for half their lessons.
@@ -3385,6 +3497,7 @@ export default function BookingPage() {
                 // behind it says "1-on-1 Private". Naming it that on the last screen
                 // before payment describes something the parent did not choose.
                 { label: t('booking.sum.course'), value: isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '') },
+                ...locRows,
                 { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
                 { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
                 { label: t('booking.sum.time'), value: selectedHour || !selectedSlot ? selectedSlot?.label : (() => { const [h, m] = selectedSlot.time.split(':').map(Number); const e = h * 60 + m + (selectedCourse?.duration_minutes ?? 30); return `${formatTime(selectedSlot.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
@@ -3560,7 +3673,8 @@ export default function BookingPage() {
               >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : planMany ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
             </div>
           </div>
-        )}
+          )
+        })()}
       </div>
       <NoticeModal title={t('common.noticeTitle')} message={notice && notice.startsWith('err.') ? t(notice) : notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
     </div>

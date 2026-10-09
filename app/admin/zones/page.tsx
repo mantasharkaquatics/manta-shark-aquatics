@@ -5,6 +5,8 @@ import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS, bandColorOf, bandRange } fr
 import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
+import { DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
+import { locationColor } from '@/lib/location-colors'
 
 const DAY_SLOTS = daySlots()
 const SLOTS = DAY_SLOTS.length
@@ -21,9 +23,13 @@ const BANDS = [
 const BAND_GREENS = BAND_COLORS
 const TEAM_COLORS = TEAM_TIER_COLORS
 
-type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string } | null
+// loc = the pool the block is at. Every painted cell has one; blocks split
+// wherever it changes, the same as where the type or band changes.
+type Cell = { t: 'private' | 'group' | 'team'; tier?: string; band?: string; loc: string } | null
 type Brush = 'private' | 'group' | 'team' | 'erase'
-type ZoneRow = { zone_type: string; weekday?: number; start_time: string; end_time: string; team_tier_id?: string | null; group_level_min?: number | null; group_level_max?: number | null }
+type ZoneRow = { zone_type: string; weekday?: number; start_time: string; end_time: string; team_tier_id?: string | null; group_level_min?: number | null; group_level_max?: number | null; location_id?: string | null }
+// A row read before the migration has no location_id: it is the default pool.
+const rowLoc = (z: { location_id?: string | null }) => z.location_id || DEFAULT_LOCATION_ID
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 const clampIdx = (i: number) => Math.max(0, Math.min(SLOTS - 1, i))
@@ -55,6 +61,13 @@ export default function ZonesEditorPage() {
   const [brush, setBrush] = useState<Brush>('private')
   const [brushTier, setBrushTier] = useState('')
   const [brushBand, setBrushBand] = useState(BANDS[0].key)
+  // Every pool, closed-to-families ones included, so Monrovia's hours can be
+  // painted before Monrovia opens. With one pool nothing about pools shows.
+  const [locations, setLocations] = useState<Location[]>([])
+  const [brushLoc, setBrushLoc] = useState(DEFAULT_LOCATION_ID)
+  const multiLoc = locations.length > 1
+  const locName = (id?: string | null) => locations.find(l => l.id === (id || DEFAULT_LOCATION_ID))?.name || (id || DEFAULT_LOCATION_ID)
+  const locCol = (id?: string | null) => locationColor(id || DEFAULT_LOCATION_ID, locations)
   const [painting, setPainting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -83,7 +96,7 @@ export default function ZonesEditorPage() {
     for (const z of rows) {
       if (z.zone_type === 'team') continue
       for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) {
-        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? z.group_level_min + '-' + z.group_level_max : undefined }
+        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? z.group_level_min + '-' + z.group_level_max : undefined, loc: rowLoc(z) }
       }
     }
     return g
@@ -95,6 +108,7 @@ export default function ZonesEditorPage() {
     fetch(`/api/admin/zones?coach_id=${coachId}`).then(r => r.json()).then(d => {
       setTiers(d.tiers || [])
       setLegacy(d.legacy || [])
+      setLocations(d.locations || [])
       setWeeklyRows(d.weekly || [])
       setTeamRows((d.weekly || []).filter((z: ZoneRow) => z.zone_type === 'team'))
       if ((d.tiers || []).length > 0 && !brushTier) setBrushTier(d.tiers[0].id)
@@ -123,7 +137,7 @@ export default function ZonesEditorPage() {
         setOvTeamRows(src.filter((z: any) => z.zone_type === 'team'))
         for (const z of src) {
           if (z.zone_type === 'team') continue
-          for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined }
+          for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined, loc: rowLoc(z) }
         }
       }
       setGrid(g)
@@ -131,9 +145,9 @@ export default function ZonesEditorPage() {
     })
   }, [mode, ovDate, reload])
 
-  const teamIvs = (day: number): { s: number; e: number; tier?: string }[] => {
+  const teamIvs = (day: number): { s: number; e: number; tier?: string; loc: string }[] => {
     const rows: any[] = mode === 'date' ? ovTeamRows : teamRows.filter((z: any) => z.weekday === day)
-    return rows.map((z: any) => ({ s: toMin(String(z.start_time).slice(0, 5)), e: toMin(String(z.end_time).slice(0, 5)), tier: z.team_tier_id || undefined }))
+    return rows.map((z: any) => ({ s: toMin(String(z.start_time).slice(0, 5)), e: toMin(String(z.end_time).slice(0, 5)), tier: z.team_tier_id || undefined, loc: rowLoc(z) }))
   }
   // A lesson slot overlapping a team block can't be painted — saving both would
   // produce overlapping zones and the API rejects the whole template
@@ -147,7 +161,7 @@ export default function ZonesEditorPage() {
     if (brush === 'team') { setMsg({ ok: false, text: t('admin.zones.err.teamSeparate') }); return }
     setGrid(prev => {
       const g = prev.map(row => [...row])
-      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: undefined, band: brush === 'group' && brushBand ? brushBand : undefined }
+      g[day][idx] = brush === 'erase' ? null : { t: brush, tier: undefined, band: brush === 'group' && brushBand ? brushBand : undefined, loc: brushLoc }
       return g
     })
     setDirty(true); setMsg(null); setDayClosed(false)
@@ -156,21 +170,21 @@ export default function ZonesEditorPage() {
   function loadLegacyAsPrivate() {
     const g: Cell[][] = Array.from({ length: 7 }, () => Array(SLOTS).fill(null))
     for (const a of legacy) {
-      for (const i of slotsInRange(String(a.start_time).slice(0, 5), String(a.end_time).slice(0, 5))) g[a.day_of_week][i] = { t: 'private' }
+      for (const i of slotsInRange(String(a.start_time).slice(0, 5), String(a.end_time).slice(0, 5))) g[a.day_of_week][i] = { t: 'private', loc: DEFAULT_LOCATION_ID }
     }
     setGrid(g); setDirty(true); setMsg(null)
   }
 
   function compress(days: number[]) {
-    const out: { zone_type: string; weekday: number; start_time: string; end_time: string; team_tier_id?: string; group_level_min?: number | null; group_level_max?: number | null }[] = []
+    const out: { zone_type: string; weekday: number; start_time: string; end_time: string; team_tier_id?: string; group_level_min?: number | null; group_level_max?: number | null; location_id: string }[] = []
     for (const d of days) {
       let i = 0
       while (i < SLOTS) {
         const c = grid[d][i]
         if (!c || teamAt(d, i)) { i++; continue }
         let j = i + 1
-        while (j < SLOTS && contiguous(j - 1, j) && !teamAt(d, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band) j++
-        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null })
+        while (j < SLOTS && contiguous(j - 1, j) && !teamAt(d, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band && grid[d][j]!.loc === c.loc) j++
+        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null, location_id: c.loc })
         i = j
       }
     }
@@ -189,7 +203,7 @@ export default function ZonesEditorPage() {
 
   async function save() {
     if (mode === 'weekly') {
-      const zones = [...compress([0, 1, 2, 3, 4, 5, 6]), ...teamRows.map((z: any) => ({ zone_type: 'team', weekday: z.weekday as number, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null }))]
+      const zones = [...compress([0, 1, 2, 3, 4, 5, 6]), ...teamRows.map((z: any) => ({ zone_type: 'team', weekday: z.weekday as number, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null, location_id: rowLoc(z) }))]
       const err = teamCheck(zones)
       if (err) { setMsg({ ok: false, text: err }); return }
       setSaving(true); setMsg(null)
@@ -207,13 +221,13 @@ export default function ZonesEditorPage() {
       return
     }
     const painted = compress([ovDow])
-    const zones = dayClosed ? painted : [...painted, ...ovTeamRows.map((z: any) => ({ zone_type: 'team', weekday: ovDow, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null }))]
+    const zones = dayClosed ? painted : [...painted, ...ovTeamRows.map((z: any) => ({ zone_type: 'team', weekday: ovDow, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null, location_id: rowLoc(z) }))]
     const err = teamCheck(zones)
     if (err) { setMsg({ ok: false, text: err }); return }
     setSaving(true); setMsg(null)
     const body: any = { coach_id: coachId, date: ovDate }
     if (dayClosed && painted.length === 0) body.closed = true
-    else body.zones = zones.map(z => ({ zone_type: z.zone_type, start_time: z.start_time, end_time: z.end_time, team_tier_id: z.team_tier_id, group_level_min: z.group_level_min ?? null, group_level_max: z.group_level_max ?? null }))
+    else body.zones = zones.map(z => ({ zone_type: z.zone_type, start_time: z.start_time, end_time: z.end_time, team_tier_id: z.team_tier_id, group_level_min: z.group_level_min ?? null, group_level_max: z.group_level_max ?? null, location_id: z.location_id }))
     const res = await fetch('/api/admin/zones', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -251,13 +265,21 @@ export default function ZonesEditorPage() {
   const TEAM_MINUTES = 90
   const [newTeamDow, setNewTeamDow] = useState(1)
   const [newTeamStart, setNewTeamStart] = useState('16:00')
+  const [newTeamLoc, setNewTeamLoc] = useState(DEFAULT_LOCATION_ID)
   function addTeamBlock() {
     if (!/^\d{2}:\d{2}$/.test(newTeamStart)) { setMsg({ ok: false, text: t('admin.zones.err.startFormat') }); return }
     if (tiers.length === 0) { setMsg({ ok: false, text: t('admin.zones.err.noTiers') }); return }
     const end = idxSafeEnd(newTeamStart)
-    const row: any = { zone_type: 'team', start_time: newTeamStart, end_time: end, team_tier_id: brushTier || tiers[0].id }
+    const row: any = { zone_type: 'team', start_time: newTeamStart, end_time: end, team_tier_id: brushTier || tiers[0].id, location_id: newTeamLoc }
     if (mode === 'date') { setOvTeamRows(prev => [...prev, row]) }
     else { setTeamRows(prev => [...prev, { ...row, weekday: newTeamDow }] as any) }
+    setDirty(true); setMsg(null)
+  }
+  // Practices are not painted, so their pool is picked per row instead.
+  function setTeamLoc(i: number, loc: string) {
+    const upd = (prev: any[]) => prev.map((z, k) => k === i ? { ...z, location_id: loc } : z)
+    if (mode === 'date') setOvTeamRows(upd)
+    else setTeamRows(upd as any)
     setDirty(true); setMsg(null)
   }
   function removeTeamBlock(i: number) {
@@ -344,6 +366,12 @@ export default function ZonesEditorPage() {
                     <span style={{ fontWeight: 700, minWidth: 90 }}>{mode === 'date' ? t('admin.zones.thisDate') : dayName(z.weekday)}</span>
                     <span>{String(z.start_time).slice(0, 5)} – {String(z.end_time).slice(0, 5)}</span>
                     <span style={{ color: '#e05a4a', fontWeight: 700 }}>{tierName(z.team_tier_id) || t('admin.zones.team')}</span>
+                    {multiLoc && (
+                      <select value={rowLoc(z)} onChange={e => setTeamLoc(i, e.target.value)} aria-label={t('admin.zones.pool')}
+                        style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(rowLoc(z))}`, borderRadius: 8, padding: '3px 8px', fontSize: 11 }}>
+                        {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    )}
                     <button onClick={() => removeTeamBlock(i)}
                       style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.5)', background: 'transparent', color: '#e05a4a' }}>{t('admin.zones.remove')}</button>
                   </div>
@@ -364,6 +392,12 @@ export default function ZonesEditorPage() {
                 style={{ background: '#1a2744', color: '#e05a4a', border: '1px solid rgba(224,90,74,0.4)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700 }}>
                 {tiers.map(tr => <option key={tr.id} value={tr.id}>{tDb(locale, 'team_tiers', tr.id, tr.name)}</option>)}
               </select>
+              {multiLoc && (
+                <select value={newTeamLoc} onChange={e => setNewTeamLoc(e.target.value)} aria-label={t('admin.zones.pool')}
+                  style={{ background: '#1a2744', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderLeft: `3px solid ${locCol(newTeamLoc)}`, borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              )}
               <button onClick={addTeamBlock}
                 style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.6)', background: 'rgba(224,90,74,0.15)', color: '#e05a4a' }}>{t('admin.zones.addPractice')}</button>
             </div>
@@ -383,6 +417,20 @@ export default function ZonesEditorPage() {
             )}
             <button onClick={() => setBrush('erase')}
               style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brush === 'erase' ? '2px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.15)', background: brush === 'erase' ? 'rgba(255,255,255,0.1)' : 'transparent', color: 'rgba(255,255,255,0.7)' }}>{t('admin.zones.eraser')}</button>
+            {multiLoc && (
+              // The pool the brush paints, and at the same time the legend for
+              // the coloured bar on each cell's left edge.
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', paddingLeft: 6, borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', marginRight: 2 }}>{t('admin.zones.pool')}</span>
+                {locations.map(l => (
+                  <button key={l.id} onClick={() => { setBrushLoc(l.id); if (brush === 'erase') setBrush('private') }}
+                    title={l.is_active ? undefined : t('admin.zones.poolHiddenTip')}
+                    style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: brushLoc === l.id && brush !== 'erase' ? `2px solid ${locCol(l.id)}` : '1px solid rgba(255,255,255,0.15)', borderLeft: `4px solid ${locCol(l.id)}`, background: brushLoc === l.id && brush !== 'erase' ? 'rgba(255,255,255,0.08)' : 'transparent', color: '#fff' }}>
+                    {l.name}{l.is_active ? '' : <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.45)' }}> · {t('admin.zones.poolHidden')}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
             {mode === 'date' && (
               <>
                 <button onClick={closeDay} style={{ padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(224,90,74,0.4)', background: dayClosed ? 'rgba(224,90,74,0.15)' : 'transparent', color: '#e05a4a' }}>{dayClosed ? t('admin.zones.dayMarkedClosed') : t('admin.zones.closeDay')}</button>
@@ -422,16 +470,18 @@ export default function ZonesEditorPage() {
                     const hhmm = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')
                     const startsHere = th.s >= ss && th.s < se
                     return (
-                      <div key={`c${d}-${i}`} title={t('admin.zones.tip.practice', { tier: tierName(th.tier), start: hhmm(th.s), end: hhmm(th.e) })}
-                        style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', background: `linear-gradient(to bottom, transparent 0 ${pctA}%, ${col}55 ${pctA}% ${pctB}%, transparent ${pctB}% 100%)`, border: `1px dashed ${col}66`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: 'rgba(255,255,255,0.8)' }}>{startsHere ? hhmm(th.s) : ''}</div>
+                      <div key={`c${d}-${i}`} title={t('admin.zones.tip.practice', { tier: tierName(th.tier), start: hhmm(th.s), end: hhmm(th.e) }) + (multiLoc ? ' · ' + locName(th.loc) : '')}
+                        style={{ height: 20, borderRadius: 3, cursor: 'not-allowed', boxShadow: multiLoc ? `inset 3px 0 0 ${locCol(th.loc)}` : undefined, background: `linear-gradient(to bottom, transparent 0 ${pctA}%, ${col}55 ${pctA}% ${pctB}%, transparent ${pctB}% 100%)`, border: `1px dashed ${col}66`, overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: 'rgba(255,255,255,0.8)' }}>{startsHere ? hhmm(th.s) : ''}</div>
                     )
                   }
                   return (
                     <div key={`c${d}-${i}`}
                       onMouseDown={() => { setPainting(true); paint(d, i) }}
                       onMouseEnter={() => { if (painting) paint(d, i) }}
-                      title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? t('admin.zones.tip.groupBand', { band: c.band }) : c.t === 'group' ? t('admin.zones.tip.group') : t('admin.zones.tip.private')) + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
-                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', background: c ? (c.t === 'group' && c.band ? `${bandColorOf(...(c.band.split('-') as [string, string])) || BAND_GREENS['1-2']}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
+                      title={(c ? (c.t === 'team' ? tierName(c.tier) : c.t === 'group' && c.band ? t('admin.zones.tip.groupBand', { band: c.band }) : c.t === 'group' ? t('admin.zones.tip.group') : t('admin.zones.tip.private')) + (multiLoc ? ' · ' + locName(c.loc) : '') + ' · ' : '') + idxToTime(i) + '–' + idxToEnd(i)}
+                      // The pool shows as a 3px bar on the left edge, so the
+                      // type/band colour stays the cell's main colour.
+                      style={{ height: 20, borderRadius: 3, cursor: 'crosshair', boxShadow: c && multiLoc ? `inset 3px 0 0 ${locCol(c.loc)}` : undefined, background: c ? (c.t === 'group' && c.band ? `${bandColorOf(...(c.band.split('-') as [string, string])) || BAND_GREENS['1-2']}cc` : c.t === 'team' ? `${tierColor(c.tier)}cc` : `${COLORS[c.t]}99`) : 'rgba(255,255,255,0.04)', overflow: 'hidden', textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: '20px', color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.7)', letterSpacing: 0.3 }}>{cellLabel(c)}</div>
                   )
                 })}
                 {gap > 0 && <div key={`bt${i}`} style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', textAlign: 'right', paddingRight: 6, lineHeight: `${gapH}px` }}>{gap >= 10 ? t('admin.zones.gapMin', { n: gap }) : ''}</div>}

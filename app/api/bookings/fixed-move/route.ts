@@ -3,7 +3,8 @@ import { requireParent } from '@/lib/api-auth'
 import { formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { commitMove, moveContext, moveOptions, planMove, type MoveTarget } from '@/lib/fixed-move'
-import { minToTime, toMin, weekdayOf } from '@/lib/fixed-classes'
+import { lessonsOf, minToTime, toMin, weekdayOf } from '@/lib/fixed-classes'
+import { DEFAULT_LOCATION_ID, getLocations, lessonLocationLine, showLocations } from '@/lib/locations'
 
 export const runtime = 'nodejs'
 
@@ -66,11 +67,21 @@ export async function POST(req: NextRequest) {
       ])
       const cName = new Map<string, string>((coaches || []).map((c: any) => [c.id, c.first_name]))
       const end = minToTime(toMin(start_time) + ctx.fc.minutes)
+      // Where the moved lessons now are, when they all share one pool and
+      // more than one is open (the trigger placed them by the new slot).
+      let location: string | undefined
+      const pools = await getLocations(svc)
+      if (showLocations(pools)) {
+        const toDates = new Set(plan.items.filter(i => i.to).map(i => i.to!))
+        const moved = ((await lessonsOf(svc, [ctx.fc.id])).get(ctx.fc.id) || []).filter(l => toDates.has(l.date))
+        const ids = [...new Set(moved.map(l => l.locationId || DEFAULT_LOCATION_ID))]
+        if (ids.length === 1) location = await lessonLocationLine(svc, ids[0], pools)
+      }
       if (p?.email) await sendEmail({
         type: 'fixed_class_moved', to: p.email, parentName: p.first_name || '', lang: p.preferred_language || 'en',
         studentNames: (kids || []).map((k: any) => k.full_name),
         weekday: weekdayOf(start_date), time: `${formatTime12h(start_time)} – ${formatTime12h(end)}`,
-        coachName: cName.get(coach_id) || '', amount: done.vouchers,
+        coachName: cName.get(coach_id) || '', amount: done.vouchers, location,
         moveItems: plan.items.filter(i => i.to).map(i => ({ date: i.to!, kind: i.kind, coach: cName.get(i.coachId!) || '' })),
       })
     } catch (e) { console.error('fixed-move email failed:', e) }

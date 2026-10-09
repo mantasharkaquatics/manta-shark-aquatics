@@ -8,6 +8,7 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { readJson, badRequest } from '@/lib/http'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { mailInviteFailed } from '@/lib/bookings/invite-failed-mail'
@@ -375,7 +376,7 @@ export async function POST(req: NextRequest) {
     const ordered = [...sessions].sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
     const { data: sess } = await supabase
       .from('class_sessions')
-      .select('session_date, start_time, course_types(name), coaches(first_name)')
+      .select('session_date, start_time, location_id, course_types(name), coaches(first_name)')
       .eq('id', ordered[0].id)
       .single()
     if (sess) {
@@ -388,6 +389,7 @@ export async function POST(req: NextRequest) {
         // 12-hour start-end range across both halves of an hour (found
         // 2026-10-05): the raw column read "10:20:00" with no end time.
         time: formatTime12h(ordered[0].start_time) + ' \u2013 ' + formatTime12h(ordered[ordered.length - 1].end_time),
+        location: await lessonLocationLine(supabase, (sess as any).location_id),
       }
       if (initiatorParent?.email) {
         await sendEmail({

@@ -12,6 +12,7 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
 import type { Locale, TFunction } from '@/lib/i18n'
+import { useLocationFilterState, LocationSwitch, LocationTag, type LocationFilterState } from '../components/LocationFilter'
 
 interface Coach {
   id: string
@@ -46,6 +47,8 @@ interface Session {
   enrolled_count: number
   status: string
   course_type_id: string
+  /** The pool, set by the database from the coach's zone (docs/migration-locations.sql). */
+  location_id?: string | null
   course_types: { name: string; slug: string; duration_minutes: number } | { name: string; slug: string; duration_minutes: number }[]
   bookings?: { id: string; parent_id: string; status: string; is_trial?: boolean; students?: { full_name: string } | { full_name: string }[] | null; parents?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]
 }
@@ -420,6 +423,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   const locale = useLocale()
   const supabase = createClient()
   const [view, setView] = useState<'month' | 'day'>('month')
+  // All / each pool. Shown once a second pool exists, even before it opens.
+  const loc = useLocationFilterState('booking')
   const [anchor, setAnchor] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -693,7 +698,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     // a full day as empty (found 2026-10-07).
     const { data, error: readErr } = await allRows(() => supabase
       .from('class_sessions')
-      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, course_types(name, slug, duration_minutes)')
+      .select('id, coach_id, session_date, start_time, end_time, max_students, enrolled_count, status, course_type_id, location_id, course_types(name, slug, duration_minutes)')
       .gte('session_date', from)
       .lte('session_date', to)
       .neq('status', 'cancelled')
@@ -940,8 +945,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     return covering.sort((a, b) => b.enrolled_count - a.enrolled_count)[0]
   }
 
+  // The month view lists only the chosen pool. The day grid keeps every lesson
+  // for its "is this coach free" checks and greys the other pool's (DayView).
   function getSessionsOnDate(date: string): Session[] {
-    return sessions.filter(s => s.session_date === date)
+    return sessions.filter(s => s.session_date === date && loc.matches(s.location_id))
   }
 
   const todayStr = toDateStr(new Date())
@@ -986,6 +993,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               className="px-3 min-h-11 text-xs rounded border border-white/20 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
             >{t('admin.booking.today')}</button>
           </div>
+          <LocationSwitch state={loc} />
           {loading && <span className="text-xs text-white/40 animate-pulse">{t('admin.booking.loading')}</span>}
         </div>
       </div>
@@ -1003,6 +1011,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               currentMonth={currentMonth}
               todayStr={todayStr}
               getSessionsOnDate={getSessionsOnDate}
+              loc={loc}
               onDayClick={(date) => {
                 setAnchor(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
                 setView('day')
@@ -1017,6 +1026,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               coaches={coaches}
               getSessionAt={getSessionAt}
               getSessionCovering={getSessionCovering}
+              loc={loc}
               isCoachAvailable={isCoachAvailable}
               onSlotClick={openBookModal}
               onSessionClick={openDetailModal}
@@ -1342,6 +1352,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       {/* Detail Modal */}
       {modal === 'detail' && selectedSession && (
         <DetailModal
+          loc={loc}
           session={selectedSession}
           coaches={coaches}
           students={students}
@@ -1423,7 +1434,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 // ══════════════════════════════════════════════════════════════════════
 // Month View
 // ══════════════════════════════════════════════════════════════════════
-function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClick }: {
+function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, loc, onDayClick }: {
+  loc: LocationFilterState
   dates: Date[]
   currentMonth: number
   todayStr: string
@@ -1461,7 +1473,9 @@ function MonthView({ dates, currentMonth, todayStr, getSessionsOnDate, onDayClic
                   const slug = ct?.slug || ''
                   const miniTrial = !!(s as any).bookings?.some((b: any) => b.is_trial)
                   return (
-                    <div key={s.id} className="rounded px-1 py-0.5" style={{ backgroundColor: miniTrial ? '#c9a84c' : (COURSE_COLORS[slug] || '#6b7280') }}>
+                    <div key={s.id} className="rounded px-1 py-0.5" title={loc.multi ? loc.nameOf(s.location_id) : undefined}
+                      // Too small for a word: the pool is the 3px bar on the left.
+                      style={{ backgroundColor: miniTrial ? '#c9a84c' : (COURSE_COLORS[slug] || '#6b7280'), boxShadow: loc.multi ? `inset 3px 0 0 ${loc.colorOf(s.location_id)}` : undefined }}>
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-medium" style={{ color: miniTrial ? '#1a2744' : '#ffffff' }}>{formatTime12h(s.start_time)}</span>
                       </div>
@@ -1530,7 +1544,8 @@ function NowLine({ ds }: { ds: string }) {
   )
 }
 
-function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
+function DayView({ date, coaches, getSessionAt, getSessionCovering, loc, isCoachAvailable, onSlotClick, onSessionClick, onBookingDrop, crossAccountSessionIds, blocks, onBlockClick }: {
+  loc: LocationFilterState
   date: Date
   blocks: Block[]
   onBlockClick: (blk: Block) => void
@@ -1660,8 +1675,17 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
                       </span>
                     </div>
                   )}
-                  {session && session.enrolled_count > 0 ? (
-                    <SessionChip session={session} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
+                  {session && session.enrolled_count > 0 && !loc.matches(session.location_id) ? (
+                    // Filtered to another pool: the coach is still busy here, so
+                    // the slot must not offer "+ Book". A grey block naming the
+                    // pool instead of the lesson; it still opens the lesson.
+                    <button onClick={() => onSessionClick(session)} title={t('admin.booking.otherPool', { name: loc.nameOf(session.location_id) })}
+                      className={`absolute left-0.5 right-0.5 z-[2] ${hourSpanPx ? '' : 'bottom-0.5'} ${blk && blkLabelHere ? 'top-8' : 'top-0.5'} rounded flex items-start justify-start p-1.5 text-[10px] font-semibold text-white/45 border border-dashed border-white/15 bg-white/[0.04]`}
+                      style={{ height: hourSpanPx ? hourSpanPx - 4 : undefined, boxShadow: `inset 3px 0 0 ${loc.colorOf(session.location_id)}` }}>
+                      {loc.nameOf(session.location_id)}
+                    </button>
+                  ) : session && session.enrolled_count > 0 ? (
+                    <SessionChip session={session} loc={loc} onClick={() => onSessionClick(session)} isCrossAccount={crossAccountSessionIds.has(session.id)} shiftDown={!!(blk && blkLabelHere)} spanPx={hourSpanPx} />
                   ) : covered ? (
                     <button onClick={() => onSessionClick(covered)}
                       title={t('admin.booking.hourPart')}
@@ -1727,7 +1751,7 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, isCoachAvail
 // ══════════════════════════════════════════════════════════════════════
 // Session Chip
 // ══════════════════════════════════════════════════════════════════════
-function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { session: Session; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean; spanPx?: number }) {
+function SessionChip({ session, loc, onClick, isCrossAccount, shiftDown, spanPx }: { session: Session; loc: LocationFilterState; onClick: () => void; isCrossAccount?: boolean; shiftDown?: boolean; spanPx?: number }) {
   const t = useT()
   const locale = useLocale()
   if (session.enrolled_count === 0) return null
@@ -1771,6 +1795,7 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
             </span>
           ) : null
         })}
+        {loc.multi && <LocationTag state={loc} loc={session.location_id} className="mt-0.5" />}
       </button>
       {isCrossAccount && (
         <span className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded text-[9px] font-bold leading-none pointer-events-none z-10"
@@ -1785,7 +1810,8 @@ function SessionChip({ session, onClick, isCrossAccount, shiftDown, spanPx }: { 
 // ══════════════════════════════════════════════════════════════════════
 // Detail Modal
 // ══════════════════════════════════════════════════════════════════════
-function DetailModal({ session, coaches, students, onClose, supabase, onRefresh }: {
+function DetailModal({ session, loc, coaches, students, onClose, supabase, onRefresh }: {
+  loc: LocationFilterState
   session: Session
   coaches: Coach[]
   students: any[]
@@ -1947,6 +1973,7 @@ function DetailModal({ session, coaches, students, onClose, supabase, onRefresh 
             <p className="text-sm text-white/50 mt-0.5">
               {formatTime((bookings[0] as any)?.group_start_time || session.start_time)} – {formatTime((bookings[0] as any)?.group_end_time || session.end_time)}
               {' · '}{t('admin.coachName', { name: `${coach?.first_name ?? ''} ${coach?.last_name ?? ''}` })}
+              {loc.multi && <> <LocationTag state={loc} loc={session.location_id} className="ml-1" /></>}
             </p>
           </div>
           <button onClick={onClose} className="text-white/30 hover:text-white transition-colors text-2xl leading-none mt-1">×</button>

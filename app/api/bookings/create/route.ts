@@ -12,6 +12,7 @@ import { sendEmail } from '@/lib/email'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
+import { sessionLocationLine } from '@/lib/locations'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -562,6 +563,7 @@ export async function POST(req: NextRequest) {
             coachName: coach.first_name,
             date: session_date,
             time: formatTime12h(start_time),
+            location: await sessionLocationLine(svc, sessionId),
           })
       }
     } catch {}
@@ -604,6 +606,7 @@ export async function POST(req: NextRequest) {
             coachName: (coach.first_name + ' ' + (coach.last_name || '')).trim(),
             date: session_date,
             time: formatTime12h(start_time) + ' – ' + formatTime12h(end_time),
+            location: await sessionLocationLine(svc, sessionId),
           })
       }
     } catch {}

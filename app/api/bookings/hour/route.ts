@@ -5,6 +5,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { getEffectiveZones } from '@/lib/zones'
+import { getLocations, locationParam } from '@/lib/locations'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
@@ -14,6 +15,7 @@ import { sendEmail } from '@/lib/email'
 import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, voucherFitsDate, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
+import { sessionLocationLine } from '@/lib/locations'
 
 export const runtime = 'nodejs'
 
@@ -34,7 +36,9 @@ const toT = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + S
 
 type Iv = { s: number; e: number }
 
-async function loadDay(svc: any, date: string, courseTypeId: string, parentId: string) {
+// location: only the coaches' zones at that pool count (lib/locations.ts);
+// null = every pool, as before locations existed.
+async function loadDay(svc: any, date: string, courseTypeId: string, parentId: string, location: string | null = null) {
   const [{ data: coaches }, { data: sessions }] = await Promise.all([
     svc.from('coaches').select('id, first_name, last_name').eq('is_active', true),
     svc.from('class_sessions')
@@ -47,7 +51,7 @@ async function loadDay(svc: any, date: string, courseTypeId: string, parentId: s
   // reach that far ahead, but it must not land in someone's held slot.
   const holds = await renewalHolds(svc, date, date, parentId)
   const zones = new Map<string, any>()
-  await Promise.all(ids.map(async (id: string) => { zones.set(id, await getEffectiveZones(svc, id, date)) }))
+  await Promise.all(ids.map(async (id: string) => { zones.set(id, await getEffectiveZones(svc, id, date, location)) }))
   // A session holding a live 1-on-2 invitation is taken, though nobody is
   // enrolled in it yet (lib/bookings/invite-holds.ts, found 2026-10-07).
   const held = await sessionsHeldByInvites(svc, (sessions || []).filter((s: any) => (s.enrolled_count || 0) <= 0).map((s: any) => s.id))
@@ -175,7 +179,12 @@ export async function POST(req: NextRequest) {
     hourVoucher = mine.find(v => voucherFitsDate(v, session_date)) ?? null
   }
 
-  const day = await loadDay(svc, session_date, ct.id, parent.id)
+  // The booking page sends the pool the family is booking at with `options`,
+  // so the hour list only offers that pool's times. Booking and rescheduling
+  // still check the zone as before; the database stores which pool it is.
+  const location = action === 'options' && typeof body.location === 'string' && body.location
+    ? locationParam(body.location, await getLocations(svc)) : null
+  const day = await loadDay(svc, session_date, ct.id, parent.id, location)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
 
   // Rescheduling: the lesson's OWN two sessions must not count as conflicts —
@@ -380,6 +389,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // The first half's session: where the hour is, for the emails below.
+    let firstSessId: string | null = null
     for (const h of halves) {
       const { data: existing } = await svc.from('class_sessions')
         .select('id, enrolled_count, max_students')
@@ -399,6 +410,7 @@ export async function POST(req: NextRequest) {
         sessId = created.id
         createdSessions.push(created.id)
       }
+      if (!firstSessId) firstSessId = sessId
       // Cross-account: this half gets TWO pending rows (ours + theirs), linked to
       // each other, unpaid. Nobody is charged until the partner accepts, and the
       // whole group of four lives or dies together on lesson_group_id.
@@ -464,6 +476,7 @@ export async function POST(req: NextRequest) {
           inviterName: ((me?.first_name || '') + ' ' + (me?.last_name || '')).trim(),
           courseName: `${ct.name} (60 min)`, coachName: nameOf(coach1_id),
           date: session_date, time: `${formatTime12h(toT(s1))} - ${formatTime12h(toT(e2))}`,
+          location: await sessionLocationLine(svc, firstSessId),
         })
       }
     } catch {}
@@ -478,6 +491,7 @@ export async function POST(req: NextRequest) {
           type: 'booking_confirmed', to: p.email, parentName: p.first_name,
           studentName: students.map((x: any) => x.full_name).join(' & '), courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
+          location: await sessionLocationLine(svc, firstSessId),
         })
       }
     } catch {}
@@ -628,6 +642,8 @@ export async function POST(req: NextRequest) {
           type: 'booking_rescheduled', to: p.email, parentName: p.first_name,
           studentName: rescheduledNames, courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
+          // Read after the move: the trigger re-places the lesson by its new coach and time.
+          location: await sessionLocationLine(svc, ordered[0].id),
         })
       }
     } catch {}

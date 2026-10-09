@@ -11,11 +11,13 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { groupBandsFor } from '@/lib/zones'
+import { getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
 //
-// preview: ?action=preview  student_id, coach_id, start_time, start_date, weeks?
+// preview: ?action=preview  student_id, coach_id, start_time, start_date, weeks?, location?
+//   (location: only weeks the coach teaches that slot at that pool count as open)
 //   → the next `weeks` weekly dates from start_date (default 26) with status --
 //     the fixed-class grid. One coach throughout: no substitutes.
 // commit:  ?action=commit   student_id, coach_id, slots[{date, start_time, coach_id?, fixed?}]
@@ -64,10 +66,10 @@ type Cand = WeekCand
  * Other families' renewal holds count as taken; this family's own do not, so
  * a renewal can always see its own slot.
  */
-async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS, parentId?: string): Promise<Cand[]> {
+async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS, parentId?: string, locationId: string | null = null): Promise<Cand[]> {
   const lastDate = addDays(startDate, 7 * (weeks - 1))
   const holds = await renewalHolds(svc, startDate, lastDate, parentId ?? null)
-  return weeklyCandidates(svc, { coachId, ct, studentIds, level, startTime, startDate, minutes, seats, weeks, holds })
+  return weeklyCandidates(svc, { coachId, ct, studentIds, level, startTime, startDate, minutes, seats, weeks, holds, locationId })
 }
 
 /**
@@ -196,8 +198,12 @@ export async function POST(req: NextRequest) {
     // The grid is the fixed class, and a fixed class is one coach (owner,
     // 2026-10-01). A week that coach cannot teach is shown as such and left
     // out -- it is not offered with someone else, and it is not charged.
+    // The pool the family is booking at: a week the coach teaches this slot
+    // at the other pool is not part of this class.
+    const location = typeof body.location === 'string' && body.location
+      ? locationParam(body.location, await getLocations(svc)) : null
     const candidates: (Cand & { coach_id?: string })[] =
-      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks, parent.id)
+      await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks, parent.id, location)
     for (const c of candidates) c.coach_id = coach_id
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
@@ -511,6 +517,7 @@ export async function POST(req: NextRequest) {
             studentName: student2 ? `${student.full_name} & ${student2.full_name}` : student.full_name,
             courseName: ct.name, coachName: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
             date: s0.date, time: `${formatTime12h(s0.time)} – ${formatTime12h(endOf(s0.time))}`,
+            location: await sessionLocationLine(svc, sessionIdByKey.get(slotKey(s0))),
           })
         }
       } catch {}
@@ -620,6 +627,9 @@ export async function POST(req: NextRequest) {
 
     try {
       const bookedCoaches = [...new Set(booked.map(s2 => s2.coach!))].map(id => coachById.get(id)).filter(Boolean)
+      // Each lesson's pool (its first half's session); empty with one pool.
+      const firstSess = (s2: Slot) => sessionIdByKey.get(partsOf(s2)[0]?.key || '')
+      const locs = await sessionLocationLines(svc, booked.map(firstSess))
       const { data: p2 } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p2?.email) {
         await sendEmail({
@@ -637,6 +647,7 @@ export async function POST(req: NextRequest) {
           // wrong hour for half their lessons.
           times: uniformTime ? undefined : booked.map(s2 => `${formatTime12h(s2.time)} – ${formatTime12h(endOf(s2.time))}`),
           time: uniformTime ? `${formatTime12h(uniformTime)} – ${formatTime12h(endOf(uniformTime))}` : undefined,
+          locations: locs.size > 0 ? booked.map(s2 => locs.get(firstSess(s2) || '')) : undefined,
         })
       }
     } catch {}

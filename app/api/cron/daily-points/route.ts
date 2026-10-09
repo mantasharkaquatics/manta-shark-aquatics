@@ -10,6 +10,7 @@ import { addDaysStr } from '@/lib/vouchers'
 import { formatTime12h } from '@/lib/date'
 import { allRows } from '@/lib/db-paging'
 import { requireCron } from '@/lib/cron-auth'
+import { lessonLocationLine } from '@/lib/locations'
 
 export const runtime = 'nodejs'
 
@@ -108,7 +109,7 @@ export async function GET(req: NextRequest) {
 
   let renewals = { sent: 0, failed: 0 }
   try {
-    renewals = await sendRenewalNotices(svc, async (fc, last) => {
+    renewals = await sendRenewalNotices(svc, async (fc, last, lastLoc) => {
       const [{ data: p }, { data: kids }, { data: coach }] = await Promise.all([
         svc.from('parents').select('first_name, email, preferred_language').eq('id', fc.parent_id).single(),
         svc.from('students').select('full_name').in('id', [fc.student_id, fc.student2_id].filter(Boolean) as string[]),
@@ -120,6 +121,7 @@ export async function GET(req: NextRequest) {
         lang: p.preferred_language || 'en', studentNames: (kids || []).map((k: any) => k.full_name),
         weekday: fc.weekday, time: formatTime12h(String(fc.start_time).slice(0, 5)), coachName: coach?.first_name || '',
         date: last, expiresOn: addDaysStr(last, -HOLD_RELEASE_DAYS),
+        location: await lessonLocationLine(svc, lastLoc),
         linkUrl: `https://www.mantasharkaquatics.net/dashboard/fixed-class/${fc.id}?renew=1`,
       })
     })

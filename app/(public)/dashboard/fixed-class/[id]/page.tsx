@@ -14,6 +14,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
+import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -21,7 +22,8 @@ type FC = {
   coachId: string; coachName: string; weekday: number; time: string
   left: number; next: string | null; last: string | null
   renewOpen: boolean; holdUntil: string | null
-  lessons: { date: string; start: string; coachName: string; within24h: boolean; bookingId: string | null }[]
+  locationId?: string | null
+  lessons: { date: string; start: string; coachName: string; within24h: boolean; bookingId: string | null; locationId?: string | null }[]
 }
 type Cand = { date: string; status: string; points: number | null }
 type Opt = { weekday: number; time: string; coachId: string; startDate: string; okWeeks: number; weeks: number }
@@ -134,6 +136,22 @@ export default function FixedClassPage() {
     setLoading(false)
   }, [id])
   useEffect(() => { load() }, [load])
+
+  // Where the class is. Shown only while more than one pool is open to
+  // families (/api/locations `show`); with one pool the page is unchanged.
+  const [pools, setPools] = useState<Location[] | null>(null)
+  useEffect(() => {
+    let live = true
+    fetch('/api/locations', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+      .then(j => { if (live && j?.show) setPools(j.locations || []) }).catch(() => {})
+    return () => { live = false }
+  }, [])
+  const poolOf = (id?: string | null) => pools?.find(l => l.id === (id || DEFAULT_LOCATION_ID)) || null
+  // One pool for every lesson left (the usual case) is said once, under the
+  // title; lessons split across pools say theirs on each date instead.
+  const poolIds = fc ? [...new Set((fc.lessons.length ? fc.lessons.map(l => l.locationId) : [fc.locationId]).map(x => x || DEFAULT_LOCATION_ID))] : []
+  const onePool = pools && poolIds.length === 1 ? poolOf(poolIds[0]) : null
+  const perLessonPool = !!pools && poolIds.length > 1
 
   // ── Renewal ──────────────────────────────────────────────────────────
   const [renewOpenUI, setRenewOpenUI] = useState(false)
@@ -305,6 +323,13 @@ export default function FixedClassPage() {
               weekday: weekdayName(fc.weekday), time: `${formatTime12h(fc.time)} – ${formatTime12h(endOf(fc.time, fc.minutes))}`, coach: fc.coachName,
             })}</p>
           )}
+          {onePool && (() => {
+            const url = locationMapUrl(onePool)
+            const body = <>📍 {onePool.name}{onePool.address && onePool.address.trim().toLowerCase() !== onePool.name.trim().toLowerCase() ? ' · ' + onePool.address : ''}</>
+            return <p className="ac-sub" style={{ fontSize: 14, marginTop: 4 }}>{url
+              ? <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('dash.pool.mapAria', { name: onePool.name })} style={{ color: 'inherit', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: 2 }}>{body}</a>
+              : body}</p>
+          })()}
         </div>
 
         {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'}>{msg.ok ? '✓ ' : ''}{msg.text}</div></div>}
@@ -340,11 +365,11 @@ export default function FixedClassPage() {
               </div>
               <div className="fc-lessons">
                 {fc.lessons.map(l => l.within24h || !l.bookingId ? (
-                  <span key={l.date} className="fc-lesson">{day(l.date, { month: 'short', day: 'numeric' })}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
+                  <span key={l.date} className="fc-lesson">{day(l.date, { month: 'short', day: 'numeric' })}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
                 ) : (
                   <button key={l.date} className="fc-lesson" title={t('fixedPage.leave.tap')}
                     onClick={() => { setMsg(null); setLeaveFor({ date: l.date, start: l.start, bookingId: l.bookingId! }) }}>
-                    {day(l.date, { month: 'short', day: 'numeric' })}
+                    {day(l.date, { month: 'short', day: 'numeric' })}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}
                   </button>
                 ))}
               </div>

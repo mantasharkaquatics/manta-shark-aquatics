@@ -1,6 +1,7 @@
 import { isBlocked } from '@/lib/availability'
 import { autoHandBackIfIdle } from '@/lib/chat-handback'
-import { getEffectiveZones } from '@/lib/zones'
+import { getEffectiveZones, type EffectiveZones, type ZoneRow } from '@/lib/zones'
+import { getLocations, activeLocations, showLocations, zoneAtLocation, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -95,7 +96,23 @@ function minutesUntilSession(sessionDate: string, startTime: string): number {
   return minutesUntil(sessionDate, String(startTime).slice(0, 5), getTodayLA(), getNowMinutesLA())
 }
 
-async function getTrialSlots(svc: any, date: string, coachId: string | undefined, parentId: string) {
+// The pools for one request (lib/locations.ts), read once. multi = more than
+// one pool open to families; while it is false no tool result and no lesson
+// carries a pool, so the assistant behaves exactly as it did with one pool.
+type Pools = { multi: boolean; active: Location[]; name: (id: string | null | undefined) => string }
+
+const hm = (x: string) => { const [h, m] = String(x).slice(0, 5).split(':').map(Number); return h * 60 + m }
+
+// The pool a time belongs to: the pool of the coach's zone of that kind that
+// covers it (as the class_sessions trigger decides a lesson's pool). A legacy
+// coach, on coach_availability with no zones, is Brea only (lib/zones.ts).
+function poolOfTime(eff: EffectiveZones | undefined, zoneType: ZoneRow['zone_type'], start: string, end: string): string {
+  if (!eff || eff.legacy) return DEFAULT_LOCATION_ID
+  const z = eff.rows.find(r => r.zone_type === zoneType && hm(r.start_time) <= hm(start) && hm(end) <= hm(r.end_time))
+  return z?.location_id || DEFAULT_LOCATION_ID
+}
+
+async function getTrialSlots(svc: any, date: string, coachId: string | undefined, parentId: string, pools: Pools, location: string | undefined) {
   const today = getTodayLA()
   const dayDiff = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000)
   if (isNaN(dayDiff) || dayDiff < 0) return { error: 'Date is in the past or invalid.' }
@@ -111,7 +128,9 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   if (!coaches || coaches.length === 0) return { error: 'Coach not found.' }
   const ids = coaches.map((c: any) => c.id)
   const effMap = new Map<string, any>()
-  await Promise.all(coaches.map(async (c: any) => { effMap.set(c.id, await getEffectiveZones(svc, c.id, date)) }))
+  // Only the asked pool's blocks; a legacy coach comes back with none for any
+  // pool but Brea, so their coach_availability hours are not offered there.
+  await Promise.all(coaches.map(async (c: any) => { effMap.set(c.id, await getEffectiveZones(svc, c.id, date, location)) }))
 
   // holds: other families' fixed-class renewal holds (lib/fixed-classes).
   // book_trial_pending refuses a time inside one (lib/assessment-slot), so
@@ -166,12 +185,14 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   const nowMins = getNowMinutesLA()
   const out: any[] = []
   for (const c of coaches) {
-    const times: { time: string; label: string }[] = []
+    const times: { time: string; label: string; pool?: string }[] = []
     const effC = effMap.get(c.id)
     const windows = effC && !effC.legacy
       ? effC.rows.filter((z: any) => z.zone_type === 'private')
       : (availRes.data || []).filter((a: any) => a.coach_id === c.id)
     for (const w of windows) {
+      // A zone row carries its pool; a coach_availability row is Brea's.
+      const wPool = pools.multi ? { pool: pools.name((w as any).location_id) } : {}
       const [sh, sm] = String(w.start_time).slice(0, 5).split(':').map(Number)
       const [eh, em] = String(w.end_time).slice(0, 5).split(':').map(Number)
       let cur = sh * 60 + sm
@@ -183,7 +204,7 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
         // course, so any overlapping hold takes the whole slot (as in
         // assessmentSlotError).
         if (!(dayDiff === 0 && cur <= nowMins + 30) && !isBusy(c.id, cur, cur + 30) && !isBlocked(offBlocks, c.id, t, tEnd)
-          && !(heldSeats(holds, c.id, date, cur, cur + 30, '') > 0)) times.push({ time: t, label: formatTime12h(t) })
+          && !(heldSeats(holds, c.id, date, cur, cur + 30, '') > 0)) times.push({ time: t, label: formatTime12h(t), ...wPool })
         cur += SLOT_STEP_MINUTES
       }
     }
@@ -192,8 +213,11 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
       .map(([k, v]) => ({ time: k.split('|')[1], label: formatTime12h(k.split('|')[1]), already_booked_by_this_family_for: v }))
     if (times.length || own.length) out.push({ coach_id: c.id, coach: `${c.first_name} ${c.last_name}`, available_times: times, ...(own.length ? { this_familys_existing_bookings_at: own, note: 'Times in this_familys_existing_bookings_at are NOT free slots taken by others - they are THIS parent own existing bookings. Never suggest rebooking them or describe them as unavailable.' } : {}) })
   }
-  return { date, slots: out }
+  return { date, ...(location ? { pool: pools.name(location) } : {}), slots: out }
 }
+
+// Static, like every tool description: it sits in the cached prefix.
+const LOCATION_INPUT = 'Optional pool id from POOLS (the value in brackets). Only when POOLS lists more than one pool: limits the result to that pool. Omitted = every pool; each time then names its pool.'
 
 const TOOLS = [
   {
@@ -251,6 +275,7 @@ const TOOLS = [
       properties: {
         date: { type: 'string', description: 'YYYY-MM-DD' },
         coach_id: { type: 'string', description: 'Optional coach_id from a previous get_trial_slots result' },
+        location: { type: 'string', description: LOCATION_INPUT },
       },
       required: ['date'],
     },
@@ -279,6 +304,7 @@ const TOOLS = [
         date: { type: 'string', description: 'YYYY-MM-DD for a single day' },
         year: { type: 'number', description: 'Calendar year, for month view' },
         month: { type: 'number', description: '1-12, for month view' },
+        location: { type: 'string', description: LOCATION_INPUT },
       },
       required: ['student_id'],
     },
@@ -425,13 +451,32 @@ export async function POST(req: NextRequest) {
   let cancelAlreadyDoneThisTurn = false
   let trialBookSucceededThisTurn = false
 
+  // The pools (POOLS in the prompt). Empty before the locations migration,
+  // which reads as the one pool, Brea.
+  const allLocs = await getLocations(svc)
+  const pools: Pools = {
+    multi: showLocations(allLocs),
+    active: activeLocations(allLocs),
+    name: id => allLocs.find(l => l.id === (id || DEFAULT_LOCATION_ID))?.name || String(id || DEFAULT_LOCATION_ID),
+  }
+  // A tool's location input: an id from POOLS or, forgiving, a pool's name.
+  // undefined = not given (or one pool, where there is nothing to choose);
+  // null = given but not an open pool.
+  function poolArg(raw: unknown): string | undefined | null {
+    if (!pools.multi || raw == null || String(raw).trim() === '') return undefined
+    const v = String(raw).trim().toLowerCase()
+    const hit = pools.active.find(l => l.id.toLowerCase() === v || l.name.trim().toLowerCase() === v)
+    return hit ? hit.id : null
+  }
+  const badPool = () => ({ error: `Unknown location. Use one of these pool ids: ${pools.active.map(l => l.id).join(', ')}.` })
+
   // ---------- helpers used by multiple tools ----------
   type LessonBooking = {
     id: string; student_id: string; class_session_id: string; status: string
     partner_booking_id: string | null; points_charged: number | null; is_trial: boolean
     lesson_group_id: string | null; voucher_id: string | null; fixed_class_id: string | null
   }
-  type LessonSession = { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; course_type_id: string }
+  type LessonSession = { id: string; session_date: string; start_time: string; end_time: string; coach_id: string; course_type_id: string; location_id?: string | null }
   // What cancelling this lesson now would do, in the words of
   // lib/bookings/cancel.ts (docs/fixed-class-spec.md). The model used to see
   // only "cancellable_online" and could not tell a fixed-class lesson (leave ->
@@ -492,7 +537,10 @@ export async function POST(req: NextRequest) {
     const sessionIds = [...new Set(rows.map(b => b.class_session_id).filter(Boolean))] as string[]
     const { data: sessionData } = await allRowsIn(sessionIds, chunk => svc
       .from('class_sessions')
-      .select('id, session_date, start_time, end_time, coach_id, course_type_id')
+      // location_id only once a second pool is open: it is set by the
+      // database (the class_sessions trigger), and with one pool the model is
+      // not told about pools at all.
+      .select('id, session_date, start_time, end_time, coach_id, course_type_id' + (pools.multi ? ', location_id' : ''))
       .in('id', chunk)
       .order('id', { ascending: true }))
     const sessions = sessionData as LessonSession[]
@@ -600,6 +648,7 @@ export async function POST(req: NextRequest) {
         minutes: toMin(last.end_time) - toMin(s.start_time),
         ...(slug === '1on2' ? { shared_with_other_family: shared, ...(siblings ? { both_children_of_this_family: true } : {}) } : {}),
         coach: coach ? `${coach.first_name} ${coach.last_name}` : 'TBD',
+        ...(pools.multi ? { pool: pools.name(s.location_id) } : {}),
         date: s.session_date,
         time: `${formatTime12h(s.start_time.slice(0, 5))} - ${formatTime12h(last.end_time.slice(0, 5))}`,
         status: b.status,
@@ -767,7 +816,10 @@ export async function POST(req: NextRequest) {
       // the parent was shown 30-minute times and refused after picking one
       // (found 2026-10-07).
       const groupParam = b.lesson_group_id ? `&reschedule_group_id=${b.lesson_group_id}` : ''
-      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}${groupParam}`
+      // The lesson's own pool, so the booking page can open there (lib/locations
+      // locationParam); only once there is more than one.
+      const locParam = pools.multi && row._session.location_id ? `&location=${encodeURIComponent(row._session.location_id)}` : ''
+      const url = `${origin}/booking?reschedule_booking_id=${b.id}&reschedule_slug=${row.course_slug}&reschedule_student_id=${b.student_id}${partnerParam}${groupParam}${locParam}`
       return { url, note: 'The current lesson is only cancelled after the parent confirms the new time on the booking page.' }
     }
 
@@ -839,7 +891,9 @@ export async function POST(req: NextRequest) {
     if (name === 'get_trial_slots') {
       const date = String(input.date || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
-      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id)
+      const location = poolArg(input.location)
+      if (location === null) return badPool()
+      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id, pools, location)
     }
 
     if (name === 'get_group_classes') {
@@ -848,8 +902,10 @@ export async function POST(req: NextRequest) {
       const year = input.year ? String(input.year) : ''
       const month = input.month ? String(input.month) : ''
       if (!studentId) return { error: 'student_id required. Call get_my_students first.' }
+      const location = poolArg(input.location)
+      if (location === null) return badPool()
       const { data: owned } = await svc
-        .from('students').select('id').eq('id', studentId).eq('parent_id', parent!.id).single()
+        .from('students').select('id, current_level').eq('id', studentId).eq('parent_id', parent!.id).single()
       if (!owned) return { error: 'Student not found on this account. Call get_my_students for real ids.' }
       let qs = ''
       if (date) {
@@ -860,10 +916,45 @@ export async function POST(req: NextRequest) {
       } else {
         return { error: 'Provide date (YYYY-MM-DD) or year+month.' }
       }
-      const res = await fetch(`${origin}/api/bookings/group-classes?student_id=${studentId}&${qs}`, { headers: { cookie: cookieHeader } })
+      // location is passed on for the route to use, and the answer is also
+      // narrowed here, so it holds whether or not the route filters by pool.
+      const res = await fetch(`${origin}/api/bookings/group-classes?student_id=${studentId}&${qs}${location ? `&location=${encodeURIComponent(location)}` : ''}`, { headers: { cookie: cookieHeader } })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok) return { error: data.error || 'Could not load group classes.' }
-      return data
+      if (!pools.multi) return data
+      // Day: each class takes the pool of the coach's group zone around it.
+      if (date && Array.isArray(data.classes)) {
+        const coachIds = [...new Set(data.classes.map((c: any) => String(c.coach_id)))] as string[]
+        const effs = new Map(await Promise.all(coachIds.map(async id => [id, await getEffectiveZones(svc, id, date)] as const)))
+        data.classes = data.classes
+          .map((c: any) => ({ c, loc: poolOfTime(effs.get(String(c.coach_id)), 'group', c.time, c.end_time) }))
+          .filter((x: any) => zoneAtLocation({ location_id: x.loc }, location))
+          .map((x: any) => ({ ...x.c, pool: pools.name(x.loc) }))
+      }
+      // Month: the route's dates are for every pool; keep the ones with a
+      // group block for this swimmer's band at the asked pool. Resolved as
+      // getEffectiveZones does: that day's own rows replace the weekly ones,
+      // and a closed row closes the day at every pool.
+      if (!date && location && Array.isArray(data.dates) && data.dates.length) {
+        const level = owned.current_level == null ? null : Number(owned.current_level)
+        const { data: zr } = await svc.from('coach_availability_zones')
+          .select('coach_id, zone_type, kind, weekday, override_date, group_level_min, group_level_max, location_id')
+          .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${data.dates[0]},override_date.lte.${data.dates[data.dates.length - 1]})`)
+        const byCoach = new Map<string, any[]>()
+        for (const r of zr || []) byCoach.set(r.coach_id, [...(byCoach.get(r.coach_id) || []), r])
+        const band = (r: any) => r.group_level_min == null || r.group_level_max == null || (level != null && level >= r.group_level_min && level <= r.group_level_max)
+        data.dates = data.dates.filter((ds: string) => {
+          const dow = new Date(ds + 'T00:00:00').getDay()
+          for (const rows of byCoach.values()) {
+            const dateRows = rows.filter(r => r.kind === 'date' && r.override_date === ds)
+            const picked = dateRows.length > 0 ? dateRows : rows.filter(r => r.kind === 'weekly' && r.weekday === dow)
+            if (picked.some(r => r.zone_type === 'closed')) continue
+            if (picked.some(r => r.zone_type === 'group' && band(r) && zoneAtLocation(r, location))) return true
+          }
+          return false
+        })
+      }
+      return location ? { ...data, pool: pools.name(location) } : data
     }
 
     if (name === 'book_trial_pending') {
@@ -876,6 +967,14 @@ export async function POST(req: NextRequest) {
       const { data: owned } = await svc
         .from('students').select('id, full_name').eq('id', studentId).eq('parent_id', parent!.id).single()
       if (!owned) return { error: 'Student not found on this account. Call get_my_students for real ids.' }
+      // Where the assessment will be, for the parent's recap: the pool of the
+      // coach's private block at that time (the lesson itself gets it from the
+      // class_sessions trigger, the same way).
+      const [th, tm] = time.split(':').map(Number)
+      const endHm = `${String(Math.floor((th * 60 + tm + 30) / 60)).padStart(2, '0')}:${String((th * 60 + tm + 30) % 60).padStart(2, '0')}`
+      const poolField = pools.multi
+        ? { pool: pools.name(poolOfTime(await getEffectiveZones(svc, coachId, date), 'private', time, endHm)) }
+        : {}
 
       const { data: prepaid } = await svc
         .from('lesson_credits').select('id')
@@ -899,6 +998,7 @@ export async function POST(req: NextRequest) {
           student: owned.full_name,
           date,
           time: formatTime12h(time),
+          ...poolField,
           note: 'Booked and CONFIRMED using the prepaid assessment credit. No payment is needed. Tell the parent it is confirmed.',
         }
       }
@@ -920,6 +1020,7 @@ export async function POST(req: NextRequest) {
         student: owned.full_name,
         date,
         time: formatTime12h(time),
+        ...poolField,
         payment_url: data.url,
         note: `Slot reserved PENDING PAYMENT only. The parent must pay via payment_url within ${TRIAL_HOLD_MINUTES} minutes or the slot is released automatically. Never say the booking is confirmed.`,
       }
@@ -962,6 +1063,23 @@ export async function POST(req: NextRequest) {
         }
       })
     }
+    // Each swimmer's usual pool, from the same route the booking page asks
+    // (the pool of their latest lesson), so "use the usual pool" has one
+    // answer. Only with more than one pool; a failure just leaves it out.
+    let usualPoolsJson: string | undefined
+    if (pools.multi) {
+      try {
+        const lr = await fetch(`${origin}/api/locations`, { headers: { cookie: cookieHeader } })
+        const lj = await lr.json().catch(() => ({} as any))
+        const usual: Record<string, string> = {}
+        for (const [sid, loc] of Object.entries((lj?.studentLocations || {}) as Record<string, string>)) {
+          if (tmNameById[sid]) usual[tmNameById[sid]] = pools.name(loc)
+        }
+        usualPoolsJson = JSON.stringify(usual)
+      } catch (e) {
+        console.error('[ai-reply] usual pools', e)
+      }
+    }
     const knowledge = await buildKnowledgeBlock(svc)
     const nowMins = getNowMinutesLA()
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
@@ -983,6 +1101,8 @@ export async function POST(req: NextRequest) {
       teamSnapshotJson: JSON.stringify(teamSnapshot),
       planList,
       knowledge,
+      pools: pools.active,
+      usualPoolsJson,
     })
     // Prompt caching: static part (rules + POLICIES + knowledge) carries cache_control,
     // cached together with the tools prefix; dynamic part (time/parent/snapshot) is not cached.

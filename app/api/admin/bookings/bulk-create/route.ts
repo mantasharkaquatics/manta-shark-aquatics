@@ -11,6 +11,7 @@ import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal, type HoldHit } from '@/lib/bookings/desk-checks'
 import { allRows } from '@/lib/db-paging'
+import { sessionLocationLines } from '@/lib/locations'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -445,6 +446,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Each date's session (an hour: its first half), so the email can say
+    // which pool each lesson is at.
+    const sessOfDate: (string | undefined)[] = []
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i]
       if (hour) {
@@ -480,6 +484,7 @@ export async function POST(req: NextRequest) {
             sid = ns.id
             createdSessionIds.push(ns.id)
           }
+          if (!sessOfDate[i]) sessOfDate[i] = sid
           const { data: bk, error: be } = await svc
             .from('bookings')
             .insert({ class_session_id: sid, parent_id: student1.parent_id, student_id: student1.id,
@@ -524,6 +529,7 @@ export async function POST(req: NextRequest) {
         sessId = newSess.id
         createdSessionIds.push(newSess.id)
       }
+      sessOfDate[i] = sessId
 
       // Every swimmer's row carries the points that swimmer's family paid for
       // it, so cancelling one seat of a 1-on-2 refunds the right wallet.
@@ -578,6 +584,7 @@ export async function POST(req: NextRequest) {
       const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', coach_id).single()
       const coachName = coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : ''
       const timeStr = `${formatTime12h(start_time)} \u2013 ${formatTime12h(hour ? hourEndTime : endTime)}`
+      const locs = await sessionLocationLines(svc, sessOfDate)
       const targets: { parent_id: string; studentName: string; partnerName?: string }[] = sameParent || !student2
         ? [{ parent_id: student1.parent_id, studentName: student2 ? `${student1.full_name} & ${student2.full_name}` : student1.full_name }]
         : [
@@ -592,12 +599,14 @@ export async function POST(req: NextRequest) {
             type: 'booking_confirmed', to: p.email, parentName: p.first_name,
             studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             date: dates[0], time: timeStr,
+            location: locs.get(sessOfDate[0] || ''),
           })
         } else {
           await sendEmail({
             type: 'booking_series_confirmed', to: p.email, parentName: p.first_name,
             studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             dates, time: timeStr,
+            locations: locs.size > 0 ? dates.map((_, i) => locs.get(sessOfDate[i] || '')) : undefined,
           })
         }
       }

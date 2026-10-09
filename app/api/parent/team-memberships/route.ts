@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { allRows } from '@/lib/db-paging'
+import { DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // Parent-facing team memberships. Same service-role pattern as /api/parent/wallet.
 export async function GET(req: Request) {
@@ -83,7 +84,9 @@ export async function GET(req: Request) {
     const month = new URL(req.url).searchParams.get('month')
     const monthOk = !!month && /^\d{4}-\d{2}$/.test(month)
     const monthEnd = monthOk ? `${month}-${String(new Date(Number(month!.slice(0, 4)), Number(month!.slice(5, 7)), 0).getDate()).padStart(2, '0')}` : ''
-    const ZCOLS = 'id, coach_id, zone_type, kind, weekday, override_date, start_time, end_time, team_tier_id'
+    // location_id: which pool each practice is at (the dashboard names it once
+    // more than one pool is open).
+    const ZCOLS = 'id, coach_id, zone_type, kind, weekday, override_date, start_time, end_time, team_tier_id, location_id'
     const [{ data: weeklyRows }, { data: dateRows }, { data: coachRows }] = await Promise.all([
       allRows(() => svc.from('coach_availability_zones').select(ZCOLS).eq('kind', 'weekly').order('id')),
       monthOk
@@ -103,7 +106,7 @@ export async function GET(req: Request) {
       for (const cid of Object.keys(byCoach)) {
         for (const r of byCoach[cid]) {
           if (r.kind === 'weekly' && r.zone_type === 'team' && r.team_tier_id === tid)
-            weekly.push({ weekday: r.weekday, start_time: String(r.start_time).slice(0, 5), end_time: String(r.end_time).slice(0, 5), coach_name: coachName[cid] || '' })
+            weekly.push({ weekday: r.weekday, start_time: String(r.start_time).slice(0, 5), end_time: String(r.end_time).slice(0, 5), coach_name: coachName[cid] || '', location_id: r.location_id || DEFAULT_LOCATION_ID })
         }
       }
       weekly.sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time))
@@ -133,7 +136,7 @@ export async function GET(req: Request) {
             const blocks = offByKey[cid + '|' + ds] || []
             const blocked = blocks.some((b: any) => b.start_time == null || b.end_time == null || (toM(st) < toM(String(b.end_time).slice(0, 5)) && toM(en) > toM(String(b.start_time).slice(0, 5))))
             if (blocked) continue
-            scheduleByTier[r.team_tier_id].practice_days.push({ date: ds, start_time: st, end_time: en, coach_name: coachName[cid] || '' })
+            scheduleByTier[r.team_tier_id].practice_days.push({ date: ds, start_time: st, end_time: en, coach_name: coachName[cid] || '', location_id: r.location_id || DEFAULT_LOCATION_ID })
           }
         }
       }

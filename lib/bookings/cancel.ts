@@ -3,6 +3,7 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherWindow, type Voucher } from '@/lib/vouchers'
+import { lessonLocationLine } from '@/lib/locations'
 
 export type CancelTarget = {
   parent_id: string
@@ -101,7 +102,7 @@ export async function notifyCancellation(
 
     const { data: sessions } = await svc
       .from('class_sessions')
-      .select('id, session_date, start_time, end_time, course_type_id, coach_id')
+      .select('id, session_date, start_time, end_time, course_type_id, coach_id, location_id')
       .in('id', sessionIds)
       .order('start_time', { ascending: true })
     if (!sessions?.length) return
@@ -113,6 +114,7 @@ export async function notifyCancellation(
     const { data: coach } = await svc.from('coaches').select('first_name, last_name').eq('id', first.coach_id).single()
     const coachName = coach ? (coach.first_name + ' ' + (coach.last_name || '')).trim() : ''
     const timeStr = formatTime12h(first.start_time) + ' \u2013 ' + formatTime12h(last.end_time)
+    const location = await lessonLocationLine(svc, first.location_id)
 
     const studentIds = [...new Set(opts.targets.flatMap((t) => [t.student_id, ...(t.partnerCancelledBy || [])]).filter(Boolean))]
     const { data: studs } = await svc.from('students').select('id, full_name').in('id', studentIds)
@@ -148,6 +150,7 @@ export async function notifyCancellation(
         coachName,
         date: first.session_date,
         time: timeStr,
+        location,
         refundKind: entry.kind,
         expiresOn: entry.expires,
         usableFrom: entry.from ?? undefined,
@@ -702,7 +705,7 @@ async function notifyInviteWithdrawn(
 ): Promise<void> {
   try {
     const { data: sess } = await svc.from('class_sessions')
-      .select('session_date, start_time, end_time, course_type_id').eq('id', booking.class_session_id).single()
+      .select('session_date, start_time, end_time, course_type_id, location_id').eq('id', booking.class_session_id).single()
     if (!sess) return
     let endTime = (sess as any).end_time
     if (booking.lesson_group_id) {
@@ -738,6 +741,7 @@ async function notifyInviteWithdrawn(
         courseName: (ct as any)?.name || '',
         date: (sess as any).session_date,
         time: `${formatTime12h((sess as any).start_time)} \u2013 ${formatTime12h(endTime)}`,
+        location: await lessonLocationLine(svc, (sess as any).location_id),
       })
     }
   } catch (e) {

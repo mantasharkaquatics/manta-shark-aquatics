@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag, tDb, type Locale } from '@/lib/i18n'
+import { useLocationFilterState, LocationSwitch, LocationTag } from '../components/LocationFilter'
 
 
 interface Student {
@@ -22,6 +23,8 @@ interface AttendanceRecord {
   team_time?: string | null
   team_tier_id?: string | null
   team_tier_name?: string | null
+  /** Present once a second pool exists (api/admin/attendance/records). */
+  location_id?: string | null
 }
 
 // Date follows the admin's language; the clock time stays 12-hour English.
@@ -73,15 +76,31 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [recordsLoading, setRecordsLoading] = useState(false)
+  // All / each pool: which pool's check-ins the list below shows. Checking a
+  // swimmer in is not filtered -- it finds their lesson whichever pool it is at.
+  const loc = useLocationFilterState('checkin')
+  const locFilter = loc.filter
 
+  // A new pool choice starts the list again from its first page.
+  const firstFilter = useRef(true)
+  useEffect(() => {
+    if (firstFilter.current) { firstFilter.current = false; return }
+    if (page !== 1) setPage(1)
+    else loadRecords(1)
+  }, [locFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { loadRecords(page) }, [page])
 
+  // The remembered pool arrives just after the first (All) read has gone out;
+  // only the newest read may fill the table, whichever answers last.
+  const readSeq = useRef(0)
   async function loadRecords(p: number) {
+    const seq = ++readSeq.current
     setRecordsLoading(true)
     try {
-      const res = await fetch('/api/admin/attendance/records?page=' + p)
+      const res = await fetch('/api/admin/attendance/records?page=' + p + (locFilter !== 'all' ? '&location=' + encodeURIComponent(locFilter) : ''))
       const data = await res.json()
+      if (seq !== readSeq.current) return
       setRecords(data.records || [])
       setTotalPages(data.totalPages || 1)
     } catch {}
@@ -232,6 +251,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         <p className="text-xs font-semibold text-[#c9a84c] tracking-widest uppercase text-center mb-2">Manta Shark Aquatics</p>
         <h1 className="text-3xl font-bold text-white text-center mb-1" style={{ fontFamily: 'Playfair Display, serif' }}>{t('admin.checkin.title')}</h1>
         <p className="text-white/40 text-center text-sm mb-8">{t('admin.checkin.intro')}</p>
+        {loc.multi && <div className="flex justify-center -mt-4 mb-6"><LocationSwitch state={loc} /></div>}
 
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="bg-[#111d38] rounded-2xl p-6">
@@ -323,7 +343,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
                 <tr><td colSpan={4} className="text-center text-white/30 py-6">{t('admin.checkin.noRecords')}</td></tr>
               ) : records.map(r => (
                 <tr key={r.id} className="border-t border-white/5">
-                  <td className="px-6 py-3 text-white">{r.student_name || t('admin.checkin.unknownStudent')}{r.kind === 'team' && <div className="text-[#c9a84c] text-xs mt-0.5">{t('admin.checkin.teamPractice', { time: r.team_time ?? '', tier: r.team_tier_id && r.team_tier_name ? tDb(locale, 'team_tiers', r.team_tier_id, r.team_tier_name) : (r.team_tier_name || t('admin.booking.team')) })}</div>}</td>
+                  <td className="px-6 py-3 text-white">{r.student_name || t('admin.checkin.unknownStudent')}{loc.multi && r.location_id !== undefined && <LocationTag state={loc} loc={r.location_id} className="ml-2" />}{r.kind === 'team' && <div className="text-[#c9a84c] text-xs mt-0.5">{t('admin.checkin.teamPractice', { time: r.team_time ?? '', tier: r.team_tier_id && r.team_tier_name ? tDb(locale, 'team_tiers', r.team_tier_id, r.team_tier_name) : (r.team_tier_name || t('admin.booking.team')) })}</div>}</td>
                   <td className="px-6 py-3 text-white/60">{r.parent_name}</td>
                   <td className="px-6 py-3 text-white/60">{r.check_in_method === 'qr' ? t('admin.checkin.method.qr') : r.check_in_method === 'self' ? t('admin.checkin.method.self') : t('admin.checkin.method.manual')}</td>
                   <td className="px-6 py-3 text-white/60">{formatDateTime(r.checked_in_at, locale)}</td>

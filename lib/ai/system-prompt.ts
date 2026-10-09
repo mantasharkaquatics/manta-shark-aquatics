@@ -1,5 +1,6 @@
 import { POLICIES } from './policies'
 import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
+import type { Location } from '@/lib/locations'
 
 export type SystemPromptOptions = {
   mode: 'live' | 'eval' | 'guest'
@@ -9,6 +10,32 @@ export type SystemPromptOptions = {
   upcomingSnapshotJson?: string
   teamSnapshotJson?: string
   planList?: string
+  /** The ACTIVE pools (lib/locations.ts activeLocations). Omitted or empty =
+   *  before the locations migration, or the eval script: the one pool, Brea. */
+  pools?: Pick<Location, 'id' | 'name' | 'address'>[]
+  /** live, more than one pool: {swimmer name: usual pool name} (/api/locations). */
+  usualPoolsJson?: string
+}
+
+// Where the school teaches, for the DYNAMIC part. The pool list is data from
+// the locations table, so it stays out of the cached static part: opening or
+// closing a pool must not depend on a cache expiring. With one pool the
+// assistant describes the school as at that pool, as it always has; the ids
+// are shown only when there is a choice to pass to a tool.
+function poolLines(pools: SystemPromptOptions['pools']): string[] {
+  const addr = (a: string | null | undefined) => (a || '').trim()
+    ? `address: ${(a || '').trim()}`
+    : 'address: not listed here (never guess it)'
+  if (!pools || pools.length === 0) {
+    return ['POOLS: the school teaches at one pool, Brea, Southern California; every lesson is there. Its address is not listed here (never guess it).']
+  }
+  if (pools.length === 1) {
+    return [`POOLS: the school teaches at one pool, ${pools[0].name}, Southern California; every lesson is there. ${addr(pools[0].address).replace(/^a/, 'A')}.`]
+  }
+  return [
+    'POOLS (the school teaches at each of these; the id in brackets is the value for a tool\'s location input):',
+    ...pools.map(p => `- ${p.name} [${p.id}] - ${addr(p.address)}`),
+  ]
 }
 
 // Single source of truth for the AI counter assistant system prompt.
@@ -21,7 +48,8 @@ export type SystemPromptOptions = {
 // The static part must NEVER contain dates, times, parent names, or any per-request data, or the cache misses entirely.
 export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: string; dynamicPart: string } {
   const s: string[] = [
-    'You are the AI assistant for Manta Shark Aquatics, a swim school in Brea, Southern California.',
+    // Which pool(s) is per-request data (POOLS in the dynamic part), not a constant.
+    'You are the AI assistant for Manta Shark Aquatics, a swim school in Southern California. Where it teaches is listed under POOLS below.',
     '',
     'Rules:',
   ]
@@ -91,6 +119,12 @@ export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: st
   if (o.dateLine) d.push(o.dateLine)
   if (o.mode === 'guest') d.push('You are chatting with a website visitor who has not signed up yet.')
   else d.push(`The parent you are chatting with is ${o.parentName}.`)
+  d.push('')
+  d.push(...poolLines(o.pools))
+  if (o.mode === 'live' && o.usualPoolsJson) {
+    d.push('USUAL POOL of each swimmer (the pool of their latest lesson; a swimmer not listed has no lessons yet):')
+    d.push(o.usualPoolsJson)
+  }
   if (o.mode === 'live') {
     d.push('')
     d.push('UPCOMING LESSONS (authoritative, refreshed just now; use these exact booking_id values):')

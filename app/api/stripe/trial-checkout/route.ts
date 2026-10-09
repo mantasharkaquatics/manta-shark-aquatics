@@ -7,6 +7,7 @@ import { formatTime12h } from '@/lib/date'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { releaseTrialHold, syncTrialBooking } from '@/lib/trial-booking'
 import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
+import { sessionLocationLine } from '@/lib/locations'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -271,6 +272,7 @@ export async function POST(req: NextRequest) {
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time: formatTime12h(time),
+          location: await sessionLocationLine(svc, sessId),
           paymentUrl: checkoutSession.url || '',
           amount: TRIAL_PRICE_CENTS / 100,
           // When the hold ends, on the school's clock.

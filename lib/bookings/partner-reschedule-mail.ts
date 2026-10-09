@@ -15,15 +15,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { lessonLocationLine } from '@/lib/locations'
 
 export type RescheduleOutcome = 'declined' | 'withdrawn' | 'expired' | 'unavailable' | 'too_late' | 'coach_unavailable'
 
-type Lesson = { date: string; time: string; courseName: string; coachName: string }
+type Lesson = { date: string; time: string; courseName: string; coachName: string; location?: string }
 
 async function lessonAt(svc: SupabaseClient, sessionId: string | null | undefined): Promise<Lesson | null> {
   if (!sessionId) return null
   const { data: s } = await svc.from('class_sessions')
-    .select('session_date, start_time, end_time, course_type_id, coach_id').eq('id', sessionId).maybeSingle()
+    .select('session_date, start_time, end_time, course_type_id, coach_id, location_id').eq('id', sessionId).maybeSingle()
   if (!s) return null
   const [{ data: ct }, { data: coach }] = await Promise.all([
     s.course_type_id ? svc.from('course_types').select('name').eq('id', s.course_type_id).maybeSingle() : Promise.resolve({ data: null as any }),
@@ -34,6 +35,8 @@ async function lessonAt(svc: SupabaseClient, sessionId: string | null | undefine
     time: formatTime12h(s.start_time) + (s.end_time ? ' – ' + formatTime12h(s.end_time) : ''),
     courseName: ct?.name || '',
     coachName: coach ? `${coach.first_name || ''} ${coach.last_name || ''}`.trim() : '',
+    // Unset while one pool is open (lib/locations.ts).
+    location: await lessonLocationLine(svc, (s as any).location_id),
   }
 }
 
@@ -88,6 +91,7 @@ export async function mailRescheduleNotMoved(
         coachName: current.coachName,
         date: current.date,
         time: current.time,
+        location: current.location,
         newDate: proposed?.date,
         newTime: proposed?.time,
         rescheduleOutcome: opts.outcome,

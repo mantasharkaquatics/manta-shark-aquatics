@@ -5,11 +5,13 @@ import { getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
 import { renewalHolds, heldSeats, allRows, type Hold } from '@/lib/fixed-classes'
+import { getLocations, locationParam, zoneAtLocation } from '@/lib/locations'
 
 // Parent 1on4 class-based booking (cross-coach).
 // GET ?student_id&date=YYYY-MM-DD          → that day's matching-band classes across all coaches
 // GET ?student_id&year=YYYY&month=1..12    → dates in that month with at least one matching class (calendar dots)
 // GET ?student_id&weeks=1..6[&start=YYYY-MM-DD] → per-day class lists for the coming weeks (weekly schedule section)
+// Any shape: &location=<pool id> → only the classes at that pool (lib/locations.ts); absent = every pool.
 // Band matching: zone rows with null band admit all levels (legacy).
 
 const BANDS: [number, number][] = [[1, 2], [3, 4], [5, 6], [7, 9]]
@@ -21,10 +23,11 @@ function bandMatches(z: { group_level_min?: number | null; group_level_max?: num
   return level >= z.group_level_min && level <= z.group_level_max
 }
 
-async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = []) {
+async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = [], location: string | null = null) {
   const coachIds = (coaches || []).map((c: any) => c.id)
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
-    Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date))),
+    // Only the zones at the pool asked for (a legacy coach counts as the first pool's).
+    Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date, location))),
     getCoachBlocks(s, coachIds, date),
     // Cancelled sessions stay out: a slot whose lesson was cancelled gets a new
     // session when it is booked again, and find() below would otherwise pick
@@ -117,6 +120,8 @@ export async function GET(req: NextRequest) {
   const level = student.current_level == null ? null : Number(student.current_level)
   const myBand = level == null ? null : (() => { const b = BANDS.find(([a, z]) => level >= a && level <= z); return b ? { min: b[0], max: b[1] } : null })()
   if (level == null) return NextResponse.json({ band: null, dates: [], classes: [] })
+  const rawLoc = q.get('location')
+  const location = rawLoc ? locationParam(rawLoc, await getLocations(s)) : null
 
   const [{ data: ct }, { data: coaches }] = await Promise.all([
     s.from('course_types').select('id, max_students, duration_minutes').eq('slug', '1on4').single(),
@@ -129,7 +134,7 @@ export async function GET(req: NextRequest) {
   // ── Day shape ──────────────────────────────────────────────────────
   if (date) {
     const holds = await renewalHolds(s, date, date, student.parent_id)
-    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName, holds)
+    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName, holds, location)
     return NextResponse.json({ band: myBand, classes })
   }
 
@@ -154,7 +159,7 @@ export async function GET(req: NextRequest) {
     // before it (2026-10-05).
     const [{ data: zAll }, { data: zAny }, { data: offRows }, { data: sessRows }, { data: myB }, holds] = await Promise.all([
       s.from('coach_availability_zones')
-        .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
+        .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max, location_id')
         .in('coach_id', coachIds)
         .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startStr},override_date.lte.${endStr})`),
       s.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
@@ -200,10 +205,11 @@ export async function GET(req: NextRequest) {
         const rows = zonesBy[cid] || []
         const dateRows = rows.filter(r => r.kind === 'date' && r.override_date === ds)
         const picked = dateRows.length > 0 ? dateRows : rows.filter(r => r.kind === 'weekly' && r.weekday === dow)
+        // A closed day closes every pool; only then narrow to the one asked for.
         if (picked.some(r => r.zone_type === 'closed')) continue
         const blocked = blockedIntervalsFor((offBy[ds] || []) as any, cid)
         for (const z of picked) {
-          if (z.zone_type !== 'group' || !bandMatches(z, level)) continue
+          if (z.zone_type !== 'group' || !bandMatches(z, level) || !zoneAtLocation(z, location)) continue
           for (let m = toMin(String(z.start_time).slice(0, 5)); m + ct.duration_minutes <= toMin(String(z.end_time).slice(0, 5)); m += SLOT_STEP_MINUTES) {
             const t = idxTime(m)
             if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
@@ -238,7 +244,7 @@ export async function GET(req: NextRequest) {
     const mm = String(mo).padStart(2, '0')
     const startD = `${y}-${mm}-01`, endD = `${y}-${mm}-${String(last).padStart(2, '0')}`
     const { data: zrows } = await s.from('coach_availability_zones')
-      .select('coach_id, zone_type, kind, weekday, override_date, group_level_min, group_level_max')
+      .select('coach_id, zone_type, kind, weekday, override_date, group_level_min, group_level_max, location_id')
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${startD},override_date.lte.${endD})`)
     const byCoach: Record<string, any[]> = {}
     for (const r of zrows || []) (byCoach[r.coach_id] ||= []).push(r)
@@ -254,7 +260,7 @@ export async function GET(req: NextRequest) {
         const dateRows = rows.filter(r => r.kind === 'date' && r.override_date === ds)
         const picked = dateRows.length > 0 ? dateRows : rows.filter(r => r.kind === 'weekly' && r.weekday === dow)
         if (picked.some(r => r.zone_type === 'closed')) continue
-        if (picked.some(r => r.zone_type === 'group' && bandMatches(r, level))) { hit = true; break }
+        if (picked.some(r => r.zone_type === 'group' && bandMatches(r, level) && zoneAtLocation(r, location))) { hit = true; break }
       }
       if (hit) dates.push(ds)
     }

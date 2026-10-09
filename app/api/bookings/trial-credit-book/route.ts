@@ -4,6 +4,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { assessmentSlotError } from '@/lib/assessment-slot'
+import { sessionLocationLine } from '@/lib/locations'
 
 // Booking a Swim Assessment that was already paid for at the front desk.
 //
@@ -181,6 +182,7 @@ export async function POST(req: NextRequest) {
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time: `${formatTime12h(time)} – ${formatTime12h(endTime)}`,
+          location: await sessionLocationLine(svc, sessId),
         })
       }
     } catch (e) {

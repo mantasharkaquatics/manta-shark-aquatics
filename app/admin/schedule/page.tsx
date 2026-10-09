@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
 import { getT, tDb, dateTag } from '@/lib/i18n/all'
 import { getAdminLocale } from '@/lib/i18n/admin-locale'
+import { getLocations } from '@/lib/locations'
+import { LocationFilterProvider, LocationSwitch, LocationOnly, LocationTag } from '../components/LocationFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,9 +83,9 @@ export default async function AdminSchedulePage() {
   const allSessionIds = [...new Set([...sessionIds, ...newSessionIds])]
 
   // Step 3: fetch separately
-  const [{ data: sessionsData }, { data: studentsData }, { data: parentsData }] = await Promise.all([
+  const [{ data: sessionsData }, { data: studentsData }, { data: parentsData }, locations] = await Promise.all([
     allSessionIds.length > 0
-      ? supabase.from('class_sessions').select('id, session_date, start_time, coach_id, course_types(id, name), coaches(first_name)').in('id', allSessionIds)
+      ? supabase.from('class_sessions').select('id, session_date, start_time, coach_id, location_id, course_types(id, name), coaches(first_name)').in('id', allSessionIds)
       : Promise.resolve({ data: [] }),
     studentIds.length > 0
       ? supabase.from('students').select('id, full_name').in('id', studentIds)
@@ -91,6 +93,8 @@ export default async function AdminSchedulePage() {
     parentIds.length > 0
       ? supabase.from('parents').select('id, first_name, last_name').in('id', parentIds)
       : Promise.resolve({ data: [] }),
+    // Every pool, open or not: the switch and tags show once there are two.
+    getLocations(supabase),
   ])
 
   // Fetch initiator parent and student (via partner_parent_id and partner_booking_id)
@@ -160,13 +164,19 @@ export default async function AdminSchedulePage() {
     return { cs, student, parent }
   }
 
+  // A lesson's pool, for LocationOnly / LocationTag. undefined = the lesson was
+  // not read, so the filter keeps the item rather than hiding it.
+  const locOf = (cs: any): string | null | undefined => cs ? (cs.location_id ?? null) : undefined
+
   return (
+    <LocationFilterProvider page="schedule" locations={locations}>
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">{t('admin.schedule.title')}</h1>
           <p className="text-gray-400 mt-1">{t('admin.schedule.subtitle')}</p>
         </div>
+        <LocationSwitch />
         {pendingCount > 0 && (
           <div className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/40 rounded-xl px-4 py-2">
             <div className="w-2 h-2 rounded-full bg-yellow-400" />
@@ -190,13 +200,14 @@ export default async function AdminSchedulePage() {
                 const { cs, student, parent } = renderBookingInfo(b)
                 const mins = minsLeft(b.pending_expires_at)
                 return (
-                  <div key={b.id} className="bg-[#111d38] rounded-xl border border-purple-800/40 p-5 flex items-start justify-between gap-4">
+                  <LocationOnly key={b.id} locs={[locOf(cs)]}>
+                  <div className="bg-[#111d38] rounded-xl border border-purple-800/40 p-5 flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-purple-400 text-xs font-bold uppercase tracking-wide">{t('admin.schedule.invitationPending')}</span>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${mins <= 3 ? 'bg-red-900/40 text-red-400' : 'bg-yellow-900/30 text-yellow-400'}`}>{t('admin.schedule.minLeft', { n: mins })}</span>
                       </div>
-                      <p className="text-[#c9a84c] text-sm mb-2">{ctName(cs)} · {coachLabel(cs)} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</p>
+                      <p className="text-[#c9a84c] text-sm mb-2">{ctName(cs)} · {coachLabel(cs)} · {fDate(cs?.session_date)} {fTime(cs?.start_time)} <LocationTag loc={cs?.location_id} /></p>
                       <div className="flex flex-col gap-1">
                         {(() => {
                           const initiatorParent = b.partner_parent_id ? partnerParentMap[b.partner_parent_id] : null
@@ -218,6 +229,7 @@ export default async function AdminSchedulePage() {
                       </div>
                     </div>
                   </div>
+                  </LocationOnly>
                 )
               })}
             </div>
@@ -252,7 +264,8 @@ export default async function AdminSchedulePage() {
                   const rStudent = recipient ? studentMap[recipient.student_id] : null
                   const rParent = recipient ? parentMap[recipient.parent_id] : null
                   return (
-                    <div key={initiator.id} className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
+                    <LocationOnly key={initiator.id} locs={[locOf(cs), locOf(newCs)]}>
+                    <div className="bg-[#111d38] rounded-xl border border-yellow-800/30 p-5">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-yellow-400 text-xs font-bold uppercase tracking-wide">{t('admin.schedule.reschedulePending')}</span>
                         {initiator.pending_expires_at && (() => {
@@ -264,6 +277,7 @@ export default async function AdminSchedulePage() {
                         <span className="text-gray-500 text-sm line-through">{ctName(cs)} · {coachLabel(cs)} · {fDate(cs?.session_date)} {fTime(cs?.start_time)}</span>
                         <span className="text-gray-500">→</span>
                         <span className="text-[#c9a84c] text-sm">{ctName(newCs) || ctName(cs)} · {t('admin.coachName', { name: newCs?.coach?.first_name || cs?.coach?.first_name || '' })} · {fDate(newCs?.session_date)} {fTime(newCs?.start_time)}</span>
+                        <LocationTag loc={(newCs || cs)?.location_id} />
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
@@ -281,6 +295,7 @@ export default async function AdminSchedulePage() {
                       </div>
 
                     </div>
+                    </LocationOnly>
                   )
                 })
               })()}
@@ -458,13 +473,14 @@ export default async function AdminSchedulePage() {
             return (
               <div className="space-y-2">
                 {filteredItems.map(item => (
-                  <div key={item.key} className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
+                  <LocationOnly key={item.key} locs={[locOf(item.cs), locOf(item.newCs)].filter(l => l !== undefined)}>
+                  <div className={`bg-[#111d38] rounded-xl border p-4 flex items-start justify-between gap-4 ${item.type === 'cancelled' ? 'border-red-900/25' : 'border-green-900/25'}`}>
                     <div className="flex items-start gap-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 mt-0.5 ${item.type === 'cancelled' ? 'bg-red-900/30 text-red-400' : item.type === 'new' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
                         {item.type === 'cancelled' ? t('admin.schedule.typeCancelled') : item.type === 'new' ? t('admin.schedule.typeNew') : t('admin.schedule.typeRescheduled')}
                       </span>
                       <div>
-                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">{t('admin.schedule.linked')}</span>}</p>
+                        <p className="text-white text-sm font-semibold">{item.names}{item.isCrossAccount && <span className="ml-2 text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded font-normal">{t('admin.schedule.linked')}</span>} <LocationTag loc={(item.newCs || item.cs)?.location_id} className="ml-1" /></p>
                         {item.type === 'new' && item.seriesCount ? (
                           <p className="text-blue-400 text-xs mt-0.5">{ctName(item.cs)} · {coachLabel(item.cs)} · {t('admin.schedule.seriesFrom', { n: item.seriesCount, date: `${fDate(item.cs?.session_date)} ${fTime(item.cs?.start_time)}` })}</p>
                         ) : item.type === 'new' ? (
@@ -494,6 +510,7 @@ export default async function AdminSchedulePage() {
                     </div>
                     <span className="text-gray-600 text-xs shrink-0">{fDT(item.updatedAt)}</span>
                   </div>
+                  </LocationOnly>
                 ))}
               </div>
             )
@@ -501,5 +518,6 @@ export default async function AdminSchedulePage() {
         </section>
       </div>
     </div>
+    </LocationFilterProvider>
   )
 }

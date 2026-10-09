@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
+import { zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
@@ -54,10 +55,10 @@ export type LessonRow = {
   status: string; points_charged: number | null; points_refunded: number | null
   points_granted: number | null; points_granted_expires_at: string | null
   lesson_group_id: string | null; original_booking_id: string | null
-  session: { session_date: string; start_time: string; end_time: string | null; coach_id: string; course_type_id: string }
+  session: { session_date: string; start_time: string; end_time: string | null; coach_id: string; course_type_id: string; location_id?: string | null }
 }
-/** One lesson of a fixed class: one date, its rows (a seat per swimmer, two halves for an hour). */
-export type Lesson = { date: string; start: string; coachId: string; rows: LessonRow[] }
+/** One lesson of a fixed class: one date, its rows (a seat per swimmer, two halves for an hour), and its pool. */
+export type Lesson = { date: string; start: string; coachId: string; locationId: string | null; rows: LessonRow[] }
 
 const ROW_COLS = 'id, fixed_class_id, class_session_id, student_id, parent_id, status, points_charged, points_refunded, points_granted, points_granted_expires_at, lesson_group_id, original_booking_id'
 
@@ -72,7 +73,7 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
   // their lessons run past 1,000 rows -- the rest were dropped silently, so a
   // class could look ended and its hold vanish (found 2026-10-05).
   const { data, error } = await allRowsIn(fcIds, chunk => svc.from('bookings')
-    .select(`${ROW_COLS}, session:class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, coach_id, course_type_id)`)
+    .select(`${ROW_COLS}, session:class_sessions!bookings_class_session_id_fkey(session_date, start_time, end_time, coach_id, course_type_id, location_id)`)
     .in('fixed_class_id', chunk).in('status', ['confirmed', 'completed']).order('id'))
   if (!error) {
     rows = (data || []).map((r: any) => ({ ...r, session: Array.isArray(r.session) ? r.session[0] : r.session }))
@@ -83,7 +84,7 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
     const sOf = new Map<string, any>()
     for (let i = 0; i < ids.length; i += 150) {
       const { data: ss } = await svc.from('class_sessions')
-        .select('id, session_date, start_time, end_time, coach_id, course_type_id').in('id', ids.slice(i, i + 150))
+        .select('id, session_date, start_time, end_time, coach_id, course_type_id, location_id').in('id', ids.slice(i, i + 150))
       for (const s of ss || []) sOf.set(s.id, s)
     }
     rows = (bs || []).map((b: any) => ({ ...b, session: sOf.get(b.class_session_id) }))
@@ -94,13 +95,13 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
     const k = `${r.fixed_class_id}|${r.session.session_date}`
     let l = byKey.get(k)
     if (!l) {
-      l = { date: r.session.session_date, start: String(r.session.start_time).slice(0, 5), coachId: r.session.coach_id, rows: [] }
+      l = { date: r.session.session_date, start: String(r.session.start_time).slice(0, 5), coachId: r.session.coach_id, locationId: r.session.location_id ?? null, rows: [] }
       byKey.set(k, l)
       out.set(r.fixed_class_id, [...(out.get(r.fixed_class_id) || []), l])
     }
     l.rows.push(r)
     const st = String(r.session.start_time).slice(0, 5)
-    if (st < l.start) { l.start = st; l.coachId = r.session.coach_id }
+    if (st < l.start) { l.start = st; l.coachId = r.session.coach_id; l.locationId = r.session.location_id ?? null }
   }
   for (const [, list] of out) {
     list.sort((a, b) => a.date.localeCompare(b.date))
@@ -256,7 +257,7 @@ export async function loadWindow(svc: Svc, coachIds: string[], from: string, to:
   if (coachIds.length === 0) return w
   const [{ data: zrows }, { data: zany }, { data: offRows }, { data: sessRows }] = await Promise.all([
     svc.from('coach_availability_zones')
-      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
+      .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max, location_id')
       .in('coach_id', coachIds)
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
     svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
@@ -299,6 +300,9 @@ export type SlotQuery = {
   ignoreSeats?: Map<string, number>
   busy?: Map<string, Busy[]>
   today?: string; nowMin?: number
+  /** Only a zone at this pool admits the lesson (a family booking at one
+   *  location, lib/locations.ts). Omitted = any pool, as before. */
+  locationId?: string | null
 }
 
 /** Can these swimmers have this lesson with this coach on this date? */
@@ -314,12 +318,17 @@ export function evalSlot(w: CalWindow, q: SlotQuery): { status: CandStatus; spot
   // booking routes let those through without a zone check.
   if (w.zoned.has(q.coachId)) {
     const picked = zonesOn(w, q.coachId, q.date)
+    // A closed day closes every pool; only then narrow to the one asked for.
     if (picked.some(r => r.zone_type === 'closed')) return { status: 'no_class', spots: 0 }
-    const z = picked.find(r => r.zone_type === zoneType && toMin(r.start_time) <= q.startMin && endMin <= toMin(r.end_time))
+    const z = picked.find(r => r.zone_type === zoneType && zoneAtLocation(r, q.locationId)
+      && toMin(r.start_time) <= q.startMin && endMin <= toMin(r.end_time))
     if (!z) return { status: 'no_class', spots: 0 }
     // The level band belongs to group zones; a private zone has none.
     if (zoneType === 'group' && z.group_level_min != null && z.group_level_max != null
         && (q.level < z.group_level_min || q.level > z.group_level_max)) return { status: 'no_class', spots: 0 }
+  } else if (q.locationId && q.locationId !== DEFAULT_LOCATION_ID) {
+    // The old weekly table predates locations: a legacy coach teaches at the first pool only.
+    return { status: 'no_class', spots: 0 }
   }
   if (isBlocked(w.off.get(`${q.coachId}|${q.date}`) || [], q.coachId, startTime, minToTime(endMin))) return { status: 'time_off', spots: 0 }
   const eff = (s: any) => (s.enrolled_count || 0) - (q.ignoreSeats?.get(s.id) || 0)
@@ -353,6 +362,7 @@ export async function weeklyCandidates(svc: Svc, o: {
   studentIds: string[]; level: number; startTime: string; startDate: string
   minutes: number; seats: number; weeks: number
   holds?: Hold[]; ignoreSeats?: Map<string, number>; ignoreBookingIds?: Set<string>
+  locationId?: string | null
 }): Promise<Cand[]> {
   const dates: string[] = []
   for (let i = 0, ds = o.startDate; i < o.weeks; i++, ds = addDaysStr(ds, 7)) dates.push(ds)
@@ -368,7 +378,7 @@ export async function weeklyCandidates(svc: Svc, o: {
     date,
     ...evalSlot(w, {
       coachId: o.coachId, date, startMin, minutes: o.minutes, ct: o.ct, level: o.level, seats: o.seats,
-      holds: o.holds, ignoreSeats: o.ignoreSeats, busy, today, nowMin,
+      holds: o.holds, ignoreSeats: o.ignoreSeats, busy, today, nowMin, locationId: o.locationId,
     }),
   }))
 }
@@ -388,7 +398,7 @@ export function halvesOf(startMin: number, minutes: number, slug: string): { sta
  * email asking whether to renew. Claimed before sending, so two overlapping
  * runs cannot both email; a renewal clears the flag for the next round.
  */
-export async function sendRenewalNotices(svc: Svc, send: (fc: FixedClass, last: string) => Promise<boolean>, today = getTodayLA()) {
+export async function sendRenewalNotices(svc: Svc, send: (fc: FixedClass, last: string, lastLocationId: string | null) => Promise<boolean>, today = getTodayLA()) {
   const { data, error } = await svc.from('fixed_classes').select(FC_COLUMNS)
     .eq('status', 'active').is('renewal_notified_at', null)
   if (error) { console.error('renewal notices: fixed classes not read:', error.message); return { sent: 0, failed: -1 } }
@@ -404,7 +414,9 @@ export async function sendRenewalNotices(svc: Svc, send: (fc: FixedClass, last: 
       .update({ renewal_notified_at: stamp }).eq('id', f.id).is('renewal_notified_at', null).select('id')
     if (!claimed || claimed.length === 0) continue
     let ok = false
-    try { ok = await send(f, st.last) } catch (e) { console.error('renewal notice failed', f.id, e) }
+    // The last lesson's pool: the renewal continues there (the email names it once there is more than one).
+    const lastLoc = (lessons.get(f.id) || []).find(l => l.date === st.last)?.locationId ?? null
+    try { ok = await send(f, st.last, lastLoc) } catch (e) { console.error('renewal notice failed', f.id, e) }
     if (ok) { sent++; continue }
     failed++
     // Not sent: give the claim back so tomorrow's run tries again. It used to

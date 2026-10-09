@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { requireCron } from '@/lib/cron-auth'
+import { getLocations, showLocations, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
   // Step 1: sessions whose LA wall-clock start falls inside the window
   const { data: sessions, error: sessErr } = await supabase
     .from('class_sessions')
-    .select('id, session_date, start_time, course_type_id, coach_id')
+    .select('id, session_date, start_time, course_type_id, coach_id, location_id')
     .in('session_date', candidateDates)
 
   if (sessErr) {
@@ -108,7 +109,7 @@ export async function GET(request: Request) {
     if (missing.length > 0) {
       const { data: more, error: moreErr } = await supabase
         .from('class_sessions')
-        .select('id, session_date, start_time, course_type_id, coach_id')
+        .select('id, session_date, start_time, course_type_id, coach_id, location_id')
         .in('id', missing)
       if (moreErr) {
         console.error('Error fetching sessions (other halves):', moreErr)
@@ -138,12 +139,23 @@ export async function GET(request: Request) {
   const courseTypeIds = uniq([...sessionMap.values()].map((s) => s.course_type_id))
   const coachIds = uniq([...sessionMap.values()].map((s) => s.coach_id))
 
-  const [studentsRes, parentsRes, courseTypesRes, coachesRes] = await Promise.all([
+  const [studentsRes, parentsRes, courseTypesRes, coachesRes, pools] = await Promise.all([
     supabase.from('students').select('id, full_name').in('id', studentIds),
     supabase.from('parents').select('id, phone, first_name, terms_version').in('id', parentIds),
     supabase.from('course_types').select('id, name').in('id', courseTypeIds),
     supabase.from('coaches').select('id, first_name').in('id', coachIds),
+    getLocations(supabase),
   ])
+  // Which pool, once there is more than one open to families: " at Monrovia
+  // (123 Main St)". With one pool the text is exactly what it was.
+  const poolsShown = showLocations(pools)
+  const poolText = (locationId: string | null | undefined) => {
+    if (!poolsShown) return ''
+    const loc = pools.find((l) => l.id === (locationId || DEFAULT_LOCATION_ID))
+    if (!loc) return ''
+    const addr = (loc.address || '').trim()
+    return ` at ${loc.name}${addr && addr.toLowerCase() !== loc.name.trim().toLowerCase() ? ` (${addr})` : ''}`
+  }
 
   for (const [label, res] of [
     ['students', studentsRes],
@@ -237,7 +249,7 @@ export async function GET(request: Request) {
     // read "1-on-1 Private lesson" -- in the family's first text from us,
     // about something they booked as an assessment (found 2026-10-06).
     const what = rows.some((r) => r.is_trial) ? 'a Swim Assessment' : `a ${courseType?.name} lesson${hour}`
-    const message = `Hi ${parent.first_name}! Reminder: ${who} ${names.length > 1 ? 'have' : 'has'} ${what} tomorrow at ${time} with Coach ${coach?.first_name}. See you then! - Manta Shark Aquatics${SMS_COMPLIANCE_SUFFIX}`
+    const message = `Hi ${parent.first_name}! Reminder: ${who} ${names.length > 1 ? 'have' : 'has'} ${what} tomorrow at ${time} with Coach ${coach?.first_name}${poolText(first.location_id)}. See you then! - Manta Shark Aquatics${SMS_COMPLIANCE_SUFFIX}`
 
     try {
       const result = await sendSms(parent.phone, message)

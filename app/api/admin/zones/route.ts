@@ -4,6 +4,7 @@ import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
 import { MAX_LEVEL } from '@/lib/levels'
+import { getLocations, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 
 // Admin CRUD for coach availability zones (spec v1.1).
 // GET ?coach_id → weekly template + legacy hours + tiers
@@ -12,6 +13,21 @@ import { MAX_LEVEL } from '@/lib/levels'
 // POST → date override: { coach_id, date, clear? } | { ..., closed: true } | { ..., zones: [...] }
 
 const VALID_TYPES = ['private', 'group', 'team']
+
+// Which pool each block is at. A missing location_id is the default pool, so a
+// payload from before locations (or a cached old editor tab) still saves as
+// Brea. An id that is not in the table is refused rather than stored: the
+// column has a foreign key, and a 500 from that says less than this does.
+// Before the migration the table is empty and only the default is accepted.
+function zoneLocation(z: any, all: Location[]): string | null {
+  const id = z.location_id == null || z.location_id === '' ? DEFAULT_LOCATION_ID : String(z.location_id)
+  if (all.length === 0) return id === DEFAULT_LOCATION_ID ? id : null
+  return all.some(l => l.id === id) ? id : null
+}
+function checkLocations(zones: any[], all: Location[]): string | null {
+  for (const z of zones) if (!zoneLocation(z, all)) return 'Unknown location'
+  return null
+}
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
 // Q3 (warn-and-save): list future enrolled sessions that no longer fit the new zones.
@@ -83,15 +99,17 @@ export async function GET(req: NextRequest) {
   if (date) {
     const { data: dateRows } = await svc
       .from('coach_availability_zones')
-      .select('zone_type, start_time, end_time, team_tier_id, group_level_min, group_level_max')
+      .select('zone_type, start_time, end_time, team_tier_id, group_level_min, group_level_max, location_id')
       .eq('coach_id', coachId).eq('kind', 'date').eq('override_date', date)
       .order('start_time')
     return NextResponse.json({ dateRows: dateRows || [] })
   }
 
-  const [{ data: weekly }, { data: legacy }, { data: tiers }, { data: ovRows }] = await Promise.all([
+  // Every pool, closed-to-families ones too: the admin paints Monrovia hours
+  // before turning Monrovia on.
+  const [{ data: weekly }, { data: legacy }, { data: tiers }, { data: ovRows }, locations] = await Promise.all([
     svc.from('coach_availability_zones')
-      .select('zone_type, weekday, start_time, end_time, team_tier_id, group_level_min, group_level_max')
+      .select('zone_type, weekday, start_time, end_time, team_tier_id, group_level_min, group_level_max, location_id')
       .eq('coach_id', coachId).eq('kind', 'weekly').order('weekday').order('start_time'),
     svc.from('coach_availability')
       .select('day_of_week, start_time, end_time')
@@ -100,11 +118,12 @@ export async function GET(req: NextRequest) {
     svc.from('coach_availability_zones')
       .select('override_date, zone_type')
       .eq('coach_id', coachId).eq('kind', 'date').order('override_date'),
+    getLocations(svc),
   ])
   const ovMap: Record<string, boolean> = {}
   for (const r of (ovRows || []) as any[]) ovMap[r.override_date] = ovMap[r.override_date] || r.zone_type === 'closed'
   const overrideDates = Object.entries(ovMap).map(([date, closed]) => ({ date, closed }))
-  return NextResponse.json({ weekly: weekly || [], legacy: legacy || [], tiers: tiers || [], overrideDates })
+  return NextResponse.json({ weekly: weekly || [], legacy: legacy || [], tiers: tiers || [], overrideDates, locations })
 }
 
 export async function PUT(req: NextRequest) {
@@ -119,6 +138,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'coach_id and zones[] required' }, { status: 400 })
   const err = validateZones(zones, true)
   if (err) return NextResponse.json({ error: err }, { status: 400 })
+  const locations = await getLocations(svc)
+  const locErr = checkLocations(zones, locations)
+  if (locErr) return NextResponse.json({ error: locErr }, { status: 400 })
 
   const { error: delErr } = await svc
     .from('coach_availability_zones').delete().eq('coach_id', coach_id).eq('kind', 'weekly')
@@ -128,7 +150,7 @@ export async function PUT(req: NextRequest) {
     const { error: insErr } = await svc.from('coach_availability_zones').insert(
       zones.map((z: any) => ({
         coach_id, kind: 'weekly', zone_type: z.zone_type, weekday: z.weekday,
-        start_time: z.start_time, end_time: z.end_time,
+        start_time: z.start_time, end_time: z.end_time, location_id: zoneLocation(z, locations),
         team_tier_id: z.zone_type === 'team' ? z.team_tier_id : null,
         group_level_min: z.zone_type === 'group' ? z.group_level_min ?? null : null,
         group_level_max: z.zone_type === 'group' ? z.group_level_max ?? null : null,
@@ -180,11 +202,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'zones[] required (or closed/clear flag)' }, { status: 400 })
   const err = validateZones(zones, false)
   if (err) return NextResponse.json({ error: err }, { status: 400 })
+  const locations = await getLocations(svc)
+  const locErr = checkLocations(zones, locations)
+  if (locErr) return NextResponse.json({ error: locErr }, { status: 400 })
 
   const { error: insErr } = await svc.from('coach_availability_zones').insert(
     zones.map((z: any) => ({
       coach_id, kind: 'date', override_date: date, zone_type: z.zone_type,
-      start_time: z.start_time, end_time: z.end_time,
+      start_time: z.start_time, end_time: z.end_time, location_id: zoneLocation(z, locations),
       team_tier_id: z.zone_type === 'team' ? z.team_tier_id : null,
       group_level_min: z.zone_type === 'group' ? z.group_level_min ?? null : null,
       group_level_max: z.zone_type === 'group' ? z.group_level_max ?? null : null,

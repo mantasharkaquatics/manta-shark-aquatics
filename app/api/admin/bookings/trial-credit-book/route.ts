@@ -5,6 +5,7 @@ import { formatTime12h } from '@/lib/date'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
+import { sessionLocationLine } from '@/lib/locations'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireAdmin()
@@ -178,6 +179,7 @@ export async function POST(req: NextRequest) {
           coachName: coach ? `${coach.first_name} ${coach.last_name}` : '',
           date,
           time: `${formatTime12h(time)} – ${formatTime12h(endTime)}`,
+          location: await sessionLocationLine(svc, sessId),
         })
       }
     } catch (e) {

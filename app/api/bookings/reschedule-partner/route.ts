@@ -7,6 +7,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/date'
 import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { lessonLocationLine } from '@/lib/locations'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   // Verify the new session exists
   const { data: newSession } = await supabase
     .from('class_sessions')
-    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, end_time, course_type_id, status, course_types(name), coaches(first_name)')
+    .select('id, enrolled_count, max_students, coach_id, session_date, start_time, end_time, course_type_id, status, location_id, course_types(name), coaches(first_name)')
     .eq('id', new_session_id)
     .single()
 
@@ -139,6 +140,8 @@ export async function POST(req: NextRequest) {
           time: range(oldSess.start_time, (oldSess as any).end_time),
           newDate: ns.session_date,
           newTime: range(ns.start_time, ns.end_time),
+          // The pool of the proposed time (the template says so); unset with one pool.
+          location: await lessonLocationLine(supabase, ns.location_id),
           deadline: new Date(expiresAt).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }),
         })
     }
