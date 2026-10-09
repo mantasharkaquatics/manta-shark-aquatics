@@ -414,6 +414,7 @@
   "chat.placeholder": "Type a message…",
   "chat.send": "Send message",
   "chat.subtitle": "AI assistant · a team member follows up when needed",
+  "chat.subtitleHuman": "Our team is with you · they reply in this chat",
   "chat.title": "Manta Shark Support",
   "chat.unread": "{n} new",
   "checkout.acctTeam": "Each membership covers one student — select the swimmer below",

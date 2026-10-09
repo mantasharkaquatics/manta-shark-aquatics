@@ -80,6 +80,14 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const openRef = useRef(open)
   useEffect(() => { openRef.current = open }, [open])
   const [awaitingAi, setAwaitingAi] = useState(false)
+  /* Who answers this thread now: the AI, or the desk after it has taken over
+     (chat_threads.mode, set by Admin > Messages). The header used to say "AI
+     assistant" all the time, so a family whose message went to the desk --
+     and got no AI reply, by design -- read the silence as being ignored
+     (found 2026-10-08). Kept current from what arrives in the chat: a desk
+     reply means the desk has it, the desk's hand-back notice means the AI is
+     back, and a message the AI skipped means the desk has it. */
+  const [mode, setMode] = useState<'ai' | 'human'>('ai')
 
   useEffect(() => {
     const onOpen = (e: Event) => {
@@ -123,6 +131,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       const th = await findThread()
       if (!alive || !th) return
       setThreadId(prev => prev ?? th.id)
+      setMode(th.mode)
       // Before the migration there is no read mark to count from: no dot.
       if (!th.readKnown) return
       let q = supabase.from('chat_messages').select('id', { count: 'exact', head: true })
@@ -149,6 +158,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
         // (sent from another tab or phone) is not news to them, and neither
         // is the desk's "session ended" notice.
         const from = (payload.new as any)?.sender_type
+        if (from === 'admin') setMode('human')
+        else if (from === 'system') setMode('ai')
         if (!openRef.current && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
       })
       .subscribe()
@@ -212,6 +223,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     const data = await findThread()
     if (data) {
       setThreadId(data.id)
+      setMode(data.mode)
     } else {
       const { data: newThread } = await supabase
         .from('chat_threads')
@@ -225,13 +237,14 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   /** The family's thread (the oldest, as the payment notices pick it), and
    *  when they last had it open. readKnown is false before
    *  docs/migration-fix5-A.sql has added that column. */
-  async function findThread(): Promise<{ id: string; lastRead: string | null; readKnown: boolean } | null> {
-    const withRead = await supabase.from('chat_threads').select('id, parent_last_read_at')
+  async function findThread(): Promise<{ id: string; lastRead: string | null; readKnown: boolean; mode: 'ai' | 'human' } | null> {
+    const modeOf = (r: any): 'ai' | 'human' => (r?.mode === 'human' ? 'human' : 'ai')
+    const withRead = await supabase.from('chat_threads').select('id, mode, parent_last_read_at')
       .eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
-    if (!withRead.error) return withRead.data ? { id: withRead.data.id, lastRead: (withRead.data as any).parent_last_read_at ?? null, readKnown: true } : null
-    const plain = await supabase.from('chat_threads').select('id')
+    if (!withRead.error) return withRead.data ? { id: withRead.data.id, lastRead: (withRead.data as any).parent_last_read_at ?? null, readKnown: true, mode: modeOf(withRead.data) } : null
+    const plain = await supabase.from('chat_threads').select('id, mode')
       .eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
-    return plain.data ? { id: plain.data.id, lastRead: null, readKnown: false } : null
+    return plain.data ? { id: plain.data.id, lastRead: null, readKnown: false, mode: modeOf(plain.data) } : null
   }
 
   async function loadGuest(k: string) {
@@ -279,13 +292,19 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   // 1,000-row cap cut off the NEWEST messages once a thread grew past it, so
   // the desk's latest reply was not on screen.
   async function loadMessages() {
-    const { data } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('thread_id', threadId)
-      .order('created_at', { ascending: false })
-      .limit(HISTORY_LIMIT)
+    const [{ data }, { data: th }] = await Promise.all([
+      supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('thread_id', threadId)
+        .order('created_at', { ascending: false })
+        .limit(HISTORY_LIMIT),
+      // Opening the panel also re-reads who answers now: the desk can take
+      // over (or hand back) while the panel was shut.
+      supabase.from('chat_threads').select('mode').eq('id', threadId).maybeSingle(),
+    ])
     setMessages((data || []).reverse())
+    if (th) setMode((th as any).mode === 'human' ? 'human' : 'ai')
   }
 
   async function sendMessage(text?: string) {
@@ -320,6 +339,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       if (d?.changed) { try { window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT)) } catch {} }
       if (d?.skipped) {
         // Human service mode: AI stays silent, hide typing animation, notify admin of the new message
+        if (d.skipped === 'human_mode') setMode('human')
         setAwaitingAi(false)
         if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
         await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
@@ -381,7 +401,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               style={{ display: 'block', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, color: '#fff', fontSize: '16px' }}>{t('chat.title')}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{t('chat.subtitle')}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{!guest && mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
           </div>

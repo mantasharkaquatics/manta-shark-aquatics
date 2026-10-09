@@ -414,6 +414,7 @@
   "chat.placeholder": "輸入訊息…",
   "chat.send": "傳送訊息",
   "chat.subtitle": "AI 助理 · 需要時會有專人接手",
+  "chat.subtitleHuman": "專人客服中 · 櫃台會在這裡回覆您",
   "chat.title": "Manta Shark 客服",
   "chat.unread": "{n} 則新訊息",
   "checkout.acctTeam": "每筆訂閱涵蓋一位學員，請在下方選擇",
