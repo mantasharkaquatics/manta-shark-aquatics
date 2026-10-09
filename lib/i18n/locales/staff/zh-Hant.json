@@ -164,6 +164,8 @@
   "admin.booking.err.previewRetry": "預覽失敗，請再試一次",
   "admin.booking.err.noBookableDates": "沒有可預約的日期",
   "admin.booking.err.createFailed": "建立失敗",
+  "admin.booking.hold.title": "時段保留中",
+  "admin.booking.hold.override": "仍要預約",
   "admin.booking.hold.line": "{date}——保留給 {family}，到 {until}",
   "admin.booking.hold.aFamily": "固定班家庭",
   "admin.booking.hold.confirm": "這個時段正在為固定班家庭保留續報，續報信上已答應保留給他們：\n\n{list}\n\n確定仍要覆蓋保留並預約嗎？系統不會通知該家庭。",

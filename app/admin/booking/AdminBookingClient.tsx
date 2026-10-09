@@ -88,6 +88,41 @@ const SLOT_MINUTES = 30
  * Sends the request, asks if it meets a hold, and sends it again with
  * override_holds. `declined` is true when the desk said no.
  */
+/* The second confirmation is an in-page dialog, not window.confirm: native
+   alert/confirm were removed from the whole app (d7f5ed0), since they block
+   the page and read as the browser rather than this app. One host,
+   rendered by AdminBookingClient, answers every caller on this page. */
+let holdAsker: ((message: string) => Promise<boolean>) | null = null
+function askHoldOverride(message: string): Promise<boolean> {
+  return holdAsker ? holdAsker(message) : Promise.resolve(false)
+}
+
+function HoldOverrideHost() {
+  const t = useT()
+  const [ask, setAsk] = useState<{ message: string; resolve: (ok: boolean) => void } | null>(null)
+  useEffect(() => {
+    holdAsker = (message) => new Promise<boolean>(resolve => setAsk({ message, resolve }))
+    return () => { holdAsker = null }
+  }, [])
+  if (!ask) return null
+  const done = (ok: boolean) => { ask.resolve(ok); setAsk(null) }
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4" onClick={() => done(false)}
+      role="alertdialog" aria-modal="true" aria-label={t('admin.booking.hold.title')}>
+      <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <h3 className="text-white font-bold text-lg mb-2">{t('admin.booking.hold.title')}</h3>
+        <p className="text-gray-300 text-sm mb-5 leading-relaxed whitespace-pre-line">{ask.message}</p>
+        <div className="flex gap-3">
+          <button onClick={() => done(false)} autoFocus
+            className="flex-1 py-2.5 rounded-lg border border-[#1e3a6e] text-gray-300 text-sm hover:bg-[#1e3a6e]/40">{t('common.cancel')}</button>
+          <button onClick={() => done(true)}
+            className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold text-sm hover:opacity-90">{t('admin.booking.hold.override')}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 async function postWithHoldCheck(url: string, body: Record<string, unknown>, t: TFunction, locale: Locale): Promise<{ res: Response; data: any; declined: boolean }> {
   const send = async (b: Record<string, unknown>) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
@@ -99,7 +134,7 @@ async function postWithHoldCheck(url: string, body: Record<string, unknown>, t: 
   const day = (ymd: string) => new Date(ymd + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short' })
   const lines = (first.data.holds || []).map((h: { date: string; family: string; until: string }) =>
     t('admin.booking.hold.line', { date: day(h.date), family: h.family || t('admin.booking.hold.aFamily'), until: day(h.until) }))
-  if (!window.confirm(t('admin.booking.hold.confirm', { list: lines.join('\n') }))) return { ...first, declined: true }
+  if (!(await askHoldOverride(t('admin.booking.hold.confirm', { list: lines.join('\n') })))) return { ...first, declined: true }
   return { ...(await send({ ...body, override_holds: true })), declined: false }
 }
 
@@ -918,6 +953,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
+      <HoldOverrideHost />
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>

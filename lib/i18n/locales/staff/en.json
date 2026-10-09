@@ -164,6 +164,8 @@
   "admin.booking.err.previewRetry": "Preview failed, please try again",
   "admin.booking.err.noBookableDates": "No bookable dates",
   "admin.booking.err.createFailed": "Creation failed",
+  "admin.booking.hold.title": "Slot held for a renewal",
+  "admin.booking.hold.override": "Book anyway",
   "admin.booking.hold.line": "{date} — held for {family} until {until}",
   "admin.booking.hold.aFamily": "a fixed-class family",
   "admin.booking.hold.confirm": "This time is held for a fixed-class family's renewal. Their renewal email promised them this slot:\n\n{list}\n\nBook over the hold anyway? The family will not be notified.",
