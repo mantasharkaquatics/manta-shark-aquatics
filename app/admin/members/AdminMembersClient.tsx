@@ -471,9 +471,16 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
-export default function AdminMembersClient({ parents: initialParents }: { parents: Parent[] }) {
+type Deactivation = { at: string | null; by: string | null }
+
+export default function AdminMembersClient({ parents: initialParents, deactivations = {} }: { parents: Parent[]; deactivations?: Record<string, Deactivation> }) {
   const t = useT()
   const locale = useLocale()
+  // Deactivate / reactivate a swimmer (owner, 2026-10-09): who and when, and
+  // which row is asking "are you sure?".
+  const [offInfo, setOffInfo] = useState<Record<string, Deactivation>>(deactivations)
+  const [confirmingActive, setConfirmingActive] = useState<string | null>(null)
+  const [activeBusy, setActiveBusy] = useState<string | null>(null)
   const supabase = createClient()
   const [search, setSearch] = useState('')
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
@@ -627,6 +634,35 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
   }
   const [expanded, setExpanded] = useState<string | null>(null)
   const [parents, setParents] = useState<Parent[]>(initialParents)
+
+  async function setStudentActive(parentId: string, student: Student, active: boolean) {
+    setActiveBusy(student.id)
+    try {
+      const res = await fetch('/api/admin/students/active', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: student.id, active }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAlertMsg(d.code === 'busy'
+          ? t('admin.members.deactivateBusy', { name: student.full_name, lessons: d.lessons ?? 0, fixed: d.fixed ?? 0, team: d.team ?? 0 })
+          : t('admin.members.activeFailed'))
+        return
+      }
+      setParents(prev => prev.map(p => p.id !== parentId ? p : { ...p, students: p.students.map(st => st.id === student.id ? { ...st, is_active: active } : st) }))
+      setOffInfo(prev => {
+        const next = { ...prev }
+        if (active) delete next[student.id]
+        else next[student.id] = { at: d.deactivated_at ?? new Date().toISOString(), by: d.deactivated_by_name ?? null }
+        return next
+      })
+    } catch {
+      setAlertMsg(t('admin.members.activeFailed'))
+    } finally {
+      setActiveBusy(null)
+      setConfirmingActive(null)
+    }
+  }
 
   async function markReviewed(parentId: string) {
     await fetch('/api/admin/parents/mark-reviewed', {
@@ -893,6 +929,12 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                       {t('admin.members.addedByParent')}{student.created_at ? ' · ' + formatDate(student.created_at, locale) : ''}
                                     </p>
                                   )}
+                                  {student.is_active === false && offInfo[student.id]?.at && (
+                                    <p className="text-red-300/80 text-[10px] mt-0.5">
+                                      {t('admin.members.deactivatedOn', { date: formatDate(offInfo[student.id].at!, locale) })}
+                                      {offInfo[student.id].by ? ' · ' + t('admin.members.deactivatedBy', { name: offInfo[student.id].by! }) : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2 sm:ml-4">
@@ -915,6 +957,28 @@ export default function AdminMembersClient({ parents: initialParents }: { parent
                                   onClick={() => setExpandedBookings(prev => ({ ...prev, [student.id]: prev[student.id] === 'sdp' ? null : 'sdp' }))}
                                   className={`text-xs px-2 py-1 rounded-full border transition-all ${expandedType === 'sdp' ? 'border-purple-400 bg-purple-400/20 text-purple-300' : student.uci_number ? 'border-[#c9a84c]/60 text-[#c9a84c] hover:border-[#c9a84c]' : 'border-[#1e3a6e] text-gray-500 hover:border-purple-400/40'}`}
                                 >SDP{student.uci_number ? ' ✓' : ''}</button>
+                                {/* Deactivate / reactivate (owner, 2026-10-09). Asks first, in the row,
+                                    the same way the attendance pills do; the server refuses while the
+                                    swimmer still has lessons, a fixed class or a swim team membership. */}
+                                {confirmingActive === student.id ? (
+                                  <span className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-400 text-[11px]">{t(student.is_active === false ? 'admin.members.confirmReactivate' : 'admin.members.confirmDeactivate', { name: student.full_name })}</span>
+                                    <button
+                                      disabled={activeBusy === student.id}
+                                      onClick={() => setStudentActive(parent.id, student, student.is_active === false)}
+                                      className={`text-xs px-2 py-1 rounded-full border font-semibold disabled:opacity-50 ${student.is_active === false ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300' : 'border-red-400 bg-red-400/20 text-red-300'}`}
+                                    >{t('admin.members.yes')}</button>
+                                    <button
+                                      onClick={() => setConfirmingActive(null)}
+                                      className="text-xs px-2 py-1 rounded-full border border-gray-700 text-gray-500 font-semibold"
+                                    >{t('admin.members.no')}</button>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmingActive(student.id)}
+                                    className={`text-xs px-2 py-1 rounded-full border transition-all ${student.is_active === false ? 'border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10' : 'border-[#1e3a6e] text-gray-500 hover:border-red-400/60 hover:text-red-300'}`}
+                                  >{student.is_active === false ? t('admin.members.reactivate') : t('admin.members.deactivate')}</button>
+                                )}
                               </div>
                             </div>
                             {expandedType === 'notes' && (

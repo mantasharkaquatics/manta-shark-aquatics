@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import AdminMembersClient from './AdminMembersClient'
 import { allRowsOrLog } from '@/lib/db-paging'
+import { serviceClient } from '@/lib/api-auth'
 
 export default async function AdminMembersPage() {
   const cookieStore = await cookies()
@@ -27,5 +28,24 @@ export default async function AdminMembersPage() {
     .order('first_name')
     .order('id'))
 
-  return <AdminMembersClient parents={parents} />
+  // Who deactivated each deactivated swimmer, and when
+  // (docs/migration-student-deactivation.sql). Read separately and allowed to
+  // fail: before that migration the columns do not exist, and the page must
+  // still list every family.
+  const deactivations: Record<string, { at: string | null; by: string | null }> = {}
+  try {
+    const svc = serviceClient()
+    const { data: off, error } = await svc.from('students')
+      .select('id, deactivated_at, deactivated_by').eq('is_active', false)
+    if (!error && off && off.length > 0) {
+      const ids = [...new Set(off.map((r: any) => r.deactivated_by).filter(Boolean))] as string[]
+      const { data: admins } = ids.length
+        ? await svc.from('admins').select('id, first_name, last_name').in('id', ids)
+        : { data: [] as any[] }
+      const name = new Map((admins || []).map((a: any) => [a.id, [a.first_name, a.last_name].filter(Boolean).join(' ')]))
+      for (const r of off as any[]) deactivations[r.id] = { at: r.deactivated_at ?? null, by: r.deactivated_by ? name.get(r.deactivated_by) ?? null : null }
+    }
+  } catch { /* no record shown */ }
+
+  return <AdminMembersClient parents={parents} deactivations={deactivations} />
 }
