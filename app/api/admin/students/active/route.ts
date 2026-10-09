@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       // bookings has more than one link to class_sessions, so the embed names
       // its foreign key (a bare embed is an error, which read as "no lessons").
       svc.from('bookings')
-        .select('id, class_sessions!bookings_class_session_id_fkey!inner(session_date)')
+        .select('id, lesson_group_id, class_sessions!bookings_class_session_id_fkey!inner(session_date)')
         .eq('student_id', studentId)
         .neq('status', 'cancelled')
         .gte('class_sessions.session_date', today),
@@ -58,7 +58,9 @@ export async function POST(req: NextRequest) {
     if (lessonsRes.error || fixedRes.error || teamRes.error) {
       return NextResponse.json({ error: (lessonsRes.error || fixedRes.error || teamRes.error)!.message }, { status: 500 })
     }
-    const lessonCount = (lessonsRes.data || []).length
+    // A 60-minute lesson is two half-hour bookings sharing a lesson_group_id;
+    // count lessons, as the Members page's "Upcoming" does, not rows.
+    const lessonCount = new Set((lessonsRes.data || []).map((b: any) => b.lesson_group_id || b.id)).size
     const fixedCount = (fixedRes.data || []).length
     const teamCount = (teamRes.data || []).length
     if (lessonCount || fixedCount || teamCount) {
