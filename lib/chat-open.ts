@@ -37,6 +37,10 @@ export function takePendingChatOpen(): { text: string } | null {
 // screen shows, and what rows written before the key existed carry.
 export const CHAT_HANDBACK_KEY = 'handback'
 export const CHAT_HANDBACK_EN = 'Front desk session has ended. Our AI assistant will continue to help you here.'
+// Posted when the desk has been quiet for 30 minutes and the family writes
+// again (lib/chat-handback.ts): the AI answers from here.
+export const CHAT_HANDBACK_AUTO_KEY = 'handback_auto'
+export const CHAT_HANDBACK_AUTO_EN = 'The front desk has not replied for 30 minutes, so our AI assistant is answering here. The desk can still see this conversation.'
 
 // Fired by the chat widget when the assistant changed the family's account
 // this turn (cancelled a lesson, held an assessment). The dashboard listens and

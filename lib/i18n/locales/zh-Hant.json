@@ -410,6 +410,7 @@
   "chat.guest.signIn": "登入",
   "chat.guest.signUp": "建立免費帳號",
   "chat.handback": "櫃台人員的服務已結束，接下來由 AI 助理在這裡繼續為您服務。",
+  "chat.handbackAuto": "櫃台人員目前暫時離開，接下來由 AI 助理在這裡協助您；櫃台仍看得到這段對話。",
   "chat.openLink": "開啟連結 →",
   "chat.placeholder": "輸入訊息…",
   "chat.send": "傳送訊息",

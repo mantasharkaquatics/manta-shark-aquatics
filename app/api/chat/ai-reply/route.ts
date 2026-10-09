@@ -1,4 +1,5 @@
 import { isBlocked } from '@/lib/availability'
+import { autoHandBackIfIdle } from '@/lib/chat-handback'
 import { getEffectiveZones } from '@/lib/zones'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
@@ -328,17 +329,26 @@ export async function POST(req: NextRequest) {
 
   let historyQuery = svc
     .from('chat_messages')
-    .select('id, sender_type, body, metadata')
+    .select('id, sender_type, body, metadata, created_at')
     .eq('thread_id', thread_id)
     .order('created_at', { ascending: false })
     .limit(12)
   // Hand-back-to-AI cutoff: earlier conversation (human-service segment) is invisible to the AI, like a fresh conversation
   if ((thread as any)?.ai_context_from) historyQuery = historyQuery.gte('created_at', (thread as any).ai_context_from)
   const { data: history } = await historyQuery
-  const recent = (history || []).reverse()
+  let recent = (history || []).reverse()
   const lastMsg = recent[recent.length - 1]
   if ((thread as any)?.mode === 'human') {
-    return NextResponse.json({ ok: true, skipped: 'human_mode' })
+    // The desk took the thread and may have forgotten to hand it back.
+    // Owner, 2026-10-08: once the desk has been quiet for 30 minutes, the
+    // family's next message goes to the AI again (lib/chat-handback.ts).
+    const cutoff = lastMsg?.sender_type === 'parent'
+      ? await autoHandBackIfIdle(svc, thread_id, lastMsg.created_at)
+      : null
+    if (!cutoff) return NextResponse.json({ ok: true, skipped: 'human_mode' })
+    // As after a manual hand-back, the AI starts from the family's new
+    // message; the desk's conversation stays out of its context.
+    recent = recent.filter((m: any) => String(m.created_at) >= cutoff)
   }
   if (!lastMsg || lastMsg.sender_type !== 'parent') {
     return NextResponse.json({ skipped: true })

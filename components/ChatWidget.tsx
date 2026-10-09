@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
-import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen } from '@/lib/chat-open'
+import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -442,7 +442,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                 {/* The desk handing the chat back: a fixed line, so it is
                     shown in the family's language (rows from before the key
                     carry only the English body). */}
-                {msg.metadata?.key === CHAT_HANDBACK_KEY || msg.body === CHAT_HANDBACK_EN ? t('chat.handback') : msg.body}
+                {msg.metadata?.key === CHAT_HANDBACK_AUTO_KEY ? t('chat.handbackAuto') : msg.metadata?.key === CHAT_HANDBACK_KEY || msg.body === CHAT_HANDBACK_EN ? t('chat.handback') : msg.body}
               </div>
             ) : (
               <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-end' : 'flex-start' }}>

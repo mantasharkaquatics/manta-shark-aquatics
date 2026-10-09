@@ -410,6 +410,7 @@
   "chat.guest.signIn": "Sign in",
   "chat.guest.signUp": "Create a free account",
   "chat.handback": "Front desk session has ended. Our AI assistant will continue to help you here.",
+  "chat.handbackAuto": "The front desk is away right now, so the AI assistant will help you here. The team can still see this conversation.",
   "chat.openLink": "Open link →",
   "chat.placeholder": "Type a message…",
   "chat.send": "Send message",

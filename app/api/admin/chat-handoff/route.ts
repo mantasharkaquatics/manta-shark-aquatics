@@ -17,7 +17,13 @@ export async function POST(req: NextRequest) {
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
 
   if (mode === 'human') {
-    const { error: hErr } = await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id }).eq('id', thread_id)
+    // human_since: when the desk took it, so a take-over with no reply yet
+    // still counts as the desk being there (lib/chat-handback.ts). Before
+    // docs/migration-chat-handback.sql the column is missing; then without it.
+    let { error: hErr } = await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id, human_since: new Date().toISOString() }).eq('id', thread_id)
+    if (hErr && /human_since/.test(hErr.message || '')) {
+      ({ error: hErr } = await svc.from('chat_threads').update({ mode: 'human', handled_by: auth.admin.id }).eq('id', thread_id))
+    }
     if (hErr) return NextResponse.json({ error: 'Failed to take over: ' + hErr.message }, { status: 500 })
   } else {
     const cutoff = new Date().toISOString()

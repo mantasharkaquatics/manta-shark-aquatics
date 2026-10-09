@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { autoHandBackIfIdle } from '@/lib/chat-handback'
 import { createClient } from '@supabase/supabase-js'
 import { createHash, randomUUID } from 'crypto'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
@@ -139,13 +140,18 @@ export async function POST(req: NextRequest) {
   }
 
   const threadId = thread!.id
-  await svc.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body: text })
+  const { data: sent } = await svc.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body: text }).select('created_at').single()
   const touch: Record<string, unknown> = { last_message_at: new Date().toISOString(), last_message_preview: text.slice(0, 120) }
 
-  // A team member has taken this conversation over: no assistant, just flag it.
+  // A team member has taken this conversation over: no assistant, just flag
+  // it -- unless the desk has been quiet for 30 minutes (lib/chat-handback.ts).
   if (thread!.mode === 'human') {
-    await svc.from('chat_threads').update({ ...touch, unread_by_admin: true }).eq('id', threadId)
-    return NextResponse.json({ key, messages: await listMessages(svc, threadId) })
+    const cutoff = sent?.created_at ? await autoHandBackIfIdle(svc, threadId, sent.created_at) : null
+    if (!cutoff) {
+      await svc.from('chat_threads').update({ ...touch, unread_by_admin: true }).eq('id', threadId)
+      return NextResponse.json({ key, messages: await listMessages(svc, threadId) })
+    }
+    thread!.ai_context_from = cutoff
   }
   await svc.from('chat_threads').update(touch).eq('id', threadId)
 
