@@ -79,6 +79,23 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   // ref rather than the value it was created with (found 2026-10-05).
   const openRef = useRef(open)
   useEffect(() => { openRef.current = open }, [open])
+  /* Whether this browser tab is the one on screen (2026-10-12). The panel
+     stays open in a tab the family has switched away from, and a desk reply
+     arriving there was marked read at once: no dot, and the reply email
+     (app/api/cron/chat-reply-email) never went out. A message counts as seen
+     only with the panel open AND the tab visible. */
+  const [visible, setVisible] = useState(true)
+  const visibleRef = useRef(true)
+  useEffect(() => {
+    const sync = () => {
+      const v = document.visibilityState === 'visible'
+      visibleRef.current = v
+      setVisible(v)
+    }
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
+  }, [])
   const [awaitingAi, setAwaitingAi] = useState(false)
   /* Who answers this thread now: the AI, or the desk after it has taken over
      (chat_threads.mode, set by Admin > Messages). The header used to say "AI
@@ -138,7 +155,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
         .eq('thread_id', th.id).in('sender_type', ['admin', 'ai'])
       if (th.lastRead) q = q.gt('created_at', th.lastRead)
       const { count, error } = await q
-      if (alive && !error && !openRef.current) setUnread(count || 0)
+      if (alive && !error && !(openRef.current && visibleRef.current)) setUnread(count || 0)
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,7 +177,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
         const from = (payload.new as any)?.sender_type
         if (from === 'admin') setMode('human')
         else if (from === 'system') setMode('ai')
-        if (!openRef.current && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
+        if (!(openRef.current && visibleRef.current) && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -173,18 +190,19 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   }, [open, threadId])
 
   /* What the family has seen: the newest message on screen while the panel
-     is open. Its own created_at, not this device's clock, so a phone whose
-     clock is off cannot mark a later reply read (or an earlier one unread).
-     Ignored before the migration (the column is not there yet). */
+     is open and the tab is visible -- coming back to the tab re-runs this.
+     Its own created_at, not this device's clock, so a phone whose clock is
+     off cannot mark a later reply read (or an earlier one unread). Ignored
+     before the migration (the column is not there yet). */
   const markedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!open || !threadId || guest) return
+    if (!open || !visible || !threadId || guest) return
     const newest = messages.reduce<string | null>((a, m) => (!m._local && m.created_at && (!a || m.created_at > a) ? m.created_at : a), null)
     if (!newest || (markedRef.current && newest <= markedRef.current)) return
     markedRef.current = newest
     supabase.from('chat_threads').update({ parent_last_read_at: newest }).eq('id', threadId).then(() => {}, () => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, threadId, messages])
+  }, [open, visible, threadId, messages])
 
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
@@ -207,8 +225,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   }, [open])
 
   useEffect(() => {
-    if (open) setUnread(0)
-  }, [open])
+    if (open && visible) setUnread(0)
+  }, [open, visible])
 
   async function initThread() {
     if (guest) {

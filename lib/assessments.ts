@@ -237,6 +237,96 @@ export async function reopenReversedAssessment(svc: Svc, studentId: string): Pro
 }
 
 /**
+ * The undo of reopenReversedAssessment, for a chargeback the school WON
+ * (owner, 2026-10-12: restore it automatically and tell the desk). The money
+ * is the school's again, so the swimmer is back where the payment put them:
+ * a prepaid assessment that had not been booked is bookable again, and the
+ * "assessment used" mark is back.
+ *
+ * Which credits reopen voided is read from the data, with no column of its
+ * own: every way of booking an assessment links its booking to the credit
+ * (bookings.lesson_credit_id), so a credit of THESE purchases marked used
+ * with no booking pointing at it was voided, not spent. Only credits of the
+ * purchases passed in are touched.
+ *
+ * Restores nothing -- and says why -- when the swimmer has moved on since:
+ * a level, another assessment booked or on hold, another assessment paid
+ * (or given by hand), or the mark set again by someone else. Giving it back
+ * then would hand the family a second assessment. Repeating it is safe: a
+ * second run finds nothing voided and the mark set. Throws on a failed read
+ * or write, so the webhook can ask Stripe to retry.
+ */
+export type WonAssessmentRestore =
+  | { state: 'nothing' }
+  | { state: 'restored'; credits: number; marked: boolean }
+  | { state: 'conflict'; why: string[]; voided: number; markCleared: boolean }
+
+export async function restoreWonAssessment(
+  svc: Svc, studentId: string, purchaseIds: string[], usedAt: string,
+): Promise<WonAssessmentRestore> {
+  const { data: st, error: stErr } = await svc.from('students')
+    .select('id, trial_used_at, current_level').eq('id', studentId).maybeSingle()
+  if (stErr) throw new Error('student: ' + stErr.message)
+  if (!st) return { state: 'nothing' }
+
+  const { data: all, error: crErr } = await svc.from('lesson_credits')
+    .select('id, used_credits, purchase_id').eq('student_id', studentId).eq('is_trial', true)
+  if (crErr) throw new Error('credits: ' + crErr.message)
+  const ours = ((all || []) as { id: string; used_credits: number; purchase_id: string | null }[])
+    .filter(c => c.purchase_id && purchaseIds.includes(c.purchase_id))
+  const spentIds = ours.filter(c => Number(c.used_credits) > 0).map(c => c.id)
+  let linked = new Set<string>()
+  if (spentIds.length > 0) {
+    const { data: bk, error: bkErr } = await svc.from('bookings')
+      .select('lesson_credit_id').in('lesson_credit_id', spentIds)
+    if (bkErr) throw new Error('credit bookings: ' + bkErr.message)
+    linked = new Set(((bk || []) as { lesson_credit_id: string }[]).map(b => b.lesson_credit_id))
+  }
+  const voided = spentIds.filter(id => !linked.has(id))
+  const markCleared = !st.trial_used_at
+  if (voided.length === 0 && !markCleared) return { state: 'nothing' }
+
+  const why: string[] = []
+  if (st.current_level != null) why.push(`the swimmer now has a level (Level ${st.current_level})`)
+  const { data: live, error: liveErr } = await svc.from('bookings').select('id, status')
+    .eq('student_id', studentId).eq('is_trial', true).neq('status', 'cancelled').limit(1)
+  if (liveErr) throw new Error('live assessment: ' + liveErr.message)
+  if (live && live.length > 0) why.push(`another Swim Assessment is ${live[0].status === 'pending_payment' ? 'on hold awaiting payment' : 'booked'}`)
+  const others = ((all || []) as { id: string; used_credits: number; purchase_id: string | null }[])
+    .filter(c => !(c.purchase_id && purchaseIds.includes(c.purchase_id)))
+  if (others.some(c => !c.purchase_id)) why.push('an assessment credit was given by hand')
+  const otherPids = [...new Set(others.map(c => c.purchase_id).filter(Boolean))] as string[]
+  if (otherPids.length > 0) {
+    const { data: ps, error: pErr } = await svc.from('purchases')
+      .select('id, amount_cents, refunded_cents, reversed_at').in('id', otherPids)
+    if (pErr) throw new Error('other payments: ' + pErr.message)
+    const standing = ((ps || []) as any[]).filter(p => !p.reversed_at
+      && !((Number(p.amount_cents) || 0) > 0 && (Number(p.refunded_cents) || 0) >= (Number(p.amount_cents) || 0)))
+    if (standing.length > 0) why.push('the family has paid for another Swim Assessment since')
+  }
+  if (voided.length > 0 && !markCleared && why.length === 0) why.push('the swimmer is already marked as having used an assessment again')
+  if (why.length > 0) return { state: 'conflict', why, voided: voided.length, markCleared }
+
+  let credits = 0
+  if (voided.length > 0) {
+    const { data: back, error: backErr } = await svc.from('lesson_credits')
+      .update({ used_credits: 0 }).in('id', voided).eq('used_credits', 1).select('id')
+    if (backErr) throw new Error('credit restore: ' + backErr.message)
+    credits = (back || []).length
+  }
+  let marked = false
+  if (markCleared) {
+    const { data: m, error: mErr } = await svc.from('students')
+      .update({ trial_used_at: usedAt })
+      .eq('id', studentId).is('trial_used_at', null).is('current_level', null)
+      .select('id')
+    if (mErr) throw new Error('assessment mark: ' + mErr.message)
+    marked = !!(m && m.length > 0)
+  }
+  return { state: 'restored', credits, marked }
+}
+
+/**
  * Pays every assessment credit that has now reached 8 lessons, and closes the
  * ones whose 60 days are over. Run daily with the other points jobs.
  *

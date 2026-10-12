@@ -48,9 +48,13 @@ export async function POST(req: NextRequest) {
   const { data: student } = await svc.from('students')
     .select('id, current_level').eq('id', hist.student_id).maybeSingle()
   if (!student) return fail(404, 'Student not found', 'not_found')
-  // No level: the lesson was the assessment, filed with its level.
+  // No level: the report is the swimmer's assessment and is filed with its
+  // level through /api/admin/backfill-assessment (the Reviews card shows that
+  // form for it). Not "assign a level on the Levels page": assign-level refuses
+  // while this sent-back report waits, so that pointed at a dead end
+  // (found 2026-10-12).
   if (!student.current_level) {
-    return fail(409, 'This swimmer has no level yet. Assign one on the Levels page first.', 'no_level')
+    return fail(409, 'This swimmer has no level yet, so this report is their assessment. Reload Reviews and file it with the assessment form.', 'assessment_fill')
   }
 
   // The lesson's coach today (a lesson can move after the send-back); the

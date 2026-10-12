@@ -69,12 +69,20 @@ export async function POST(req: NextRequest) {
   // lesson_group_id and fall through to the original two-row behaviour.
   let group: any[]
   if (partnerBooking.lesson_group_id) {
-    const { data: rows } = await supabase
+    // The WHOLE group, whatever its status (found 2026-10-12). Read with a
+    // pending_partner filter, an inviter's withdrawal that cancelled the first
+    // half between the reads above and this one left only the second half's
+    // rows: both families were charged for half a lesson and it was
+    // confirmed alone. Anything but all four rows still pending means the
+    // invitation was already handled -- nothing is charged.
+    const { data: rows, error: groupErr } = await supabase
       .from('bookings')
-      .select('id, class_session_id, parent_id, student_id')
+      .select('id, class_session_id, parent_id, student_id, status')
       .eq('lesson_group_id', partnerBooking.lesson_group_id)
-      .eq('status', 'pending_partner')
-    group = rows || []
+    if (groupErr || !rows || rows.length !== 4 || rows.some((r: any) => r.status !== 'pending_partner')) {
+      return NextResponse.json({ error: 'This invitation was already processed.' }, { status: 409 })
+    }
+    group = rows.map(({ status: _s, ...r }: any) => r)
   } else {
     group = [
       { id: partnerBooking.id, class_session_id: partnerBooking.class_session_id, parent_id: partnerBooking.parent_id, student_id: partnerBooking.student_id },

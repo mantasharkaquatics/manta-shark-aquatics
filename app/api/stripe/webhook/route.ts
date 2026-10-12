@@ -2,7 +2,7 @@ import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
 import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears, type ReleasedLesson } from '@/lib/points-arrears'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA } from '@/lib/date'
 import { captureFee } from '@/lib/stripe-fees'
 import { insertInvoice } from '@/lib/invoices/create'
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,7 +10,7 @@ import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 import { alertAdmin } from '@/lib/admin-alert'
-import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
+import { assessmentPaymentReversed, countCreditLessons, CREDIT_LESSONS, reopenReversedAssessment, restoreWonAssessment } from '@/lib/assessments'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -317,6 +317,12 @@ export async function POST(req: NextRequest) {
       const piId = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : dispute.payment_intent?.id ?? null
       try {
         const cs = piId ? (await stripe.checkout.sessions.list({ payment_intent: piId, limit: 1 })).data[0] : null
+        // A Swim Assessment (online, or a card sale at the desk, which has
+        // no checkout): put back what the dispute took (2026-10-12).
+        if (piId && (!cs || cs.metadata?.type === 'trial_lesson')) {
+          const r = await assessmentDisputeWon(piId, cs?.id ?? null, dispute)
+          if (r) return r
+        }
         if (cs && cs.metadata?.kind === 'points' && cs.metadata?.parent_id) {
           const { data: rev } = await supabase.from('point_ledger')
             .select('delta_purchased, amount_cents').eq('stripe_session_id', cs.id).eq('reason', 'chargeback').limit(1)
@@ -330,6 +336,8 @@ export async function POST(req: NextRequest) {
         }
       } catch (e: any) {
         console.error(`charge.dispute.closed ${dispute.id}: could not resolve the checkout:`, e?.message)
+        // Without the checkout an assessment cannot be restored: ask again.
+        return NextResponse.json({ error: 'could not resolve session' }, { status: 503 })
       }
     }
     return NextResponse.json({ received: true })
@@ -901,6 +909,122 @@ async function assessmentChargeback(paymentIntentId: string, sessionId: string |
       : 'If the assessment is still booked, cancel it by hand if that was intended. Once cancelled it is not owed any more: the family can pay and book a new one on the site.',
     'Respond to the dispute in the Stripe dashboard.',
   ])
+  return NextResponse.json({ received: true })
+}
+
+/* A Swim Assessment chargeback the school WON (owner, 2026-10-12: restore it
+   automatically and tell the desk). The undo of assessmentChargeback:
+     - the payment counts again (purchases.reversed_at cleared);
+     - what reopenReversedAssessment did is put back -- a prepaid assessment
+       that had not been booked is bookable again, and "assessment used" is
+       set -- unless the swimmer has moved on since (a level, another
+       assessment booked or paid), which the desk is told instead;
+     - the 85-point assessment credit the dispute closed is opened again when
+       it can still be earned (settleAssessmentCredits checks it as usual).
+   Runs once per dispute: it starts only while a purchase is still marked
+   charged back, and the mark is cleared after the restore and before the
+   alert, so a retried delivery finds nothing to do. Returns null when the
+   payment is not an assessment. */
+async function assessmentDisputeWon(paymentIntentId: string, sessionId: string | null, dispute: { id?: string; amount?: number }): Promise<NextResponse | null> {
+  const { data: rows, error } = await supabase.from('purchases')
+    .select('id, parent_id, amount_cents, refunded_cents, reversed_at, reversal_reason, paid_at')
+    .or(`stripe_payment_intent_id.eq.${paymentIntentId}${sessionId ? `,stripe_session_id.eq.${sessionId}` : ''}`)
+  if (error) {
+    console.error(`dispute won ${dispute?.id}: could not look up the assessment payment:`, error.message)
+    return NextResponse.json({ error: 'could not resolve assessment' }, { status: 503 })
+  }
+  const purchaseIds = (rows || []).map(r => r.id)
+  const { data: credits, error: creditErr } = purchaseIds.length
+    ? await supabase.from('lesson_credits').select('student_id, purchase_id').in('purchase_id', purchaseIds).eq('is_trial', true)
+    : { data: [] as { student_id: string; purchase_id: string }[], error: null }
+  if (creditErr) {
+    console.error(`dispute won ${dispute?.id}: could not look up the assessment credit:`, creditErr.message)
+    return NextResponse.json({ error: 'could not resolve assessment' }, { status: 503 })
+  }
+  if (!sessionId && (!credits || credits.length === 0)) return null
+  // Only what this webhook marked as charged back; nothing marked means an
+  // earlier delivery already restored it (or the dispute never reached us).
+  const disputed = (rows || []).filter(r => r.reversed_at && r.reversal_reason === 'chargeback')
+  if (disputed.length === 0) return NextResponse.json({ received: true })
+  const disputedIds = disputed.map(r => r.id)
+  // Refunded in full as well: the family has the money, so nothing comes back.
+  const stillRefunded = disputed.every(p => (Number(p.amount_cents) || 0) > 0 && (Number(p.refunded_cents) || 0) >= (Number(p.amount_cents) || 0))
+  const studentIds = [...new Set((credits || []).filter(c => disputedIds.includes(c.purchase_id)).map(c => c.student_id).filter(Boolean))] as string[]
+  const usedAt = disputed.map(p => p.paid_at).filter(Boolean).sort()[0] || new Date().toISOString()
+
+  // 1. The swimmer's assessment. A failure leaves the purchase marked, so
+  //    Stripe's retry runs this again.
+  const outcome = new Map<string, Awaited<ReturnType<typeof restoreWonAssessment>>>()
+  if (!stillRefunded) {
+    try {
+      for (const sid of studentIds) outcome.set(sid, await restoreWonAssessment(supabase, sid, disputedIds, usedAt))
+    } catch (e) {
+      console.error(`dispute won ${dispute?.id}: could not restore the assessment:`, e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: 'could not restore assessment' }, { status: 503 })
+    }
+  }
+
+  // 2. The payment counts again. Only the delivery that clears the mark goes on.
+  const { data: cleared, error: clrErr } = await supabase.from('purchases')
+    .update({ reversed_at: null, reversal_reason: null })
+    .in('id', disputedIds).eq('reversal_reason', 'chargeback').not('reversed_at', 'is', null).select('id')
+  if (clrErr) {
+    console.error(`dispute won ${dispute?.id}: could not clear the chargeback mark:`, clrErr.message)
+    return NextResponse.json({ error: 'could not clear chargeback' }, { status: 503 })
+  }
+  if (!cleared || cleared.length === 0) return NextResponse.json({ received: true })
+
+  // 3. The 85-point assessment credit the dispute closed. Best effort: a
+  //    failure is reported in the alert, not retried.
+  const creditLines: string[] = []
+  if (!stillRefunded && studentIds.length > 0) {
+    try {
+      const { data: reps, error: repErr } = await supabase.from('student_assessments')
+        .select('id, student_id, assessed_on, credit_deadline, credit_status, credit_awarded_at').in('student_id', studentIds)
+      if (repErr) throw new Error(repErr.message)
+      const today = getTodayLA()
+      for (const r of reps || []) {
+        if (r.credit_status !== 'expired' || r.credit_awarded_at) continue
+        // Past its 60 days it can only be paid if the 8 lessons were already in.
+        const earnable = today <= r.credit_deadline || (await countCreditLessons(supabase, r, today)) >= CREDIT_LESSONS
+        if (!earnable) { creditLines.push('the 85-point assessment credit stays closed: its 60 days are over without 8 lessons'); continue }
+        const { data: re, error: reErr } = await supabase.from('student_assessments')
+          .update({ credit_status: 'pending' }).eq('id', r.id).eq('credit_status', 'expired').is('credit_awarded_at', null).select('id')
+        if (reErr) throw new Error(reErr.message)
+        if (re && re.length > 0) creditLines.push('the 85-point assessment credit is open again (it is paid as usual once 8 lessons are reached)')
+      }
+    } catch (e) {
+      console.error(`dispute won ${dispute?.id}: could not reopen the assessment credit:`, e instanceof Error ? e.message : e)
+      creditLines.push('could NOT be reopened automatically -- check the family\'s assessment credit by hand')
+    }
+  }
+
+  const parentId = disputed[0]?.parent_id || null
+  const [{ data: parent }, { data: students }] = await Promise.all([
+    parentId ? supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle() : Promise.resolve({ data: null }),
+    studentIds.length ? supabase.from('students').select('id, full_name').in('id', studentIds) : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+  ])
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : (parentId ? `parent ${parentId}` : 'an unknown family')
+  const nameOf = (sid: string) => (students || []).find((x: any) => x.id === sid)?.full_name || 'the swimmer'
+  const who = studentIds.map(nameOf).join(', ') || 'a swimmer'
+  const lines = [
+    `The school won the dispute over ${family}'s Swim Assessment payment for ${who} ($${((Number(dispute?.amount) || 0) / 100).toFixed(2)}, dispute ${dispute?.id || 'unknown'}, payment ${paymentIntentId}).`,
+    'The payment counts again: it is back in the Sales total.',
+  ]
+  if (stillRefunded) lines.push('It had also been refunded in full, so nothing else was restored. Check in Stripe whether the family was paid back twice.')
+  for (const sid of studentIds) {
+    const o = outcome.get(sid)
+    if (!o) continue
+    if (o.state === 'nothing') lines.push(`${nameOf(sid)}: the assessment was never taken off the account, so nothing needed restoring.`)
+    else if (o.state === 'restored') lines.push(`${nameOf(sid)}: restored -- ${[
+      o.credits > 0 ? 'the prepaid assessment is bookable again (it had not been booked)' : '',
+      o.marked ? 'the swimmer is marked as having had their assessment, so the site will not sell another; if it was cancelled by the school, it shows on Reviews to be booked again' : '',
+    ].filter(Boolean).join('; ') || 'nothing changed'}.`)
+    else lines.push(`${nameOf(sid)}: NOT restored, because ${o.why.join(' and ')}. ${o.voided > 0 ? 'The prepaid assessment this payment bought is still removed. ' : ''}${o.markCleared ? 'The swimmer is not marked as having had an assessment. ' : ''}Decide by hand: the family may now have paid for two assessments -- refund one, or keep this payment on the account.`)
+  }
+  if (creditLines.length > 0) lines.push(`Assessment credit: ${creditLines.join('; ')}.`)
+  console.error(`\u2705 ASSESSMENT DISPUTE WON dispute=${dispute?.id} payment=${paymentIntentId} purchases=${disputedIds.join(',')}`)
+  await alertAdmin('Swim Assessment dispute won', lines)
   return NextResponse.json({ received: true })
 }
 

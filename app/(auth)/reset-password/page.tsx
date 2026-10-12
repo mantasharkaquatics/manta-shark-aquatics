@@ -46,6 +46,17 @@ function ResetForm() {
       setSaving(false)
       return
     }
+    /* Every other session of this login ends here (2026-10-12). Someone who
+       signed up first with this email -- before its owner -- keeps their
+       session through a password change, and the owner is about to finish the
+       registration on that same login (/register?finish=1). This tab stays
+       signed in. A failure is logged and does not stop them going on. */
+    try {
+      const { error: soErr } = await supabase.auth.signOut({ scope: 'others' })
+      if (soErr) console.error('reset-password: other sessions not signed out:', soErr.message)
+    } catch (e) {
+      console.error('reset-password: other sessions not signed out:', e)
+    }
     setDone(true)
     // Where they land matches signing in: staff to their portal, families home.
     const { data: { user } } = await supabase.auth.getUser()

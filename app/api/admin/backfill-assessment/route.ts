@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
     svc.from('class_sessions').select('id, coach_id, session_date').eq('id', class_session_id).maybeSingle(),
   ])
   if (!booking || !session) return fail(404, 'That lesson was not found', 'not_found')
-  if (!booking.is_trial) return fail(409, 'That lesson was not a Swim Assessment', 'not_assessment')
   if (String(session.session_date) > getTodayLA()) return fail(409, 'That assessment has not happened yet', 'not_assessment')
 
   // Nothing filed for this lesson yet: a pending report is confirmed from its
@@ -75,12 +74,27 @@ export async function POST(req: NextRequest) {
   // Reviews "sent back" list (owner, 2026-10-08: the coach may have left, or
   // the lesson moved): that row is taken over rather than a second added.
   const lessonKey = booking.lesson_group_id || class_session_id
-  const { data: existing } = await svc.from('progress_history')
-    .select('id, status').eq('student_id', student_id).eq('lesson_key', lessonKey)
-  const sentBack = (existing || []).find((h: { status: string }) => h.status === 'rejected') || null
+  // Sent back = rejected WITH sent_back_at (2026-10-12). An older plain
+  // rejection has no sent_back_at and is not on the Reviews "sent back" list;
+  // counting it here let this form file an ordinary lesson's old rejected
+  // report as the swimmer's assessment. Before migration-report-sendback.sql
+  // the column is missing and the read falls back to the old columns.
+  const first = await svc.from('progress_history')
+    .select('id, status, sent_back_at').eq('student_id', student_id).eq('lesson_key', lessonKey)
+  const existing: any[] | null = first.error
+    ? (await svc.from('progress_history').select('id, status').eq('student_id', student_id).eq('lesson_key', lessonKey)).data
+    : first.data
+  const sentBack = (existing || []).find((h: any) => h.status === 'rejected' && (!('sent_back_at' in h) || !!h.sent_back_at)) || null
   if ((existing || []).some((h: { status: string }) => h.status !== 'rejected')) {
     return fail(409, 'A report for this lesson is already filed. Refresh Reviews.', 'already_filed')
   }
+  // A lesson with no report yet must be the paid assessment. A sent-back
+  // report need not be: the coach filed it for a swimmer with no level, which
+  // lesson-note always takes as the assessment, and Reviews offers this form
+  // for every such report (found 2026-10-12: a sent-back report on an ordinary
+  // lesson could be filed nowhere -- here said not an assessment,
+  // sent-back-fill said no level, the Levels page said a report is waiting).
+  if (!sentBack && !booking.is_trial) return fail(409, 'That lesson was not a Swim Assessment', 'not_assessment')
   if (!sentBack && booking.status !== 'confirmed') return fail(404, 'That lesson was not found', 'not_found')
   // The coach's report, sent back, already says the swimmer was there.
   if (!sentBack) {

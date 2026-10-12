@@ -355,7 +355,8 @@ export type SentBackItem = {
   /** What the admin needs to file it themselves (owner, 2026-10-08). */
   class_session_id: string | null
   current_level: string | null
-  /** The lesson was the swimmer's paid assessment and they still have no level. */
+  /** The swimmer still has no level, so the report is their assessment and is
+   *  filed with a level (/api/admin/backfill-assessment). */
   assessment: boolean
   /** The lesson's coach now: the report goes under them, and they see it on
    *  their Progress page. */
@@ -400,12 +401,10 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
   if (rows.length === 0) return []
   const sIds = [...new Set(rows.map((r: any) => r.student_id).filter(Boolean))] as string[]
   const sessIds = [...new Set(rows.map((r: any) => r.class_session_id).filter(Boolean))] as string[]
-  const [ss, sessions, trials, live, history, moves] = await Promise.all([
+  const [ss, sessions, live, history, moves] = await Promise.all([
     inChunks(sIds, c => svc.from('students').select('id, full_name, current_level').in('id', c).order('id')),
     inChunks(sessIds, c => svc.from('class_sessions')
       .select('id, coach_id, start_time, end_time, course_types(id, name)').in('id', c).order('id')),
-    inChunks(sessIds, c => svc.from('bookings').select('id, student_id, class_session_id')
-      .in('class_session_id', c).eq('is_trial', true).neq('status', 'cancelled').order('id')),
     inChunks(sIds, c => svc.from('student_skill_progress').select('student_id, skill_id, progress_percent')
       .in('student_id', c).order('student_id').order('skill_id')),
     inChunks(sIds, c => svc.from('progress_history').select('student_id, snapshot, status, session_date, created_at')
@@ -424,7 +423,6 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
   const cs = await inChunks(cIds, c => svc.from('coaches').select('id, first_name, is_active').in('id', c).order('id'))
   const sMap = new Map<string, any>(ss.map((x: any) => [x.id, x]))
   const cMap = new Map<string, any>(cs.map((x: any) => [x.id, x]))
-  const trialSet = new Set<string>(trials.map((b: any) => `${b.student_id}|${b.class_session_id}`))
   const liveBy: Record<string, Record<string, number>> = {}
   for (const p of live) (liveBy[p.student_id] ||= {})[p.skill_id] = p.progress_percent
   const historyBy: Record<string, any[]> = {}
@@ -445,7 +443,13 @@ async function loadSentBack(svc: any): Promise<SentBackItem[]> {
       sent_back_at: r.sent_back_at ?? null,
       class_session_id: r.class_session_id ?? null,
       current_level: st?.current_level ?? null,
-      assessment: !st?.current_level && trialSet.has(`${r.student_id}|${r.class_session_id}`),
+      /* Any report for a swimmer with no level is their assessment
+         (lesson-note files every one of them with a level). This used to also
+         need a live is_trial booking on the lesson; without one the card
+         offered only "set a level on the Levels page", and the Levels page
+         refuses while a sent-back report waits (assign-level) -- neither way
+         out worked (found 2026-10-12). */
+      assessment: !!st && !st.current_level,
       lesson_coach_id: lessonCoachId,
       lesson_coach_name: lessonCoach?.first_name || '',
       coach_can_file: !!lessonCoach && lessonCoach.is_active !== false,

@@ -74,6 +74,7 @@
 | sms-reminder | `GET /api/cron/sms-reminder` | 每 30 分鐘（`*/30 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | 上課前一天的簡訊提醒不會寄 |
 | monthly-reports | `GET /api/cron/monthly-reports` | 每小時第 5 分（`5 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | AI 月報不會產生，也不會寄給家長 |
 | daily-points | `GET /api/cron/daily-points` | 每天一次，清晨，例如 3:10（`10 3 * * *`） | `Authorization: Bearer <CRON_SECRET>` | 見下方 |
+| chat-reply-email | `GET /api/cron/chat-reply-email` | 每 5 分鐘（`*/5 * * * *`） | `Authorization: Bearer <CRON_SECRET>` | 櫃檯在聊天裡回覆、家長 10 分鐘沒看，不會寄「我們回覆了」的 email（要先跑 `docs/migration-fix5-A.sql`，否則這支什麼都不做） |
 | sync-fees | `POST /api/admin/finance/sync-fees` | 每天一次即可 | `x-internal-key: <CRON_SECRET>`（注意：不是 Authorization） | ACH 收款的 Stripe 手續費不會補進 Finance 頁（也可以不排，需要時到 Finance 頁按按鈕） |
 
 - [x] cleanup-pending（cron-job.org 名稱「MSA cleanup-pending every 15min」）
@@ -85,6 +86,7 @@
       標成過期、固定班最後一堂前三週寄續報信。沒排的話這些全部不會發生，
       可是網站和 email 都跟家長說會有。建好後手動 Run 一次，回應裡應看到
       `referralsAwarded`、`assessmentCreditsAwarded`、`renewalsSent` 等欄位。
+- [x] chat-reply-email（「MSA chat-reply-email」，2026-10-09 建好）
 - [ ] sync-fees（選擇性）
 - [ ] 刪掉 cron-job.org 上的「token-convert」：它打的路由已隨舊代幣制度移除，
       每晚都失敗。

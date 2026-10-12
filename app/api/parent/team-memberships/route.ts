@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { allRows } from '@/lib/db-paging'
 import { DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { addDaysYMD, formatDateLA, getTodayLA } from '@/lib/date'
 
 // Parent-facing team memberships. Same service-role pattern as /api/parent/wallet.
 export async function GET(req: Request) {
@@ -30,16 +31,38 @@ export async function GET(req: Request) {
   const ids = (students || []).map(s => s.id)
   if (ids.length === 0) return NextResponse.json({ memberships: [] })
 
-  const { data: tms } = await svc
+  const { data: tmRows } = await svc
     .from('team_memberships')
     .select('id, student_id, status, started_at, cancels_at, stripe_subscription_id, expires_at, team_tier_id, team_tiers(name, monthly_price_cents)')
     .in('student_id', ids)
     .neq('status', 'cancelled')
 
+  /* A prepaid membership is never closed when its paid-through date passes --
+     it stays status 'active' with expires_at in the past -- so a lapsed one sat
+     on the dashboard as a red "Expired" row forever, and beside the new monthly
+     subscription when the family switched (found 2026-10-12). Owner's rule: a
+     lapsed prepaid shows for 30 days after it ran out (LA date), then goes; and
+     it goes at once if the same child has another live membership (a monthly
+     subscription, failed charge included, or an in-date prepaid). Filtered here
+     so both places the team card is drawn -- 我的方案 and the points sheet --
+     agree. */
+  const nowIso = new Date().toISOString()
+  const todayLA = getTodayLA()
+  const isLapsedPrepaid = (m: any) => !m.stripe_subscription_id && !!m.expires_at && new Date(m.expires_at).toISOString() <= nowIso
+  const isLive = (m: any) => m.stripe_subscription_id
+    ? (m.status === 'active' || m.status === 'past_due')
+    : (m.status === 'active' && !isLapsedPrepaid(m))
+  const liveStudents = new Set((tmRows || []).filter(isLive).map((m: any) => m.student_id))
+  const tms = (tmRows || []).filter((m: any) => {
+    if (!isLapsedPrepaid(m)) return true
+    if (liveStudents.has(m.student_id)) return false
+    return addDaysYMD(formatDateLA(new Date(m.expires_at)), 30) >= todayLA
+  })
+
   const nameById: Record<string, string> = {}
   for (const s of students || []) nameById[s.id] = s.full_name
 
-  const memberships = await Promise.all((tms || []).map(async (m: any) => {
+  const memberships = await Promise.all(tms.map(async (m: any) => {
     let invoices: { date: string; period_end: string | null; url: string | null }[] = []
     const { data: invRows } = await svc
       .from('invoices')
@@ -72,7 +95,7 @@ export async function GET(req: Request) {
   // Practice schedule: read live from team zones (never stored) so tier time
   // changes and three-tier separation are always correct. ?month=YYYY-MM adds
   // per-day resolution (date overrides replace the day, closed skips, time_off excludes).
-  const tierIds = [...new Set((tms || []).map((m: any) => m.team_tier_id).filter(Boolean))]
+  const tierIds = [...new Set(tms.map((m: any) => m.team_tier_id).filter(Boolean))]
   const scheduleByTier: Record<string, { weekly_slots: any[]; practice_days: any[] }> = {}
   if (tierIds.length > 0) {
     /* The whole zones table was read on every call, past-date overrides

@@ -100,17 +100,38 @@ function askHoldOverride(message: string): Promise<boolean> {
   return holdAsker ? holdAsker(message) : Promise.resolve(false)
 }
 
+/* The dialog is asked from INSIDE the booking, drag-move and session modals,
+   which are all fixed z-50. At z-50 and first in the tree it was painted under
+   them, so it could not be clicked and the caller's button sat on
+   "processing" for good (found 2026-10-12). It is now z-[60] and rendered
+   last; Escape, a click outside and leaving the page all answer "no", so
+   every caller's busy state is released. */
 function HoldOverrideHost() {
   const t = useT()
   const [ask, setAsk] = useState<{ message: string; resolve: (ok: boolean) => void } | null>(null)
+  const pending = useRef<((ok: boolean) => void) | null>(null)
   useEffect(() => {
-    holdAsker = (message) => new Promise<boolean>(resolve => setAsk({ message, resolve }))
-    return () => { holdAsker = null }
+    holdAsker = (message) => new Promise<boolean>(resolve => {
+      pending.current?.(false)
+      pending.current = resolve
+      setAsk({ message, resolve })
+    })
+    return () => { holdAsker = null; pending.current?.(false); pending.current = null }
   }, [])
+  useEffect(() => {
+    if (!ask) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      pending.current = null; ask.resolve(false); setAsk(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [ask])
   if (!ask) return null
-  const done = (ok: boolean) => { ask.resolve(ok); setAsk(null) }
+  const done = (ok: boolean) => { pending.current = null; ask.resolve(ok); setAsk(null) }
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4" onClick={() => done(false)}
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] px-4" onClick={() => done(false)}
       role="alertdialog" aria-modal="true" aria-label={t('admin.booking.hold.title')}>
       <div className="bg-[#111d38] border border-[#1e3a6e] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <h3 className="text-white font-bold text-lg mb-2">{t('admin.booking.hold.title')}</h3>
@@ -960,7 +981,6 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
 
   return (
     <div className="min-h-screen bg-[#0d1529] text-white -mx-6 -my-8">
-      <HoldOverrideHost />
       {/* Header */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: 'Playfair Display, serif' }}>
@@ -1427,6 +1447,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           </div>
         </div>
       )}
+      {/* Last in the tree so it paints above every modal that asks it. */}
+      <HoldOverrideHost />
     </div>
   )
 }
@@ -1566,11 +1588,18 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, loc, isCoach
   const [tierOrder, setTierOrder] = useState<string[]>([])
   const [tierNames, setTierNames] = useState<Record<string, string>>({})
   const [ovrMap, setOvrMap] = useState<Record<string, boolean>>({})
+  // Fixed-class renewal holds on this day (same read as the zones). An empty
+  // slot under one is drawn as held, naming the family and the day the hold
+  // ends, instead of "+ Book" (audit, owner-approved 2026-10-12). A click
+  // still opens the booking form; the booking routes refuse the hold and the
+  // desk must confirm a second time to book over it.
+  const [holds, setHolds] = useState<{ coachId: string; startMin: number; endMin: number; until: string; family: string }[]>([])
   useEffect(() => {
     let alive = true
+    setHolds([])
     fetch(`/api/admin/zones/effective?date=${ds}`)
       .then(r => r.json())
-      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []); setTierNames(d?.tierNames || {}); setOvrMap(d?.overridden || {}) } })
+      .then(d => { if (alive) { setZoneMap(d?.zones || {}); setTierOrder(d?.tierOrder || []); setTierNames(d?.tierNames || {}); setOvrMap(d?.overridden || {}); setHolds(Array.isArray(d?.holds) ? d.holds : []) } })
       .catch(() => {})
     return () => { alive = false }
   }, [ds])
@@ -1636,6 +1665,11 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, loc, isCoach
               const teamTop = teamStartsHere ? Math.min(GRID_ROW_PX, Math.max(0, ((teamStartMin - slotS) / Math.max(1, slotE - slotS)) * GRID_ROW_PX)) : 0
               const teamH = teamStartsHere && teamIv ? spanHeightPx(ri, timeToMinutes(String(teamIv.end_time).slice(0, 5))) - teamTop : 0
               const teamColor = teamIv ? (zoneFill(teamIv, tierOrder) || '#e05a4a') : '#e05a4a'
+              const hold = holds.find(h => h.coachId === coach.id && h.startMin < slotE && h.endMin > slotS)
+              const holdUntil = hold ? new Date(hold.until + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' }) : ''
+              const holdLabel = !hold ? ''
+                : hold.family ? t('admin.booking.hold.cell', { family: hold.family, until: holdUntil })
+                : t('admin.booking.hold.cellNoName', { until: holdUntil })
               return (
                 <div key={`${coach.id}-${time}`} className="min-h-20 border-t border-l border-white/5 relative">
                   {(() => {
@@ -1701,10 +1735,17 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, loc, isCoach
                           if (payload && payload.session_id) onBookingDrop(payload, ds, time, coach.id)
                         } catch {}
                       }}
+                      title={hold ? holdLabel : undefined}
                       className={`absolute inset-0 transition-colors group flex items-center justify-center ${overKey === `${coach.id}-${time}` ? 'bg-[#c9a84c]/20 ring-2 ring-[#c9a84c] ring-inset' : 'hover:bg-[#c9a84c]/10'}`}>
+                      {hold ? (
+                        <span className="absolute inset-0.5 rounded border border-dashed border-amber-400/60 bg-amber-400/[0.08] p-1.5 text-left text-[10px] font-semibold leading-tight text-amber-300 whitespace-normal break-words">
+                          {holdLabel}
+                        </span>
+                      ) : (
                       <span className="hidden group-hover:flex items-center gap-1 text-xs text-[#c9a84c]">
                         <span className="text-base leading-none">+</span> {t('admin.booking.book')}
                       </span>
+                      )}
                     </button>
                   ) : (
                     <div className="absolute inset-0 bg-white/[0.015]" />

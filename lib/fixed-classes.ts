@@ -64,8 +64,16 @@ const ROW_COLS = 'id, fixed_class_id, class_session_id, student_id, parent_id, s
 
 /** Every lesson still on the books (confirmed or taught) for these classes, by class, in date order. */
 export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, Lesson[]>> {
+  return (await lessonsOfChecked(svc, fcIds)).map
+}
+
+/** lessonsOf, also saying whether a read failed -- for checks that must fail
+ *  closed (coach deactivation, 2026-10-12) rather than treat a failed read as
+ *  "no lessons". */
+export async function lessonsOfChecked(svc: Svc, fcIds: string[]): Promise<{ map: Map<string, Lesson[]>; error: any }> {
   const out = new Map<string, Lesson[]>()
-  if (fcIds.length === 0) return out
+  let readErr: any = null
+  if (fcIds.length === 0) return { map: out, error: null }
   let rows: LessonRow[] = []
   // bookings has two keys into class_sessions (class_session_id and
   // pending_new_session_id), so the embed has to name which one it means.
@@ -78,13 +86,15 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
   if (!error) {
     rows = (data || []).map((r: any) => ({ ...r, session: Array.isArray(r.session) ? r.session[0] : r.session }))
   } else {
-    const { data: bs } = await allRowsIn(fcIds, chunk => svc.from('bookings').select(ROW_COLS)
+    const { data: bs, error: bErr } = await allRowsIn(fcIds, chunk => svc.from('bookings').select(ROW_COLS)
       .in('fixed_class_id', chunk).in('status', ['confirmed', 'completed']).order('id'))
+    if (bErr) readErr = bErr
     const ids = [...new Set((bs || []).map((b: any) => b.class_session_id))]
     const sOf = new Map<string, any>()
     for (let i = 0; i < ids.length; i += 150) {
-      const { data: ss } = await svc.from('class_sessions')
+      const { data: ss, error: sErr } = await svc.from('class_sessions')
         .select('id, session_date, start_time, end_time, coach_id, course_type_id, location_id').in('id', ids.slice(i, i + 150))
+      if (sErr) readErr = sErr
       for (const s of ss || []) sOf.set(s.id, s)
     }
     rows = (bs || []).map((b: any) => ({ ...b, session: sOf.get(b.class_session_id) }))
@@ -107,7 +117,7 @@ export async function lessonsOf(svc: Svc, fcIds: string[]): Promise<Map<string, 
     list.sort((a, b) => a.date.localeCompare(b.date))
     for (const l of list) l.rows.sort((a, b) => String(a.session.start_time).localeCompare(String(b.session.start_time)) || a.student_id.localeCompare(b.student_id))
   }
-  return out
+  return { map: out, error: readErr }
 }
 
 /** A lesson that has not started yet. */
@@ -134,25 +144,33 @@ export function classState(lessons: Lesson[] | undefined, today = getTodayLA(), 
 /** Each class's last lesson date, including lessons a parent cancelled (leave
  *  or grace) -- not ones moved by a change of slot or cancelled by the school. */
 export async function termLastDates(svc: Svc, fcIds: string[]): Promise<Map<string, string>> {
+  return (await termLastDatesChecked(svc, fcIds)).map
+}
+
+/** termLastDates, also saying whether a read failed (see lessonsOfChecked). */
+export async function termLastDatesChecked(svc: Svc, fcIds: string[]): Promise<{ map: Map<string, string>; error: any }> {
   const out = new Map<string, string>()
-  if (fcIds.length === 0) return out
+  let readErr: any = null
+  if (fcIds.length === 0) return { map: out, error: null }
   // Paged and chunked like lessonsOf (found 2026-10-05).
-  const { data: rows } = await allRowsIn(fcIds, chunk => svc.from('bookings')
+  const { data: rows, error: rErr } = await allRowsIn(fcIds, chunk => svc.from('bookings')
     .select('id, fixed_class_id, class_session_id, status, cancellation_reason')
     .in('fixed_class_id', chunk)
     .or('status.in.(confirmed,completed),and(status.eq.cancelled,cancellation_reason.eq.cancelled_by_parent)')
     .order('id'))
+  if (rErr) readErr = rErr
   const sids = [...new Set((rows || []).map((r: any) => r.class_session_id))]
   const dateOf = new Map<string, string>()
   for (let i = 0; i < sids.length; i += 150) {
-    const { data: ss } = await svc.from('class_sessions').select('id, session_date').in('id', sids.slice(i, i + 150))
+    const { data: ss, error: sErr } = await svc.from('class_sessions').select('id, session_date').in('id', sids.slice(i, i + 150))
+    if (sErr) readErr = sErr
     for (const x of ss || []) dateOf.set(x.id, x.session_date)
   }
   for (const r of rows || []) {
     const d = dateOf.get(r.class_session_id)
     if (d && (!out.has(r.fixed_class_id) || d > out.get(r.fixed_class_id)!)) out.set(r.fixed_class_id, d)
   }
-  return out
+  return { map: out, error: readErr }
 }
 
 /** The hold is on until 14 days before the last lesson. */

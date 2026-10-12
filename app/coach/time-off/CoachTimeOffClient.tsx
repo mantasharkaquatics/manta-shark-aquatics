@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
+import { timeOffRequests } from '@/lib/time-off'
 
 type ImpactLesson = { date?: string; start: string; end: string; course_type_id: string | null; course_name: string; is_trial: boolean; swimmers: string[] }
 
@@ -53,6 +54,8 @@ export default function CoachTimeOffClient({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   // Removing time off is a two-step: tap Cancel, then confirm in the row.
+  // Keyed by the request's first row id: a request over several days is one
+  // entry and is withdrawn whole (owner, 2026-10-12).
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null)
@@ -200,30 +203,43 @@ export default function CoachTimeOffClient({
   // the delete failed, so the coach believed a day off was gone that the admin
   // still saw (found 2026-10-04). Now it asks first, and the row only leaves
   // the list once the server says it is gone. The delete goes through a route
-  // that refuses once families have been told (found 2026-10-07).
-  const handleDelete = async (id: string) => {
-    setDeletingId(id)
+  // that refuses once families have been told (found 2026-10-07). A request
+  // over several days goes as one: every day of it, one note to the desk
+  // (owner, 2026-10-12).
+  const handleDelete = async (days: TimeOff[]) => {
+    const key = days[0].id
+    const ids = days.map(d => d.id)
+    setDeletingId(key)
     setDeleteError(null)
     try {
       const res = await fetch('/api/coach/time-off', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(ids.length === 1 ? { id: key } : { ids }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setTimeOffList(prev => prev.filter(t => t.id !== id))
+        const gone = new Set<string>([...ids, ...(Array.isArray(data?.ids) ? data.ids : [])])
+        setTimeOffList(prev => prev.filter(t => !gone.has(t.id)))
         setConfirmingId(null)
       } else if (data?.code === 'locked') {
-        setLockedIds(prev => prev.includes(id) ? prev : [...prev, id])
+        setLockedIds(prev => [...new Set([...prev, ...ids])])
         setConfirmingId(null)
       } else {
-        setDeleteError({ id, msg: t('coach.timeOff.errDelete') })
+        setDeleteError({ id: key, msg: t('coach.timeOff.errDelete') })
       }
     } catch {
-      setDeleteError({ id, msg: t('coach.timeOff.errDelete') })
+      setDeleteError({ id: key, msg: t('coach.timeOff.errDelete') })
     }
     setDeletingId(null)
+  }
+
+  // The coach's own time off as the requests they sent (lib/time-off).
+  const requests = timeOffRequests(timeOffList)
+  const windowText = (x: TimeOff, multi: boolean) => {
+    const w = x.start_time && x.end_time ? `${fmt12(x.start_time)} – ${fmt12(x.end_time)}` : ''
+    if (!multi) return w || t('coach.timeOff.allDay')
+    return w ? t('coach.timeOff.eachDay', { time: w }) : t('coach.timeOff.allDays')
   }
 
   return (
@@ -361,7 +377,10 @@ export default function CoachTimeOffClient({
             </div>
           ) : (
             <div className="space-y-3">
-              {[...timeOffList.map(x => ({ ...x, office: false })), ...officeList.map(x => ({ ...x, office: true }))]
+              {[
+                ...requests.map(days => ({ ...days[0], days, office: false })),
+                ...officeList.map(x => ({ ...x, days: [x], office: true })),
+              ]
                 .sort((a, b) => a.date.localeCompare(b.date) || String(a.start_time || '').localeCompare(String(b.start_time || '')))
                 .map(item => item.office ? (
                 // Entered by the office: shown so the coach knows it is on file,
@@ -370,22 +389,28 @@ export default function CoachTimeOffClient({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-white font-medium">{formatDate(item.date)}</p>
-                      <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
+                      <p className="text-[#c9a84c] text-xs mt-0.5">{windowText(item, false)}</p>
                       {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
                     </div>
                     <span className="text-[11px] text-sky-300 bg-sky-900/30 border border-sky-500/30 rounded-full px-2.5 py-0.5 flex-shrink-0">{t('coach.timeOff.office')}</span>
                   </div>
                   <p className="text-gray-400 text-xs mt-2">{t('coach.timeOff.officeHint')}</p>
                 </div>
-              ) : (
+              ) : (() => {
+                const multi = item.days.length > 1
+                const lastDate = item.days[item.days.length - 1].date
+                // Any day the office has told families about locks the whole request.
+                const locked = item.days.some(d => lockedIds.includes(d.id))
+                const nWaiting = item.days.reduce((n, d) => n + (waiting[d.id] || 0), 0)
+                return (
                 <div key={item.id} className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white font-medium">{formatDate(item.date)}</p>
-                      <p className="text-[#c9a84c] text-xs mt-0.5">{item.start_time && item.end_time ? `${fmt12(item.start_time)} – ${fmt12(item.end_time)}` : t('coach.timeOff.allDay')}</p>
+                      <p className="text-white font-medium">{multi ? `${formatDate(item.date)} – ${formatDate(lastDate)}` : formatDate(item.date)}</p>
+                      <p className="text-[#c9a84c] text-xs mt-0.5">{windowText(item, multi)}</p>
                       {item.reason && <p className="text-gray-400 text-sm mt-0.5">{item.reason}</p>}
                     </div>
-                    {confirmingId !== item.id && !lockedIds.includes(item.id) && (
+                    {confirmingId !== item.id && !locked && (
                       <button
                         onClick={() => { setConfirmingId(item.id); setDeleteError(null) }}
                         className="text-gray-500 hover:text-red-400 transition-colors text-sm ml-4 flex-shrink-0"
@@ -396,7 +421,7 @@ export default function CoachTimeOffClient({
                   </div>
                   {confirmingId === item.id && (
                     <div className="mt-3 pt-3 border-t border-[#1e3a6e] flex items-center justify-between gap-3 flex-wrap">
-                      <p className="text-gray-300 text-sm">{t('coach.timeOff.confirmRemove')}</p>
+                      <p className="text-gray-300 text-sm">{multi ? t('coach.timeOff.confirmRemoveDays', { n: item.days.length }) : t('coach.timeOff.confirmRemove')}</p>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setConfirmingId(null); setDeleteError(null) }}
@@ -406,7 +431,7 @@ export default function CoachTimeOffClient({
                           {t('coach.timeOff.keep')}
                         </button>
                         <button
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.days)}
                           disabled={deletingId === item.id}
                           className="bg-red-900/40 hover:bg-red-900/60 text-red-300 text-sm font-medium px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
                         >
@@ -415,14 +440,15 @@ export default function CoachTimeOffClient({
                       </div>
                     </div>
                   )}
-                  {lockedIds.includes(item.id) && <p className="text-gray-400 text-xs mt-2">{t('coach.timeOff.lockedHint')}</p>}
+                  {locked && <p className="text-gray-400 text-xs mt-2">{t(multi ? 'coach.timeOff.lockedHintDays' : 'coach.timeOff.lockedHint')}</p>}
                   {/* Booked lessons in it the office has not handled yet (found 2026-10-08). */}
-                  {!lockedIds.includes(item.id) && (waiting[item.id] || 0) > 0 && (
-                    <p className="text-amber-300 text-xs mt-2">{t(waiting[item.id] === 1 ? 'coach.timeOff.waitingOne' : 'coach.timeOff.waiting', { n: waiting[item.id] })}</p>
+                  {!locked && nWaiting > 0 && (
+                    <p className="text-amber-300 text-xs mt-2">{t(nWaiting === 1 ? 'coach.timeOff.waitingOne' : 'coach.timeOff.waiting', { n: nWaiting })}</p>
                   )}
                   {deleteError?.id === item.id && <p className="text-red-400 text-sm mt-2">{deleteError.msg}</p>}
                 </div>
-              ))}
+                )
+              })())}
             </div>
           )}
         </div>

@@ -13,14 +13,23 @@ export const LEVEL_HISTORY_PAGE = 30
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = any
 
-export async function readLevelHistory(svc: Row, opts: { studentId?: string | null; before?: string | null; limit?: number } = {}): Promise<{ rows: Row[]; more: boolean; error: Row }> {
+export async function readLevelHistory(svc: Row, opts: { studentId?: string | null; before?: string | null; beforeId?: string | null; limit?: number } = {}): Promise<{ rows: Row[]; more: boolean; error: Row }> {
   const limit = opts.limit ?? LEVEL_HISTORY_PAGE
   let q = svc.from('level_upgrades')
     .select('id, from_level, to_level, from_stage, to_stage, upgraded_at, notes, student_id, upgraded_by')
   if (opts.studentId) q = q.eq('student_id', opts.studentId)
-  if (opts.before) q = q.lt('upgraded_at', opts.before)
+  /* "Load more" continues after the last row shown, on the same (upgraded_at,
+     id) order as the sort below. Paging on upgraded_at alone skipped every row
+     that shared the last row's time -- and the stage promotions one approval
+     writes share one now() (found 2026-10-12). The time is passed through as
+     the database wrote it: a JS Date keeps milliseconds only, and the column
+     has microseconds, so a rounded value would equal nothing. Without an id
+     (an old tab) it pages the old way. */
+  if (opts.before && opts.beforeId) {
+    q = q.or(`upgraded_at.lt."${opts.before}",and(upgraded_at.eq."${opts.before}",id.lt."${opts.beforeId}")`)
+  } else if (opts.before) q = q.lt('upgraded_at', opts.before)
   // One more than shown, to know whether "load more" has anything behind it.
-  const { data: raw, error } = await q.order('upgraded_at', { ascending: false }).order('id').limit(limit + 1)
+  const { data: raw, error } = await q.order('upgraded_at', { ascending: false }).order('id', { ascending: false }).limit(limit + 1)
   if (error) return { rows: [], more: false, error }
   const more = (raw || []).length > limit
   const rawHistory: Row[] = (raw || []).slice(0, limit)

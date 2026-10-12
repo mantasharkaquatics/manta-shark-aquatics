@@ -133,6 +133,7 @@ const ERROR_KEYS: Record<string, string> = {
   has_level: 'admin.reviews.err.hasLevel',
   no_level: 'admin.reviews.err.noLevel',
   assessment_no_level: 'admin.reviews.err.noLevel',
+  assessment_fill: 'admin.reviews.err.assessmentFill',
   busy: 'admin.reviews.err.busy',
   mismatch: 'admin.reviews.err.mismatch',
   not_found: 'admin.reviews.err.notFound',

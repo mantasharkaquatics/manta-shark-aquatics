@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_LOCATION_ID, zoneAtLocation } from '@/lib/locations'
+import { allRows } from '@/lib/db-paging'
 
 // Coach availability zones (spec v1.0, docs/coach-availability-zones-spec.md).
 // Resolution: date rows replace the whole day; 'closed' date row = day off;
@@ -88,10 +89,17 @@ export async function groupBandsFor(
 ): Promise<{ level_min: number | null; level_max: number | null }[]> {
   const none = needs.map(() => ({ level_min: null, level_max: null }))
   if (zoneTypeForSlug(slug) !== 'group' || needs.length === 0) return none
-  const { data, error } = await svc
+  // Only the weekly template and the date rows for the dates asked about, and
+  // paged. Date overrides are never deleted, so reading every row a coach ever
+  // had passed the API's 1,000-row cap and the newest -- the ones that matter
+  // -- were the ones cut off (found 2026-10-12).
+  const dates = [...new Set(needs.map(n => n.date))]
+  const { data, error } = await allRows(() => svc
     .from('coach_availability_zones')
-    .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
+    .select('id, coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max')
     .in('coach_id', [...new Set(needs.map(n => n.coach))])
+    .or(`kind.eq.weekly,and(kind.eq.date,override_date.in.(${dates.join(',')}))`)
+    .order('id'))
   if (error || !data) return none
   const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
   return needs.map(n => {

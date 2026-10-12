@@ -81,7 +81,9 @@ export interface EmailPayload {
   // Time row would then be wrong for some of the lessons it sits above.
   times?: string[]
   // voucher: the lesson became a make-up voucher, usable until expiresOn.
-  refundKind?: 'points' | 'voucher' | 'none' | 'assessment'
+  // assessment_refunded: a Swim Assessment cancelled after its payment was
+  // refunded in full or charged back -- nothing is owed either way.
+  refundKind?: 'points' | 'voucher' | 'none' | 'assessment' | 'assessment_refunded'
   requesterStudentName?: string
   partnerStudentName?: string
   // partner_reschedule_requested / partner_reschedule_not_moved: date and time
@@ -173,9 +175,10 @@ export interface EmailPayload {
 }
 
 // Shared by the two school-side cancellation emails. Values arrive escaped.
-function assessmentCancelledHtml(parentName: string, studentName: string, formattedDate: string, time: string, location = '') {
+// `note` replaces the closing line; the default is the kept-payment one.
+function assessmentCancelledHtml(parentName: string, studentName: string, formattedDate: string, time: string, location = '', note = 'Your payment is kept on your account, so there is nothing to pay again. We will contact you shortly to arrange a new time.') {
   const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
-  return `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Swim Assessment Cancelled</h2><p>Hi ${parentName},</p><p>We're sorry — we had to cancel the Swim Assessment below.</p><table style="width: 100%; border-collapse: collapse;">${row('Student', studentName)}${row('Date', formattedDate)}${row('Time', time)}${location ? row('Location', location) : ''}</table><p style="color: #c9a84c; font-weight: 600;">Your payment is kept on your account, so there is nothing to pay again. We will contact you shortly to arrange a new time.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
+  return `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Swim Assessment Cancelled</h2><p>Hi ${parentName},</p><p>We're sorry — we had to cancel the Swim Assessment below.</p><table style="width: 100%; border-collapse: collapse;">${row('Student', studentName)}${row('Date', formattedDate)}${row('Time', time)}${location ? row('Location', location) : ''}</table><p style="color: #c9a84c; font-weight: 600;">${note}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
@@ -246,6 +249,16 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // for a paid assessment.
     subject = `Swim Assessment Cancelled – ${formattedDate}`
     html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time), esc(payload.location || ''))
+
+  } else if (type === 'booking_cancelled' && refundKind === 'assessment_refunded') {
+    // A Swim Assessment whose $85 had already been refunded or charged back
+    // (2026-10-12). It went out as the generic notice: "Lesson Cancelled –
+    // 1-on-1" (assessments hang off the 1-on-1 course) and "rebook any time on
+    // your dashboard", which a swimmer with no level cannot do. Nothing is
+    // owed, so the family pays again if they still want one.
+    subject = `Swim Assessment Cancelled – ${formattedDate}`
+    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time), esc(payload.location || ''),
+      'Your payment for this assessment has been refunded, so nothing is owed. If you would still like a Swim Assessment, you can book and pay for a new time on our website: <a href="https://www.mantasharkaquatics.net/booking" style="color: #1a2744;">mantasharkaquatics.net/booking</a>.')
 
   } else if (type === 'booking_cancelled') {
     subject = `Lesson Cancelled – ${courseName} on ${formattedDate}`

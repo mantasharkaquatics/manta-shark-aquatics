@@ -38,6 +38,32 @@ export function addDaysISO(d: string, n: number): string {
   return x.toISOString().slice(0, 10)
 }
 
+type RequestRow = { id: string; date: string; start_time: string | null; end_time: string | null; reason?: string | null; created_at?: string | null }
+
+/** The coach's time off as the requests they sent, each a run of days in date
+ *  order. A request over several days is saved as one row per day in ONE
+ *  insert (/api/coach/time-off POST), and created_at is the database's now(),
+ *  which is the same for every row of one statement -- so rows of one request
+ *  share created_at to the microsecond, with the same window and reason on
+ *  consecutive days. No column says so; this is how the rows are told apart
+ *  (owner, 2026-10-12: a coach withdraws a multi-day request as one, and the
+ *  desk gets one note). A day the office has since removed splits the run,
+ *  which is right: the days either side are no longer one stretch. Pure, so
+ *  the coach page and the delete route group the same way. */
+export function timeOffRequests<T extends RequestRow>(rows: T[]): T[][] {
+  const hm = (t: string | null) => (t == null ? '' : String(t).slice(0, 5))
+  const key = (r: T) => [r.created_at || '', hm(r.start_time), hm(r.end_time), r.reason ?? ''].join('|')
+  const sorted = [...rows].sort((a, b) => key(a).localeCompare(key(b)) || a.date.localeCompare(b.date))
+  const out: T[][] = []
+  for (const r of sorted) {
+    const g = out[out.length - 1]
+    const prev = g?.[g.length - 1]
+    if (prev && prev.created_at && key(prev) === key(r) && r.date === addDaysISO(prev.date, 1)) g.push(r)
+    else out.push([r])
+  }
+  return out.sort((a, b) => a[0].date.localeCompare(b[0].date) || hm(a[0].start_time).localeCompare(hm(b[0].start_time)))
+}
+
 /** Ids of the given time off rows whose families have been notified or whose
  *  lessons were cancelled for it. A failed read returns null: callers treat
  *  "cannot tell" as handled, so a coach is never let through on a guess. */
@@ -46,18 +72,23 @@ export async function handledTimeOffIds(svc: any, blocks: Block[]): Promise<Set<
   if (blocks.length === 0) return out
   const coachIds = [...new Set(blocks.map(b => b.coach_id))]
   const dates = [...new Set(blocks.map(b => b.date))]
-  const { data: sessions, error } = await svc
+  // Paged (2026-10-12): a whole multi-day request is asked about at once, and
+  // weeks of a coach's sessions run past the 1,000-row cap -- a lock on the
+  // days past it would have been missed and the withdrawal let through.
+  const { data: sessions, error } = await allRows(() => svc
     .from('class_sessions')
     .select('id, coach_id, session_date, start_time, end_time')
     .in('coach_id', coachIds)
     .in('session_date', dates)
+    .order('id'))
   if (error) return null
   if (!sessions || sessions.length === 0) return out
-  const { data: bookings, error: bErr } = await svc
+  const { data: bookings, error: bErr } = await allRowsIn(sessions.map((s: any) => s.id), c => svc
     .from('bookings')
-    .select('class_session_id, status, cancellation_reason, cancelled_at, block_notice_sent_at')
-    .in('class_session_id', sessions.map((s: any) => s.id))
+    .select('id, class_session_id, status, cancellation_reason, cancelled_at, block_notice_sent_at')
+    .in('class_session_id', c)
     .or('block_notice_sent_at.not.is.null,and(status.eq.cancelled,cancellation_reason.eq.coach_time_off)')
+    .order('id'))
   if (bErr) return null
   // When each touched session was acted on: a time-off cancellation by when it
   // was cancelled (a retried email can stamp its notice later), anything else

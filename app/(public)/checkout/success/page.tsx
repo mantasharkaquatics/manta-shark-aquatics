@@ -71,7 +71,10 @@ function SuccessContent() {
           const r = await fetch('/api/parent/wallet?session=' + encodeURIComponent(sessionId))
           const j = await r.json().catch(() => ({}))
           if (!live) return
-          if (j.credited) { setBalance(typeof j.balancePurchased === 'number' ? j.balancePurchased : null); setOwed(Number(j.arrears) > 0 ? Number(j.arrears) : 0); setPhase('done'); return }
+          // The total, as the dashboard and chat show it -- it read the
+          // purchased points alone, so a family with granted points saw a
+          // smaller number here than anywhere else (found 2026-10-12).
+          if (j.credited) { setBalance(typeof j.balance === 'number' ? j.balance : null); setOwed(Number(j.arrears) > 0 ? Number(j.arrears) : 0); setPhase('done'); return }
         }
       } catch { /* asked again below */ }
       if (!live) return
@@ -122,8 +125,10 @@ function SuccessContent() {
   } else {
     title = phase === 'done' ? t('success.titlePoints') : t('success.received')
     desc = phase === 'done' ? (owed > 0 ? t('success.descPointsOwed') : t('success.descPoints')) : phase === 'slow' ? t('success.points.slow') : t('success.points.checking')
+    // No balance line while points are owed: it would read "Balance: -650"
+    // beside "you still owe 650" (2026-10-12). The owed box says it once.
     items = phase === 'done'
-      ? [t('success.points.1'), ...(balance != null ? [t('success.points.balance', { n: balance.toLocaleString('en-US') })] : []), ...(owed > 0 ? [] : [t('success.points.2')]), t('success.emailSent'), t('success.points.3')]
+      ? [t('success.points.1'), ...(balance != null && owed === 0 ? [t('success.points.balance', { n: balance.toLocaleString('en-US') })] : []), ...(owed > 0 ? [] : [t('success.points.2')]), t('success.emailSent'), t('success.points.3')]
       : []
   }
   const ok = phase === 'done' || phase === 'received'

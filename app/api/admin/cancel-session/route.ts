@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     if (r === 'paid') b.status = 'confirmed'
   }
 
-  const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' | 'assessment' }[] = []
+  const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' | 'assessment' | 'assessment_refunded' }[] = []
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       // and book again on the site (owner, 2026-10-08).
       const reversed = b.is_trial && await assessmentPaymentReversed(svc, b.student_id).catch(() => false)
       if (reversed) await reopenReversedAssessment(svc, b.student_id)
-      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? (reversed ? 'none' : 'assessment') : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
+      notified.push({ parent_id: b.parent_id, student_id: b.student_id, kind: b.is_trial ? (reversed ? 'assessment_refunded' : 'assessment') : refunded > 0 ? 'points' : back > 0 ? 'voucher' : 'none' })
     } else {
       // pending_partner, in_cart, an unpaid hold: no credits were deducted,
       // cancel without refund -- and without the "Lesson Cancelled" email.
@@ -201,7 +201,11 @@ export async function POST(req: NextRequest) {
         // back or nothing did.
         // A make-up's voucher comes back rather than points (found 2026-10-03:
         // the email said nothing was returned).
-        const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : ks.has('voucher') ? 'voucher' as const : 'assessment' as const
+        // An assessment already refunded or charged back gets its own email
+        // (2026-10-12): the generic one named the 1-on-1 course and said to
+        // rebook on the dashboard.
+        const refundKind = !ks || ks.size === 0 ? 'none' as const : ks.has('points') ? 'points' as const : ks.has('voucher') ? 'voucher' as const
+          : ks.has('assessment') ? 'assessment' as const : 'assessment_refunded' as const
         const { data: p } = await svc.from('parents').select('first_name, email').eq('id', t.parent_id).single()
         const { data: kids } = await svc.from('students').select('id, full_name').in('id', studentsByParent.get(t.parent_id) || [t.student_id])
         const kidNames = (studentsByParent.get(t.parent_id) || [t.student_id])

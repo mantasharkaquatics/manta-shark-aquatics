@@ -4,7 +4,8 @@ import { createHash } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { allRows, allRowsIn } from '@/lib/db-paging'
-import { getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, LESSON_MINUTES } from '@/lib/date'
+import { lessonsOfChecked, termLastDatesChecked, classState, renewOpen } from '@/lib/fixed-classes'
 
 const svc = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,33 +78,65 @@ export async function POST(req: NextRequest) {
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
 /** A coach's lessons still to come -- booked swimmers in sessions from now on
- *  -- and active fixed classes. Owner, 2026-10-08: a coach with any of these
- *  cannot be deactivated; the lessons are moved to another coach or cancelled
- *  first. Deactivating used to take one click with nothing checked: the
- *  coach's column vanished from the Booking page (it reads active coaches
- *  only) with their lessons in it, families were still reminded, and nobody
- *  came to teach (found 2026-10-08). */
+ *  -- and the fixed classes still running with them. Owner, 2026-10-08: a
+ *  coach with any of these cannot be deactivated; the lessons are moved to
+ *  another coach or cancelled first. Deactivating used to take one click with
+ *  nothing checked: the coach's column vanished from the Booking page (it
+ *  reads active coaches only) with their lessons in it, families were still
+ *  reminded, and nobody came to teach (found 2026-10-08). */
 async function futureLoad(s: any, coachId: string): Promise<{ lessons: number; dates: string[]; fixedClasses: number; error: any }> {
   const today = getTodayLA(), now = getNowMinutesLA()
   const [{ data: sessions, error: sErr }, { data: fcs, error: fErr }] = await Promise.all([
-    allRows(() => s.from('class_sessions').select('id, session_date, start_time')
+    allRows(() => s.from('class_sessions').select('id, session_date, start_time, end_time')
       .eq('coach_id', coachId).gte('session_date', today).neq('status', 'cancelled').order('id')),
-    s.from('fixed_classes').select('id').eq('coach_id', coachId).eq('status', 'active'),
+    allRows(() => s.from('fixed_classes').select('id').eq('coach_id', coachId).eq('status', 'active').order('id')),
   ])
   if (sErr || fErr) return { lessons: 0, dates: [], fixedClasses: 0, error: sErr || fErr }
-  const upcoming = sessions.filter((x: any) => x.session_date > today || toMin(x.start_time) > now)
+  // By the lesson's END (2026-10-12): a lesson being taught right now still
+  // needs this coach. Reading the start let the desk deactivate a coach while
+  // they were in the pool with a swimmer, before that lesson was checked in
+  // or reported.
+  const endMin = (x: any) => x.end_time ? toMin(x.end_time) : toMin(x.start_time) + LESSON_MINUTES
+  const upcoming = sessions.filter((x: any) => x.session_date > today || endMin(x) > now)
   const sessOf = new Map<string, any>(upcoming.map((x: any) => [x.id, x]))
   // A lesson is a booked swimmer: confirmed, an unanswered 1-on-2 invitation,
   // or an assessment being paid for -- the same set time off cancels
   // (time-off/impact AFFECTED). A basket or another checkout is not.
   const { data: rows, error: bErr } = await allRowsIn([...sessOf.keys()], c => s.from('bookings')
-    .select('id, class_session_id, student_id, lesson_group_id, status, is_trial')
+    .select('id, class_session_id, student_id, lesson_group_id, status, is_trial, fixed_class_id')
     .in('class_session_id', c).in('status', ['confirmed', 'pending_partner', 'pending_payment']).order('id'))
   if (bErr) return { lessons: 0, dates: [], fixedClasses: 0, error: bErr }
   const bookings = rows.filter((b: any) => b.status !== 'pending_payment' || b.is_trial)
   const lessons = new Set(bookings.map((b: any) => `${b.lesson_group_id || b.class_session_id}|${b.student_id}`))
   const dates = [...new Set(bookings.map((b: any) => sessOf.get(b.class_session_id)?.session_date).filter(Boolean))].sort() as string[]
-  return { lessons: lessons.size, dates, fixedClasses: (fcs || []).length, error: null }
+
+  // A fixed class counts while it still needs this coach (2026-10-12), not
+  // merely while fixed_classes.coach_id names them: nothing ends a class whose
+  // last lesson has passed, so counting every active row kept a coach from
+  // ever being deactivated. It needs them when
+  //   - one of its lessons still to come is on this coach's sessions, or
+  //   - it names this coach and is still running (lessons left with ANY
+  //     coach) or its renewal window is open. A renewal keeps the class's own
+  //     coach (bookings/recurring refuses an inactive one), so a class whose
+  //     remaining lessons were moved to another coach still needs the coach it
+  //     names -- deactivating them would leave the family unable to renew.
+  // Reads fail closed: a failed read refuses, it does not count as "none".
+  const onMine = [...new Set<string>(bookings
+    .filter((b: any) => b.status === 'confirmed' && b.fixed_class_id).map((b: any) => b.fixed_class_id))]
+  const { data: live, error: lErr } = await allRowsIn(onMine, c => s.from('fixed_classes')
+    .select('id').in('id', c).eq('status', 'active').order('id'))
+  if (lErr) return { lessons: 0, dates: [], fixedClasses: 0, error: lErr }
+  const needed = new Set<string>((live as any[]).map(f => f.id))
+  const named = (fcs as any[]).map(f => f.id as string).filter(id => !needed.has(id))
+  if (named.length > 0) {
+    const [lo, te] = await Promise.all([lessonsOfChecked(s, named), termLastDatesChecked(s, named)])
+    if (lo.error || te.error) return { lessons: 0, dates: [], fixedClasses: 0, error: lo.error || te.error }
+    for (const id of named) {
+      const { last, left } = classState(lo.map.get(id), today, now, te.map.get(id))
+      if (left > 0 || renewOpen(last, today)) needed.add(id)
+    }
+  }
+  return { lessons: lessons.size, dates, fixedClasses: needed.size, error: null }
 }
 
 // Update coach (name / pin / active toggle)

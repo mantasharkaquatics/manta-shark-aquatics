@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCoach } from '@/lib/api-auth'
-import { handledTimeOffIds, bookedLessonsInRange, lessonEnded, MAX_TIME_OFF_DAYS, addDaysISO, type BookedLesson } from '@/lib/time-off'
+import { handledTimeOffIds, bookedLessonsInRange, lessonEnded, timeOffRequests, MAX_TIME_OFF_DAYS, addDaysISO, type BookedLesson } from '@/lib/time-off'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
@@ -210,47 +210,75 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
 // still covers booked lessons sends the desk a follow-up on the same channels
 // (owner, 2026-10-08; found 2026-10-08 -- the alert and the Reviews item used
 // to vanish without a word).
+//
+// A request over several days is withdrawn whole (owner, 2026-10-12). It was
+// one request and one alert, but the coach's list showed a row per day, so
+// withdrawing it took a tap per day and sent the desk a note per day. `ids`
+// names the request's days; the rest of the same request still to come is
+// taken with them (timeOffRequests), so a page loaded before a day was added
+// cannot leave part of it behind. If the office has told families about any
+// day of it, none of it is withdrawn. One note covers every day. `{ id }`
+// alone still removes a one-day request as before.
 export async function DELETE(req: NextRequest) {
   const auth = await requireCoach()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { svc, coach } = auth
 
   const body = await req.json().catch(() => null)
-  const id = body?.id
-  if (!id || typeof id !== 'string') return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+  const raw: unknown[] = Array.isArray(body?.ids) ? body.ids : [body?.id]
+  const ids = [...new Set(raw.filter((x): x is string => typeof x === 'string' && !!x))]
+  if (ids.length === 0 || ids.length > MAX_TIME_OFF_DAYS) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   // Only the coach's own time off; an admin block is the office's.
-  const { data: block } = await svc
+  const COLS = 'id, coach_id, date, reason, created_at, start_time, end_time, block_type'
+  const { data: picked, error: pErr } = await svc
     .from('coach_time_off')
-    .select('id, coach_id, date, reason, created_at, start_time, end_time, block_type')
-    .eq('id', id)
+    .select(COLS)
+    .in('id', ids)
     .eq('coach_id', coach.id)
     .eq('block_type', 'time_off')
-    .maybeSingle()
-  if (!block) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (pErr) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
+  if (!picked || picked.length !== ids.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const handled = await handledTimeOffIds(svc, [block])
+  // The other days saved by the same insert, from today on (past days stay as
+  // the record of the time taken).
+  const stamps = [...new Set(picked.map((r: Row & { created_at: string | null }) => r.created_at).filter(Boolean))] as string[]
+  const { data: sibs, error: sErr } = stamps.length
+    ? await svc.from('coach_time_off').select(COLS)
+      .eq('coach_id', coach.id).eq('block_type', 'time_off')
+      .in('created_at', stamps).gte('date', getTodayLA())
+    : { data: [], error: null }
+  if (sErr) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
+  const byId = new Map<string, any>([...(sibs || []), ...picked].map((r: any) => [r.id, r]))
+  const groups = timeOffRequests([...byId.values()]).filter(g => g.some(r => ids.includes(r.id)))
+  if (groups.length !== 1) return NextResponse.json({ error: 'Withdraw one request at a time.', code: 'mixed' }, { status: 400 })
+  const days = groups[0]
+  const first = days[0], last = days[days.length - 1]
+  const dayIds = days.map(r => r.id)
+
+  const handled = await handledTimeOffIds(svc, days)
   if (!handled) return NextResponse.json({ error: 'Lookup failed' }, { status: 500 })
-  if (handled.has(block.id))
-    return NextResponse.json({ error: 'Families have already been told about this time off. Ask the office to change it.', code: 'locked' }, { status: 409 })
+  if (days.some(r => handled.has(r.id)))
+    return NextResponse.json({ error: 'Families have already been told about this time off. Ask the office to change it.', code: 'locked', ids: dayIds }, { status: 409 })
 
-  // Read before the delete, the same way the send counted them. Lessons that
-  // have ended, or that the office has already cancelled or moved, need no
-  // word.
-  const lessons = await liveLessonsInWindow(svc, coach.id, block.date, block.date, block.start_time, block.end_time)
-  if (lessons === null) console.error('coach time-off: booked lessons not read before withdrawing', block.id)
+  // Read before the delete, the same way the send counted them: every day of
+  // the request, one window. Lessons that have ended, or that the office has
+  // already cancelled or moved, need no word.
+  const lessons = await liveLessonsInWindow(svc, coach.id, first.date, last.date, first.start_time, first.end_time)
+  if (lessons === null) console.error('coach time-off: booked lessons not read before withdrawing', dayIds.join(','))
 
+  // One statement: every day goes, or none does.
   const { data: gone, error } = await svc
-    .from('coach_time_off').delete().eq('id', block.id).eq('coach_id', coach.id).select('id')
+    .from('coach_time_off').delete().in('id', dayIds).eq('coach_id', coach.id).eq('block_type', 'time_off').select('id')
   if (error || !gone || gone.length === 0) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
 
   if (lessons && lessons.length > 0) {
     try {
-      await alertDesk(svc, coach, [block], lessons, 'withdrawn')
+      await alertDesk(svc, coach, days, lessons, 'withdrawn')
     } catch (e) {
       // The time off is gone either way; a failed note must not report a failed delete.
       console.error('coach time-off: desk withdrawal note failed:', e)
     }
   }
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ids: gone.map((r: { id: string }) => r.id) })
 }

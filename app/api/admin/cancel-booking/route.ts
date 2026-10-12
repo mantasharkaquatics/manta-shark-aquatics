@@ -249,7 +249,10 @@ export async function POST(req: NextRequest) {
       kind: mode === 'voucher' ? 'voucher'
         : (refundedBy.get(r.parent_id) || 0) > 0 ? 'points'
         : gotBack ? 'voucher'
-        : (refund && wasPaidAssessment && !assessmentReversed) ? 'assessment' : 'none',
+        : (refund && wasPaidAssessment && !assessmentReversed) ? 'assessment'
+        // Already refunded or charged back: its own email, not the generic
+        // "Lesson Cancelled – 1-on-1 ... rebook on your dashboard" (2026-10-12).
+        : (r.is_trial && assessmentReversed) ? 'assessment_refunded' : 'none',
       voucherExpires: mode === 'voucher' ? voucherExpires : gotBack?.expires_on,
       voucherFrom: mode === 'voucher' ? undefined : gotBack?.usable_from ?? undefined,
       voucherBack: mode !== 'voucher' && !!gotBack,

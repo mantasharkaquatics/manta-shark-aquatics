@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
-import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
+import { getEffectiveZones, zoneTypeForSlug, groupBandsFor } from '@/lib/zones'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
@@ -446,6 +446,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // A 1-on-4 the desk opens carries its zone's level band, as the parent
+    // paths write it (lib/zones groupBandsFor; found 2026-10-12: desk-opened
+    // group classes had none, so the "Level x-y" tag came and went). One read
+    // for every date; nulls for any other course, and it never throws.
+    const bands = await groupBandsFor(svc, ct.slug || '', dates.map((d: string) => ({ coach: coach_id, date: d, start: start_time, end: endTime })))
+
     // Each date's session (an hour: its first half), so the email can say
     // which pool each lesson is at.
     const sessOfDate: (string | undefined)[] = []
@@ -520,7 +526,7 @@ export async function POST(req: NextRequest) {
       } else {
         const { data: newSess, error: sessErr } = await svc
           .from('class_sessions')
-          .insert({ coach_id, course_type_id, session_date: date, start_time, end_time: endTime, max_students: ct.max_students, enrolled_count: 0, status: 'open' })
+          .insert({ coach_id, course_type_id, session_date: date, start_time, end_time: endTime, max_students: ct.max_students, enrolled_count: 0, status: 'open', ...bands[i] })
           .select('id').single()
         if (sessErr || !newSess) {
           await rollback('a session could not be created')

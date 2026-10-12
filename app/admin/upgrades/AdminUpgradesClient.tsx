@@ -86,10 +86,12 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
     return map
   }, [skills])
 
-  async function fetchHistory(studentId: string | null, before: string | null): Promise<{ rows: UpgradeHistory[]; more: boolean } | null> {
+  // `before` is the last row shown: the next page starts after its time AND
+  // id, so rows sharing that time are not skipped (found 2026-10-12).
+  async function fetchHistory(studentId: string | null, before: UpgradeHistory | null): Promise<{ rows: UpgradeHistory[]; more: boolean } | null> {
     const q = new URLSearchParams()
     if (studentId) q.set('student_id', studentId)
-    if (before) q.set('before', before)
+    if (before) { q.set('before', before.upgraded_at); q.set('before_id', before.id) }
     const res = await fetch('/api/admin/level-history?' + q.toString()).catch(() => null)
     if (!res || !res.ok) return null
     return res.json().catch(() => null)
@@ -99,7 +101,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
     const last = upgradeHistory[upgradeHistory.length - 1]
     if (!last) return
     setHistoryLoading(true); setHistoryErr(false)
-    const r = await fetchHistory(null, last.upgraded_at)
+    const r = await fetchHistory(null, last)
     if (r) { setUpgradeHistory(prev => [...prev, ...r.rows]); setHistoryMore(r.more) } else setHistoryErr(true)
     setHistoryLoading(false)
   }
@@ -107,7 +109,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
   // The swimmer whose history was asked for last: an answer for an earlier
   // pick that arrives late is dropped.
   const historyFor = useRef<string | null>(null)
-  async function loadStudentHistory(studentId: string, before: string | null) {
+  async function loadStudentHistory(studentId: string, before: UpgradeHistory | null) {
     historyFor.current = studentId
     setStudentHistoryLoading(true); setStudentHistoryErr(false)
     const r = await fetchHistory(studentId, before)
@@ -327,7 +329,7 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
                 <div className="space-y-2">{studentHistory.map(historyRow)}</div>
               )}
               {studentHistoryMore && !studentHistoryErr && (
-                <button onClick={() => selectedStudent && loadStudentHistory(selectedStudent.id, studentHistory?.[studentHistory.length - 1]?.upgraded_at ?? null)} disabled={studentHistoryLoading}
+                <button onClick={() => selectedStudent && loadStudentHistory(selectedStudent.id, studentHistory?.[studentHistory.length - 1] ?? null)} disabled={studentHistoryLoading}
                   className="mt-2 w-full py-2 rounded-lg border border-[#1e3a6e] text-gray-300 text-xs hover:bg-[#1e3a6e]/40 transition-all disabled:opacity-50">
                   {studentHistoryLoading ? t('admin.levels.historyLoading') : t('admin.levels.historyLoadMore')}
                 </button>
