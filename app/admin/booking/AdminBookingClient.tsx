@@ -1737,8 +1737,10 @@ function DayView({ date, coaches, getSessionAt, getSessionCovering, loc, isCoach
                       }}
                       title={hold ? holdLabel : undefined}
                       className={`absolute inset-0 transition-colors group flex items-center justify-center ${overKey === `${coach.id}-${time}` ? 'bg-[#c9a84c]/20 ring-2 ring-[#c9a84c] ring-inset' : 'hover:bg-[#c9a84c]/10'}`}>
+                      {/* pt-4: a group zone writes its band ("L1–2 Group") at the
+                          top of the cell; the hold text starts below it. */}
                       {hold ? (
-                        <span className="absolute inset-0.5 rounded border border-dashed border-amber-400/60 bg-amber-400/[0.08] p-1.5 text-left text-[10px] font-semibold leading-tight text-amber-300 whitespace-normal break-words">
+                        <span className="absolute inset-0.5 rounded border border-dashed border-amber-400/60 bg-amber-400/[0.08] px-1.5 pb-1.5 pt-4 text-left text-[10px] font-semibold leading-tight text-amber-300 whitespace-normal break-words">
                           {holdLabel}
                         </span>
                       ) : (
