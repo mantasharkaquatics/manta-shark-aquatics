@@ -1077,7 +1077,6 @@
   "location.title": "{name} 游泳课程",
   "login.email": "电子邮件",
   "login.err.failed": "登录失败",
-  "login.coachPin": "教练请用 PIN 登录",
   "login.forgot": "忘记密码？",
   "login.noAccount": "还没有账号吗？",
   "login.password": "密码",

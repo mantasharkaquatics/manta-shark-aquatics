@@ -1077,7 +1077,6 @@
   "location.title": "{name} 游泳課程",
   "login.email": "電子郵件",
   "login.err.failed": "登入失敗",
-  "login.coachPin": "教練請用 PIN 登入",
   "login.forgot": "忘記密碼？",
   "login.noAccount": "還沒有帳號嗎？",
   "login.password": "密碼",

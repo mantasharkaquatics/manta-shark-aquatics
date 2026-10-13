@@ -1077,7 +1077,6 @@
   "location.title": "Swim lessons in {name}",
   "login.email": "Email",
   "login.err.failed": "Sign in failed",
-  "login.coachPin": "Coach? Sign in with your PIN",
   "login.forgot": "Forgot password?",
   "login.noAccount": "Don't have an account? ",
   "login.password": "Password",

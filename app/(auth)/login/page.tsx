@@ -124,11 +124,8 @@ export default function LoginPage() {
           {t('login.noAccount')}{' '}
           <Link href={signUpHref} className="text-[#2050a0] hover:underline font-bold">{t('login.signUp')}</Link>
         </p>
-        {/* Coaches have no password: they sign in with a PIN on their own page.
-            A coach who lands here (an old bookmark, say) needs a way across. */}
-        <p className="text-center text-xs mt-3">
-          <Link href="/coach-login" className="text-[#56647d] hover:text-[#2050a0] hover:underline">{t('login.coachPin')}</Link>
-        </p>
+        {/* No coach link here (owner, 2026-10-13): this is the families' page,
+            and coaches reach their PIN page from the footer's "Coach login". */}
       </div>
     </div>
   )
