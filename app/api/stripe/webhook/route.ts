@@ -614,6 +614,14 @@ export async function POST(req: NextRequest) {
       : topUp.amountCents
     if (reverseCents <= 0) return NextResponse.json({ received: true })
     if (!(await purchaseAlreadyCredited(supabase, topUp.sessionId))) {
+      // A dispute means the charge went through, so the credit is coming:
+      // Stripe does not order events, and a dispute can be delivered before
+      // checkout.session.completed (seen 2026-10-12 in the sandbox, 3 seconds
+      // apart). Ask for a redelivery instead of dropping the chargeback.
+      if (isDispute) {
+        console.log(`${event.type}: session ${topUp.sessionId} not credited yet, asking Stripe to redeliver`)
+        return NextResponse.json({ error: 'purchase not recorded yet' }, { status: 503 })
+      }
       console.log(`${event.type}: session ${topUp.sessionId} was never credited, nothing to reverse`)
       return NextResponse.json({ received: true })
     }
@@ -885,6 +893,14 @@ async function assessmentChargeback(paymentIntentId: string, sessionId: string |
   // Not an assessment: neither an assessment checkout nor a desk sale with an
   // assessment credit.
   if (!sessionId && (!credits || credits.length === 0)) return null
+  // An assessment checkout whose payment is not recorded yet: the dispute
+  // arrived before checkout.session.completed (Stripe does not order events;
+  // seen 2026-10-12, 3 seconds apart). Marking nothing and alerting "no
+  // purchase found" lost the chargeback; a redelivery finds the purchase.
+  if (sessionId && purchaseIds.length === 0) {
+    console.log(`dispute ${dispute?.id}: assessment checkout ${sessionId} not recorded yet, asking Stripe to redeliver`)
+    return NextResponse.json({ error: 'assessment payment not recorded yet' }, { status: 503 })
+  }
 
   const { data: marked, error: markErr } = purchaseIds.length
     ? await supabase.from('purchases')
