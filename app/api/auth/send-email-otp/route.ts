@@ -7,6 +7,7 @@ import { emailHasAccount } from '@/lib/account-exists'
 // all, not plain i18n: the server needs the Chinese dictionaries too.
 import { getT, toLocale } from '@/lib/i18n/all'
 import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
+import { CONTACT_EMAIL, EMAIL_FROM } from '@/lib/site-config'
 
 export const runtime = 'nodejs'
 
@@ -119,7 +120,8 @@ export async function POST(req: NextRequest) {
     // Resend reports an API failure in its result rather than by throwing;
     // with the row now written after the send, that has to be checked.
     const { error: sendError } = await resend.emails.send({
-      from: 'Manta Shark Aquatics <info@mantasharkaquatics.net>',
+      from: EMAIL_FROM,
+      replyTo: CONTACT_EMAIL,
       to: normalizedEmail,
       subject: t('email.code.subject', { code: otpCode }),
       html: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 22px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; text-align: center;"><p style="color: #666; margin-bottom: 16px;">${t('email.code.intro')}</p><div style="font-size: 32px; font-weight: 700; letter-spacing: 0.3em; color: #1a2744; margin-bottom: 16px;">${otpCode}</div><p style="color: #999; font-size: 13px;">${t('email.code.expires')}</p></div></div>`,

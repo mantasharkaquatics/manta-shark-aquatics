@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentPaymentReversed, countCreditLessons, CREDIT_LESSONS, reopenReversedAssessment, restoreWonAssessment } from '@/lib/assessments'
+import { ALERT_EMAIL_FALLBACK } from '@/lib/site-config'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -853,7 +854,7 @@ async function cancelDuplicateTeamSubscription(session: Stripe.Checkout.Session,
     const { data: st } = await supabase.from('students').select('full_name').eq('id', meta.student_id).maybeSingle()
     await sendEmail({
       type: 'admin_alert',
-      to: process.env.ADMIN_ALERT_EMAIL || 'info@mantasharkaquatics.net',
+      to: process.env.ADMIN_ALERT_EMAIL || ALERT_EMAIL_FALLBACK,
       alertTitle: 'Duplicate Swim Team subscription cancelled',
       alertLines: [
         `${st?.full_name || 'A swimmer'} already had a Swim Team subscription (${keptSubscriptionId}), and a second checkout was paid (${dupSub}).`,

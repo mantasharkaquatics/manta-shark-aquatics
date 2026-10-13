@@ -5,6 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
 import { getLocations, showLocations, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { ALERT_EMAIL_FALLBACK } from '@/lib/site-config'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -177,7 +178,7 @@ async function alertDesk(svc: Svc, coach: { id: string; first_name: string }, ro
   const results = await Promise.allSettled([
     sendEmail({
       type: 'admin_alert',
-      to: process.env.ADMIN_ALERT_EMAIL || 'info@mantasharkaquatics.net',
+      to: process.env.ADMIN_ALERT_EMAIL || ALERT_EMAIL_FALLBACK,
       alertTitle: withdrawn
         ? `Coach time off withdrawn: ${n} booked ${plural} go ahead (${day})`
         : `Coach time off covers ${n} booked ${plural} (${day})`,

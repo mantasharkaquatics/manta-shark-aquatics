@@ -1,4 +1,5 @@
 import LegalPage from '@/components/brand/LegalPage'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 export const metadata = { title: 'Privacy Policy | Manta Shark Aquatics' }
 
 export default function PrivacyPolicyPage() {
@@ -67,7 +68,7 @@ export default function PrivacyPolicyPage() {
             send marketing or promotional text messages.
           </li>
           <li>Message frequency varies: a passcode only when you request one, and one reminder for each lesson you book. Message and data rates may apply.</li>
-          <li>Reply STOP to opt out of SMS at any time. Reply HELP for help, or contact us at info@mantasharkaquatics.net.</li>
+          <li>Reply STOP to opt out of SMS at any time. Reply HELP for help, or contact us at {CONTACT_EMAIL}.</li>
           <li>Consent to receive SMS is not a condition of purchasing any goods or services.</li>
           <li>
             No mobile information will be shared with third parties or affiliates for marketing or
@@ -180,7 +181,7 @@ export default function PrivacyPolicyPage() {
         <h2>8. California Privacy Rights &amp; Do Not Track</h2>
         <p>
           California residents may request access to, or deletion of, the personal information we
-          hold about them by contacting us at info@mantasharkaquatics.net. We do not sell personal
+          hold about them by contacting us at {CONTACT_EMAIL}. We do not sell personal
           information. Our website does not respond to browser &quot;Do Not Track&quot; signals, as no uniform
           industry standard currently exists; we do not track visitors across third-party websites.
         </p>
@@ -194,7 +195,7 @@ export default function PrivacyPolicyPage() {
         <h2>10. Contact Us</h2>
         <p>
           Manta Shark Aquatics<br />
-          Email: info@mantasharkaquatics.net<br />
+          Email: {CONTACT_EMAIL}<br />
           Website: www.mantasharkaquatics.net
         </p>
 

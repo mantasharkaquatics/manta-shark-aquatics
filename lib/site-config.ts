@@ -7,6 +7,21 @@
 export const SITE_URL = 'https://mantasharkaquatics.net'
 
 /**
+ * Email addresses (owner, 2026-10-13). The school's mailboxes are Google
+ * Workspace on the .com domain; info@ and alerts@ are Google Groups there that
+ * deliver to the staff in them. info@mantasharkaquatics.net never had a
+ * mailbox, so mail written to it was lost.
+ *
+ * Mail still LEAVES from the .net address, because that is the domain verified
+ * in Resend; every message carries Reply-To: CONTACT_EMAIL so a family's reply
+ * reaches a person. When .com is verified in Resend, move EMAIL_FROM to .com.
+ */
+export const CONTACT_EMAIL = 'info@mantasharkaquatics.com'
+export const EMAIL_FROM = 'Manta Shark Aquatics <info@mantasharkaquatics.net>'
+/** Staff alerts when ADMIN_ALERT_EMAIL is not set in the environment. */
+export const ALERT_EMAIL_FALLBACK = 'alerts@mantasharkaquatics.com'
+
+/**
  * Hiring. The careers page stays up and indexed either way -- it is the one page
  * exempt from the pre-launch noindex, and losing its ranking to save a month of
  * being closed would be a bad trade.

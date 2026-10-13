@@ -1,6 +1,7 @@
 import LegalPage from '@/components/brand/LegalPage'
 import { LEGAL_VERSIONS } from '@/lib/legal'
 import { OFF_PEAK_ENABLED, REFERRAL_POINTS, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 
 export const metadata = { title: 'User Agreement — Manta Shark Aquatics' }
 
@@ -65,7 +66,7 @@ export default function Page() {
 
           <h2>8. Monthly Programs &amp; Automatic Renewal</h2>
           <div className="lg-plain"><strong>In plain terms:</strong> Swim Team is the one monthly program. It renews each month automatically until you cancel, and you can cancel anytime before your next billing date. Lessons, group lessons included, are paid with points and never renew on their own.</div>
-          <p>Swim Team memberships are billed monthly and renew automatically each month until canceled. Lessons, including 1-on-4 group lessons, are paid for with points under Sections 3 and 4 and are not billed monthly. The recurring price is disclosed at signup, and you will be notified in advance of any price change. You may cancel at any time before your next billing date from your account dashboard or by contacting us at info@mantasharkaquatics.net; cancellation stops future charges and your membership remains active through the period already paid.</p>
+          <p>Swim Team memberships are billed monthly and renew automatically each month until canceled. Lessons, including 1-on-4 group lessons, are paid for with points under Sections 3 and 4 and are not billed monthly. The recurring price is disclosed at signup, and you will be notified in advance of any price change. You may cancel at any time before your next billing date from your account dashboard or by contacting us at {CONTACT_EMAIL}; cancellation stops future charges and your membership remains active through the period already paid.</p>
 
           <h2>9. Check-in &amp; Attendance</h2>
           <p>Students must check in at the front desk before each lesson, either by QR code or by name. Check-in opens 30 minutes before the scheduled start time and closes when the lesson ends. Attendance records are maintained electronically and are visible in your account dashboard.</p>
@@ -92,7 +93,7 @@ export default function Page() {
           <p>We may update this User Agreement from time to time. Material changes will be communicated by email or through your account dashboard, and continued use of the services after notice constitutes acceptance. The version you accepted is recorded with your account.</p>
 
           <h2>17. Contact</h2>
-          <p>Questions about this agreement may be directed to info@mantasharkaquatics.net.</p>
+          <p>Questions about this agreement may be directed to {CONTACT_EMAIL}.</p>
 
     </LegalPage>
   )

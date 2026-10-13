@@ -7,6 +7,7 @@ import { getT, toLocale } from './i18n/all'
 import { stageNameKey } from './levels'
 import { formatTime12h } from './date'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
+import { CONTACT_EMAIL, EMAIL_FROM } from './site-config'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -532,7 +533,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   </td></tr>
   <tr><td style="background: #12254a; padding: 22px 40px; color: #c9d3e6; font-size: 13px; line-height: 1.7;">
     ${t('welcome.email.questions')}<br>
-    <a href="mailto:info@mantasharkaquatics.net" style="color: #f0b44d; text-decoration: none;">info@mantasharkaquatics.net</a> &middot; <a href="${SITE}" style="color: #f0b44d; text-decoration: none;">mantasharkaquatics.net</a><br>
+    <a href="mailto:${CONTACT_EMAIL}" style="color: #f0b44d; text-decoration: none;">${CONTACT_EMAIL}</a> &middot; <a href="${SITE}" style="color: #f0b44d; text-decoration: none;">mantasharkaquatics.net</a><br>
     ${t('footer.location')} &middot; ${t('footer.hours')}
   </td></tr>
 </table>
@@ -666,7 +667,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // Resend reports an API failure in its result, not by throwing. Checked
     // since 2026-10-06, so a false here really means "not sent".
     const { error } = await resend.emails.send({
-      from: 'Manta Shark Aquatics <info@mantasharkaquatics.net>',
+      from: EMAIL_FROM,
+      replyTo: CONTACT_EMAIL,
       to,
       subject,
       html,

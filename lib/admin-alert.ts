@@ -1,4 +1,5 @@
 import { sendEmail } from '@/lib/email'
+import { ALERT_EMAIL_FALLBACK } from '@/lib/site-config'
 
 /* A message to the school about money the system could not settle on its own
    (a late assessment payment, a chargeback, a refund made in the Stripe
@@ -8,7 +9,7 @@ export async function alertAdmin(title: string, lines: string[]): Promise<boolea
   try {
     const ok = await sendEmail({
       type: 'admin_alert',
-      to: process.env.ADMIN_ALERT_EMAIL || 'info@mantasharkaquatics.net',
+      to: process.env.ADMIN_ALERT_EMAIL || ALERT_EMAIL_FALLBACK,
       alertTitle: title,
       alertLines: lines,
     })

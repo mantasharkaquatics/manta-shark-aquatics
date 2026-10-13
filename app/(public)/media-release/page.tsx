@@ -1,5 +1,6 @@
 import LegalPage from '@/components/brand/LegalPage'
 import { LEGAL_VERSIONS } from '@/lib/legal'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 
 export const metadata = { title: 'Photo & Video Release — Manta Shark Aquatics' }
 
@@ -15,7 +16,7 @@ export default function Page() {
           <h2>Conditions</h2>
           <p>Media will never be sold to third parties. Student full names will not be published alongside images without separate written consent. No compensation will be provided for the use of such media.</p>
           <h2>Optional & Revocable</h2>
-          <p>This release is entirely optional and is not a condition of enrollment. You may opt in or out at registration, and you may revoke consent at any time by emailing info@mantasharkaquatics.net, after which we will cease new use of your child’s media and remove identified images from our active channels within a reasonable time.</p>
+          <p>This release is entirely optional and is not a condition of enrollment. You may opt in or out at registration, and you may revoke consent at any time by emailing {CONTACT_EMAIL}, after which we will cease new use of your child’s media and remove identified images from our active channels within a reasonable time.</p>
 
     </LegalPage>
   )

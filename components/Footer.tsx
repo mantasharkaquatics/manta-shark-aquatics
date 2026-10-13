@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 
 const LINKS = [
   { labelKey: 'page.assessment', href: '/assessment' },
@@ -64,7 +65,7 @@ export default function Footer({ locations = [] }: { locations?: { id: string; n
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '16px' }}>{t('footer.contact')}</div>
             <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.62)', lineHeight: 1.8 }}>
-              <a href="mailto:info@mantasharkaquatics.net" style={{ color: 'inherit', textDecoration: 'none' }}>info@mantasharkaquatics.net</a><br />
+              <a href={`mailto:${CONTACT_EMAIL}`} style={{ color: 'inherit', textDecoration: 'none' }}>{CONTACT_EMAIL}</a><br />
               {locations.length > 1
                 ? locations.map(l => (
                     <span key={l.id}>

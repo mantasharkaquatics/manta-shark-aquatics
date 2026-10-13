@@ -1,4 +1,5 @@
 import LegalPage from '@/components/brand/LegalPage'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 export const metadata = { title: 'SMS Terms & Conditions | Manta Shark Aquatics' }
 
 export default function SmsTermsPage() {
@@ -40,12 +41,12 @@ export default function SmsTermsPage() {
           confirmation message and no further text messages, including lesson reminders; booking
           confirmations and other notices continue by email. Reply START to receive text messages
           again. Consent to receive text messages is not a condition of purchasing any goods or
-          services. If you cannot receive a verification passcode by text, contact us at
-          info@mantasharkaquatics.net and we will help you finish setting up your account.
+          services. If you cannot receive a verification passcode by text, contact us at{' '}
+          {CONTACT_EMAIL} and we will help you finish setting up your account.
         </p>
 
         <h2>Help</h2>
-        <p>Reply HELP to any message, or contact us at info@mantasharkaquatics.net.</p>
+        <p>Reply HELP to any message, or contact us at {CONTACT_EMAIL}.</p>
 
         <h2>Privacy</h2>
         <p>
@@ -57,7 +58,7 @@ export default function SmsTermsPage() {
         <h2>Contact</h2>
         <p>
           Manta Shark Aquatics<br />
-          Email: info@mantasharkaquatics.net<br />
+          Email: {CONTACT_EMAIL}<br />
           Website: www.mantasharkaquatics.net
         </p>
 
