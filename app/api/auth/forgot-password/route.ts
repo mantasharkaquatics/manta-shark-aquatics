@@ -66,6 +66,9 @@ export async function POST(req: NextRequest) {
       .select('auth_user_id, first_name, email').ilike('email', emailIlikePattern(email)).limit(20)
     const admin = (admins as Person[] | null)?.find(r => sameEmail(r.email, email))
     if (admin?.auth_user_id) person = admin
+    // A disabled manager (no auth_user_id, 2026-10-13) gets no link: the
+    // same quiet answer as an address we do not know.
+    else if (admin) return NextResponse.json({ ok: true })
   }
 
   let token: string | undefined

@@ -6,6 +6,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { allRows, allRowsIn } from '@/lib/db-paging'
 import { getTodayLA, getNowMinutesLA, LESSON_MINUTES } from '@/lib/date'
 import { lessonsOfChecked, termLastDatesChecked, classState, renewOpen } from '@/lib/fixed-classes'
+import { changeLoginEmail } from '@/lib/staff-accounts'
 
 const svc = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,10 +147,22 @@ export async function PATCH(req: NextRequest) {
 
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { id, first_name, last_name, pin, is_active } = body
+  const { id, first_name, last_name, pin, is_active, email } = body
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const s = svc()
+
+  // The sign-in email (owner, 2026-10-13: coaches move to their school
+  // mailbox). On its own, never mixed with the other fields, because it moves
+  // the Auth login as well as the row.
+  if (email !== undefined) {
+    const { data: coach } = await s.from('coaches').select('auth_user_id').eq('id', id).maybeSingle()
+    if (!coach) return NextResponse.json({ error: 'Coach not found' }, { status: 404 })
+    const by = `${auth.admin.first_name} ${auth.admin.last_name || ''}`.trim()
+    const r = await changeLoginEmail(s, (coach as { auth_user_id: string | null }).auth_user_id, email, by)
+    if (!r.ok) return NextResponse.json({ error: 'Email not changed', code: r.code }, { status: r.status })
+    return NextResponse.json({ ok: true, email: r.newEmail })
+  }
   const update: Record<string, unknown> = {}
   if (first_name !== undefined) update.first_name = String(first_name).trim()
   if (last_name !== undefined) update.last_name = String(last_name).trim() || null

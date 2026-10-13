@@ -58,6 +58,8 @@ export type EmailType =
   | 'fixed_class_renewal'
   | 'fixed_class_moved'
   | 'admin_alert'
+  | 'staff_invite'
+  | 'staff_email_changed'
   | 'welcome'
   | 'chat_reply'
 
@@ -157,6 +159,10 @@ export interface EmailPayload {
    *  plain set of lessons). */
   seriesKind?: 'fixed' | 'lessons'
   alertTitle?: string
+  /** staff_invite / staff_email_changed: the staff member's first name, and
+   *  the manager who made the change. */
+  staffName?: string
+  changedBy?: string
   alertLines?: string[]
   reportId?: string
   // voucher_expiring: which lesson the voucher is for (course slug, minutes).
@@ -546,6 +552,19 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // subscription cancelled and refunded). English, as staff mail is.
     subject = `[Manta Shark admin] ${payload.alertTitle || 'Action needed'}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">${esc(payload.alertTitle || 'Action needed')}</h2>${(payload.alertLines || []).map(l => `<p style="color: #16294a; line-height: 1.6;">${esc(l)}</p>`).join('')}</div>`
+
+  } else if (type === 'staff_invite') {
+    // A new manager's back-office login (owner, 2026-10-13): the link sets
+    // their password through the same /reset-password page families use.
+    // English, as staff mail is.
+    subject = 'Your Manta Shark Aquatics staff account'
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Set your password</h2><p>Hi ${esc(payload.staffName || 'there')},</p><p>${esc(payload.changedBy || 'The school')} has given you access to the Manta Shark Aquatics back office. Tap the button below to choose your password. After that, sign in at the website with <strong>${esc(to)}</strong> and your password.</p><div style="text-align:center; margin: 24px 0;"><a href="${esc(payload.resetUrl)}" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Set password</a></div><p style="color:#666; font-size: 13px;">This link works once and expires in 1 hour. If it has expired, use "Forgot password" on the sign-in page with this email address.</p></div></div>`
+
+  } else if (type === 'staff_email_changed') {
+    // Sent to the OLD address after a manager moved a staff login to a new
+    // one (owner, 2026-10-13), so the person it happened to always knows.
+    subject = 'Your Manta Shark Aquatics sign-in email was changed'
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Sign-in email changed</h2><p>The email you use to sign in to Manta Shark Aquatics was changed from <strong>${esc(to)}</strong> to <strong>${esc(newValue)}</strong> by ${esc(payload.changedBy || 'a manager')}.</p><p>From now on, use the new address to sign in. Your password and PIN have not changed.</p><p style="color:#666; font-size: 13px;">If you did not expect this change, reply to this email or tell a manager right away.</p></div></div>`
 
   } else if (type === 'fixed_class_ended') {
     // The front desk ended a fixed class part-way. reason is what the remaining

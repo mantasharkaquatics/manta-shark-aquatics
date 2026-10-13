@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag } from '@/lib/i18n'
+import ManagersPanel from './ManagersPanel'
 
 type Coach = {
   id: string
@@ -22,6 +23,9 @@ const COACH_ERROR_KEYS: Record<string, string> = {
   bad_pin: 'admin.coaches.err.badPin',
   pin_in_use: 'admin.coaches.err.pinInUse',
   email_taken: 'admin.coaches.err.emailTaken',
+  bad_email: 'admin.coaches.err.badEmail',
+  same_email: 'admin.coaches.err.sameEmail',
+  no_login: 'admin.coaches.err.noLogin',
 }
 
 type DeactivateState =
@@ -135,6 +139,12 @@ export default function AdminCoachesPage() {
   const [editPinId, setEditPinId] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [editPin, setEditPin] = useState('')
+  // The sign-in email (owner, 2026-10-13): coaches move to their school
+  // mailbox. Same inline editor as the PIN; one row open at a time.
+  const [editEmailId, setEditEmailId] = useState<string | null>(null)
+  const [editEmail, setEditEmail] = useState('')
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   // Lifting a PIN lockout (owner, 2026-10-08: the front desk unlocks it; coaches
   // have no email way in). null = closed; 'ask' = confirming; then the answer.
   const [unlock, setUnlock] = useState<null | 'ask' | 'busy' | { cleared: number } | { failed: true }>(null)
@@ -200,6 +210,20 @@ export default function AdminCoachesPage() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setError(t(COACH_ERROR_KEYS[String(data.code || '')] || 'admin.coaches.err.failed')); return }
     setEditPinId(null); setEditPin('')
+  }
+
+  const saveEmail = async (id: string) => {
+    setError(null); setNotice(null); setEmailBusy(true)
+    const res = await fetch('/api/admin/coaches', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, email: editEmail }),
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    setEmailBusy(false)
+    if (!res?.ok) { setError(t(COACH_ERROR_KEYS[String(data.code || '')] || 'admin.coaches.err.failed')); return }
+    setEditEmailId(null); setEditEmail('')
+    setNotice(t('admin.coaches.emailChanged'))
+    load()
   }
 
   const unlockPin = async () => {
@@ -345,11 +369,26 @@ export default function AdminCoachesPage() {
                   <p className="text-gray-500 text-xs">{c.email}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={() => setScheduleId(scheduleId === c.id ? null : c.id)}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${scheduleId === c.id ? 'border-[#c9a84c] bg-[#c9a84c]/20 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c]'}`}>
                   {t('admin.coaches.schedule')}
                 </button>
+                {editEmailId === c.id ? (
+                  <>
+                    <input type="email" placeholder={t('admin.coaches.ph.newEmail')} value={editEmail} autoFocus
+                      onChange={e => setEditEmail(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !emailBusy) saveEmail(c.id) }}
+                      className="bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-3 py-1.5 text-sm text-white w-64 focus:outline-none focus:border-[#c9a84c]" />
+                    <button onClick={() => saveEmail(c.id)} disabled={emailBusy} className="text-xs px-3 py-1.5 rounded-lg bg-[#c9a84c] text-[#111d38] font-semibold disabled:opacity-50">{emailBusy ? t('admin.coaches.saving') : t('common.save')}</button>
+                    <button onClick={() => { setEditEmailId(null); setEditEmail(''); setError(null) }} disabled={emailBusy} className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400">{t('common.cancel')}</button>
+                  </>
+                ) : (
+                  <button onClick={() => { setEditEmailId(c.id); setEditEmail(c.email); setEditPinId(null); setError(null); setNotice(null) }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all">
+                    {t('admin.coaches.changeEmail')}
+                  </button>
+                )}
                 {editPinId === c.id ? (
                   <>
                     <input placeholder={t('admin.coaches.ph.newPin')} value={editPin} maxLength={8}
@@ -359,7 +398,7 @@ export default function AdminCoachesPage() {
                     <button onClick={() => { setEditPinId(null); setEditPin(''); setError(null) }} className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400">{t('common.cancel')}</button>
                   </>
                 ) : (
-                  <button onClick={() => { setEditPinId(c.id); setEditPin(''); setError(null) }}
+                  <button onClick={() => { setEditPinId(c.id); setEditPin(''); setEditEmailId(null); setError(null) }}
                     className="text-xs px-3 py-1.5 rounded-lg border border-[#1e3a6e] text-gray-400 hover:border-[#c9a84c]/50 hover:text-[#c9a84c] transition-all">
                     {t('admin.coaches.changePin')}
                   </button>
@@ -384,9 +423,12 @@ export default function AdminCoachesPage() {
             )}
             </div>
           ))}
-          {error && !showAdd && <p className="text-red-400 text-sm">{error}</p>}
+          {error && !showAdd && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+          {notice && <p role="status" className="text-green-400 text-sm">{notice}</p>}
         </div>
       )}
+
+      <ManagersPanel />
     </div>
   )
 }
