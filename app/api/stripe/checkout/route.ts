@@ -69,9 +69,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'This student already has an active team membership.' }, { status: 400 })
       // Prepaid conversion (owner 2026-07-22): a live prepaid membership may convert to the subscription;
       // billing anchors at the prepaid expiry via trial_end so no paid days are lost.
-      const prepaid = (existingRows || []).find(r => !r.stripe_subscription_id && r.expires_at && new Date(r.expires_at) > new Date()) || null
+      // A LAPSED prepaid converts too (owner, 2026-10-13): it stays status
+      // 'active' after its date, and idx_tm_active_student allows one 'active'
+      // row per swimmer, so a second (subscription) row could not be added --
+      // the webhook took the unique violation for a duplicate delivery and the
+      // family paid for a month with no membership recorded. It is billed at
+      // once (no trial_end: its date has passed) and the squad cap still applies.
+      const isInDate = (r: { expires_at: string | null }) => !!r.expires_at && new Date(r.expires_at) > new Date()
+      const prepaidRows = (existingRows || []).filter(r => !r.stripe_subscription_id)
+      const prepaid = prepaidRows.find(isInDate) || prepaidRows[0] || null
+      const prepaidLapsed = !!prepaid && !isInDate(prepaid)
 
-      if (!prepaid) {
+      if (!prepaid || prepaidLapsed) {
         const { count: members } = await svc
           .from('team_memberships').select('id', { count: 'exact', head: true })
           .eq('team_tier_id', tier.id).in('status', ['active', 'past_due'])

@@ -61,11 +61,14 @@ export async function POST(req: NextRequest) {
       if (meta.prepaid_membership_id) {
         // Prepaid → subscription conversion: take over the existing prepaid
         // row -- only while it has no subscription of its own yet.
+        // The tier is the one being paid for: a lapsed prepaid (converted too,
+        // 2026-10-13) may be from before the swimmer moved up a team.
         const { data: upd, error: convErr } = await supabase.from('team_memberships')
           .update({
             stripe_subscription_id: newSub,
             status: 'active',
             expires_at: null,
+            ...(meta.team_tier_id ? { team_tier_id: meta.team_tier_id } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq('id', meta.prepaid_membership_id)
@@ -117,6 +120,25 @@ export async function POST(req: NextRequest) {
               .not('stripe_subscription_id', 'is', null).in('status', ['active', 'past_due']).limit(1)
             const w = winner && winner[0]?.stripe_subscription_id
             if (w && w !== newSub) await cancelDuplicateTeamSubscription(session, String(w))
+            if (w) return NextResponse.json({ received: true })
+            /* No subscription holds the swimmer's one 'active' row
+               (idx_tm_active_student): a prepaid does -- lapsed, from a
+               checkout opened before 2026-10-13 that did not convert it. Take
+               it over, as the conversion above would have. Returning here
+               without a row was the bug: paid, no membership recorded. */
+            const { data: took, error: takeErr } = await supabase.from('team_memberships')
+              .update({ stripe_subscription_id: newSub, status: 'active', expires_at: null, team_tier_id: meta.team_tier_id, updated_at: new Date().toISOString() })
+              .eq('student_id', meta.student_id).eq('status', 'active').is('stripe_subscription_id', null)
+              .select('id')
+            if (!takeErr && took && took.length > 0) {
+              console.log(`✅ Prepaid membership ${took[0].id} taken over by subscription ${newSub}`)
+              return NextResponse.json({ received: true })
+            }
+            console.error(`Team membership for ${newSub} not recorded:`, takeErr?.message || 'no row to take over')
+            await alertAdmin('Swim team subscription not recorded', [
+              `A swim team subscription (${newSub}) was paid for swimmer ${meta.student_id}, but no membership row could be recorded for it.`,
+              'Check the swimmer\'s team membership by hand and link this subscription.',
+            ])
             return NextResponse.json({ received: true })
           }
           console.error('Team membership insert failed:', tmErr.message)
