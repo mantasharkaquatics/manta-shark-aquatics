@@ -88,6 +88,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Fixed-class and make-up lessons cannot be rescheduled', 'err.fixedNoReschedule'],
   ['Trial already used', 'err.trialUsed'],
   ['NEEDS_ASSESSMENT', 'err.needsAssessment'],
+  ['ASSESSMENT_PENDING', 'err.assessmentPending'],
   ["A Swim Assessment can't be cancelled online", 'err.assessmentNoCancel'],
   ['Student not found', 'err.studentNotFound'],
   ['Parent not found', 'err.parentNotFound'],

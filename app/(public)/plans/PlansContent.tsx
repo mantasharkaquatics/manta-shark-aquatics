@@ -197,6 +197,8 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsAssessment, setNeedsAssessment] = useState(false)
+  // A family whose Swim Assessment is booked but not yet taken (2026-10-13).
+  const [assessmentPending, setAssessmentPending] = useState(false)
   // A click that landed before useFamilyStatus answered, and found nobody
   // signed in: show the same signed-out block as signedIn === false.
   const [guestClicked, setGuestClicked] = useState(false)
@@ -224,6 +226,7 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
     setBusy(true)
     setError(null)
     setNeedsAssessment(false)
+    setAssessmentPending(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       // Not to the login page (found 2026-10-08): a new family has no account,
@@ -242,6 +245,7 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
       const data = await res.json()
       if (data.url) { window.location.href = data.url; return }
       if (data.error === 'NEEDS_ASSESSMENT') setNeedsAssessment(true)
+      else if (data.error === 'ASSESSMENT_PENDING') setAssessmentPending(true)
       else if (data.error === 'INVALID_AMOUNT') setError(t('points.buy.err.amount', { min: money(MIN_TOPUP_DOLLARS), max: money(MAX_TOPUP_DOLLARS) }))
       else setError(t('points.buy.err.generic'))
     } catch {
@@ -319,6 +323,9 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
           <div style={{ marginBottom: 8 }}>{t('points.buy.err.assessment')}</div>
           <Link href={localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
         </div>
+      )}
+      {assessmentPending && (
+        <div className="p-warn">{t('points.buy.err.assessmentPending')}</div>
       )}
       {error && <div className="p-err">{error}</div>}
 

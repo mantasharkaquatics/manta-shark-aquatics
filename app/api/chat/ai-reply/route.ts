@@ -841,6 +841,8 @@ export async function POST(req: NextRequest) {
       // the answer to their question, and the assistant should give it.
       if (data?.error === 'NEEDS_ASSESSMENT')
         return { error: 'This family has no assessed swimmer yet, so points would sit unused. Tell them to book a Swim Assessment first and offer to help with that.' }
+      if (data?.error === 'ASSESSMENT_PENDING')
+        return { error: 'This family has a Swim Assessment booked but nobody has finished one yet. Points can be added online once the assessment is done and the swimmer has a level (owner rule) -- tell them that, kindly; the front desk can also help.' }
       if (!res.ok || !data?.url) {
         escalate = true
         return { error: 'Could not create a payment link. The conversation has been flagged for a team member.' }

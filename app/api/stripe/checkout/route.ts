@@ -163,37 +163,38 @@ export async function POST(req: NextRequest) {
     }
 
     // A brand-new family buys the Swim Assessment, not a wallet full of points.
-    // Two reasons, and the second is the one that bites: the booking page
-    // refuses to book a swimmer with no level, so without this check a family
-    // could pay and then find nothing bookable, with nothing on screen saying
-    // why. Deliberately per family, not per student -- once anyone here has a
-    // level we have met this family. A level assigned by hand in the admin
-    // panel counts, which is how a family assessed in person gets through.
+    // Owner, 2026-10-13: online top-ups open once at least one swimmer in the
+    // family has FINISHED the assessment (has a level). It used to open as soon
+    // as an assessment was booked, so a family could pay $1,950 before anyone
+    // had seen the child swim -- and if the assessment changes their mind, that
+    // is a refund. Per family, not per student: once anyone here has a level
+    // we have met this family. A level assigned by hand in the admin panel
+    // counts, which is how a family assessed in person gets through, and the
+    // front desk (POS) can still sell points. Paying off arrears is never
+    // blocked: that money is owed.
     const svcForGate = createSvcClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const { data: levelled } = await svcForGate
-      .from('students')
-      .select('id')
-      .eq('parent_id', parent.id)
-      .not('current_level', 'is', null)
-      .limit(1)
-    if (!levelled || levelled.length === 0) {
-      // An assessment already on the calendar counts. The gate exists so nobody
-      // pays for points they cannot spend -- but a family who has booked the
-      // assessment will have a level within days, and telling them to "book a
-      // Swim Assessment first" when they have just booked one is the software
-      // arguing with something the parent watched itself do.
-      const { data: booked } = await svcForGate
-        .from('bookings')
+    if (settleArrears !== true) {
+      const { data: levelled, error: lvErr } = await svcForGate
+        .from('students')
         .select('id')
         .eq('parent_id', parent.id)
-        .eq('is_trial', true)
-        .neq('status', 'cancelled')
+        .not('current_level', 'is', null)
         .limit(1)
-      if (!booked || booked.length === 0) {
-        return NextResponse.json({ error: 'NEEDS_ASSESSMENT' }, { status: 400 })
+      if (lvErr) return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 500 })
+      if (!levelled || levelled.length === 0) {
+        // Two answers, because "book a Swim Assessment" is wrong for a family
+        // who just booked one: theirs is "after the assessment".
+        const { data: booked } = await svcForGate
+          .from('bookings')
+          .select('id')
+          .eq('parent_id', parent.id)
+          .eq('is_trial', true)
+          .neq('status', 'cancelled')
+          .limit(1)
+        return NextResponse.json({ error: booked && booked.length > 0 ? 'ASSESSMENT_PENDING' : 'NEEDS_ASSESSMENT' }, { status: 400 })
       }
     }
 
