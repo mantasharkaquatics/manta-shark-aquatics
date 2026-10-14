@@ -45,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/messages', labelKey: 'admin.nav.messages', desc: 'Parent conversations', icon: <svg {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
       { href: '/admin/suggestions', labelKey: 'admin.nav.suggestions', desc: 'From the suggestion box', icon: <svg {...S}><path d="M4 4h16v12H8l-4 4z" /><path d="M9 9h6M9 12h4" /></svg> },
       { href: '/admin/fixed-classes', labelKey: 'admin.nav.fixedClasses', desc: 'Weekly classes, end one', icon: <svg {...S}><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4" /><path d="M8 14h3" /></svg> },
+      { href: '/admin/birthdays', labelKey: 'admin.nav.birthdays', desc: 'Birthday cards and gifts', icon: <svg {...S}><path d="M4 21h16v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2z" /><path d="M4 16c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5" /><path d="M12 11V7" /><path d="M12 3.5c.8.9 1.2 1.7.0 3-1.2-1.3-.8-2.1 0-3z" /></svg> },
       { href: '/admin/vouchers', labelKey: 'admin.nav.vouchers', desc: 'Issue, void, expiring', icon: <svg {...S}><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" /><path d="M10 6v12" strokeDasharray="2 2" /></svg> },
     ],
   },

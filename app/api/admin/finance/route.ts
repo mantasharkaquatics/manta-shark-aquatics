@@ -59,7 +59,7 @@ function monthKeyLA(iso: string): string {
 // given back: money in or out, reversals, and hand adjustments by staff.
 const NOT_LESSON_TRAFFIC = new Set([
   'purchase', 'cash_refund', 'payment_failed', 'chargeback',
-  'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired',
+  'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired', 'birthday_gift',
 ])
 
 // allRows: lib/db-paging.ts. A report that silently stopped at the first

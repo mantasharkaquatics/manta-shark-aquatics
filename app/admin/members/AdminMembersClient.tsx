@@ -1134,7 +1134,7 @@ const CONTACT_ERROR_KEYS: Record<string, string> = {
   not_found: 'admin.members.err.familyNotFound',
 }
 
-const LEDGER_REASONS = new Set(['purchase', 'booking', 'booking_failed', 'cancel_refund', 'forgiveness', 'school_cancel', 'admin_grant', 'admin_deduct', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback', 'grant_expired', 'referral_bonus', 'assessment_credit'])
+const LEDGER_REASONS = new Set(['purchase', 'booking', 'booking_failed', 'cancel_refund', 'forgiveness', 'school_cancel', 'admin_grant', 'admin_deduct', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback', 'grant_expired', 'referral_bonus', 'assessment_credit', 'birthday_gift'])
 const REFERRAL_STATUSES = new Set(['pending', 'awarded', 'void'])
 
 function ParentPointsSection({ parentId }: { parentId: string }) {
@@ -1221,6 +1221,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
     : r === 'school_cancel' ? 'border-orange-400/50 text-orange-300'
     : r === 'grant_expired' ? 'border-gray-500/50 text-gray-400'
     : r === 'referral_bonus' ? 'border-purple-400/50 text-purple-300'
+    : r === 'birthday_gift' ? 'border-purple-400/50 text-purple-300'
     : r === 'assessment_credit' ? 'border-purple-400/50 text-purple-300'
     : 'border-[#c9a84c]/50 text-[#c9a84c]'
   const refStatus = (st: string) => REFERRAL_STATUSES.has(st) ? t(`admin.members.pts.refStatus.${st}`) : st

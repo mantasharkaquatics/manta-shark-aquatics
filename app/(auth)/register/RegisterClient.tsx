@@ -777,7 +777,7 @@ export default function RegisterClient() {
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={newsletter} onChange={e => setNewsletter(e.target.checked)}
                   className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#d5e0ef] bg-white accent-[#2050a0]" />
-                <span className="text-sm text-[#16294a]">{t('register.newsletter')}</span>
+                <span className="text-sm text-[#16294a]"><b className="font-semibold">{t('register.newsletter')}</b><span className="block text-xs text-[#56647d] mt-0.5 leading-relaxed">{t('register.newsletterDesc')}</span></span>
               </label>
             </div>
             {error && <p className="text-red-600 text-sm">{error}</p>}

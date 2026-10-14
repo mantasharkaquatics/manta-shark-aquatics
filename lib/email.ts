@@ -699,3 +699,26 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * An email whose subject and HTML were built elsewhere (lib/birthday.ts), with
+ * optional extra headers -- List-Unsubscribe for marketing mail. Same sender,
+ * reply-to and failure reporting as sendEmail: false means not sent.
+ */
+export async function sendRawEmail(msg: { to: string; subject: string; html: string; headers?: Record<string, string> }): Promise<boolean> {
+  try {
+    const { error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      replyTo: CONTACT_EMAIL,
+      to: msg.to,
+      subject: msg.subject,
+      html: msg.html,
+      ...(msg.headers ? { headers: msg.headers } : {}),
+    })
+    if (error) throw error
+    return true
+  } catch (err) {
+    console.error('Email error:', err)
+    return false
+  }
+}

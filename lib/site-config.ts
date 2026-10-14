@@ -22,6 +22,16 @@ export const EMAIL_FROM = 'Manta Shark Aquatics <info@mantasharkaquatics.net>'
 export const ALERT_EMAIL_FALLBACK = 'alerts@mantasharkaquatics.com'
 
 /**
+ * The school's postal address, printed at the foot of every marketing email
+ * (the birthday card, lib/birthday.ts). US law (CAN-SPAM) requires a real
+ * street address, PO box or registered private mailbox in any commercial
+ * email, so while this is empty NO birthday card is sent to a family -- the
+ * daily job skips and says why, and only test cards to staff go out.
+ * Owner, 2026-10-14: to be filled in later.
+ */
+export const SCHOOL_MAILING_ADDRESS = ''
+
+/**
  * Hiring. The careers page stays up and indexed either way -- it is the one page
  * exempt from the pre-launch noindex, and losing its ranking to save a month of
  * being closed would be a bad trade.
