@@ -111,6 +111,11 @@ ${REPORT_SHEET_CSS}
   border: 1px solid #b7e0cc; border-radius: 999px; padding: 3px 9px; white-space: nowrap;
   font-variant-numeric: tabular-nums }
 .msa-act-pts.owe b, .msa-act-pts.owe em { color: #c0392b }
+/* Points running low (owner, 2026-10-14): the same pill in amber, with the
+   one-line hint under it. Not a pop-up -- it stays out of the way. */
+.msa-act-pts.low { border: 2px solid #f09800; background: #fff8ec; padding: 9px 19px }
+.msa-act-pts.low b { color: #8a5300 }
+.msa-act-pts.low em { color: #b86e00 }
 .msa-low { grid-column: 2; justify-self: end; display: inline-flex; align-items: center; gap: 6px;
   background: none; border: none; padding: 0 6px; margin-top: -2px; cursor: pointer;
   font-size: 13px; font-weight: 600; color: #8a5300 }
@@ -3205,7 +3210,7 @@ export default function DashboardPage() {
               + {t('quick.book')}
             </button>
             {wallet && (
-              <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : '')}
+              <button className={'tap-auto msa-act-pts' + ((wallet.arrears > 0 || wallet.balance < 0) ? ' owe' : wallet.runway ? ' low' : '')}
                 onClick={() => setPointsOpen(true)}>
                 <span><b>{wallet.balancePurchased.toLocaleString()}</b> {t('dash.pointsUnit')}</span>
                 {/* Bonus points apart from purchased ones, in their own colour. */}
