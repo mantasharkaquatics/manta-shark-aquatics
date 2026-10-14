@@ -51,6 +51,9 @@ export type BirthdaySwimmer = {
   kind: CardKind
   /** Had a lesson lately or has one booked: decides the button and the closing line. */
   active: boolean
+  /** Taking lessons now, took them before, or has never had one (the text
+   *  must not say "welcome back" to someone who has not been yet). */
+  history: 'active' | 'returning' | 'new'
   /** An adult swimmer who is the account holder: spoken to as "you". */
   self: boolean
   parentFirstName: string
@@ -100,6 +103,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
   // Lessons in the last 60 days or ahead, for the "active" test.
   const studentIds = due.map((x: any) => x.s.id)
   const active = new Set<string>()
+  const ever = new Set<string>()
   const since = addDays(today, -ACTIVE_WINDOW_DAYS)
   for (let i = 0; i < studentIds.length; i += 300) {
     const { data: rows } = await svc.from('bookings').select('student_id, class_session_id')
@@ -113,6 +117,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
     for (const r of rows || []) {
       const d = dateById.get(r.class_session_id)
       if (d && d >= since) active.add(r.student_id)
+      if (d && d < today) ever.add(r.student_id)
     }
   }
 
@@ -127,6 +132,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
       studentId: s.id, parentId: s.parent_id, fullName: s.full_name || '', firstName, dob, age, date,
       kind: adult ? 'adult' : isActive ? 'active' : 'returning',
       active: isActive,
+      history: isActive ? 'active' : ever.has(s.id) ? 'returning' : 'new',
       self: adult && !!p.first_name && firstWord(p.first_name).toLowerCase() === firstName.toLowerCase(),
       parentFirstName: p.first_name || '',
       email: p.email || null,
@@ -170,12 +176,21 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
     ? `<div style="font-family:${SERIF};font-size:54px;line-height:1.1;font-weight:700;color:${ORANGE};">${t('bday.email.heroAdult')}</div>`
     : `<div class="big" style="font-family:${SERIF};font-size:150px;line-height:.9;font-weight:700;color:${ORANGE};">${sw.age}</div>`
 
-  const hi = sw.self ? t('assess.email.hi', { name }) : t('assess.email.hi', { name: esc(sw.parentFirstName || '') })
-  const p1 = sw.self ? t('bday.email.p1Self')
-    : adult ? t('bday.email.p1Adult', { name })
-    : sw.kind === 'active' ? t('bday.email.p1Active', { name })
-    : t('bday.email.p1Returning', { name })
-  const p2 = sw.active ? t('bday.email.p2Active') : t('bday.email.p2Returning')
+  // The words follow the swimmer's age (owner, 2026-10-14): 0-17 playful and
+  // spoken to the child; 18-30 drive and training; 31-40 staying active and
+  // healthy; 41+ health and learning for life. p1 carries the age band, p2
+  // how they stand with the school -- someone who has never had a lesson is
+  // not "welcomed back". Adults are spoken to as "you" when they hold the
+  // account, otherwise the parent reads about them by name.
+  const band = !adult ? 'kid' : sw.age <= 30 ? '18' : sw.age <= 40 ? '31' : '41'
+  const h = sw.history
+  const who = sw.self ? 'Self' : 'Other'
+  const hi = band === 'kid' ? t('bday.email.dearKid', { name })
+    : sw.self ? t('assess.email.hi', { name }) : t('assess.email.hi', { name: esc(sw.parentFirstName || '') })
+  const sub = t(band === 'kid' ? 'bday.email.sub' : `bday.email.sub${band}`)
+  const p1 = band === 'kid' ? t('bday.email.p1Kid') : t(`bday.email.p1Adult${band}${who}`, { name })
+  const hk = h === 'active' ? 'Active' : h === 'returning' ? 'Returning' : 'New'
+  const p2 = band === 'kid' ? t(`bday.email.p2Kid${hk}`) : t(`bday.email.p2Adult${hk}${who}`, { name })
   const btn = sw.active
     ? { label: sw.self ? t('bday.email.btnMine') : t('bday.email.btnProgress', { name }), href: `${site}/dashboard` }
     : { label: t('bday.email.btnBook'), href: `${site}/booking` }
@@ -188,7 +203,7 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
 
   const lane = `<img src="${site}/email/lane-rope.png" width="600" alt="" style="display:block;width:100%;height:auto;border:0;">`
   const html = `<!doctype html><html lang="${L}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="address=no,telephone=no,date=no"><title>${esc(subject)}</title>
-<style>a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}@media only screen and (max-width:480px){.big{font-size:112px!important}.h1m{font-size:28px!important}.pad{padding-left:22px!important;padding-right:22px!important}.tkl{display:block!important;width:auto!important;border-right:0!important;border-bottom:3px dashed #ffffff!important;padding:18px 20px!important;text-align:center!important}.tkr{display:block!important;width:auto!important;padding:16px 20px 18px!important;text-align:center!important}.logo img{width:68px!important}.logo{width:84px!important}.foot{font-size:12px!important}}</style></head>
+<style>a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}@media only screen and (max-width:480px){.big{font-size:112px!important}.h1m{font-size:28px!important}.pad{padding-left:22px!important;padding-right:22px!important}.tkl{display:block!important;width:auto!important;border-right:0!important;border-bottom:3px dashed #ffffff!important;padding:18px 20px!important;text-align:center!important}.tkr{display:block!important;width:auto!important;padding:16px 20px 18px!important;text-align:center!important}}</style></head>
 <body style="margin:0;padding:0;background:#fdf3e1;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fdf3e1;font-family:${FONT};"><tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">
@@ -196,7 +211,7 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
 <tr><td style="background:#ffffff;padding:0 36px;" align="center">
   ${hero}
   <div class="h1m" style="color:${NAVY};font-size:34px;line-height:1.15;font-weight:800;margin-top:10px;">${title}</div>
-  <div style="color:${MUTED};font-size:17px;margin-top:8px;">${t('bday.email.sub')}</div></td></tr>
+  <div style="color:${MUTED};font-size:17px;margin-top:8px;">${sub}</div></td></tr>
 <tr><td style="background:#ffffff;padding:22px 0 0;">${lane}</td></tr>
 <tr><td class="pad" style="background:#ffffff;padding:22px 36px 6px;">
   <p style="margin:0 0 12px;color:${INK};font-size:16px;line-height:1.7;">${hi}</p>
@@ -215,16 +230,17 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
 <tr><td class="pad" style="background:#ffffff;padding:20px 36px 6px;"><div style="font-family:${SERIF};font-style:italic;color:${NAVY};font-size:19px;">&mdash; ${t('bday.email.sign')}</div></td></tr>
 <tr><td class="pad" align="center" style="background:#ffffff;padding:24px 36px 30px;"><a href="${btn.href}" style="display:inline-block;background:${NAVY};color:#ffffff;font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;text-decoration:none;">${btn.label}</a></td></tr>
 <tr><td style="padding:0;">${lane}</td></tr>
-<tr><td class="pad" style="background:${NAVY};padding:20px 36px;color:#c9d3e6;font-size:13px;line-height:1.7;">
+<tr><td class="pad" style="background:${NAVY};padding:26px 36px 24px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td class="foot" valign="middle" style="color:#c9d3e6;font-size:13px;line-height:1.7;padding-right:10px;">
-      ${t('bday.email.foot')}<br>
-      <a href="mailto:${CONTACT_EMAIL}" style="color:#f0b44d;text-decoration:none;">${CONTACT_EMAIL}</a><br>
-      <a href="${site}" style="color:#f0b44d;text-decoration:none;">mantasharkaquatics.net</a></td>
-    <td class="logo" width="124" valign="middle" align="right">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#ffffff;border-radius:10px;padding:8px 10px;"><a href="${site}"><img src="${site}/email-logo.png" width="100" alt="Manta Shark Aquatics" style="display:block;width:100px;height:auto;border:0;"></a></td></tr></table></td>
+    <td width="112" valign="middle" style="padding-right:18px;">
+      <a href="${site}" style="display:block;background:#ffffff;border-radius:12px;padding:8px;"><img src="${site}/email-logo.png" width="96" alt="Manta Shark Aquatics" style="display:block;width:96px;height:auto;border:0;"></a></td>
+    <td valign="middle" style="border-left:1px solid #2c4475;padding-left:18px;color:#ffffff;font-size:14px;line-height:1.6;">
+      <div style="font-weight:700;">${t('bday.email.foot')}</div>
+      <div style="margin-top:4px;font-size:13px;"><a href="mailto:${CONTACT_EMAIL}" style="color:#f0b44d;text-decoration:none;">${CONTACT_EMAIL}</a></div>
+      <div style="font-size:13px;"><a href="${site}" style="color:#f0b44d;text-decoration:none;">mantasharkaquatics.net</a></div></td>
   </tr></table>
-  <div style="margin-top:14px;color:#9fb0cf;font-size:12px;line-height:1.7;">${t('bday.email.why')} <a href="${unsub}" style="color:#c9d3e6;text-decoration:underline;">${t('bday.email.unsubscribe')}</a>${address ? `<br><span style="color:#9fb0cf;text-decoration:none;">Manta Shark Aquatics &middot; ${esc(address).replace(/ /, '&#8203; ')}</span>` : ''}</div>
+  <div style="height:1px;background:#2c4475;margin:22px 0 16px;line-height:1px;font-size:1px;">&nbsp;</div>
+  <div style="color:#8fa1c4;font-size:12px;line-height:1.7;text-align:center;">${t('bday.email.why')} <a href="${unsub}" style="color:#c9d3e6;text-decoration:underline;">${t('bday.email.unsubscribe')}</a>${address ? `<br><span style="color:#8fa1c4;text-decoration:none;">Manta Shark Aquatics &middot; ${esc(address).replace(/ /, '&#8203; ')}</span>` : ''}</div>
 </td></tr>
 </table></td></tr></table></body></html>`
 

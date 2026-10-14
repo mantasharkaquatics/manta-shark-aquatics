@@ -10,7 +10,10 @@ export const runtime = 'nodejs'
    GET ?month=YYYY-MM   everyone with a birthday that month, what their card
                         is, and whether it went out
    POST { student_id }  a test card to the signed-in admin's own email: no
-                        points, no record, and its unsubscribe link is inert */
+                        points, no record, and its unsubscribe link is inert
+   POST { student_id, to: 'family' }  the same test card to the family's own
+                        address -- for checking with a test family; marked
+                        [TEST], still no points and no record */
 
 function monthBounds(month: string) {
   const [y, m] = month.split('-').map(Number)
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
       mailingAddressSet: !!SCHOOL_MAILING_ADDRESS.trim(),
       giftPoints: BIRTHDAY_GIFT_POINTS, giftMonths: BIRTHDAY_GIFT_MONTHS,
       items: list.map(s => ({
-        studentId: s.studentId, name: s.fullName, date: s.date, age: s.age, kind: s.kind,
+        studentId: s.studentId, name: s.fullName, date: s.date, age: s.age, kind: s.kind === 'adult' ? 'adult' : s.history,
         lang: s.lang, skip: skipReason(s), card: cards.get(s.studentId) || null,
       })),
     })
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => null)
   const studentId = String(body?.student_id || '')
-  const to = auth.user.email
+  let to = auth.user.email
   if (!studentId || !to) return NextResponse.json({ error: 'student_id required' }, { status: 400 })
   const today = getTodayLA()
   const { data: st } = await auth.svc.from('students').select('date_of_birth').eq('id', studentId).maybeSingle()
@@ -62,6 +65,10 @@ export async function POST(req: NextRequest) {
   const list = await birthdaysBetween(auth.svc, day, day, today)
   const sw = list.find(s => s.studentId === studentId)
   if (!sw) return NextResponse.json({ error: 'Swimmer not found' }, { status: 404 })
+  if (body?.to === 'family') {
+    if (!sw.email) return NextResponse.json({ error: 'Family has no email' }, { status: 409 })
+    to = sw.email
+  }
   const ok = await sendTestCard(sw, to)
   return ok ? NextResponse.json({ ok: true, to }) : NextResponse.json({ error: 'Email not sent' }, { status: 502 })
 }

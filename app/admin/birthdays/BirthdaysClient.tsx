@@ -6,7 +6,7 @@ import { dateTag } from '@/lib/i18n'
 
 type Item = {
   studentId: string; name: string; date: string; age: number
-  kind: 'active' | 'returning' | 'adult'; lang: string
+  kind: 'active' | 'returning' | 'new' | 'adult'; lang: string
   skip: 'not_subscribed' | 'no_email' | null
   card: { status: 'pending' | 'sent' | 'email_failed'; sent_at: string | null } | null
 }
@@ -15,6 +15,7 @@ type Data = { today: string; month: string; mailingAddressSet: boolean; giftPoin
 const KIND_STYLE: Record<Item['kind'], string> = {
   active: 'border-emerald-400/50 text-emerald-300',
   returning: 'border-amber-400/50 text-amber-300',
+  new: 'border-sky-400/50 text-sky-300',
   adult: 'border-purple-400/50 text-purple-300',
 }
 

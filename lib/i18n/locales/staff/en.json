@@ -1529,5 +1529,9 @@
   "admin.bday.empty": "No birthdays this month.",
   "admin.bday.err.load": "Could not load birthdays.",
   "admin.bday.err.test": "The test card was not sent.",
-  "admin.members.pts.reason.birthday_gift": "birthday gift"
+  "admin.members.pts.reason.birthday_gift": "birthday gift",
+  "admin.members.saveStudents": "Save swimmers",
+  "admin.members.studentsSaved": "Saved {n} swimmer(s).",
+  "admin.members.noStudentChanges": "Nothing changed.",
+  "admin.bday.kind.new": "New swimmer"
 }

@@ -1529,5 +1529,9 @@
   "admin.bday.empty": "這個月沒有人生日。",
   "admin.bday.err.load": "無法讀取生日名單。",
   "admin.bday.err.test": "測試信沒有寄出。",
-  "admin.members.pts.reason.birthday_gift": "生日禮物"
+  "admin.members.pts.reason.birthday_gift": "生日禮物",
+  "admin.members.saveStudents": "儲存學生資料",
+  "admin.members.studentsSaved": "已儲存 {n} 位學生。",
+  "admin.members.noStudentChanges": "沒有變更。",
+  "admin.bday.kind.new": "新學員"
 }

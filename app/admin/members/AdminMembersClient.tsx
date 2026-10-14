@@ -220,14 +220,25 @@ function MemberEditPanel({ parent }: { parent: any }) {
     router.refresh()
   }
 
-  const saveStudent = async (s: any) => {
-    const e = studentEdits[s.id]
+  // One button for every swimmer (owner, 2026-10-14): saves only the rows
+  // that changed, one request each, and says which failed.
+  const saveStudents = async () => {
+    const changed = (parent.students || []).filter((s: any) => {
+      const e = studentEdits[s.id]
+      return e && (e.name.trim() !== (s.full_name || '') || (e.dob || '') !== (s.date_of_birth || '').slice(0, 10))
+    })
+    if (changed.length === 0) { flash(t('admin.members.noStudentChanges')); return }
     setBusy(true); setErr(null)
-    const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
+    const failed: string[] = []
+    for (const s of changed) {
+      const e = studentEdits[s.id]
+      const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
+      if (!ok) { failed.push(`${e.name.trim() || s.full_name}: ${contactErr(j, 'admin.members.err.saveFailed')}`); continue }
+      s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
+    }
     setBusy(false)
-    if (!ok) { setErr(contactErr(j, 'admin.members.err.saveFailed')); return }
-    s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
-    flash(t('admin.members.studentSaved', { name: e.name.trim() }))
+    if (failed.length) setErr(failed.join(' · '))
+    if (changed.length > failed.length) flash(t('admin.members.studentsSaved', { n: changed.length - failed.length }))
     router.refresh()
   }
 
@@ -319,9 +330,9 @@ function MemberEditPanel({ parent }: { parent: any }) {
               <input type="date" className={inputCls + ' max-w-[170px]'} value={studentEdits[s.id]?.dob || ''}
                 max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                 onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], dob: e.target.value } }))} />
-              <button className={goldBtn} disabled={busy} onClick={() => saveStudent(s)}>{t('common.save')}</button>
             </div>
           ))}
+          <button className={goldBtn} disabled={busy} onClick={saveStudents}>{t('admin.members.saveStudents')}</button>
         </div>
       )}
     </div>

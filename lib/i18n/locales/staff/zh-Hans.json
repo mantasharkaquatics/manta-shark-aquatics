@@ -1529,5 +1529,9 @@
   "admin.bday.empty": "这个月没有人生日。",
   "admin.bday.err.load": "无法读取生日名单。",
   "admin.bday.err.test": "测试信没有寄出。",
-  "admin.members.pts.reason.birthday_gift": "生日礼物"
+  "admin.members.pts.reason.birthday_gift": "生日礼物",
+  "admin.members.saveStudents": "储存学生资料",
+  "admin.members.studentsSaved": "已储存 {n} 位学生。",
+  "admin.members.noStudentChanges": "没有变更。",
+  "admin.bday.kind.new": "新学员"
 }
