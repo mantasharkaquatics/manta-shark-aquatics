@@ -187,8 +187,8 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
   const address = SCHOOL_MAILING_ADDRESS.trim() || (opts.test ? '(mailing address not set yet)' : '')
 
   const lane = `<img src="${site}/email/lane-rope.png" width="600" alt="" style="display:block;width:100%;height:auto;border:0;">`
-  const html = `<!doctype html><html lang="${L}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(subject)}</title>
-<style>@media only screen and (max-width:480px){.big{font-size:112px!important}.h1m{font-size:28px!important}.pad{padding-left:22px!important;padding-right:22px!important}.tkl{display:block!important;width:auto!important;border-right:0!important;border-bottom:3px dashed #ffffff!important;padding:18px 20px!important;text-align:center!important}.tkr{display:block!important;width:auto!important;padding:16px 20px 18px!important;text-align:center!important}}</style></head>
+  const html = `<!doctype html><html lang="${L}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="address=no,telephone=no,date=no"><title>${esc(subject)}</title>
+<style>a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}@media only screen and (max-width:480px){.big{font-size:112px!important}.h1m{font-size:28px!important}.pad{padding-left:22px!important;padding-right:22px!important}.tkl{display:block!important;width:auto!important;border-right:0!important;border-bottom:3px dashed #ffffff!important;padding:18px 20px!important;text-align:center!important}.tkr{display:block!important;width:auto!important;padding:16px 20px 18px!important;text-align:center!important}.logo img{width:68px!important}.logo{width:84px!important}.foot{font-size:12px!important}}</style></head>
 <body style="margin:0;padding:0;background:#fdf3e1;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fdf3e1;font-family:${FONT};"><tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">
@@ -213,13 +213,18 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
      <div style="color:${NAVY};font-size:12px;font-weight:700;margin-top:6px;">${t('bday.email.valid', { date: expires })}</div></td>
   </tr></table></td></tr>
 <tr><td class="pad" style="background:#ffffff;padding:20px 36px 6px;"><div style="font-family:${SERIF};font-style:italic;color:${NAVY};font-size:19px;">&mdash; ${t('bday.email.sign')}</div></td></tr>
-<tr><td class="pad" style="background:#ffffff;padding:22px 36px 26px;"><a href="${btn.href}" style="display:inline-block;background:${NAVY};color:#ffffff;font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;text-decoration:none;">${btn.label}</a></td></tr>
-<tr><td class="pad" style="background:#ffffff;padding:0 36px 26px;"><a href="${site}"><img src="${site}/email-logo.png" width="110" alt="Manta Shark Aquatics" style="display:block;width:110px;height:auto;border:0;"></a></td></tr>
+<tr><td class="pad" align="center" style="background:#ffffff;padding:24px 36px 30px;"><a href="${btn.href}" style="display:inline-block;background:${NAVY};color:#ffffff;font-size:15px;font-weight:800;padding:14px 30px;border-radius:10px;text-decoration:none;">${btn.label}</a></td></tr>
 <tr><td style="padding:0;">${lane}</td></tr>
-<tr><td style="background:${NAVY};padding:20px 36px;color:#c9d3e6;font-size:13px;line-height:1.7;">
-  ${t('bday.email.foot')}<br>
-  <a href="mailto:${CONTACT_EMAIL}" style="color:#f0b44d;text-decoration:none;">${CONTACT_EMAIL}</a> &middot; <a href="${site}" style="color:#f0b44d;text-decoration:none;">mantasharkaquatics.net</a>
-  <div style="margin-top:12px;color:#9fb0cf;font-size:12px;">${t('bday.email.why')} <a href="${unsub}" style="color:#c9d3e6;text-decoration:underline;">${t('bday.email.unsubscribe')}</a>${address ? `<br>Manta Shark Aquatics &middot; ${esc(address)}` : ''}</div>
+<tr><td class="pad" style="background:${NAVY};padding:20px 36px;color:#c9d3e6;font-size:13px;line-height:1.7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td class="foot" valign="middle" style="color:#c9d3e6;font-size:13px;line-height:1.7;padding-right:10px;">
+      ${t('bday.email.foot')}<br>
+      <a href="mailto:${CONTACT_EMAIL}" style="color:#f0b44d;text-decoration:none;">${CONTACT_EMAIL}</a><br>
+      <a href="${site}" style="color:#f0b44d;text-decoration:none;">mantasharkaquatics.net</a></td>
+    <td class="logo" width="124" valign="middle" align="right">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#ffffff;border-radius:10px;padding:8px 10px;"><a href="${site}"><img src="${site}/email-logo.png" width="100" alt="Manta Shark Aquatics" style="display:block;width:100px;height:auto;border:0;"></a></td></tr></table></td>
+  </tr></table>
+  <div style="margin-top:14px;color:#9fb0cf;font-size:12px;line-height:1.7;">${t('bday.email.why')} <a href="${unsub}" style="color:#c9d3e6;text-decoration:underline;">${t('bday.email.unsubscribe')}</a>${address ? `<br><span style="color:#9fb0cf;text-decoration:none;">Manta Shark Aquatics &middot; ${esc(address).replace(/ /, '&#8203; ')}</span>` : ''}</div>
 </td></tr>
 </table></td></tr></table></body></html>`
 
