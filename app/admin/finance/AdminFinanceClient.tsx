@@ -18,6 +18,12 @@ type Data = {
   }
   months: Month[]
   feesUnavailable: string | null
+  pools: Pools | null
+}
+type Pools = {
+  list: { id: string; name: string; active: boolean }[]
+  booked: Record<string, number>
+  months: { month: string; lessons: Record<string, number>; assessmentCents: Record<string, number> }[]
 }
 
 const GOLD = '#c9a84c'
@@ -44,7 +50,7 @@ export default function AdminFinanceClient() {
   const [syncMsg, setSyncMsg] = useState('')
 
   const load = () =>
-    fetch('/api/admin/finance')
+    fetch('/api/admin/finance' + (new URLSearchParams(window.location.search).get('pools') === '1' ? '?pools=1' : ''))
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('load failed'))))
       .then(setD)
       .catch(() => setErr(t('admin.finance.err.load')))
@@ -159,11 +165,79 @@ export default function AdminFinanceClient() {
         </table>
       </div>
 
+      {d.pools && <PoolSection pools={d.pools} th={th} td={td} />}
+
       <div style={{ marginTop: 20, padding: '14px 16px', borderRadius: 10, background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.22)', fontSize: 12.5, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', maxWidth: 820 }}>
         <strong style={{ color: '#fff' }}>{t('admin.finance.acc.lead')}</strong>{t('admin.finance.acc.body')}
         <br /><br />
         <strong style={{ color: '#fff' }}>{t('admin.finance.stripeFees')}</strong>{t('admin.finance.acc.fees1')}<span style={{ color: 'rgba(255,255,255,0.85)' }}>*</span>{t('admin.finance.acc.fees2')}<em>{t('admin.finance.acc.not')}</em>{t('admin.finance.acc.fees3')}
       </div>
     </div>
+  )
+}
+
+/* Revenue by pool (owner, 2026-10-14). Only sent while more than one pool is
+   open to families. Lessons are the "earned" column split by where each lesson
+   was taught, so the pools add up to it; Swim Assessment fees are shown beside
+   them because the earned column never included them. Point sales, Swim Team
+   fees and Stripe fees are not split: none of them belongs to a pool. */
+function PoolSection({ pools, th, td }: { pools: Pools; th: React.CSSProperties; td: React.CSSProperties }) {
+  const t = useT()
+  // Open pools always; a hidden one only if it has figures to show.
+  const has = (id: string) => (pools.booked[id] || 0) > 0 ||
+    pools.months.some(m => (m.lessons[id] || 0) > 0 || (m.assessmentCents[id] || 0) > 0)
+  const list = pools.list.filter(p => p.active || has(p.id))
+  const sep: React.CSSProperties = { borderLeft: '1px solid rgba(255,255,255,0.08)' }
+  return (
+    <section aria-labelledby="pool-title" style={{ marginTop: 28 }}>
+      <h2 id="pool-title" style={{ fontSize: 17, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{t('admin.finance.pool.title')}</h2>
+      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12.5, marginBottom: 12, maxWidth: 820, lineHeight: 1.7 }}>{t('admin.finance.pool.intro')}</p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 14 }}>
+        {list.map(p => (
+          <Card key={p.id} label={t('admin.finance.pool.booked', { pool: p.name })} value={pts(pools.booked[p.id] || 0)}
+            note={t('admin.finance.pool.bookedNote')} />
+        ))}
+      </div>
+
+      <div style={{ overflowX: 'auto', background: '#111d38', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 200 + list.length * 300 }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, textAlign: 'left' }} rowSpan={2}>{t('admin.finance.col.month')}</th>
+              {list.map(p => (
+                <th key={p.id} colSpan={3} style={{ ...th, ...sep, textAlign: 'center', color: '#fff' }}>{p.name}</th>
+              ))}
+            </tr>
+            <tr>
+              {list.map(p => [
+                <th key={p.id + 'l'} style={{ ...th, ...sep }}>{t('admin.finance.pool.lessons')}</th>,
+                <th key={p.id + 'a'} style={th}>{t('admin.finance.pool.assessments')}</th>,
+                <th key={p.id + 't'} style={th}>{t('admin.finance.pool.total')}</th>,
+              ])}
+            </tr>
+          </thead>
+          <tbody>
+            {pools.months.length === 0 && (
+              <tr><td style={{ ...td, textAlign: 'left', color: 'rgba(255,255,255,0.4)' }} colSpan={1 + list.length * 3}>{t('admin.finance.empty')}</td></tr>
+            )}
+            {pools.months.map(m => (
+              <tr key={m.month}>
+                <td style={{ ...td, textAlign: 'left', fontWeight: 600, color: '#fff' }}>{m.month}</td>
+                {list.map(p => {
+                  const lessons = m.lessons[p.id] || 0
+                  const assess = m.assessmentCents[p.id] || 0
+                  return [
+                    <td key={p.id + 'l'} style={{ ...td, ...sep }}>{lessons ? pts(lessons) : '—'}</td>,
+                    <td key={p.id + 'a'} style={td}>{assess ? money(assess) : '—'}</td>,
+                    <td key={p.id + 't'} style={{ ...td, color: GOLD, fontWeight: 700 }}>{lessons || assess ? money(lessons * 100 + assess) : '—'}</td>,
+                  ]
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }

@@ -1495,5 +1495,12 @@
   "admin.handBack.mark": "Handed back",
   "admin.handBack.confirmTitle": "{amount} handed to {family}?",
   "admin.handBack.confirmBody": "Your name and the time are recorded with it.",
-  "admin.handBack.err": "Could not save. Try again."
+  "admin.handBack.err": "Could not save. Try again.",
+  "admin.finance.pool.title": "Revenue by pool",
+  "admin.finance.pool.intro": "Lessons are the earned revenue above, split by the pool each lesson was taught at, so the pools add up to it. Swim Assessment fees count on the assessment date, less refunds. Point sales, Swim Team fees and Stripe fees belong to no pool and are not split.",
+  "admin.finance.pool.booked": "Booked, not yet taught — {pool}",
+  "admin.finance.pool.bookedNote": "Points already taken for lessons at this pool that have not happened yet.",
+  "admin.finance.pool.lessons": "Lessons",
+  "admin.finance.pool.assessments": "Assessments",
+  "admin.finance.pool.total": "Total"
 }

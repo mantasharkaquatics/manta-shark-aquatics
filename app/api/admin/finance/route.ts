@@ -1,7 +1,8 @@
 import { allRows } from '@/lib/db-paging'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
+import { DEFAULT_LOCATION_ID, getLocations, showLocations } from '@/lib/locations'
 
 export const runtime = 'nodejs'
 
@@ -64,7 +65,7 @@ const NOT_LESSON_TRAFFIC = new Set([
 // allRows: lib/db-paging.ts. A report that silently stopped at the first
 // thousand bookings would understate the liability without saying so.
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const svc = auth.svc
@@ -113,13 +114,32 @@ export async function GET() {
 
   // Session dates come in a second query on purpose: a nested join here has
   // failed silently in production on this project before.
-  const sessionIds = [...new Set((bookings || []).map((b: any) => b.class_session_id).filter(Boolean))]
+  // Swim Assessments, for the per-pool section only: money paid for one
+  // lesson rather than points, earned on the assessment's date at its pool.
+  // A booking still waiting on its payment, or cancelled, earned nothing.
+  const [pools, { data: assessmentRows }] = await Promise.all([
+    getLocations(svc as any),
+    allRows(() => svc.from('bookings')
+      .select('id, class_session_id, status, lesson_credit_id')
+      .eq('is_trial', true).not('status', 'in', '(cancelled,pending_payment)')
+      .not('lesson_credit_id', 'is', null).order('id')),
+  ])
+  // ?pools=1 shows the section with a single open pool too: a way to look at
+  // it (and check it adds up) before a second pool opens to families.
+  const byPool = showLocations(pools) || req.nextUrl.searchParams.get('pools') === '1'
+
+  const sessionIds = [...new Set([...(bookings || []), ...(byPool ? assessmentRows || [] : [])]
+    .map((b: any) => b.class_session_id).filter(Boolean))]
   const dateById: Record<string, string> = {}
+  // Where each lesson was taught. Every lesson has one (a database trigger
+  // fills it from the coach's zone); a missing value is read as the first pool.
+  const poolById: Record<string, string> = {}
   for (let i = 0; i < sessionIds.length; i += 500) {
     const { data: rows } = await svc.from('class_sessions')
-      .select('id, session_date').in('id', sessionIds.slice(i, i + 500))
-    for (const r of rows || []) dateById[r.id] = r.session_date
+      .select('id, session_date, location_id').in('id', sessionIds.slice(i, i + 500))
+    for (const r of rows || []) { dateById[r.id] = r.session_date; poolById[r.id] = r.location_id || DEFAULT_LOCATION_ID }
   }
+  const poolOf = (sessionId: string | null | undefined) => (sessionId && poolById[sessionId]) || DEFAULT_LOCATION_ID
 
   // Which voucher, if any, a cancelled row's points now wait on. A voucher
   // names one source row, but the lesson it replaced may be several rows: the
@@ -135,18 +155,20 @@ export async function GET() {
     for (const sid of [v.student_id, v.student2_id].filter(Boolean)) voucherBySeat.set(`${src.class_session_id}|${sid}`, v)
   }
   const voucherFor = (b: any) => (b.lesson_group_id && voucherByGroup.get(b.lesson_group_id)) || voucherBySeat.get(`${b.class_session_id}|${b.student_id}`) || null
-  /** The day a voucher's lesson is earned, or null while it is still owed. */
-  const voucherEarnedOn = (v: any): string | null => {
+  /** The day a voucher's lesson is earned, or null while it is still owed --
+   *  and at which pool: the make-up lesson's if it was used, otherwise the
+   *  pool of the lesson the voucher replaced (owner, 2026-10-14). */
+  const voucherEarnedOn = (v: any, sourceSession: string): { date: string; pool: string } | null => {
     if (v.status === 'used') {
       const used = v.used_booking_id ? rowById.get(v.used_booking_id) : null
       const d = used ? dateById[used.class_session_id] : null
       // Used but its make-up lesson cannot be found: count it when it was
       // claimed rather than lose it -- the family has had what it was owed.
-      if (!d) return today
-      return d < today ? d : null
+      if (!d) return { date: today, pool: poolOf(sourceSession) }
+      return d < today ? { date: d, pool: poolOf(used.class_session_id) } : null
     }
-    if (v.status === 'expired') return v.expires_on < today ? v.expires_on : today
-    if (v.status === 'void') return v.voided_at ? monthDayLA(v.voided_at) : today
+    if (v.status === 'expired') return { date: v.expires_on < today ? v.expires_on : today, pool: poolOf(sourceSession) }
+    if (v.status === 'void') return { date: v.voided_at ? monthDayLA(v.voided_at) : today, pool: poolOf(sourceSession) }
     return null
   }
 
@@ -154,7 +176,15 @@ export async function GET() {
   let voucherOwed = 0
   const voucherOwedIds = new Set<string>()
   const earnedByMonth: Record<string, number> = {}
-  const earn = (date: string, pts: number) => { earnedByMonth[date.slice(0, 7)] = (earnedByMonth[date.slice(0, 7)] || 0) + pts }
+  // The same figures split by pool: month -> pool -> points.
+  const earnedByMonthPool: Record<string, Record<string, number>> = {}
+  const bookedByPool: Record<string, number> = {}
+  const earn = (date: string, pts: number, pool: string) => {
+    const k = date.slice(0, 7)
+    earnedByMonth[k] = (earnedByMonth[k] || 0) + pts
+    const m = (earnedByMonthPool[k] ||= {})
+    m[pool] = (m[pool] || 0) + pts
+  }
   for (const b of (bookings || []) as any[]) {
     // Only the PURCHASED part of a lesson is owed or earned: the granted part
     // was a discount, never cash (see the header). It used to count the whole
@@ -168,8 +198,8 @@ export async function GET() {
       // A lesson given up for a voucher: owed until the voucher ends.
       const v = b.cancellation_reason !== 'rescheduled' ? voucherFor(b) : null
       if (v) {
-        const on = voucherEarnedOn(v)
-        if (on) earn(on, pts)
+        const on = voucherEarnedOn(v, b.class_session_id)
+        if (on) earn(on.date, pts, on.pool)
         else { voucherOwed += pts; voucherOwedIds.add(v.id) }
         continue
       }
@@ -179,8 +209,11 @@ export async function GET() {
     if (!date) continue
     // A forfeited lesson is no longer owed, so it is never part of the
     // liability; it is earned on the day it would have been taught.
-    if (date >= today && b.status !== 'cancelled') unearnedBooked += pts
-    else earn(date, pts)
+    if (date >= today && b.status !== 'cancelled') {
+      unearnedBooked += pts
+      const pool = poolOf(b.class_session_id)
+      bookedByPool[pool] = (bookedByPool[pool] || 0) + pts
+    } else earn(date, pts, poolOf(b.class_session_id))
   }
 
   const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number; sold: number; usedNet: number }> = {}
@@ -234,7 +267,42 @@ export async function GET() {
   const paidCents = (wallets || []).reduce((a: number, w: any) => a + (Number(w.total_paid_cents) || 0), 0)
   const refundedCents = (wallets || []).reduce((a: number, w: any) => a + (Number(w.total_refunded_cents) || 0), 0)
 
-  const keys = [...new Set([...Object.keys(months), ...Object.keys(earnedByMonth)])].sort().reverse().slice(0, 12)
+  // Swim Assessment fees by month and pool: what the family paid for it, less
+  // any refund, on the assessment's date once it has happened. A payment that
+  // came back (reversed) earned nothing.
+  const assessmentByMonthPool: Record<string, Record<string, number>> = {}
+  if (byPool) {
+    const past = ((assessmentRows || []) as any[]).filter(b => { const d = dateById[b.class_session_id]; return d && d < today })
+    const creditIds = [...new Set(past.map(b => b.lesson_credit_id))]
+    const purchaseByCredit: Record<string, string> = {}
+    for (let i = 0; i < creditIds.length; i += 500) {
+      const { data: rows } = await svc.from('lesson_credits').select('id, purchase_id').in('id', creditIds.slice(i, i + 500))
+      for (const r of rows || []) if (r.purchase_id) purchaseByCredit[r.id] = r.purchase_id
+    }
+    const purchaseIds = [...new Set(Object.values(purchaseByCredit))]
+    const paidById: Record<string, number> = {}
+    for (let i = 0; i < purchaseIds.length; i += 500) {
+      const { data: rows } = await svc.from('purchases').select('id, amount_cents, refunded_cents, status, reversed_at')
+        .in('id', purchaseIds.slice(i, i + 500))
+      for (const r of rows || []) {
+        if (r.status !== 'paid' || r.reversed_at) continue
+        paidById[r.id] = Math.max(0, (Number(r.amount_cents) || 0) - (Number(r.refunded_cents) || 0))
+      }
+    }
+    // One payment counted once, however many booking rows point at it.
+    const counted = new Set<string>()
+    for (const b of past) {
+      const pid = purchaseByCredit[b.lesson_credit_id]
+      if (!pid || counted.has(pid) || !paidById[pid]) continue
+      counted.add(pid)
+      const k = dateById[b.class_session_id].slice(0, 7)
+      const pool = poolOf(b.class_session_id)
+      const m = (assessmentByMonthPool[k] ||= {})
+      m[pool] = (m[pool] || 0) + paidById[pid]
+    }
+  }
+
+  const keys = [...new Set([...Object.keys(months), ...Object.keys(earnedByMonth), ...Object.keys(assessmentByMonthPool)])].sort().reverse().slice(0, 12)
 
   return NextResponse.json({
     today,
@@ -259,6 +327,14 @@ export async function GET() {
     // screen, and one of them is a $0 that is not true. The migration not
     // having been run is exactly when this matters.
     feesUnavailable: purchasesErr ? (purchasesErr.message || 'could not read fees') : null,
+    // Per pool (owner, 2026-10-14), only while more than one pool is open to
+    // families -- with one, the page reads exactly as it did before. Lesson
+    // revenue in points (= dollars), assessments in cents.
+    pools: byPool ? {
+      list: pools.map(l => ({ id: l.id, name: l.name, active: l.is_active })),
+      booked: bookedByPool,
+      months: keys.map(k => ({ month: k, lessons: earnedByMonthPool[k] || {}, assessmentCents: assessmentByMonthPool[k] || {} })),
+    } : null,
     months: keys.map(k => ({
       month: k,
       earned: earnedByMonth[k] || 0,

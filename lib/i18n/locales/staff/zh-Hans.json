@@ -1495,5 +1495,12 @@
   "admin.handBack.mark": "已交付",
   "admin.handBack.confirmTitle": "已将 {amount} 交给 {family}？",
   "admin.handBack.confirmBody": "系统会记下您的名字和时间。",
-  "admin.handBack.err": "保存失败，请再试一次。"
+  "admin.handBack.err": "保存失败，请再试一次。",
+  "admin.finance.pool.title": "各泳池收入",
+  "admin.finance.pool.intro": "「课程」是上方的已实现收入，依每堂课的上课泳池分开，各泳池加起来等于上方那一栏。「评估」是游泳评估费，在评估当天计入，扣除已退款。点数销售、泳队月费和 Stripe 手续费不属于任何泳池，不拆分。",
+  "admin.finance.pool.booked": "已预约未上课 — {pool}",
+  "admin.finance.pool.bookedNote": "已扣点、但还没上的课（这个泳池）。",
+  "admin.finance.pool.lessons": "课程",
+  "admin.finance.pool.assessments": "评估",
+  "admin.finance.pool.total": "合计"
 }

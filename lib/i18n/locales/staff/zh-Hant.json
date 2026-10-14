@@ -1495,5 +1495,12 @@
   "admin.handBack.mark": "已交付",
   "admin.handBack.confirmTitle": "已將 {amount} 交給 {family}？",
   "admin.handBack.confirmBody": "系統會記下您的名字和時間。",
-  "admin.handBack.err": "儲存失敗，請再試一次。"
+  "admin.handBack.err": "儲存失敗，請再試一次。",
+  "admin.finance.pool.title": "各泳池收入",
+  "admin.finance.pool.intro": "「課程」是上方的已實現收入，依每堂課的上課泳池分開，各泳池加起來等於上方那一欄。「評估」是游泳評估費，在評估當天計入，扣除已退款。點數銷售、泳隊月費和 Stripe 手續費不屬於任何泳池，不拆分。",
+  "admin.finance.pool.booked": "已預約未上課 — {pool}",
+  "admin.finance.pool.bookedNote": "已扣點、但還沒上的課（這個泳池）。",
+  "admin.finance.pool.lessons": "課程",
+  "admin.finance.pool.assessments": "評估",
+  "admin.finance.pool.total": "合計"
 }
