@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag, type Locale } from '@/lib/i18n'
+import HandBackList from './HandBackList'
 
 const PAGE_SIZE = 20
 
@@ -189,6 +190,8 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
           </button>
         </div>
       </div>
+
+      <HandBackList />
 
       {/* Filters */}
       <div className="bg-[#111d38] border border-[#1e3a6e] rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">

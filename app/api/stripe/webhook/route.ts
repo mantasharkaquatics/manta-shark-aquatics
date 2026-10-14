@@ -12,6 +12,7 @@ import { confirmTrialBooking, failTrialBooking } from '@/lib/trial-booking'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentPaymentReversed, countCreditLessons, CREDIT_LESSONS, reopenReversedAssessment, restoreWonAssessment } from '@/lib/assessments'
 import { ALERT_EMAIL_FALLBACK } from '@/lib/site-config'
+import { refundStatusChanged } from '@/lib/refunds'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -381,6 +382,23 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error(`charge.refunded ${charge.id}:`, e instanceof Error ? e.message : e)
       return NextResponse.json({ error: 'refund handling failed' }, { status: 503 })
+    }
+    return NextResponse.json({ received: true })
+  }
+
+  // ---- A REFUND THE SITE MADE CHANGED STATUS --------------------------------
+  // A bank-account refund takes days and can still fail (an account closed in
+  // the meantime). Then the money never reached the family: the points go
+  // back and the school is told (lib/refunds refundStatusChanged). Needs
+  // refund.updated (and refund.failed) on the webhook destination.
+  if (event.type === 'refund.updated' || event.type === 'refund.failed' || event.type === 'charge.refund.updated') {
+    const refund = event.data.object as Stripe.Refund
+    try {
+      const what = await refundStatusChanged(supabase, refund)
+      console.log(`${event.type} ${refund.id}: ${what}`)
+    } catch (e) {
+      console.error(`${event.type} ${refund.id}:`, e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: 'refund status handling failed' }, { status: 503 })
     }
     return NextResponse.json({ received: true })
   }

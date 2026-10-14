@@ -26,6 +26,7 @@
 import Stripe from 'stripe'
 import { applyPoints, arrears, getWallet } from '@/lib/points-wallet'
 import { centsToPoints, refundableCents } from '@/lib/points'
+import { alertAdmin } from '@/lib/admin-alert'
 
 type Svc = any
 
@@ -200,6 +201,9 @@ export async function planRefund(
 export type RefundLegResult = RefundLeg & {
   outcome: 'stripe_refunded' | 'hand_back' | 'failed'
   stripeRefundId?: string
+  /** Stripe's own status for the refund: a card usually answers 'succeeded'
+   *  at once, a bank account 'pending' for days. */
+  stripeStatus?: string | null
   error?: string
 }
 
@@ -260,7 +264,12 @@ export async function executeRefund(
         // the refund Stripe already made instead of making a second one.
         { idempotencyKey: `msa-refund:${ledgerId}:${leg.purchaseId}` },
       )
-      legs.push({ ...leg, outcome: 'stripe_refunded', stripeRefundId: refund.id })
+      if (refund.status === 'failed' || refund.status === 'canceled') {
+        // Refused on the spot rather than by throwing: same as a failed leg.
+        legs.push({ ...leg, outcome: 'failed', stripeRefundId: refund.id, stripeStatus: refund.status, error: refund.failure_reason || `Stripe answered ${refund.status}` })
+      } else {
+        legs.push({ ...leg, outcome: 'stripe_refunded', stripeRefundId: refund.id, stripeStatus: refund.status })
+      }
     } catch (e: any) {
       console.error(`refund leg failed: purchase=${leg.purchaseId} pi=${leg.paymentIntentId}:`, e?.message)
       legs.push({ ...leg, outcome: 'failed', error: e?.message || 'Stripe refused the refund' })
@@ -301,6 +310,8 @@ export async function executeRefund(
     })
   }
 
+  await recordLegs(svc, { parentId: args.parentId, ledgerId, actor: args.actor, note: args.note ?? null }, legs)
+
   return {
     plan,
     ledgerId,
@@ -309,4 +320,131 @@ export async function executeRefund(
     failedCents,
     handBackCents: legs.filter(l => l.outcome === 'hand_back').reduce((a, l) => a + l.cents, 0),
   }
+}
+
+/* ---- refund_legs: what each refund became (docs/migration-refund-legs.sql) ----
+
+   One row per leg that left or still has to: a Stripe refund (pending until
+   the bank says otherwise -- a bank-account refund can fail days later) or a
+   desk-cash amount a person still has to hand over. The "cash to hand back"
+   list on the Sales page reads the open hand_back rows; the webhook reads the
+   Stripe rows when a refund fails. Legs that failed on the spot already had
+   their points put back above and are not written. */
+
+async function recordLegs(
+  svc: Svc,
+  ctx: { parentId: string; ledgerId: string; actor: string; note: string | null },
+  legs: RefundLegResult[],
+) {
+  const rows = legs.filter(l => l.outcome !== 'failed').map(l => ({
+    parent_id: ctx.parentId,
+    ledger_id: ctx.ledgerId,
+    purchase_id: l.purchaseId,
+    amount_cents: l.cents,
+    kind: l.outcome === 'hand_back' ? 'hand_back' : 'stripe',
+    status: l.outcome === 'hand_back' ? 'to_hand_back' : l.stripeStatus === 'succeeded' ? 'succeeded' : 'pending',
+    stripe_refund_id: l.stripeRefundId ?? null,
+    note: ctx.note,
+    created_by: ctx.actor,
+  }))
+  if (rows.length === 0) return
+  const { error } = await svc.from('refund_legs').insert(rows)
+  if (error) {
+    // The money has moved and the ledger says so; what is missing is the
+    // bookkeeping row. Loud, because a desk-cash leg without one is cash
+    // nobody is reminded to hand over.
+    console.error('⚠️ refund_legs not written:', error.message)
+    const cash = rows.filter(r => r.kind === 'hand_back').reduce((a, r) => a + r.amount_cents, 0)
+    await alertAdmin('Refund made, but its record was not saved', [
+      `A refund for parent ${ctx.parentId} (ledger ${ctx.ledgerId}) went through, but its details could not be saved (${error.message}).`,
+      cash > 0
+        ? `$${(cash / 100).toFixed(2)} of it is cash to hand back at the desk, and it will NOT appear on the "cash to hand back" list. Hand it over and note it by hand.`
+        : 'Nothing is owed in cash. If a bank-account refund fails later, the points will not be put back automatically.',
+    ]).catch(() => {})
+  }
+}
+
+/** A desk-cash leg has been handed over. False when it was not open. */
+export async function markHandedBack(svc: Svc, legId: string, actor: string): Promise<boolean> {
+  const { data, error } = await svc.from('refund_legs')
+    .update({ status: 'handed_back', handed_at: new Date().toISOString(), handed_by: actor })
+    .eq('id', legId).eq('kind', 'hand_back').eq('status', 'to_hand_back')
+    .select('id')
+  if (error) throw new Error('Could not mark the cash as handed back: ' + error.message)
+  return !!data && data.length > 0
+}
+
+/**
+ * Stripe has changed the status of a refund the site made (refund.updated /
+ * refund.failed). 'succeeded' is noted. 'failed' or 'canceled' means the money
+ * never reached the family: the points come back, the charge becomes
+ * refundable again, and the school is told -- once, however often Stripe
+ * repeats the event. Returns what was done, for the log.
+ */
+export async function refundStatusChanged(svc: Svc, refund: Stripe.Refund): Promise<string> {
+  const ledgerId = refund.metadata?.ledger_id
+  const purchaseId = refund.metadata?.purchase_id
+  const parentId = refund.metadata?.parent_id
+  if (!ledgerId || !purchaseId || !parentId) return 'not a site refund'
+
+  if (refund.status === 'succeeded') {
+    await svc.from('refund_legs').update({ status: 'succeeded' })
+      .eq('stripe_refund_id', refund.id).eq('status', 'pending')
+    return 'succeeded'
+  }
+  if (refund.status !== 'failed' && refund.status !== 'canceled') return `status ${refund.status}`
+
+  const cents = Number(refund.amount) || 0
+  const why = refund.failure_reason || refund.status
+
+  // Claim the failure exactly once. The row is normally there (written when
+  // the refund was made); if that write had failed, inserting it now as
+  // failed claims it the same way -- stripe_refund_id is unique.
+  const { data: claimed, error: claimErr } = await svc.from('refund_legs')
+    .update({ status: 'failed', failure_reason: why })
+    .eq('stripe_refund_id', refund.id).in('status', ['pending', 'succeeded'])
+    .select('id')
+  if (claimErr) throw new Error('refund_legs claim: ' + claimErr.message)
+  if (!claimed || claimed.length === 0) {
+    const { data: existing } = await svc.from('refund_legs').select('id').eq('stripe_refund_id', refund.id).limit(1)
+    if (existing && existing.length > 0) return 'already handled'
+    const { error: insErr } = await svc.from('refund_legs').insert({
+      parent_id: parentId, ledger_id: ledgerId, purchase_id: purchaseId, amount_cents: cents,
+      kind: 'stripe', status: 'failed', stripe_refund_id: refund.id, failure_reason: why, created_by: 'system',
+    })
+    if (insErr) {
+      if (/duplicate|unique/i.test(insErr.message)) return 'already handled'
+      throw new Error('refund_legs insert: ' + insErr.message)
+    }
+  }
+
+  // The charge can be refunded again.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: p } = await svc.from('purchases').select('refunded_cents').eq('id', purchaseId).maybeSingle()
+    if (!p) break
+    const before = Number(p.refunded_cents) || 0
+    const { data: done } = await svc.from('purchases')
+      .update({ refunded_cents: Math.max(0, before - cents) })
+      .eq('id', purchaseId).eq('refunded_cents', before).select('id')
+    if (done && done.length > 0) break
+  }
+
+  // The points the refund took out go back.
+  await applyPoints(svc, {
+    parentId,
+    reason: 'refund_failed',
+    points: centsToPoints(cents),
+    amountCents: cents,
+    actor: 'system',
+    note: `Refund of $${(cents / 100).toFixed(2)} could not be delivered (${why})`,
+  })
+
+  const { data: parent } = await svc.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle()
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : `parent ${parentId}`
+  await alertAdmin('A refund did not reach the family', [
+    `${family}: the refund of $${(cents / 100).toFixed(2)} (Stripe ${refund.id}) ${refund.status === 'canceled' ? 'was cancelled' : 'failed'}: ${why}.`,
+    `The ${centsToPoints(cents)} points have been put back in the family's wallet, and that payment can be refunded again.`,
+    'Contact the family to agree how to return the money (for example a new refund, or cash at the desk).',
+  ]).catch(() => {})
+  return 'failed: points put back'
 }

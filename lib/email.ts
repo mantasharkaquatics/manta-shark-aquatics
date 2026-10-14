@@ -429,7 +429,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       ? `<p><strong>$${card.toFixed(2)}</strong> is on its way back to the card or account you paid with. Banks usually show it within 5\u201310 business days.</p>`
       : ''
     const handLine = hand > 0
-      ? `<p><strong>$${hand.toFixed(2)}</strong> was paid at the front desk, so we\u2019ll hand that back in person next time you\u2019re in \u2014 or tell us if you\u2019d rather we mailed a check.</p>`
+      ? `<p><strong>$${hand.toFixed(2)}</strong> was paid at the front desk, so it comes back the same way: in cash at the front desk, next time you\u2019re in.</p>`
       : ''
     subject = `Your $${total.toFixed(2)} refund from Manta Shark Aquatics`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${esc(parentName)},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points history on your dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`

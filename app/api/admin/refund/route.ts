@@ -4,31 +4,35 @@ import { requireAdmin } from '@/lib/api-auth'
 import { CASH_REFUND_ENABLED } from '@/lib/points'
 import { executeRefund, planRefund, RefundNotPossible } from '@/lib/refunds'
 import { sendEmail } from '@/lib/email'
+import { adminRole } from '@/lib/staff-accounts'
 
 export const runtime = 'nodejs'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
-// Refunding purchased points as cash.
+// Refunding purchased points.
 //
-// Admin only, and deliberately not something a parent can set off themselves:
-// the amount depends on which original charges are still refundable, some of it
-// may be cash that a person has to hand over, and none of that is a decision to
-// make from a self-service button.
+// Owner only (owner, 2026-10-14): not something a manager or a parent sets off.
+// The amount depends on which original charges are still refundable, some of
+// it may be desk cash a person has to hand over, and none of that is a
+// decision for a self-service button. Money goes back the way it came
+// (owner, 2026-10-14): card and bank payments through Stripe to the original
+// method, desk cash in cash.
 //
-// GET  ?parent_id=&amount=   what this refund would consist of, and what it can't cover
-// POST { parent_id, amount, note }   do it
+// GET  ?probe=1              { owner, enabled } -- whether to show the button
+// GET  ?parent_id=&amount=   what this refund would consist of (works while the
+//                            switch is off, so the screen can be checked)
+// POST { parent_id, amount, note }   do it -- only once CASH_REFUND_ENABLED
 //
-// Held behind CASH_REFUND_ENABLED until the refund policy has been through a
-// lawyer. The route is finished and tested; what is not finished is the wording
-// the family agrees to, and shipping the button first would mean refunding
-// against terms nobody has approved.
+// CASH_REFUND_ENABLED stays false until the refund policy has been through a
+// lawyer: refunding against terms nobody has approved is worse than waiting.
 
-function guard() {
-  if (!CASH_REFUND_ENABLED) {
-    return NextResponse.json({ error: 'REFUNDS_NOT_ENABLED' }, { status: 403 })
-  }
-  return null
+async function ownerOnly() {
+  const auth = await requireAdmin()
+  if (!auth) return { res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  if ((await adminRole(auth.svc, auth.admin.id)) !== 'super_admin')
+    return { res: NextResponse.json({ error: 'Only the owner can refund', code: 'not_owner' }, { status: 403 }) }
+  return { auth }
 }
 
 function failed(e: unknown) {
@@ -38,17 +42,35 @@ function failed(e: unknown) {
   return NextResponse.json({ error: 'Refund failed. Nothing was sent.' }, { status: 500 })
 }
 
+/** How each Stripe leg was paid -- card, bank account, desk card reader --
+ *  so the preview can say where the money will land. Best effort. */
+async function paidWith(paymentIntentId: string): Promise<string | null> {
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] })
+    // Cast: the field is there (expanded above); this project's type check
+    // resolves a narrower PaymentIntent type, as elsewhere in the repo.
+    const charge = (pi as any).latest_charge as Stripe.Charge | null
+    return charge?.payment_method_details?.type || (pi as any).payment_method_types?.[0] || null
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const off = guard(); if (off) return off
+  const o = await ownerOnly()
+  if (o.res) return o.res
+  const { auth } = o
+
+  if (req.nextUrl.searchParams.get('probe')) {
+    return NextResponse.json({ owner: true, enabled: CASH_REFUND_ENABLED })
+  }
 
   const parentId = req.nextUrl.searchParams.get('parent_id')
   if (!parentId) return NextResponse.json({ error: 'parent_id required' }, { status: 400 })
   const raw = req.nextUrl.searchParams.get('amount')
   const dollars = raw == null || raw === '' ? null : Number(raw)
   if (dollars != null && !Number.isFinite(dollars))
-    return NextResponse.json({ error: 'INVALID_AMOUNT' }, { status: 400 })
+    return NextResponse.json({ error: 'INVALID_AMOUNT', message: 'Not a number.' }, { status: 400 })
 
   try {
     const plan = await planRefund(auth.svc, parentId, dollars == null ? null : Math.round(dollars * 100))
@@ -58,16 +80,23 @@ export async function GET(req: NextRequest) {
     // actually paid rather than a rate multiplied out -- and where a fee has
     // not been read yet, feesIncomplete says so instead of the figure quietly
     // reading low.
-    return NextResponse.json(plan)
+    const legs = await Promise.all(plan.legs.map(async l => ({
+      ...l,
+      paidWith: l.paymentIntentId ? await paidWith(l.paymentIntentId) : (l.paymentMethod || 'cash'),
+    })))
+    return NextResponse.json({ ...plan, legs, enabled: CASH_REFUND_ENABLED })
   } catch (e) {
     return failed(e)
   }
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const off = guard(); if (off) return off
+  const o = await ownerOnly()
+  if (o.res) return o.res
+  const { auth } = o
+  if (!CASH_REFUND_ENABLED) {
+    return NextResponse.json({ error: 'REFUNDS_NOT_ENABLED', message: 'Refunds open once the terms have been reviewed.' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

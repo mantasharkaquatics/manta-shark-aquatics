@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
 import AlertModal from '@/components/AlertModal'
+import RefundPanel from './RefundPanel'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
 import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
@@ -1268,6 +1269,8 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   {t('admin.members.pts.adjust')}
                 </button>
               </div>
+
+              <RefundPanel parentId={parentId} onDone={load} />
 
               {w.ledger.length === 0 && <p className="text-gray-500 text-xs">{t('admin.members.pts.noMovements')}</p>}
               {w.ledger.map(row => (
