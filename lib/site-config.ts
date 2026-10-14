@@ -27,9 +27,9 @@ export const ALERT_EMAIL_FALLBACK = 'alerts@mantasharkaquatics.com'
  * street address, PO box or registered private mailbox in any commercial
  * email, so while this is empty NO birthday card is sent to a family -- the
  * daily job skips and says why, and only test cards to staff go out.
- * Owner, 2026-10-14: to be filled in later.
+ * Owner, 2026-10-14.
  */
-export const SCHOOL_MAILING_ADDRESS = ''
+export const SCHOOL_MAILING_ADDRESS = '382 N Lemon Ave Ste 821, Walnut, CA 91789'
 
 /**
  * Hiring. The careers page stays up and indexed either way -- it is the one page
