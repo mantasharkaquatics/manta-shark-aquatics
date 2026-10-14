@@ -1853,12 +1853,15 @@
   "dash.lowBal.about1": "点数约剩 1 周",
   "lowbal.email.subject": "您的游泳点数快用完了",
   "lowbal.email.title": "点数快用完了",
-  "lowbal.email.body": "您目前有 <strong>{balance} 点</strong>。按照最近的上课量（每周约 {weekly} 点），{left}。",
-  "lowbal.email.left1": "大约还够上 1 周",
-  "lowbal.email.left0": "已经不够上 1 周",
-  "lowbal.email.left1Booked": "加上已经预约的课，大约还够上 1 周",
-  "lowbal.email.left0Booked": "加上已经预约的课，也不到 1 周",
+  "lowbal.email.left1": "约 1 周",
+  "lowbal.email.left0": "不到 1 周",
   "lowbal.email.booked": "已经预约的课不受影响，点数在预约时就扣好了。",
-  "lowbal.email.nudge": "为了让上课不中断，建议您先充值。",
-  "lowbal.email.button": "充值点数"
+  "lowbal.email.nudge": "需要继续预约时，可以在“我的页面”充值。",
+  "lowbal.email.button": "查看我的点数",
+  "lowbal.email.intro": "您的点数快用完了，以下是目前的情况：",
+  "lowbal.email.rowBalance": "目前点数",
+  "lowbal.email.rowWeekly": "最近每周大约使用",
+  "lowbal.email.rowBooked": "已预约的课（已付）",
+  "lowbal.email.rowLeft": "大约还够上",
+  "lowbal.email.points": "{n} 点"
 }

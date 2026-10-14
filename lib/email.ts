@@ -200,6 +200,9 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 
   let subject = ''
   let html = ''
+  // A plain-text copy, for the few emails that set one (an account notice
+  // with one is less often filed under Promotions).
+  let text = ''
   // The pool, right under the Time row of every lesson email. Empty while
   // only one pool is open, so those emails read exactly as before.
   const locRow = payload.location ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${esc(payload.location)}</td></tr>` : ''
@@ -506,13 +509,40 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // (lib/low-balance.ts; owner, 2026-10-14). An account notice, like a
     // booking confirmation: no unsubscribe link, sent whatever the newsletter
     // setting. Once per dip below the line. In the family's language.
+    //
+    // Written to read as an account statement, not an offer (owner,
+    // 2026-10-14, after the first one landed in Gmail's Promotions tab): the
+    // figures in a small table, a "see my points" button rather than "top
+    // up", and a plain-text copy.
     const L = toLocale(payload.lang)
     const t = getT(L)
+    const n = (v?: number) => (v ?? 0).toLocaleString('en-US')
     const under1 = (payload.weeksLeft ?? 0) < 1
-    const left = t('lowbal.email.' + (under1 ? 'left0' : 'left1') + ((payload.booked ?? 0) > 0 ? 'Booked' : ''))
+    const booked = (payload.booked ?? 0) > 0
+    const url = 'https://www.mantasharkaquatics.net/dashboard?points=1'
+    const rows: [string, string][] = [
+      [t('lowbal.email.rowBalance'), t('lowbal.email.points', { n: n(payload.balance) })],
+      [t('lowbal.email.rowWeekly'), t('lowbal.email.points', { n: n(payload.weekly) })],
+      ...(booked ? [[t('lowbal.email.rowBooked'), t('lowbal.email.points', { n: n(payload.booked) })] as [string, string]] : []),
+      [t('lowbal.email.rowLeft'), t(under1 ? 'lowbal.email.left0' : 'lowbal.email.left1')],
+    ]
+    const notes = [booked ? t('lowbal.email.booked') : '', t('lowbal.email.nudge')].filter(Boolean)
     const p = (x: string) => `<p style="color: #16294a; line-height: 1.6;">${x}</p>`
     subject = t('lowbal.email.subject')
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('lowbal.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>${p(t('lowbal.email.body', { balance: (payload.balance ?? 0).toLocaleString('en-US'), weekly: (payload.weekly ?? 0).toLocaleString('en-US'), left }))}${p(((payload.booked ?? 0) > 0 ? t('lowbal.email.booked') + (L === 'en' ? ' ' : '') : '') + t('lowbal.email.nudge'))}<div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?points=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('lowbal.email.button')}</a></div><p style="color: #56647d; margin: 24px 0 0;">${t('bday.email.sign')}</p></div></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('lowbal.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>${p(t('lowbal.email.intro'))}<table style="width: 100%; border-collapse: collapse; margin: 4px 0 8px;">${rows.map(([k, v]) => `<tr><td style="padding: 9px 12px 9px 0; color: #56647d; border-bottom: 1px solid #e6edf6;">${k}</td><td style="padding: 9px 0; color: #12254a; font-weight: 700; border-bottom: 1px solid #e6edf6; text-align: right; white-space: nowrap;">${v}</td></tr>`).join('')}</table>${p(notes.join(L === 'en' ? ' ' : ''))}<div style="text-align:center; margin: 24px 0 8px;"><a href="${url}" style="display: inline-block; background: #12254a; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 10px; text-decoration: none;">${t('lowbal.email.button')}</a></div><p style="color: #56647d; margin: 24px 0 0;">${t('bday.email.sign')}</p></div></div>`
+    text = [
+      t('assess.email.hi', { name: parentName || '' }),
+      '',
+      t('lowbal.email.intro'),
+      '',
+      ...rows.map(([k, v]) => k + (L === 'en' ? ': ' : '：') + v),
+      '',
+      notes.join(L === 'en' ? ' ' : ''),
+      '',
+      `${t('lowbal.email.button')}: ${url}`,
+      '',
+      t('bday.email.sign'),
+    ].join('\n')
 
   } else if (type === 'welcome') {
     // Sent once, when /api/auth/complete-registration creates the family
@@ -711,6 +741,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       to,
       subject,
       html,
+      ...(text ? { text } : {}),
     })
     if (error) throw error
     return true
