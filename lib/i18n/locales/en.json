@@ -1848,5 +1848,17 @@
   "bday.email.p2AdultReturningSelf": "It’s been a while — we’d love to see you back in the pool soon.",
   "bday.email.p2AdultReturningOther": "It’s been a while — we’d love to see {name} back in the pool soon.",
   "bday.email.p2AdultNewSelf": "We look forward to seeing you in the pool and getting started together.",
-  "bday.email.p2AdultNewOther": "We look forward to seeing {name} in the pool and getting started together."
+  "bday.email.p2AdultNewOther": "We look forward to seeing {name} in the pool and getting started together.",
+  "dash.lowBal.under1": "Points cover less than a week",
+  "dash.lowBal.about1": "Points cover about 1 more week",
+  "lowbal.email.subject": "Your swim points are running low",
+  "lowbal.email.title": "Points running low",
+  "lowbal.email.body": "You have <strong>{balance} points</strong>. At your recent pace (about {weekly} points a week), {left}.",
+  "lowbal.email.left1": "that covers about 1 more week of lessons",
+  "lowbal.email.left0": "that covers less than a week of lessons",
+  "lowbal.email.left1Booked": "together with the lessons you have already booked, that covers about 1 more week",
+  "lowbal.email.left0Booked": "together with the lessons you have already booked, that covers less than a week",
+  "lowbal.email.booked": "Lessons you have already booked are not affected: their points were taken when you booked them.",
+  "lowbal.email.nudge": "To keep lessons going without a break, we suggest topping up now.",
+  "lowbal.email.button": "Top up points"
 }

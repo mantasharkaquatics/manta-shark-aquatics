@@ -111,6 +111,12 @@ ${REPORT_SHEET_CSS}
   border: 1px solid #b7e0cc; border-radius: 999px; padding: 3px 9px; white-space: nowrap;
   font-variant-numeric: tabular-nums }
 .msa-act-pts.owe b, .msa-act-pts.owe em { color: #c0392b }
+.msa-low { grid-column: 2; justify-self: end; display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0 6px; margin-top: -2px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: #8a5300 }
+.msa-low i { width: 7px; height: 7px; border-radius: 50%; background: #f09800; flex: none }
+.msa-low b { font-weight: 800; color: #2050a0 }
+@media (hover: hover) { .msa-low:hover b { text-decoration: underline } }
 /* Version 4, "member cards" (owner, 2026-09-26): a light page under the
    floating nav, the greeting in plain navy type, and the dark colour moved
    into each swimmer's card -- one navy card per child, like a membership card. */
@@ -217,6 +223,7 @@ ${REPORT_SHEET_CSS}
   /* One card at a time, with the next one's edge showing so it is obvious
      the row moves. The negative margin lets it run to the screen edge. */
   .msa-act { grid-template-columns: 1fr }
+  .msa-low { grid-column: 1; justify-self: center }
   .msa-act-pts { justify-content: space-between }
   .msa-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
               padding: 2px clamp(20px,5vw,48px) 30px; margin: 0 calc(-1 * clamp(20px,5vw,48px)) -20px;
@@ -924,6 +931,9 @@ type WalletSummary = {
   lessonsCompleted: number
   forgiveness: number
   lessonsPerForgiveness: number
+  /** Set only when the points will not last two more weeks of this family's
+   *  lessons (lib/low-balance.ts). */
+  runway?: { weeksLeft: number } | null
 }
 const SYSTEM_ONLY_NOTES = new Set([
   'Lesson cancelled by the school',
@@ -1834,6 +1844,12 @@ export default function DashboardPage() {
   const [pointsOpen, setPointsOpen] = useState(false)
   // Opened from the "refer a friend" line: scroll the sheet to that card.
   const [referralFocus, setReferralFocus] = useState(false)
+  // The low-balance email's button lands here with ?points=1 (lib/low-balance.ts).
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('points') !== '1') return
+    setPointsOpen(true)
+    try { const u = new URL(window.location.href); u.searchParams.delete('points'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [])
   useEffect(() => {
     if (!recordsFor && !pointsOpen) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setRecordsFor(null); setPointsOpen(false) } }
@@ -3197,6 +3213,15 @@ export default function DashboardPage() {
                   <span className="msa-gift">{t('dash.pointsGift', { n: wallet.balanceGranted.toLocaleString() })}</span>
                 )}
                 <em>{t('dash.topUp')} ›</em>
+              </button>
+            )}
+            {/* Points running low (owner, 2026-10-14): one quiet line, only
+                when they will not last two more weeks of lessons. */}
+            {wallet?.runway && !(wallet.arrears > 0) && (
+              <button className="tap-auto msa-low" onClick={() => { window.location.href = '/plans#buy' }}>
+                <i aria-hidden="true" />
+                {t(wallet.runway.weeksLeft < 1 ? 'dash.lowBal.under1' : 'dash.lowBal.about1')}
+                <b>· {t('dash.topUp')} ›</b>
               </button>
             )}
           </div>

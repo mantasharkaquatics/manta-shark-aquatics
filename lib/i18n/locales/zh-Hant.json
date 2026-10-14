@@ -1848,5 +1848,17 @@
   "bday.email.p2AdultReturningSelf": "好久不見，期待很快在泳池再見到您！",
   "bday.email.p2AdultReturningOther": "好久不見，期待很快在泳池再見到 {name}！",
   "bday.email.p2AdultNewSelf": "期待在泳池見到您，和您一起開始！",
-  "bday.email.p2AdultNewOther": "期待在泳池見到 {name}，一起開始！"
+  "bday.email.p2AdultNewOther": "期待在泳池見到 {name}，一起開始！",
+  "dash.lowBal.under1": "點數剩不到 1 週",
+  "dash.lowBal.about1": "點數約剩 1 週",
+  "lowbal.email.subject": "您的游泳點數快用完了",
+  "lowbal.email.title": "點數快用完了",
+  "lowbal.email.body": "您目前有 <strong>{balance} 點</strong>。依照最近的上課量（每週約 {weekly} 點），{left}。",
+  "lowbal.email.left1": "大約還夠上 1 週",
+  "lowbal.email.left0": "已經不夠上 1 週",
+  "lowbal.email.left1Booked": "加上已經預約的課，大約還夠上 1 週",
+  "lowbal.email.left0Booked": "加上已經預約的課，也不到 1 週",
+  "lowbal.email.booked": "已經預約的課不受影響，點數在預約時就扣好了。",
+  "lowbal.email.nudge": "為了讓上課不中斷，建議您先儲值。",
+  "lowbal.email.button": "儲值點數"
 }

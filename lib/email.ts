@@ -54,6 +54,7 @@ export type EmailType =
   | 'assessment_report'
   | 'monthly_report'
   | 'voucher_expiring'
+  | 'low_balance'
   | 'fixed_class_ended'
   | 'fixed_class_renewal'
   | 'fixed_class_moved'
@@ -179,6 +180,12 @@ export interface EmailPayload {
   /** booking_series_confirmed: the pool of each date, aligned with `dates`.
    *  All the same = one Location row; different = said on each date. */
   locations?: (string | undefined)[]
+  /** low_balance (lib/low-balance.ts): spendable points, points per week,
+   *  points already paid for booked lessons, and weeks the two together last. */
+  balance?: number
+  weekly?: number
+  booked?: number
+  weeksLeft?: number
 }
 
 // Shared by the two school-side cancellation emails. Values arrive escaped.
@@ -493,6 +500,19 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const kind = t('voucher.email.kind.' + course + (course === '1on1' ? '.' + (payload.minutes === 60 ? 60 : 30) : course === '1on2' && payload.minutes === 60 ? '.60' : ''))
     subject = t('voucher.email.subject', { date: by })
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('voucher.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('voucher.email.body', { names, kind, date: by })}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?vouchers=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('voucher.email.button')}</a></div></div></div>`
+
+  } else if (type === 'low_balance') {
+    // The family's points will not last two more weeks of their lessons
+    // (lib/low-balance.ts; owner, 2026-10-14). An account notice, like a
+    // booking confirmation: no unsubscribe link, sent whatever the newsletter
+    // setting. Once per dip below the line. In the family's language.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const under1 = (payload.weeksLeft ?? 0) < 1
+    const left = t('lowbal.email.' + (under1 ? 'left0' : 'left1') + ((payload.booked ?? 0) > 0 ? 'Booked' : ''))
+    const p = (x: string) => `<p style="color: #16294a; line-height: 1.6;">${x}</p>`
+    subject = t('lowbal.email.subject')
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('lowbal.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p>${p(t('lowbal.email.body', { balance: (payload.balance ?? 0).toLocaleString('en-US'), weekly: (payload.weekly ?? 0).toLocaleString('en-US'), left }))}${p(((payload.booked ?? 0) > 0 ? t('lowbal.email.booked') + (L === 'en' ? ' ' : '') : '') + t('lowbal.email.nudge'))}<div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?points=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('lowbal.email.button')}</a></div><p style="color: #56647d; margin: 24px 0 0;">${t('bday.email.sign')}</p></div></div>`
 
   } else if (type === 'welcome') {
     // Sent once, when /api/auth/complete-registration creates the family

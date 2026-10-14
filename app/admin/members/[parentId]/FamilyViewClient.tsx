@@ -12,7 +12,7 @@ type View = {
   lang: Locale
   family: { id: string; name: string; firstName: string | null; email: string | null; phone: string | null; language: string | null }
   cards: { id: string; name: string; dob: string | null; gender: string | null; level: number | null; stage: number | null; percent: number; credit: { lessons: number; needed: number; daysLeft: number } | null; lastReport: string | null }[]
-  wallet: { purchased: number; granted: number; arrears: number; grantedNext: { points: number; date: string } | null; lessonsCompleted: number }
+  wallet: { purchased: number; granted: number; arrears: number; grantedNext: { points: number; date: string } | null; lessonsCompleted: number; runway?: { weeksLeft: number } | null }
   vouchers: { id: string; swimmers: string[]; courseSlug: string; minutes: number; reason: string; expiresOn: string; usableFrom?: string | null }[]
   fixedClasses: { id: string; swimmers: string[]; courseSlug: string; courseTypeId: string | null; courseName: string; minutes: number; weekday: number; time: string; coach: string; left: number; last: string | null }[]
   upcoming: { date: string; start: string; end: string; course: string; courseName: string; courseTypeId: string | null; coach: string; swimmers: string[]; status: string; fixed: boolean; makeUp: boolean }[]
@@ -120,6 +120,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
           {view.wallet.granted > 0 && <span className="fv-gift">{ft('dash.pointsGift', { n: view.wallet.granted.toLocaleString() })}</span>}
           {view.wallet.grantedNext && <span className="fv-note">{view.wallet.grantedNext.points} · {day(view.wallet.grantedNext.date.slice(0, 10), { month: 'short', day: 'numeric' })}</span>}
           {view.wallet.arrears > 0 && <span className="fv-owe">−{view.wallet.arrears}</span>}
+          {view.wallet.runway && <span className="fv-low">{ft(view.wallet.runway.weeksLeft < 1 ? 'dash.lowBal.under1' : 'dash.lowBal.about1')}</span>}
         </div>
 
         <h2 className="fv-h">🎟 {ft('voucher.sheetTitle')}</h2>
@@ -201,6 +202,7 @@ const CSS = `
 .fv-gift { font-size: 12px; font-weight: 800; color: #1f7a57; background: #e6f4ee; border-radius: 999px; padding: 3px 9px }
 .fv-note { font-size: 12px; color: #56647d }
 .fv-owe { font-size: 12px; font-weight: 800; color: #c0392b }
+.fv-low { font-size: 12px; font-weight: 700; color: #8a5300; background: #fff4e0; border: 1px solid #f5d7a1; border-radius: 999px; padding: 3px 9px }
 .fv-h { font-size: 15px; font-weight: 800; margin: 22px 0 8px; color: #12254a }
 .fv-empty { font-size: 13px; color: #56647d }
 .fv-list { display: flex; flex-direction: column; gap: 8px }

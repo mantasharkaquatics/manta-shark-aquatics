@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA, getNowMinutesLA } from '@/lib/date'
-import { walletSummary } from '@/lib/points-wallet'
+import { walletSummary, getWallet } from '@/lib/points-wallet'
+import { familyRunway } from '@/lib/low-balance'
 import { assessmentsForParent } from '@/lib/assessments'
 import { stageProgress, resolveStage } from '@/lib/levels'
 import { toLocale } from '@/lib/i18n'
@@ -120,6 +121,9 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // The same "points running low" line the family sees under its balance.
+  const runway = await familyRunway(svc, parentId, await getWallet(svc, parentId)).catch(() => null)
+
   return NextResponse.json({
     lang,
     family: { id: parent.id, name: `${parent.first_name || ''} ${parent.last_name || ''}`.trim(), firstName: parent.first_name, email: parent.email, phone: parent.phone, language: parent.preferred_language },
@@ -127,6 +131,7 @@ export async function GET(req: NextRequest) {
     wallet: {
       purchased: wallet.balancePurchased, granted: wallet.balanceGranted, arrears: wallet.arrears,
       grantedNext: wallet.grantedNextExpiry || null, lessonsCompleted: wallet.lessonsCompleted,
+      runway: runway?.low ? { weeksLeft: Math.floor(runway.weeksLeft * 10) / 10 } : null,
     },
     vouchers: (vouchers || []).map((v: any) => ({
       id: v.id, swimmers: [nameOf.get(v.student_id), v.student2_id ? nameOf.get(v.student2_id) : null].filter(Boolean),
