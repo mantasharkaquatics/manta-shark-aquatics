@@ -135,10 +135,18 @@ async function evaluateDates(
       if (clash) status = 'conflict'
     }
     else {
+      // Interval overlap here too, as in the parent create route: a 30-minute
+      // lesson at the grid slot after an hour's start (9:45 after 9:10) overlaps
+      // the hour's off-grid second half without sharing its start time. Testing
+      // equal starts only showed that week as free and quoted it (found 2026-10-15).
       const daySessions = sessByDate.get(date) || []
-      const sameSlot = daySessions.filter((s: any) => timeToMinutes(s.start_time) === startMins)
-      const matching = sameSlot.find((s: any) => s.course_type_id === courseTypeId)
-      const foreign = sameSlot.find((s: any) => s.course_type_id !== courseTypeId && s.enrolled_count > 0)
+      const matching = daySessions.find((s: any) => timeToMinutes(s.start_time) === startMins && s.course_type_id === courseTypeId)
+      const foreign = daySessions.some((s: any) => {
+        if (s === matching || (s.enrolled_count || 0) <= 0) return false
+        const ss = timeToMinutes(s.start_time)
+        const se = s.end_time ? timeToMinutes(s.end_time) : ss + (durationMinutes || 30)
+        return spanStart < se && spanEnd > ss
+      })
       if (foreign) status = 'conflict'
       else if (matching && matching.enrolled_count + spotsNeeded > matching.max_students) status = 'full'
     }

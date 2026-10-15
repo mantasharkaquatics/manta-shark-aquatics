@@ -105,7 +105,9 @@ export default function ZonesEditorPage() {
 
   useEffect(() => {
     if (!coachId) return
-    setMsg(null); setDirty(false); setMode('weekly'); setOvDate(''); setDayClosed(false)
+    // A new coach starts with no date-mode team practices: the last coach's
+    // must not carry over (found 2026-10-15).
+    setMsg(null); setDirty(false); setMode('weekly'); setOvDate(''); setDayClosed(false); setOvTeamRows([])
     fetch(`/api/admin/zones?coach_id=${coachId}`).then(r => r.json()).then(d => {
       setTiers(d.tiers || [])
       setLegacy(d.legacy || [])
@@ -127,7 +129,11 @@ export default function ZonesEditorPage() {
       return
     }
     if (!ovDate) return
-    setMsg(null); setDirty(false); setDayClosed(false)
+    // Clear the last date's team practices before loading this one. Only the
+    // open-day branch below refills them, so a closed date kept the previous
+    // date's practice: listed as 'This date', blocking paint, and saved onto
+    // this date once a slot was painted to reopen it (found 2026-10-15).
+    setMsg(null); setDirty(false); setDayClosed(false); setOvTeamRows([])
     fetch(`/api/admin/zones?coach_id=${coachId}&date=${ovDate}`).then(r => r.json()).then(d => {
       const rows: ZoneRow[] = d.dateRows || []
       const g: Cell[][] = Array.from({ length: 7 }, () => Array(SLOTS).fill(null))
