@@ -817,6 +817,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
     setError('')
     setSuccess('')
     setBookMode('single')
+    setHourMode(false)
     setRecurSkips([])
     setRecurPreview(null)
     setModal('book')
@@ -858,7 +859,10 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           student2_id: is1on2 && formStudent2 ? formStudent2 : undefined,
           start_time: selectedSlot.time,
           dates: [selectedSlot.date],
-          hour: hourMode && !is1on2,
+          // Only a 1-on-1 can be an hour, as the series paths above already
+          // check: a 60-minute toggle left on from an earlier 1-on-1 failed every
+          // later 1-on-4 from a group cell (found 2026-10-15).
+          hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
         }, t, locale)
       if (declined || !res.ok) {
         setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.createBooking')))

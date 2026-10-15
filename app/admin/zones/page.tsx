@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS, bandColorOf, bandRange } from '@/lib/zone-colors'
+import { ZONE_COLORS, BAND_COLORS, TEAM_TIER_COLORS, bandColorOf, bandRange, bandSlotOf } from '@/lib/zone-colors'
+import { MAX_LEVEL } from '@/lib/levels'
 import { daySlots, SLOT_STEP_MINUTES } from '@/lib/date'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
@@ -96,7 +97,7 @@ export default function ZonesEditorPage() {
     for (const z of rows) {
       if (z.zone_type === 'team') continue
       for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) {
-        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? z.group_level_min + '-' + z.group_level_max : undefined, loc: rowLoc(z) }
+        g[z.weekday!][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: z.group_level_min != null ? (bandSlotOf(z.group_level_min, z.group_level_max) ?? z.group_level_min + '-' + z.group_level_max) : undefined, loc: rowLoc(z) }
       }
     }
     return g
@@ -137,7 +138,7 @@ export default function ZonesEditorPage() {
         setOvTeamRows(src.filter((z: any) => z.zone_type === 'team'))
         for (const z of src) {
           if (z.zone_type === 'team') continue
-          for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (z as any).group_level_min + '-' + (z as any).group_level_max : undefined, loc: rowLoc(z) }
+          for (const i of slotsInRange(String(z.start_time).slice(0, 5), String(z.end_time).slice(0, 5))) g[ovDow][i] = { t: z.zone_type as any, tier: z.team_tier_id || undefined, band: (z as any).group_level_min != null ? (bandSlotOf((z as any).group_level_min, (z as any).group_level_max) ?? (z as any).group_level_min + '-' + (z as any).group_level_max) : undefined, loc: rowLoc(z) }
         }
       }
       setGrid(g)
@@ -184,7 +185,9 @@ export default function ZonesEditorPage() {
         if (!c || teamAt(d, i)) { i++; continue }
         let j = i + 1
         while (j < SLOTS && contiguous(j - 1, j) && !teamAt(d, j) && grid[d][j] && grid[d][j]!.t === c.t && grid[d][j]!.tier === c.tier && grid[d][j]!.band === c.band && grid[d][j]!.loc === c.loc) j++
-        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, group_level_max: c.band ? Number(c.band.split('-')[1]) : null, location_id: c.loc })
+        out.push({ zone_type: c.t, weekday: d, start_time: idxToTime(i), end_time: idxToEnd(j - 1), team_tier_id: c.tier, group_level_min: c.band ? Number(c.band.split('-')[0]) : null, // The top band's key is '7-9' (from before seven levels); the API takes
+        // nothing above MAX_LEVEL, so every L7 save failed (found 2026-10-15).
+        group_level_max: c.band ? Math.min(Number(c.band.split('-')[1]), MAX_LEVEL) : null, location_id: c.loc })
         i = j
       }
     }

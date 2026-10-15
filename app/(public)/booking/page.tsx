@@ -232,11 +232,19 @@ function DoneRow({ label, value, sub, onChange, changeLabel }: {
   )
 }
 
-function SelectCard({ selected, onClick, color = GOLD, children }: {
-  selected: boolean; onClick: () => void; color?: string; children: React.ReactNode
+/* A choice card (swimmer, course, second swimmer). It is a div with a
+   button's role, not a <button>: the cards hold block layout, and the global
+   button rules in globals.css would reshape them. Keyboard and switch users
+   had no way to pick one before (found 2026-10-15), so it takes focus, Enter
+   and Space, and says whether it is selected or unavailable. */
+function SelectCard({ selected, onClick, color = GOLD, disabled = false, children }: {
+  selected: boolean; onClick: () => void; color?: string; disabled?: boolean; children: React.ReactNode
 }) {
   return (
-    <div onClick={onClick} style={{
+    <div role="button" tabIndex={0} aria-pressed={selected} aria-disabled={disabled || undefined} className="sel-card"
+      onClick={() => { if (!disabled) onClick() }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!disabled) onClick() } }}
+      style={{
       background: selected ? `${color}18` : '#fff',
       border: `2px solid ${selected ? color : '#e3ebf6'}`,
       borderRadius: '14px', padding: '20px', cursor: 'pointer',
@@ -250,7 +258,7 @@ function SelectCard({ selected, onClick, color = GOLD, children }: {
           width: '22px', height: '22px', borderRadius: '50%', boxShadow: '0 0 0 3px #fff',
           background: color, display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '12px', color: '#fff', fontWeight: 700,
-        }}>✓</div>
+        }} aria-hidden="true">✓</div>
       )}
       {children}
     </div>
@@ -2472,7 +2480,7 @@ export default function BookingPage() {
                 return (
                   <div key={ct.id} aria-disabled={needsAssessment || undefined}
                     style={needsAssessment ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
-                  <SelectCard selected={!isTrial && selectedCourse?.id === ct.id} onClick={() => { if (needsAssessment) return; if (selectedCourse?.id !== ct.id) clearTime(); requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
+                  <SelectCard selected={!isTrial && selectedCourse?.id === ct.id} disabled={needsAssessment} onClick={() => { if (needsAssessment) return; if (selectedCourse?.id !== ct.id) clearTime(); requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
@@ -2540,7 +2548,7 @@ export default function BookingPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} disabled={s.current_level == null} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4a90c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#16294a', fontFamily: FONT_DISPLAY, flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
@@ -2553,7 +2561,7 @@ export default function BookingPage() {
                     </SelectCard>
                   ))}
                   {partnerStudents.map(s => (
-                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
+                    <SelectCard key={s.id} selected={selectedStudent2?.id === s.id} disabled={s.current_level == null} onClick={() => { if (s.current_level == null) return; requestAdvance(); setSelectedStudent2(s) }} color="#4a90c4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#7b61c4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: FONT_DISPLAY, flexShrink: 0 }}>
                           {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}

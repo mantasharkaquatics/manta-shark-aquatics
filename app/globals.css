@@ -281,3 +281,6 @@
 @media (max-width: 900px) {
   .pos-grid { grid-template-columns: 1fr !important; }
 }
+
+/* Booking choice cards (app/(public)/booking SelectCard): a keyboard focus ring. */
+.sel-card:focus-visible { outline: 3px solid #2050a0; outline-offset: 3px }
