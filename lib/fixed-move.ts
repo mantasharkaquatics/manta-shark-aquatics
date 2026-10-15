@@ -15,7 +15,7 @@
 
 import { randomUUID } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getTodayLA, getNowMinutesLA, minutesUntil, SLOT_STEP_MINUTES } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, minutesUntil, SLOT_STEP_MINUTES, isGridStart, GRID_ERROR } from '@/lib/date'
 import { addDaysStr, issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import {
   FC_COLUMNS, MOVE_EXTRA_WEEKS, classState, evalSlot, halvesOf, isUpcoming, lessonsOf, loadWindow, minToTime,
@@ -87,6 +87,11 @@ export async function planMove(svc: Svc, ctx: MoveCtx, target: MoveTarget): Prom
   const today = getTodayLA(), nowMin = getNowMinutesLA()
   const N = ctx.movable.length
   if (N === 0) return { error: 'NOTHING_TO_MOVE', status: 400 }
+  // On the 35-minute grid (lib/date.ts, found 2026-10-15). The options list
+  // only ever offers grid times, but preview and commit took any HH:MM, and an
+  // off-grid class blocks two slots every week. commitMove runs only after
+  // this plan, and checks again itself.
+  if (!isGridStart(target.startTime)) return { error: GRID_ERROR, status: 400 }
   const startMin = toMin(target.startTime)
   if (weekdayOf(target.startDate) === ctx.fc.weekday && startMin === toMin(ctx.fc.start_time) && target.coachId === ctx.fc.coach_id)
     return { error: 'SAME_SLOT', status: 400 }
@@ -224,6 +229,7 @@ async function lastDateOf(svc: Svc, fcId: string): Promise<string | null> {
  *  were left on their old slot. */
 export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, plan: MovePlan):
   Promise<{ ok: true; moved: number; vouchers: number; notMoved: string[] } | { error: string; status: number }> {
+  if (!isGridStart(target.startTime)) return { error: GRID_ERROR, status: 400 }
   const byDate = new Map(ctx.movable.map(l => [l.date, l]))
   const moving = plan.items.filter(i => i.to)
   const toVoucher = plan.items.filter(i => !i.to)

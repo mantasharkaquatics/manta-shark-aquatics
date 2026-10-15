@@ -756,6 +756,7 @@
   "err.studentNotFound": "找不到这位学员",
   "err.swimmerBusy": "这位学员在这个小时内已经有课了。",
   "err.swimmerBusyAt": "这位学员这个时间已经有课了，请选别的时间。",
+  "err.swimmerInactive": "这位学员在这个账户已停用。如果有误，请与我们联系。",
   "err.teamActive": "这位学员已经有生效中的泳队订阅。",
   "err.teamFull": "这个泳队已经额满，请发消息给我们登记候补。",
   "err.teamNeedsAssessment": "这位学员需要先完成游泳评估，才能加入泳队。",

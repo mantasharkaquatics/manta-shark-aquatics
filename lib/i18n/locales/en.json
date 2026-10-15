@@ -756,6 +756,7 @@
   "err.studentNotFound": "Student not found",
   "err.swimmerBusy": "This swimmer already has a lesson during that hour.",
   "err.swimmerBusyAt": "This swimmer already has a lesson at this time. Please pick another time.",
+  "err.swimmerInactive": "This swimmer is no longer active on this account. Please contact us if they should be.",
   "err.teamActive": "This student already has an active team membership.",
   "err.teamFull": "This squad is full. Please message us to join the waitlist.",
   "err.teamNeedsAssessment": "This swimmer needs a Swim Assessment before joining Swim Team.",

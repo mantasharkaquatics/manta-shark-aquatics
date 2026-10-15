@@ -4,6 +4,7 @@ import Stripe from 'stripe'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
+import { SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { releaseTrialHold, syncTrialBooking } from '@/lib/trial-booking'
 import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
@@ -47,11 +48,13 @@ export async function POST(req: NextRequest) {
 
     const { data: student } = await svc
       .from('students')
-      .select('id, full_name, parent_id, trial_used_at, current_level')
+      .select('id, full_name, parent_id, trial_used_at, current_level, is_active')
       .eq('id', studentId)
       .single()
 
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    // A deactivated swimmer cannot be booked by anyone (found 2026-10-15).
+    if (student.is_active === false) return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 400 })
     if (student.trial_used_at) {
       return NextResponse.json({ error: 'This student has already used their trial lesson' }, { status: 400 })
     }
@@ -119,11 +122,15 @@ export async function POST(req: NextRequest) {
 
     if (!courseType) return NextResponse.json({ error: '1-on-1 course type not found' }, { status: 500 })
 
+    // Active coaches only, on the desk path too (found 2026-10-15): a
+    // deactivated coach keeps his zones, so his old times still looked open.
     const { data: coach } = await svc
       .from('coaches')
       .select('first_name, last_name')
       .eq('id', coachId)
+      .eq('is_active', true)
       .single()
+    if (!coach) return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 400 })
 
     const [h, m] = time.split(':').map(Number)
     const endMins = h * 60 + m + courseType.duration_minutes

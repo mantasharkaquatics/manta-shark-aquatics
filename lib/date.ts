@@ -148,3 +148,17 @@ export function daySlots(): { start: string; end: string }[] {
   }
   return out
 }
+
+// Whether a lesson may START at this time ("HH:MM" or "HH:MM:SS"): one of the
+// daySlots() starts. Every booking route checks it (found 2026-10-15): they
+// tested only that the lesson fitted inside a zone, so a hand-made request
+// for 15:20 sat across the 15:00 and 15:35 slots and took both away from
+// other families -- every week of a term, through a fixed class or a move.
+// A 60-minute lesson is checked on its first half only; the second half
+// starts off the grid on purpose (as /api/bookings/hour always did).
+// The refusal is GRID_ERROR, which lib/i18n/errors.ts already translates.
+const GRID_STARTS = new Set(daySlots().map(s => s.start))
+export function isGridStart(t: string): boolean {
+  return GRID_STARTS.has(String(t).slice(0, 5))
+}
+export const GRID_ERROR = 'That start time is not on the schedule. Please pick another time.'

@@ -56,7 +56,16 @@ export function singleMaxDate(today: string = getTodayLA()): string {
   return d.toISOString().slice(0, 10)
 }
 
-export const SINGLE_TOO_FAR_ERROR = `Single lessons can be booked up to ${SINGLE_BOOKING_DAYS} days in advance. For later dates, sign up for a fixed weekly class.`
+/**
+ * A swimmer the desk deactivated (students.is_active = false) disappears from
+ * the family's pages, booking and check-in (app/api/admin/students/active), so
+ * no route may book them either (found 2026-10-15: a stale booking tab, or a
+ * 1-on-2 invitation naming a linked family's deactivated child, still could).
+ * lib/i18n/errors.ts translates it.
+ */
+export const SWIMMER_INACTIVE_ERROR = 'This swimmer is no longer active on this account. Please contact us if they should be.'
+
+export const SINGLE_TOO_FAR_ERROR =`Single lessons can be booked up to ${SINGLE_BOOKING_DAYS} days in advance. For later dates, sign up for a fixed weekly class.`
 
 /** A fixed-class lesson, or a make-up, is not moved: leave turns it into a voucher. */
 export const FIXED_NO_RESCHEDULE_ERROR = 'Fixed-class and make-up lessons cannot be rescheduled. Cancel it at least 24 hours ahead to get a make-up voucher, then book another time with it.'

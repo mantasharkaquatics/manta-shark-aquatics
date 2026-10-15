@@ -3,6 +3,7 @@ import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
+import { SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { sessionLocationLine } from '@/lib/locations'
 
@@ -27,11 +28,13 @@ export async function POST(req: NextRequest) {
 
     const { data: student } = await svc
       .from('students')
-      .select('id, full_name, parent_id, trial_used_at, current_level')
+      .select('id, full_name, parent_id, trial_used_at, current_level, is_active')
       .eq('id', studentId)
       .eq('parent_id', ctx.parent.id)
       .single()
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    // A deactivated swimmer cannot be booked (found 2026-10-15).
+    if (student.is_active === false) return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 400 })
 
     if (student.current_level != null) {
       return NextResponse.json({ error: 'This student already has an assigned level and does not need a Swim Assessment' }, { status: 400 })

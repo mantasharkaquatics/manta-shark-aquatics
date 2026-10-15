@@ -157,7 +157,10 @@ export default function POSClient() {
 
   useEffect(() => {
     if (!selectedParent || (!isTrial && !isTeam)) { setStudents([]); setSelectedStudentId(null); return }
-    const q = supabase.from('students').select('id, full_name, trial_used_at, current_level, current_stage').eq('parent_id', selectedParent.id)
+    // Active swimmers only (found 2026-10-15): a deactivated one -- often a
+    // duplicate with the same name -- could be sold an assessment or a team
+    // month that nobody could then use. The server refuses them too.
+    const q = supabase.from('students').select('id, full_name, trial_used_at, current_level, current_stage').eq('parent_id', selectedParent.id).eq('is_active', true)
     // The same rule the server checks before the card is charged: no
     // assessment used AND no level yet. Filtering on trial_used_at alone
     // offered swimmers whose level was set by hand, and the sale was refused
@@ -190,7 +193,7 @@ export default function POSClient() {
   useEffect(() => {
     if (!selectedParent || !isSdp) { setSdpStudents([]); setSdpStudentId(null); return }
     supabase.from('students').select('id, full_name, uci_number')
-      .eq('parent_id', selectedParent.id).not('uci_number', 'is', null)
+      .eq('parent_id', selectedParent.id).eq('is_active', true).not('uci_number', 'is', null)
       .then(({ data }) => {
         setSdpStudents((data || []) as any)
         setSdpStudentId(data?.length ? data[0].id : null)

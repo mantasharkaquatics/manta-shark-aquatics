@@ -155,6 +155,8 @@ const MAP: readonly (readonly [string, string])[] = [
   ["The other family's swimmer", 'err.partnerSwimmerBusy'],
   ['This swimmer already has a lesson during that hour', 'err.swimmerBusy'],
   ['already has a lesson at this time', 'err.swimmerBusyAt'],
+  // SWIMMER_INACTIVE_ERROR (lib/booking-time.ts, found 2026-10-15).
+  ['This swimmer is no longer active on this account', 'err.swimmerInactive'],
   ['half is no longer available', 'err.hourHalfGone'],
   ['This booking is not awaiting payment', 'err.bookingChanged'],
   ['Booking state changed', 'err.bookingChanged'],

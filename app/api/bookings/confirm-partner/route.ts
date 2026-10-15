@@ -96,6 +96,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This invitation is no longer valid.' }, { status: 409 })
   }
 
+  // A swimmer the desk deactivated since the invitation went out cannot be
+  // booked (found 2026-10-15): accepting charged both wallets and confirmed a
+  // lesson for a child missing from the family's pages and check-in. The
+  // invitation ends before any points move; no email, as no reason fits one.
+  {
+    const kidIds = [...new Set(group.map(r => r.student_id).filter(Boolean))] as string[]
+    const { data: kids, error: kidsErr } = await supabase.from('students').select('id, is_active').in('id', kidIds)
+    if (kidsErr || (kids || []).length !== kidIds.length || (kids || []).some((k: any) => k.is_active === false)) {
+      if (!kidsErr) {
+        await supabase.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' })
+          .in('id', group.map(r => r.id)).eq('status', 'pending_partner')
+      }
+      return NextResponse.json({ error: 'This invitation is no longer valid.' }, { status: 409 })
+    }
+  }
+
   const sessionIds = Array.from(new Set(group.map(r => r.class_session_id)))
   const { data: sessions } = await supabase
     .from('class_sessions')

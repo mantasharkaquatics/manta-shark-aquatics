@@ -30,7 +30,7 @@ export async function GET() {
     // stopped at the API's 1,000-row cap, and families late in name order
     // could not be given a voucher (found 2026-10-08). id breaks name ties so
     // pages cannot overlap.
-    allRows(() => svc.from('parents').select('id, first_name, last_name, students(id, full_name, current_level)').order('last_name').order('id'))
+    allRows(() => svc.from('parents').select('id, first_name, last_name, students(id, full_name, current_level, is_active)').order('last_name').order('id'))
       .then(r => { if (r.error) console.error('vouchers families: read failed:', r.error.message || r.error); return r }),
   ])
   const sessIds = [...new Set((bs || []).map((b: any) => b.class_session_id))]
@@ -56,7 +56,10 @@ export async function GET() {
     })),
     families: (families || []).map((f: any) => ({
       id: f.id, name: `${f.first_name || ''} ${f.last_name || ''}`.trim(),
-      students: (f.students || []).map((s: any) => ({ id: s.id, name: s.full_name })),
+      // Active swimmers only (found 2026-10-15): a deactivated one was listed
+      // unmarked, and a voucher for them could not be used. A family left
+      // with none drops out of the list below.
+      students: (f.students || []).filter((s: any) => s.is_active !== false).map((s: any) => ({ id: s.id, name: s.full_name })),
     })).filter((f: any) => f.students.length > 0),
   })
 }
@@ -80,10 +83,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A 1-on-2 voucher is for two swimmers of the same family.', code: 'pair_needed' }, { status: 400 })
     if (courseSlug !== '1on1' && minutes !== 30)
       return NextResponse.json({ error: 'Only a 1-on-1 voucher can be for 60 minutes.', code: 'sixty_private_only' }, { status: 400 })
-    const { data: kids } = await svc.from('students').select('id').eq('parent_id', parentId)
+    const { data: kids } = await svc.from('students').select('id, is_active').eq('parent_id', parentId)
       .in('id', [studentId, student2Id].filter(Boolean) as string[])
     if ((kids || []).length !== (student2Id ? 2 : 1))
       return NextResponse.json({ error: 'That swimmer is not in this family.', code: 'not_in_family' }, { status: 400 })
+    if ((kids || []).some((k: any) => k.is_active === false))
+      return NextResponse.json({ error: 'That swimmer is deactivated. Reactivate them on Members first.', code: 'swimmer_inactive' }, { status: 400 })
     const today = getTodayLA()
     const expiresOn = typeof body.expires_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.expires_on) && body.expires_on >= today
       ? body.expires_on : addDaysStr(today, VOUCHER_DAYS)

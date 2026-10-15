@@ -7,6 +7,7 @@ export const VOUCHER_ERROR_KEYS: Record<string, string> = {
   pair_needed: 'admin.vouchers.err.pairNeeded',
   sixty_private_only: 'admin.vouchers.err.sixtyPrivateOnly',
   not_in_family: 'admin.vouchers.err.notInFamily',
+  swimmer_inactive: 'admin.vouchers.err.swimmerInactive',
   reason_required: 'admin.vouchers.err.reasonRequired',
   not_unused: 'admin.vouchers.err.notUnused',
 }

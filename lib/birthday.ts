@@ -87,7 +87,11 @@ function addDays(ymd: string, n: number): string {
 export async function birthdaysBetween(svc: Svc, from: string, to: string, today: string): Promise<BirthdaySwimmer[]> {
   const year = Number(from.slice(0, 4))
   const { data: students, error } = await allRows(() => svc.from('students')
-    .select('id, full_name, date_of_birth, parent_id').not('date_of_birth', 'is', null).order('id'))
+    .select('id, full_name, date_of_birth, parent_id').not('date_of_birth', 'is', null)
+    // Not a swimmer the desk deactivated (found 2026-10-15): a duplicate
+    // record was paid a second gift, and a removed child still got a card.
+    // The same filter the booking page and Admin > Booking use.
+    .eq('is_active', true).order('id'))
   if (error) throw new Error('students: ' + (error.message || error))
   const due = (students || []).map((s: any) => ({ s, date: birthdayIn(year, String(s.date_of_birth)) }))
     .filter((x: any) => x.date >= from && x.date <= to && String(x.s.date_of_birth).slice(0, 4) < String(year))

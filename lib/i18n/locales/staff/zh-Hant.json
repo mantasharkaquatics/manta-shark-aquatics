@@ -422,6 +422,7 @@
   "admin.vouchers.err.pairNeeded": "一對二補課券要選同一個家庭的兩位學員。",
   "admin.vouchers.err.sixtyPrivateOnly": "只有一對一補課券可以是 60 分鐘。",
   "admin.vouchers.err.notInFamily": "這位學員不屬於這個家庭。",
+  "admin.vouchers.err.swimmerInactive": "這位學員已停用，請先到「會員」重新啟用。",
   "admin.vouchers.err.reasonRequired": "請先填寫原因。",
   "admin.vouchers.err.notUnused": "只有尚未使用的補課券可以作廢，請重新整理後再試。",
   "admin.vouchers.intro": "一張補課券可以免費預約一堂同種類的課，到期日前有效。家庭在固定班請假（24 小時前通知）或使用每月寬限時會拿到。",

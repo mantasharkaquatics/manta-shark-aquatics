@@ -38,6 +38,10 @@ export async function GET(req: NextRequest) {
       .from('students')
       .select('id, full_name, parent_id, current_level')
       .in('parent_id', partnerParentIds)
+      // Active swimmers only, as the booking page lists the family's own
+      // (found 2026-10-15): a linked family's deactivated child was offered
+      // as the second swimmer of a 1-on-2 and could be invited and booked.
+      .eq('is_active', true)
     partnerStudents = students || []
   }
 

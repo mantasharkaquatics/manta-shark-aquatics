@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
-import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil } from '@/lib/date'
-import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
+import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, isGridStart, GRID_ERROR } from '@/lib/date'
+import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR, SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
-import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
+import { getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing student' }, { status: 400 })
   if (!/^\d{4}-\d{2}-\d{2}$/.test(session_date) || !/^\d{2}:\d{2}$/.test(start_time))
     return NextResponse.json({ error: 'Invalid date or time format' }, { status: 400 })
+  // On the 35-minute grid (lib/date.ts isGridStart, found 2026-10-15): the
+  // zone check below tests containment only, so 15:20 passed and blocked both
+  // the 15:00 and 15:35 slots.
+  if (!isGridStart(start_time))
+    return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
 
   // Date & cutoff checks (LA time)
   const today = getTodayLA()
@@ -49,8 +54,13 @@ export async function POST(req: NextRequest) {
     .eq('id', course_type_id).single()
   if (!course) return NextResponse.json({ error: 'Course type not found' }, { status: 400 })
   const { data: coach } = await svc
-    .from('coaches').select('id, first_name, last_name').eq('id', coach_id).single()
+    .from('coaches').select('id, first_name, last_name, is_active').eq('id', coach_id).single()
   if (!coach) return NextResponse.json({ error: 'Coach not found' }, { status: 400 })
+  // A deactivated coach keeps his zones, so an old coach_id still passed the
+  // zone check and booked a lesson nobody would teach (found 2026-10-15).
+  // recurring and hour already refused one.
+  if (coach.is_active === false)
+    return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
 
   const [h, m] = start_time.split(':').map(Number)
   const endTotal = h * 60 + m + course.duration_minutes
@@ -62,10 +72,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
 
   // Availability-zone validation (spec v1.0): zoned coaches only accept slots that
-  // fit entirely inside a zone matching the course type; legacy coaches skip this.
+  // fit entirely inside a zone matching the course type. A legacy coach (no
+  // zone rows) is held to his coach_availability hours instead -- skipping
+  // the check let a brand-new coach take any time at all (found 2026-10-15).
   const effZones = await getEffectiveZones(svc, coach_id, session_date)
   let groupBand: { min: number; max: number } | null = null
-  if (!effZones.legacy) {
+  if (effZones.legacy) {
+    if (!(await legacyHoursFit(svc, coach_id, session_date, h * 60 + m, endTotal)))
+      return NextResponse.json({ error: 'This time is not available for this course type. Please pick another time.' }, { status: 409 })
+  } else {
     const zt = zoneTypeForSlug(course.slug)
     const toMinZ = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
     const slotStartMin = toMinZ(start_time)
@@ -141,9 +156,11 @@ export async function POST(req: NextRequest) {
 
   // Student ownership
   const { data: student } = await svc
-    .from('students').select('id, full_name, parent_id, current_level').eq('id', student_id).single()
+    .from('students').select('id, full_name, parent_id, current_level, is_active').eq('id', student_id).single()
   if (!student || student.parent_id !== parent.id)
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  if (student.is_active === false)
+    return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
   if (student.current_level == null)
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
   if (groupBand && (student.current_level < groupBand.min || student.current_level > groupBand.max))
@@ -157,9 +174,11 @@ export async function POST(req: NextRequest) {
     if (student2_id === student.id)
       return NextResponse.json({ error: 'Please pick two different swimmers.' }, { status: 400 })
     const { data: s2 } = await svc
-      .from('students').select('id, parent_id, current_level, full_name').eq('id', student2_id).single()
+      .from('students').select('id, parent_id, current_level, full_name, is_active').eq('id', student2_id).single()
     if (!s2 || s2.parent_id !== parent.id)
       return NextResponse.json({ error: 'Second student not found' }, { status: 403 })
+    if (s2.is_active === false)
+      return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
     if (s2.current_level == null)
       return NextResponse.json({ error: 'The second student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
     student2 = s2
@@ -506,8 +525,10 @@ export async function POST(req: NextRequest) {
   let partnerBookingId: string | null = null
   if (isPartnerBooking && partner) {
     const { data: pStudent } = await svc
-      .from('students').select('id, parent_id, full_name, current_level').eq('id', partner.student_id).single()
-    if (!pStudent || pStudent.parent_id !== partner.parent_id) {
+      .from('students').select('id, parent_id, full_name, current_level, is_active').eq('id', partner.student_id).single()
+    // A deactivated child of the other family reads as not found: this family
+    // is not told about another family's swimmers (found 2026-10-15).
+    if (!pStudent || pStudent.parent_id !== partner.parent_id || pStudent.is_active === false) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
       await restoreOld()
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })

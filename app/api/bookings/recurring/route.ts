@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { randomUUID } from 'crypto'
 import { renewalHolds, weeklyCandidates, lessonsOf, termLastDates, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
-import { getTodayLA, formatTime12h } from '@/lib/date'
-import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR } from '@/lib/booking-time'
+import { getTodayLA, formatTime12h, isGridStart, GRID_ERROR } from '@/lib/date'
+import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR, SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { priceLesson } from '@/lib/points'
@@ -142,6 +142,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
   if (action === 'preview' && !start_time)
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+  // The grid offers only slot starts (lib/date.ts isGridStart); commit
+  // checks every slot it is sent the same way.
+  if (start_time != null && !isGridStart(start_time))
+    return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
 
   // Which course this batch is for. Defaults to the group class, so callers
   // written before this endpoint learned about the others keep working.
@@ -165,9 +169,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unsupported lesson length' }, { status: 400 })
 
   const { data: student } = await svc.from('students')
-    .select('id, parent_id, full_name, current_level').eq('id', student_id).single()
+    .select('id, parent_id, full_name, current_level, is_active').eq('id', student_id).single()
   if (!student || student.parent_id !== parent.id)
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  // A deactivated swimmer cannot be booked (found 2026-10-15).
+  if (student.is_active === false)
+    return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
   if (student.current_level == null)
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
   const level = Number(student.current_level)
@@ -178,9 +185,11 @@ export async function POST(req: NextRequest) {
     if (typeof id2 !== 'string' || !id2 || id2 === student_id)
       return NextResponse.json({ error: 'A 1-on-2 booked here needs two swimmers on your account.' }, { status: 400 })
     const { data: s2 } = await svc.from('students')
-      .select('id, parent_id, full_name, current_level').eq('id', id2).single()
+      .select('id, parent_id, full_name, current_level, is_active').eq('id', id2).single()
     if (!s2 || s2.parent_id !== parent.id)
       return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+    if (s2.is_active === false)
+      return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
     if (s2.current_level == null)
       return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
     student2 = { id: s2.id, full_name: s2.full_name }
@@ -257,6 +266,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       if (typeof time !== 'string' || !TIME_RE.test(time))
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
+      // On the 35-minute grid (lib/date.ts, found 2026-10-15): an off-grid
+      // fixed class took two slots away from other families every week of the
+      // term. An hour is its first half's start, so this is the same test.
+      if (!isGridStart(time))
+        return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
       const fixed = typeof r?.fixed === 'string' && r.fixed ? r.fixed.slice(0, 80) : undefined
       // Only a fixed class books past the single-lesson window.
       if (!fixed && !voucher && date > singleMax)

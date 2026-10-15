@@ -74,6 +74,27 @@ export async function getEffectiveZones(
 }
 
 /**
+ * For a legacy coach (no zone rows, getEffectiveZones -> legacy): whether
+ * startMin..endMin fits inside one of the coach's active coach_availability
+ * windows for that weekday -- the hours the booking page and openings offer
+ * for such a coach. The booking routes used to skip every check for a legacy
+ * coach, so a coach just added on Admin > Coaches (no zones yet) took any
+ * time at all from a hand-made request, 06:05 included (found 2026-10-15).
+ * A coach with no rows that day fits nothing. A failed read fits nothing too:
+ * refusing a booking is recoverable, a lesson at an hour nobody works is not.
+ */
+export async function legacyHoursFit(
+  svc: SupabaseClient, coachId: string, dateStr: string, startMin: number, endMin: number,
+): Promise<boolean> {
+  const dow = new Date(dateStr + 'T12:00:00Z').getUTCDay()
+  const { data, error } = await svc.from('coach_availability')
+    .select('start_time, end_time').eq('coach_id', coachId).eq('day_of_week', dow).eq('is_active', true)
+  if (error || !data) return false
+  const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  return data.some((w: any) => toMin(w.start_time) <= startMin && endMin <= toMin(w.end_time))
+}
+
+/**
  * The level band to stamp on new 1-on-4 sessions (found 2026-10-08): the band
  * of the group zone each one sits in, as /api/bookings/create already writes.
  * The batch path (/api/bookings/recurring, how families book group lessons)

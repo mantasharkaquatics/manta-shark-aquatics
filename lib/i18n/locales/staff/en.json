@@ -422,6 +422,7 @@
   "admin.vouchers.err.pairNeeded": "A 1-on-2 voucher is for two swimmers of the same family.",
   "admin.vouchers.err.sixtyPrivateOnly": "Only a 1-on-1 voucher can be for 60 minutes.",
   "admin.vouchers.err.notInFamily": "That swimmer is not in this family.",
+  "admin.vouchers.err.swimmerInactive": "That swimmer is deactivated. Reactivate them on Members first.",
   "admin.vouchers.err.reasonRequired": "Write the reason first.",
   "admin.vouchers.err.notUnused": "Only an unused voucher can be voided. Refresh and try again.",
   "admin.vouchers.intro": "One voucher books one lesson of the same kind, free, until its date. Families get them for leave (24h+ notice, fixed classes) and for their monthly grace.",

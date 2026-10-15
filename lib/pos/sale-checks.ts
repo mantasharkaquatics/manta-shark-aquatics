@@ -26,6 +26,11 @@ export type SaleRefusal = { ok: false; status: number; error: string; extra?: Re
 const refuse = (status: number, error: string, extra?: Record<string, unknown>): SaleRefusal =>
   ({ ok: false, status, error, extra })
 
+/** A deactivated swimmer is off the family's pages, booking and check-in, so
+ *  an assessment, team month or programme sold to one could not be used --
+ *  most often a duplicate record picked by mistake (found 2026-10-15). */
+const INACTIVE_SWIMMER = 'This swimmer is deactivated. Reactivate them on Members first.'
+
 /** The Swim Assessment sold at the desk. */
 export const TRIAL_PRICE_CENTS = 8500
 /** A programme sale's limits. A unit price is whole dollars because the
@@ -84,9 +89,10 @@ export async function checkSdpSale(svc: Svc, input: {
   if (!courseTypeId) return refuse(400, 'courseTypeId required')
 
   const { data: student } = await svc
-    .from('students').select('id, full_name, parent_id, uci_number')
+    .from('students').select('id, full_name, parent_id, uci_number, is_active')
     .eq('id', studentId).maybeSingle()
   if (!student || student.parent_id !== parentId) return refuse(400, 'Student does not belong to this parent')
+  if (student.is_active === false) return refuse(400, INACTIVE_SWIMMER)
 
   const { data: courseType } = await svc
     .from('course_types').select('id, name, slug').eq('id', courseTypeId).maybeSingle()
@@ -106,10 +112,11 @@ export async function checkTrialSale(svc: Svc, input: { parentId?: unknown; stud
   if (!parentId || !studentId) return refuse(400, 'parentId and studentId required')
 
   const { data: student } = await svc
-    .from('students').select('id, full_name, parent_id, trial_used_at, current_level')
+    .from('students').select('id, full_name, parent_id, trial_used_at, current_level, is_active')
     .eq('id', studentId).maybeSingle()
   if (!student) return refuse(404, 'Student not found')
   if (student.parent_id !== parentId) return refuse(400, 'Student does not belong to this parent')
+  if (student.is_active === false) return refuse(400, INACTIVE_SWIMMER)
   if (student.trial_used_at) return refuse(400, 'This student has already used their Swim Assessment')
   if (student.current_level != null)
     return refuse(400, 'This student already has an assigned level and does not need a Swim Assessment')
@@ -154,9 +161,10 @@ export async function checkTeamSale(svc: Svc, input: {
   if (!tier) return refuse(400, 'Invalid tier')
 
   const { data: student } = await svc
-    .from('students').select('id, full_name, parent_id, current_level, current_stage').eq('id', studentId).maybeSingle()
+    .from('students').select('id, full_name, parent_id, current_level, current_stage, is_active').eq('id', studentId).maybeSingle()
   if (!student) return refuse(400, 'Student not found')
   if (student.parent_id !== parentId) return refuse(400, 'Student does not belong to this parent')
+  if (student.is_active === false) return refuse(400, INACTIVE_SWIMMER)
 
   // One track per swimmer (owner 2026-07-22): a live subscription blocks a
   // prepaid sale.

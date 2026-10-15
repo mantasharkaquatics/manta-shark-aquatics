@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
-import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
+import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionLocationLine } from '@/lib/locations'
 
 export async function POST(req: NextRequest) {
@@ -60,6 +60,29 @@ export async function POST(req: NextRequest) {
     const [h, m] = time.split(':').map(Number)
     const endMins = h * 60 + m + courseType.duration_minutes
     const endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`
+    const s0 = h * 60 + m
+
+    // The coach's time off and the swimmer's other lessons, by the minutes
+    // they cover (found 2026-10-15). This route read neither: the time-off
+    // overlay on Admin > Booking does not catch clicks, so "+ Book" under it
+    // booked the assessment into the coach's time off, and the family was
+    // sent a confirmation for a lesson nobody would teach. bulk-create,
+    // move-session and the parent's assessment path all refuse it.
+    let blocks: Awaited<ReturnType<typeof coachBlocksOn>>
+    let lessons: Awaited<ReturnType<typeof studentLessonsOn>>
+    try {
+      [blocks, lessons] = await Promise.all([
+        coachBlocksOn(svc, coachId, [date]),
+        studentLessonsOn(svc, [studentId], [date]),
+      ])
+    } catch (e: any) {
+      console.error('trial-credit-book: desk checks failed:', e?.message || e)
+      return NextResponse.json({ error: 'Could not check the coach and swimmer schedule. Please try again.' }, { status: 500 })
+    }
+    if (overlapsAny(blocks.get(date), s0, endMins))
+      return NextResponse.json({ error: 'The coach is not available at this time. Please pick another time.' }, { status: 409 })
+    if (overlapsAny(lessons.get(date), s0, endMins))
+      return NextResponse.json({ error: 'This swimmer already has a lesson at this time. Please pick another time.' }, { status: 409 })
 
     const { data: existingSession } = await svc
       .from('class_sessions')
@@ -71,12 +94,23 @@ export async function POST(req: NextRequest) {
       .eq('course_type_id', courseType.id)
       .maybeSingle()
 
-    if (!existingSession) {
-      const { data: conflicts } = await svc
-        .from('class_sessions').select('id')
-        .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
+    // Any other lesson in the coach's lane, by overlap (found 2026-10-15): this
+    // matched an equal start only, so a lesson at another minute -- a 60-minute
+    // lesson's second half -- was not seen here. The same-course session at
+    // this very start is the one the assessment joins, so it is not a clash.
+    {
+      const { data: daySess } = await svc
+        .from('class_sessions').select('id, start_time, end_time')
+        .eq('coach_id', coachId).eq('session_date', date)
         .in('status', ['open', 'full']).gt('enrolled_count', 0)
-      if (conflicts && conflicts.length > 0)
+      const toMinT = (t: string) => { const [th, tm] = String(t).slice(0, 5).split(':').map(Number); return th * 60 + tm }
+      const clash = (daySess || []).some((c: any) => {
+        if (existingSession && c.id === existingSession.id) return false
+        const cs = toMinT(c.start_time)
+        const ce = c.end_time ? toMinT(c.end_time) : cs + 30
+        return s0 < ce && endMins > cs
+      })
+      if (clash)
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 400 })
     }
 
@@ -85,7 +119,6 @@ export async function POST(req: NextRequest) {
     // the parent's assessment path (lib/assessment-slot), any hold touching
     // the time is the whole slot to a 1-on-1 assessment.
     if (override_holds !== true) {
-      const s0 = h * 60 + m
       const hits = await renewalHoldsInWay(svc, {
         coachId, courseTypeId: '', dates: [date], spanStart: s0, spanEnd: s0 + courseType.duration_minutes,
         seatsNeeded: 1, defaultMax: 1, exceptParentIds: [student.parent_id],
@@ -94,6 +127,7 @@ export async function POST(req: NextRequest) {
     }
 
     let sessId: string
+    let createdSessId: string | null = null
     if (existingSession) {
       if (existingSession.enrolled_count >= existingSession.max_students) {
         return NextResponse.json({ error: 'This time slot is already full' }, { status: 400 })
@@ -118,6 +152,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to create session: ' + (sessErr?.message || 'unknown error') }, { status: 500 })
       }
       sessId = newSess.id
+      createdSessId = newSess.id
     }
 
     // Find an unused assessment credit (POS-sold start at 0; legacy webhook credits are pre-consumed)
@@ -155,8 +190,13 @@ export async function POST(req: NextRequest) {
         status: 'confirmed',
       })
     if (bookErr) {
+      // A session this request opened is not left behind empty (found 2026-10-15).
+      if (createdSessId) await svc.from('class_sessions').delete().eq('id', createdSessId).eq('enrolled_count', 0)
       if (bookErr.message?.includes('coach_timeslot_conflict')) {
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 409 })
+      }
+      if (bookErr.message?.includes('STUDENT_DOUBLE_BOOKED')) {
+        return NextResponse.json({ error: 'This swimmer already has a lesson at this time. Please pick another time.' }, { status: 409 })
       }
       return NextResponse.json({ error: 'Failed to create booking: ' + bookErr.message }, { status: 500 })
     }

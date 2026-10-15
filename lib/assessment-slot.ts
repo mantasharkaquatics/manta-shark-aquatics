@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
-import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
+import { getTodayLA, getNowMinutesLA, minutesUntil, isGridStart, GRID_ERROR } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
-import { getEffectiveZones } from '@/lib/zones'
+import { getEffectiveZones, legacyHoursFit } from '@/lib/zones'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
@@ -23,6 +23,9 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
   coachId: string; date: string; time: string; studentId: string; minutes: number
 }): Promise<string | null> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date) || !/^\d{2}:\d{2}$/.test(o.time)) return 'Invalid date or time format'
+  // On the 35-minute grid (lib/date.ts, found 2026-10-15): an assessment at
+  // 15:20 took both the 15:00 and the 15:35 slot.
+  if (!isGridStart(o.time)) return GRID_ERROR
   const today = getTodayLA(), nowMin = getNowMinutesLA()
   if (o.date < today || minutesUntil(o.date, o.time, today, nowMin) < LEAD_TIME_MINUTES)
     return 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.'
@@ -33,12 +36,21 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
   const s = toMin(o.time), e = s + o.minutes
   const endT = `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`
 
+  // A deactivated coach keeps his zones, so his old times still passed the
+  // zone check below (found 2026-10-15).
+  const { data: coach } = await svc.from('coaches').select('is_active').eq('id', o.coachId).maybeSingle()
+  if (!coach || coach.is_active === false) return 'The coach is not available at this time. Please pick another time.'
+
   const blocks = await getCoachBlocks(svc, [o.coachId], o.date)
   if (isBlocked(blocks, o.coachId, o.time, endT)) return 'The coach is not available at this time. Please pick another time.'
 
+  // A legacy coach (no zone rows) is held to his coach_availability hours; he
+  // used to skip the check and take any time at all (found 2026-10-15).
   const eff = await getEffectiveZones(svc, o.coachId, o.date)
-  if (!eff.legacy && !eff.rows.some((z: any) => z.zone_type === 'private' && toMin(z.start_time) <= s && e <= toMin(z.end_time)))
-    return 'This time is not available for this course type. Please pick another time.'
+  const fits = eff.legacy
+    ? await legacyHoursFit(svc, o.coachId, o.date, s, e)
+    : eff.rows.some((z: any) => z.zone_type === 'private' && toMin(z.start_time) <= s && e <= toMin(z.end_time))
+  if (!fits) return 'This time is not available for this course type. Please pick another time.'
 
   const overlaps = (x: any) => { const a = toMin(x.start_time); const b = x.end_time ? toMin(x.end_time) : a + 30; return s < b && e > a }
   // A session a 1-on-2 invitation is waiting on still reads enrolled_count 0,

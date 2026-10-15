@@ -6,8 +6,8 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { getEffectiveZones } from '@/lib/zones'
 import { getLocations, locationParam } from '@/lib/locations'
-import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, LESSON_MINUTES } from '@/lib/date'
-import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
+import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, isGridStart, LESSON_MINUTES } from '@/lib/date'
+import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR, SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
@@ -96,9 +96,12 @@ export async function POST(req: NextRequest) {
   if (!ct) return NextResponse.json({ error: 'Course type missing' }, { status: 500 })
 
   const { data: student } = await svc.from('students')
-    .select('id, parent_id, full_name, current_level').eq('id', student_id).single()
+    .select('id, parent_id, full_name, current_level, is_active').eq('id', student_id).single()
   if (!student || student.parent_id !== parent.id)
     return NextResponse.json({ error: 'Student not found' }, { status: 403 })
+  // A deactivated swimmer cannot be booked (found 2026-10-15).
+  if (student.is_active === false)
+    return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
   if (student.current_level == null)
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
 
@@ -115,9 +118,11 @@ export async function POST(req: NextRequest) {
     if (student2_id === student_id)
       return NextResponse.json({ error: 'Please pick two different swimmers.' }, { status: 400 })
     const { data: s2 } = await svc.from('students')
-      .select('id, parent_id, full_name, current_level').eq('id', student2_id).single()
+      .select('id, parent_id, full_name, current_level, is_active').eq('id', student2_id).single()
     if (!s2 || s2.parent_id !== parent.id)
       return NextResponse.json({ error: 'Second student not found' }, { status: 403 })
+    if (s2.is_active === false)
+      return NextResponse.json({ error: SWIMMER_INACTIVE_ERROR }, { status: 403 })
     if (s2.current_level == null)
       return NextResponse.json({ error: 'The second student must complete a Swim Assessment before booking lessons.' }, { status: 403 })
     student2 = s2
@@ -128,8 +133,9 @@ export async function POST(req: NextRequest) {
   const isPartnerBooking = ct.slug === '1on2' && !!partner && !student2
   if (isPartnerBooking) {
     const { data: ps } = await svc.from('students')
-      .select('id, parent_id, full_name, current_level').eq('id', partner.student_id).single()
-    if (!ps || ps.parent_id !== partner.parent_id)
+      .select('id, parent_id, full_name, current_level, is_active').eq('id', partner.student_id).single()
+    // The other family's deactivated child reads as not found (found 2026-10-15).
+    if (!ps || ps.parent_id !== partner.parent_id || ps.is_active === false)
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
     if (ps.current_level == null)
       return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
@@ -290,7 +296,7 @@ export async function POST(req: NextRequest) {
     const s1 = toMin(start_time)
     const mid = s1 + LESSON_MINUTES
     const e2 = s1 + HOUR_MINUTES
-    if (!daySlots().some(sl => sl.start === start_time))
+    if (!isGridStart(start_time))
       return NextResponse.json({ error: 'That start time is not on the schedule.' }, { status: 400 })
     if (minutesUntil(session_date, start_time, today, nowMin) < LEAD_TIME_MINUTES)
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
@@ -508,7 +514,7 @@ export async function POST(req: NextRequest) {
     const s1 = toMin(start_time)
     const mid = s1 + LESSON_MINUTES
     const e2 = s1 + HOUR_MINUTES
-    if (!daySlots().some(sl => sl.start === start_time))
+    if (!isGridStart(start_time))
       return NextResponse.json({ error: 'That start time is not on the schedule.' }, { status: 400 })
     if (minutesUntil(session_date, start_time, today, nowMin) < LEAD_TIME_MINUTES)
       return NextResponse.json({ error: 'Bookings must be made at least 30 minutes before the lesson starts.' }, { status: 400 })
