@@ -12,6 +12,7 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal, type HoldHit } from '@/lib/bookings/desk-checks'
 import { allRows } from '@/lib/db-paging'
 import { sessionLocationLines } from '@/lib/locations'
+import { bandRange } from '@/lib/zone-colors'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -362,6 +363,22 @@ export async function POST(req: NextRequest) {
             const who = stu.current_level == null ? `${stu.full_name} has not been assessed yet` : `${stu.full_name} is Level ${stu.current_level}`
             return NextResponse.json({ error: `${who}; the ${d} class is Level ${z.group_level_min}\u2013${z.group_level_max} only.` }, { status: 409 })
           }
+        }
+      }
+      // The class already running at that time keeps the band it opened with
+      // (found 2026-10-15, F82): after its zone is repainted, the zone's new
+      // band would let a swimmer into a class of another level. Same block,
+      // checked against the class's own band.
+      const { data: running, error: runErr } = await svc.from('class_sessions')
+        .select('session_date, start_time, enrolled_count, level_min, level_max')
+        .eq('coach_id', coach_id).eq('course_type_id', course_type_id).in('session_date', dates)
+        .in('status', ['open', 'full']).gt('enrolled_count', 0)
+      if (runErr) return NextResponse.json({ error: 'Could not read the classes at that time, so nothing was booked. Please try again.' }, { status: 503 })
+      for (const c of running || []) {
+        if (timeToMinutes(String(c.start_time).slice(0, 5)) !== slotStartMin || c.level_min == null || c.level_max == null) continue
+        for (const stu of [student1, student2].filter(Boolean)) {
+          if (Number(stu.current_level) < Number(c.level_min) || Number(stu.current_level) > Number(c.level_max))
+            return NextResponse.json({ error: `${stu.full_name} is Level ${stu.current_level}; the ${c.session_date} class already running then is Level ${bandRange(c.level_min, c.level_max)} only.` }, { status: 409 })
         }
       }
     }

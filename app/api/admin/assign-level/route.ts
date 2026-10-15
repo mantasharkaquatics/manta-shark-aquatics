@@ -50,10 +50,14 @@ export async function POST(req: NextRequest) {
     supabase.from('admins').select('first_name, last_name').eq('id', admin_id).single(),
   ])
 
+  // The swimmer's booked 1-on-4 lessons in a class for another band, and what
+  // happened to their Swim Team squad, for the page to show (found 2026-10-15).
   const normalized = {
     ...record,
     students: stu || null,
     admins: adm || null,
+    out_of_band: moved.outOfBand,
+    squad: moved.squad,
   }
 
   return NextResponse.json(normalized)

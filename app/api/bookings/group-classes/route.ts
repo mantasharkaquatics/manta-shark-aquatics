@@ -23,6 +23,15 @@ function bandMatches(z: { group_level_min?: number | null; group_level_max?: num
   return level >= z.group_level_min && level <= z.group_level_max
 }
 
+/* A class with swimmers in it keeps the band it opened with (found 2026-10-15,
+   F82): after the zone is repainted to another band, the class is not offered
+   to the new band's swimmers (create refuses them too) -- it is someone else's
+   level. The swimmer's own class stays listed as booked. */
+function classOutOfBand(own: any, level: number) {
+  if (!own || (own.enrolled_count || 0) <= 0 || own.level_min == null || own.level_max == null) return false
+  return level < Number(own.level_min) || level > Number(own.level_max)
+}
+
 async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = [], location: string | null = null) {
   const coachIds = (coaches || []).map((c: any) => c.id)
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
@@ -32,7 +41,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
     // Cancelled sessions stay out: a slot whose lesson was cancelled gets a new
     // session when it is booked again, and find() below would otherwise pick
     // the dead one and report "4 seats left" for a class with a swimmer in it.
-    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status').eq('session_date', date).neq('status', 'cancelled'),
+    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max').eq('session_date', date).neq('status', 'cancelled'),
   ])
   const sess = allSess || []
   // A busy session blocks every slot it overlaps, not just one starting at the same minute
@@ -75,6 +84,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
         const held = heldSeats(holds, cid, date, m, m + ct.duration_minutes, ct.id)
         if (held === Infinity) continue
         const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
+        if (!myTimes.has(t) && classOutOfBand(own, level)) continue
         const enrolled = (own ? own.enrolled_count : 0) + held
         classes.push({
           time: t, end_time: idxTime(m + ct.duration_minutes),
@@ -168,7 +178,7 @@ export async function GET(req: NextRequest) {
       // cut read as an empty lane or an empty class (found 2026-10-05).
       allRows(() => s.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
         .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr).order('id')),
-      allRows(() => s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
+      allRows(() => s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max')
         .gte('session_date', startStr).lte('session_date', endStr).neq('status', 'cancelled').order('id')),
       allRows(() => s.from('bookings').select('id, class_session_id').eq('student_id', student_id)
         .not('status', 'in', '("cancelled","pending_partner")').order('id')),
@@ -219,6 +229,7 @@ export async function GET(req: NextRequest) {
             const held = heldSeats(holds, cid, ds, m, m + ct.duration_minutes, ct.id)
             if (held === Infinity) continue
             const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
+            if (!myTimes.has(t) && classOutOfBand(own, level)) continue
             const enrolled = (own ? own.enrolled_count : 0) + held
             classes.push({
               time: t, end_time: idxTime(m + ct.duration_minutes),

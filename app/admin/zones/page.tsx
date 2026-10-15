@@ -226,7 +226,9 @@ export default function ZonesEditorPage() {
       setWeeklyRows(zones)
       setDirty(false); setHasZones(zones.length > 0)
       const w = data.warnings || []
-      setMsg({ ok: true, warn: w.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') })
+      // Group classes left on their old level band (found 2026-10-15).
+      const bw: string[] = data.band_warnings || []
+      setMsg({ ok: true, warn: w.length + bw.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') })
       return
     }
     const painted = compress([ovDow])
@@ -246,7 +248,8 @@ export default function ZonesEditorPage() {
     setDirty(false); setHasOverride(true)
     setOvDates(prev => { const rest = prev.filter(o => o.date !== ovDate); return [...rest, { date: ovDate, closed: data.mode === 'closed' }].sort((a, b) => a.date.localeCompare(b.date)) })
     const w = data.warnings || []
-    setMsg({ ok: true, warn: w.length > 0, text: (data.mode === 'closed' ? t('admin.zones.msg.dateClosed', { date: ovDate }) : t('admin.zones.msg.overrideSaved', { date: ovDate })) + (w.length ? t('admin.zones.msg.warnAffected', { n: w.length, list: w.join('; ') }) : '') })
+    const bw: string[] = data.band_warnings || []
+    setMsg({ ok: true, warn: w.length + bw.length > 0, text: (data.mode === 'closed' ? t('admin.zones.msg.dateClosed', { date: ovDate }) : t('admin.zones.msg.overrideSaved', { date: ovDate })) + (w.length ? t('admin.zones.msg.warnAffected', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') })
   }
 
   function closeDay() {

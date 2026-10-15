@@ -6,6 +6,7 @@ import AlertModal from '@/components/AlertModal'
 import { LEVEL_NAMES, LEVEL_COLORS, STAGES } from '@/lib/levels'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
+import { levelChangeNotes } from '@/lib/level-change-notes'
 
 type Level = { id: string; level_number: number; name: string }
 type Skill = { id: string; name: string; sort_order: number; level_id: string; stage: number | null }
@@ -67,6 +68,9 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
   const [showSearch, setShowSearch] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
+  // What a level change left for the desk to look at (levelChangeNotes).
+  const [afterMsg, setAfterMsg] = useState<string | null>(null)
+  const reloadAfterAlert = useRef(false)
 
   const filteredStudents = useMemo(() => {
     if (!search || search.length < 2) return []
@@ -161,7 +165,12 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
       setTimeout(() => {
         setSelectedStudent(null); setSelectedLevel(''); setNotes(''); setSaved(false); setShowSearch(false); setSearch('')
       }, 1500)
-      window.location.reload()
+      // 1-on-4 lessons still booked in a class for the old band, and the Swim
+      // Team squad (found 2026-10-15): shown before the reload, which would
+      // otherwise wipe them; the page reloads when the box is closed.
+      const after = levelChangeNotes(t, locale, record)
+      if (after) { reloadAfterAlert.current = true; setAfterMsg(after) }
+      else window.location.reload()
     }
     setSaving(false)
   }
@@ -416,6 +425,10 @@ export default function AdminUpgradesClient({ upgradeHistory: initialHistory, hi
       </div>
 
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
+      <AlertModal title={t('admin.levels.after.title')} message={afterMsg} onClose={() => {
+        setAfterMsg(null)
+        if (reloadAfterAlert.current) { reloadAfterAlert.current = false; window.location.reload() }
+      }} />
 
       {/* Confirm Modal */}
       {showConfirm && selectedStudent && canAssign && (

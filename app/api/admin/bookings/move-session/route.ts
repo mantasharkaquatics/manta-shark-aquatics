@@ -6,6 +6,8 @@ import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionLocationLine } from '@/lib/locations'
+import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
+import { bandRange } from '@/lib/zone-colors'
 
 function t12(t: string) {
   const [h, m] = t.split(':').map(Number)
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sess } = await svc
     .from('class_sessions')
-    .select('id, coach_id, course_type_id, session_date, start_time, status, max_students')
+    .select('id, coach_id, course_type_id, session_date, start_time, status, max_students, level_min, level_max')
     .eq('id', session_id).single()
   if (!sess) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   if (sess.coach_id === coach_id && sess.session_date === date && sess.start_time.slice(0, 5) === time.slice(0, 5))
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'A swimmer has already checked in to this lesson, so it cannot be moved.' }, { status: 409 })
 
   const { data: course } = await svc
-    .from('course_types').select('name, duration_minutes').eq('id', sess.course_type_id).single()
+    .from('course_types').select('name, slug, duration_minutes').eq('id', sess.course_type_id).single()
   if (!course) return NextResponse.json({ error: 'Course type not found' }, { status: 500 })
 
   const toMin = (t: string) => { const [hh, mm] = String(t).slice(0, 5).split(':').map(Number); return hh * 60 + mm }
@@ -121,12 +123,41 @@ export async function POST(req: NextRequest) {
   if (clash)
     return NextResponse.json({ error: 'The coach already has another lesson overlapping that time' }, { status: 400 })
 
+  // A 1-on-4 takes the level band of the group zone it lands in (found
+  // 2026-10-15, F59), and every swimmer in it has to be inside that band --
+  // the hard block bulk-create already applies to everyone, admin included.
+  // Without it a class of Level 1s dragged into an L5-6 block kept its old
+  // band, and Level 5 families then booked into it. A move into a block of
+  // the class's own band is not held to it: a swimmer promoted mid-term keeps
+  // their old-band lessons until the term ends (owner, 2026-10-15), and the
+  // desk can still move that class within its band.
+  let newBand: { level_min: number | null; level_max: number | null } | null = null
   // The target coach's time off, by its hours, and the swimmers' other
   // lessons at the new time (found 2026-10-08). Neither was checked: a lesson
   // could be dragged onto an afternoon the coach had blocked, or on top of the
   // swimmer's own 1-on-4, and the family was emailed the new time. This route
   // updates class_sessions, so the bookings double-booking guard never fires.
   try {
+    if (zoneTypeForSlug(course.slug || '') === 'group') {
+      const eff = await getEffectiveZones(svc, coach_id, date)
+      const z = eff.legacy ? undefined : eff.rows.find(r => r.zone_type === 'group' && toMin(r.start_time) <= spanStart && spanEnd <= toMin(r.end_time))
+      newBand = z && z.group_level_min != null && z.group_level_max != null
+        ? { level_min: z.group_level_min, level_max: z.group_level_max }
+        : { level_min: null, level_max: null }
+      const sameBand = sess.level_min != null && sess.level_max != null && newBand.level_min != null && newBand.level_max != null
+        && bandRange(sess.level_min, sess.level_max) === bandRange(newBand.level_min, newBand.level_max)
+      if (newBand.level_min != null && newBand.level_max != null && !sameBand) {
+        const { data: kids, error: kidsErr } = await svc.from('students').select('full_name, current_level')
+          .in('id', [...new Set(activeBookings.map((b: any) => b.student_id as string))])
+        if (kidsErr) throw new Error(kidsErr.message)
+        for (const k of kids || []) {
+          if (k.current_level == null || Number(k.current_level) < newBand.level_min || Number(k.current_level) > newBand.level_max) {
+            const who = k.current_level == null ? `${k.full_name} has not been assessed yet` : `${k.full_name} is Level ${k.current_level}`
+            return NextResponse.json({ error: `${who}; the ${date} class is Level ${newBand.level_min}\u2013${newBand.level_max} only.` }, { status: 409 })
+          }
+        }
+      }
+    }
     const blocks = await coachBlocksOn(svc, coach_id, [date])
     if (overlapsAny(blocks.get(date), spanStart, spanEnd))
       return NextResponse.json({ error: 'The coach has time off or a block during that time' }, { status: 409 })
@@ -173,7 +204,7 @@ export async function POST(req: NextRequest) {
   for (const pl of placements) {
     const { error: updErr } = await svc
       .from('class_sessions')
-      .update({ coach_id, session_date: date, start_time: pl.start, end_time: pl.end })
+      .update({ coach_id, session_date: date, start_time: pl.start, end_time: pl.end, ...(newBand || {}) })
       .eq('id', pl.id)
     if (updErr)
       return NextResponse.json({ error: 'Move failed: ' + updErr.message }, { status: 500 })

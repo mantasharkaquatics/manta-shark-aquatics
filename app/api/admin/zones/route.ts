@@ -5,6 +5,7 @@ import { zoneTypeForSlug } from '@/lib/zones'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
 import { MAX_LEVEL } from '@/lib/levels'
+import { bandRange } from '@/lib/zone-colors'
 import { getLocations, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 
 // Admin CRUD for coach availability zones (spec v1.1).
@@ -37,16 +38,23 @@ function checkLocations(zones: any[], all: Location[]): string | null {
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
 // Q3 (warn-and-save): list future enrolled sessions that no longer fit the new zones.
+// `band`: group classes that still fit a group zone, but whose level band (the
+// one stamped on the session when it opened) is not the zone's new band (found
+// 2026-10-15, F82). Repainting an L1-2 block as L3-4 used to say nothing, and
+// L3-4 families were then let into the class with its Level 1 swimmers. The
+// classes are not moved (owner, 2026-10-15): the desk is told, and the booking
+// routes keep anyone outside a class's own band out of it.
 async function bookingWarnings(
   svc: any,
   coachId: string,
-  evalDay: (dateStr: string) => { skip?: boolean; closed?: boolean; rows: { zone_type: string; start_time: string; end_time: string }[] },
-): Promise<string[]> {
+  evalDay: (dateStr: string) => { skip?: boolean; closed?: boolean; rows: { zone_type: string; start_time: string; end_time: string; group_level_min?: number | null; group_level_max?: number | null }[] },
+): Promise<{ outside: string[]; band: string[] }> {
   const { data: sessions } = await svc
     .from('class_sessions')
-    .select('session_date, start_time, end_time, enrolled_count, course_types(slug, name)')
+    .select('session_date, start_time, end_time, enrolled_count, level_min, level_max, course_types(slug, name)')
     .eq('coach_id', coachId).gte('session_date', getTodayLA()).gt('enrolled_count', 0)
-  const warnings: string[] = []
+  const outside: string[] = []
+  const band: string[] = []
   for (const sess of sessions || []) {
     const day = evalDay(sess.session_date)
     if (!day || day.skip) continue
@@ -54,10 +62,16 @@ async function bookingWarnings(
     const zt = zoneTypeForSlug(ct?.slug || '')
     const st = toMin(String(sess.start_time).slice(0, 5))
     const en = toMin(String(sess.end_time).slice(0, 5))
-    const fits = !day.closed && day.rows.some(z => z.zone_type === zt && toMin(String(z.start_time).slice(0, 5)) <= st && en <= toMin(String(z.end_time).slice(0, 5)))
-    if (!fits) warnings.push(`${sess.session_date} ${String(sess.start_time).slice(0, 5)} ${ct?.name || ''} (${sess.enrolled_count} booked)`)
+    const zone = day.closed ? undefined : day.rows.find(z => z.zone_type === zt && toMin(String(z.start_time).slice(0, 5)) <= st && en <= toMin(String(z.end_time).slice(0, 5)))
+    const label = `${sess.session_date} ${String(sess.start_time).slice(0, 5)} ${ct?.name || ''} (${sess.enrolled_count} booked)`
+    if (!zone) { outside.push(label); continue }
+    if (zt === 'group' && sess.level_min != null && sess.level_max != null
+        && zone.group_level_min != null && zone.group_level_max != null
+        // Compared as read (bandRange): the top band is stored as both 7-9 and 7-7.
+        && bandRange(sess.level_min, sess.level_max) !== bandRange(zone.group_level_min, zone.group_level_max))
+      band.push(`${label} L${bandRange(sess.level_min, sess.level_max)} \u2192 L${bandRange(zone.group_level_min, zone.group_level_max)}`)
   }
-  return warnings
+  return { outside, band }
 }
 
 function validateZones(zones: any[], needWeekday: boolean): string | null {
@@ -168,13 +182,13 @@ export async function PUT(req: NextRequest) {
     .from('coach_availability_zones')
     .select('override_date').eq('coach_id', coach_id).eq('kind', 'date')
   const ovrSet = new Set((ovr || []).map((r: any) => r.override_date))
-  const warnings = await bookingWarnings(svc, coach_id, (dateStr) => {
+  const { outside: warnings, band: band_warnings } = await bookingWarnings(svc, coach_id, (dateStr) => {
     if (ovrSet.has(dateStr)) return { skip: true, rows: [] }
     const dow = new Date(dateStr + 'T00:00:00').getDay()
     return { rows: zones.filter((z: any) => z.weekday === dow) }
   })
   refreshPublicPools()
-  return NextResponse.json({ ok: true, count: zones.length, warnings })
+  return NextResponse.json({ ok: true, count: zones.length, warnings, band_warnings })
 }
 
 export async function POST(req: NextRequest) {
@@ -201,7 +215,7 @@ export async function POST(req: NextRequest) {
       start_time: '00:00', end_time: '23:59',
     })
     if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-    const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { closed: true, rows: [] } : { skip: true, rows: [] })
+    const { outside: warnings } = await bookingWarnings(svc, coach_id, (d) => d === date ? { closed: true, rows: [] } : { skip: true, rows: [] })
     refreshPublicPools()
     return NextResponse.json({ ok: true, mode: 'closed', warnings })
   }
@@ -224,7 +238,7 @@ export async function POST(req: NextRequest) {
     }))
   )
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-  const warnings = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: zones } : { skip: true, rows: [] })
+  const { outside: warnings, band: band_warnings } = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: zones } : { skip: true, rows: [] })
   refreshPublicPools()
-  return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings })
+  return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings, band_warnings })
 }

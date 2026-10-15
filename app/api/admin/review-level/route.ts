@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
 
   // A rejection is the admin's veto. The student's level and the upgrade
   // history must not move -- only the recommendation's own status changes.
+  // A promotion's side effects, for the Reviews card to show (found 2026-10-15):
+  // 1-on-4 lessons still booked in a class for the old band, and the Swim Team squad.
+  let outOfBand: unknown[] = []
+  let squad: unknown = null
   if (action !== 'rejected') {
     // Already there (a confirm that stopped part-way, or a level set by hand
     // meanwhile): close the recommendation without a second history row, and
@@ -68,8 +72,10 @@ export async function POST(req: NextRequest) {
           .eq('id', recommendation_id).eq('status', action)
         return NextResponse.json({ error: moved.error }, { status: moved.status })
       }
+      outOfBand = moved.outOfBand
+      squad = moved.squad
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, out_of_band: outOfBand, squad })
 }

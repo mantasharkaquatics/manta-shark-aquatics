@@ -329,7 +329,7 @@ export async function loadWindow(svc: Svc, coachIds: string[], from: string, to:
     allRows(() => svc.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
       .in('coach_id', coachIds).gte('date', from).lte('date', to).order('id')),
     allRows(() => svc.from('class_sessions')
-      .select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status')
+      .select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max')
       .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']).order('id')),
   ])
   for (const r of zany || []) w.zoned.add(r.coach_id)
@@ -400,6 +400,11 @@ export function evalSlot(w: CalWindow, q: SlotQuery): { status: CandStatus; spot
     || daySess.find(s => s.course_type_id === q.ct.id && toMin(s.start_time) === q.startMin)
   const mine = (q.busy?.get(q.date) || [])
   if (own && mine.some(b => b.sessionId === own.id)) return { status: 'booked', spots: Math.max(0, own.max_students - own.enrolled_count) }
+  // A 1-on-4 class with other swimmers keeps the band it opened with (found
+  // 2026-10-15, F82): after its zone is repainted, it is joined only by a
+  // swimmer inside that band, as /api/bookings/create holds it.
+  if (zoneType === 'group' && own && eff(own) > 0 && own.level_min != null && own.level_max != null
+      && (q.level < Number(own.level_min) || q.level > Number(own.level_max))) return { status: 'no_class', spots: 0 }
   if (mine.some(b => q.startMin < b.e && endMin > b.s)) return { status: 'conflict', spots: 0 }
   // Anything else running in the coach's lane: another course, or this course
   // at another start (which an hour's second half can run into).

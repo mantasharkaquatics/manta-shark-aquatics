@@ -13,6 +13,7 @@ import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { sessionLocationLine } from '@/lib/locations'
+import { bandRange } from '@/lib/zone-colors'
 
 export async function POST(req: NextRequest) {
   const auth = await requireParent()
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
   // is enrolled in it yet (lib/bookings/invite-holds.ts, found 2026-10-07).
   const { data: daySessions } = await svc
     .from('class_sessions')
-    .select('id, course_type_id, enrolled_count, max_students, start_time, end_time')
+    .select('id, course_type_id, enrolled_count, max_students, start_time, end_time, level_min, level_max')
     .eq('coach_id', coach_id)
     .eq('session_date', session_date)
     .in('status', ['open', 'full'])
@@ -120,10 +121,11 @@ export async function POST(req: NextRequest) {
 
   // Find or create session
   let sessionId: string | null = sameCourseSession?.id || null
+  let reused: any = sameCourseSession || null
   if (!sessionId) {
     const { data: openSessions } = await svc
       .from('class_sessions')
-      .select('id, enrolled_count, max_students')
+      .select('id, enrolled_count, max_students, level_min, level_max')
       .eq('coach_id', coach_id)
       .eq('session_date', session_date)
       .eq('start_time', start_time)
@@ -135,7 +137,21 @@ export async function POST(req: NextRequest) {
       if (found.enrolled_count >= found.max_students)
         return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
       sessionId = found.id
+      reused = found
     }
+  }
+  // A 1-on-4 class keeps the band it opened with (found 2026-10-15, F82). When
+  // the zone's band is repainted, the swimmers already in the class stay
+  // (owner, 2026-10-15), and the class is joined only by a swimmer inside
+  // ITS band (checked with the student below) -- the zone's band alone let an
+  // L4 swimmer into a class of Level 1s. An empty class takes the zone's band.
+  const classBand = reused && (reused.enrolled_count || 0) > 0 && reused.level_min != null && reused.level_max != null
+    ? { min: Number(reused.level_min), max: Number(reused.level_max) } : null
+  if (reused && groupBand && !classBand && (reused.enrolled_count || 0) <= 0
+      && (reused.level_min !== groupBand.min || reused.level_max !== groupBand.max)) {
+    const { error: bandErr } = await svc.from('class_sessions')
+      .update({ level_min: groupBand.min, level_max: groupBand.max }).eq('id', reused.id).eq('enrolled_count', 0)
+    if (bandErr) console.error('create: could not re-stamp the class band:', bandErr.message)
   }
   if (!sessionId) {
     const { data: created, error: sessErr } = await svc
@@ -165,6 +181,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This student must complete a Swim Assessment before booking lessons. Please book a Swim Assessment first.' }, { status: 403 })
   if (groupBand && (student.current_level < groupBand.min || student.current_level > groupBand.max))
     return NextResponse.json({ error: `This group time is for Level ${groupBand.min}–${groupBand.max} students. ${student.full_name} is Level ${student.current_level} — please pick a group time for that level.` }, { status: 409 })
+  if (classBand && (Number(student.current_level) < classBand.min || Number(student.current_level) > classBand.max))
+    // Worded as the zone refusal above, so the page shows it in the family's language (lib/i18n/errors.ts).
+    return NextResponse.json({ error: `This group time is for Level ${bandRange(classBand.min, classBand.max)} students (the class already running then). ${student.full_name} is Level ${student.current_level} — please pick a group time for that level.` }, { status: 409 })
   let student2: any = null
   // A second swimmer belongs only in a 1-on-2. A 1-on-1 used to take one
   // (two rows in a one-seat session, charged twice) -- found 2026-10-03.

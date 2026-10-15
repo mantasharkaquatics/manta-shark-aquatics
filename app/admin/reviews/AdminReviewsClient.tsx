@@ -12,6 +12,7 @@ import { LEVEL_NAMES, LEVEL_COLORS, LEVEL_NUMBERS } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey, type Mastery } from '@/lib/mastery'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
+import { levelChangeNotes } from '@/lib/level-change-notes'
 import type { TimeOffActionItem } from '@/lib/time-off'
 import type { MonthlyQuestionItem } from '@/lib/admin/review-queues'
 
@@ -244,6 +245,8 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
   // wrong", and "Sent back" under that heading read as a failure (found
   // 2026-10-08 in the send-back test).
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  // What a level change left for the desk to look at (levelChangeNotes).
+  const [afterMsg, setAfterMsg] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [missingProgress, setMissingProgress] = useState<Record<string, Record<string, number>>>({})
   const [submittingMissing, setSubmittingMissing] = useState<string | null>(null)
@@ -341,6 +344,10 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
     setRecommendations(prev => prev.filter(r => r.id !== rec.id))
     setReviewingId(null)
     nudgeBadge()
+    // 1-on-4 lessons still booked in a class for the old band, and the Swim
+    // Team squad (found 2026-10-15). The lessons stay; the desk is told.
+    const after = levelChangeNotes(t, locale, await res.json().catch(() => null))
+    if (after) setAfterMsg(after)
   }
 
   async function reviewProgress(p: PendingProgress) {
@@ -1187,6 +1194,7 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
 
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
       <AlertModal title={t('admin.reviews.doneTitle')} message={doneMsg} onClose={() => setDoneMsg(null)} />
+      <AlertModal title={t('admin.levels.after.title')} message={afterMsg} onClose={() => setAfterMsg(null)} />
     </div>
   )
 }
