@@ -51,8 +51,9 @@ export default async function AdminSalesPage() {
   // returned by the bank (purchases.reversed_at), or refunded
   // (purchases.refunded_cents, which the site's own refunds and refunds made
   // in the Stripe dashboard both write). Its invoice stays listed and marked,
-  // and is left out of the total and the CSV's net amount -- the deferred
-  // revenue page already left these out, so the two disagreed. A purchase is
+  // and is left out of the total and the CSV's net amount. The deferred
+  // revenue page leaves out reversed payments and, since 2026-10-15, shows
+  // dashboard refunds under "Cash refunded" (it used to miss them). A purchase is
   // matched to its invoice by checkout session, by the desk's 'pos:<id>' key,
   // by payment intent, or (a Swim Assessment) through its assessment credit.
   const [reversed, refunded] = await Promise.all([

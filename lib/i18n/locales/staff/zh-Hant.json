@@ -531,7 +531,7 @@
   "admin.finance.card.cashTaken": "累計收款",
   "admin.finance.card.cashTakenNote": "所有已入帳的儲值。",
   "admin.finance.card.cashRefunded": "累計現金退款",
-  "admin.finance.card.cashRefundedNote": "已退還給家庭的金額。",
+  "admin.finance.card.cashRefundedNote": "已退還給家庭的金額，包含在 Stripe 後台手動退的款。",
   "admin.finance.stripeFees": "Stripe 手續費",
   "admin.finance.card.feesUnavailable": "尚未開始記錄——請先執行 docs/migration-stripe-fees.sql，再按下方按鈕。",
   "admin.finance.card.feesNote": "Stripe 實際扣取的金額，直接從每筆付款讀取——不是用費率推算。退款時不會退還。",

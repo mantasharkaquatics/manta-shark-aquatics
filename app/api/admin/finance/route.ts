@@ -1,4 +1,4 @@
-import { allRows } from '@/lib/db-paging'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
@@ -262,10 +262,40 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Refunds made by hand in the Stripe dashboard (found 2026-10-15). The
+  // webhook records one only as purchases.refunded_cents (dashboardRefund):
+  // no cash_refund ledger row and no wallet total, so this page kept counting
+  // the money while Sales showed it refunded -- every Swim Assessment refund
+  // among them, since the dashboard is the only way to refund one.
+  // refunded_cents also holds the site's own refunds (lib/refunds), which are
+  // already counted above through their cash_refund ledger rows, so each
+  // purchase's refund legs that did not fail are taken off first. A purchase
+  // has no refund date, so the refund shows in the month of the payment.
+  const { data: refundedRows, error: refundedErr } = await allRows(() => svc.from('purchases')
+    .select('id, amount_cents, refunded_cents, paid_at')
+    .eq('status', 'paid').is('reversed_at', null).gt('refunded_cents', 0).order('id'))
+  if (refundedErr) console.error('finance: refunded purchases not read:', refundedErr.message || refundedErr)
+  const siteLegCents: Record<string, number> = {}
+  if (refundedRows.length > 0) {
+    const { data: legs, error: legErr } = await allRowsIn(refundedRows.map((p: any) => p.id), ids =>
+      svc.from('refund_legs').select('id, purchase_id, amount_cents').in('purchase_id', ids).neq('status', 'failed').order('id'))
+    // Before docs/migration-refund-legs.sql there are no site refunds to
+    // subtract (CASH_REFUND_ENABLED was off), so a failed read is only logged.
+    if (legErr) console.error('finance: refund_legs not read:', legErr.message || legErr)
+    for (const l of legs) siteLegCents[l.purchase_id] = (siteLegCents[l.purchase_id] || 0) + (Number(l.amount_cents) || 0)
+  }
+  let stripeRefundedTotal = 0
+  for (const p of refundedRows as any[]) {
+    const cents = Math.max(0, Math.min(Number(p.amount_cents) || 0, Number(p.refunded_cents) || 0) - (siteLegCents[p.id] || 0))
+    if (cents <= 0) continue
+    stripeRefundedTotal += cents
+    if (p.paid_at && Date.parse(p.paid_at) >= Date.parse(since)) bucket(monthKeyLA(p.paid_at)).refundCash += cents
+  }
+
   const walletPurchased = (wallets || []).reduce((a: number, w: any) => a + (Number(w.balance_purchased) || 0), 0)
   const walletGranted = (wallets || []).reduce((a: number, w: any) => a + (Number(w.balance_granted) || 0), 0)
   const paidCents = (wallets || []).reduce((a: number, w: any) => a + (Number(w.total_paid_cents) || 0), 0)
-  const refundedCents = (wallets || []).reduce((a: number, w: any) => a + (Number(w.total_refunded_cents) || 0), 0)
+  const refundedCents = (wallets || []).reduce((a: number, w: any) => a + (Number(w.total_refunded_cents) || 0), 0) + stripeRefundedTotal
 
   // Swim Assessment fees by month and pool: what the family paid for it, less
   // any refund, on the assessment's date once it has happened. A payment that
@@ -347,7 +377,9 @@ export async function GET(req: NextRequest) {
       granted: months[k]?.granted || 0,
       cashIn: months[k]?.cashInCents || 0,
       feeCents: months[k]?.feeCents || 0,
-      netCash: (months[k]?.cashInCents || 0) - (months[k]?.feeCents || 0),
+      // Less what went back to families that month too (found 2026-10-15): a
+      // Stripe dashboard refund used to stay in net cash in full.
+      netCash: (months[k]?.cashInCents || 0) - (months[k]?.feeCents || 0) - (months[k]?.refundCash || 0),
       feePending: months[k]?.feePending || 0,
     })),
   })

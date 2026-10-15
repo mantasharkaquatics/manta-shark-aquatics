@@ -1,6 +1,6 @@
 import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
-import { creditPurchase, DuplicateLedgerEntry, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
+import { applyPoints, creditPurchase, DuplicateLedgerEntry, InsufficientPoints, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears, type ReleasedLesson } from '@/lib/points-arrears'
 import { formatTime12h, getTodayLA } from '@/lib/date'
 import { captureFee } from '@/lib/stripe-fees'
@@ -334,7 +334,9 @@ export async function POST(req: NextRequest) {
   // amount. It needs a new reason (e.g. 'chargeback_won') in
   // point_ledger_reason_check and lib/points-wallet.ts (LedgerReason, and
   // writeMovement adding amount_cents back to total_paid_cents), plus a
-  // unique index per session. Until then, say so loudly so it is done by hand.
+  // unique index per session. Until then, say so loudly so it is done by hand:
+  // pointsDisputeWon tells the school (found 2026-10-15: it only logged, and a
+  // desk card sale was not even logged).
   if (event.type === 'charge.dispute.closed') {
     const dispute = event.data.object as Stripe.Dispute
     if (dispute.status === 'won') {
@@ -347,16 +349,13 @@ export async function POST(req: NextRequest) {
           const r = await assessmentDisputeWon(piId, cs?.id ?? null, dispute)
           if (r) return r
         }
-        if (cs && cs.metadata?.kind === 'points' && cs.metadata?.parent_id) {
-          const { data: rev } = await supabase.from('point_ledger')
-            .select('delta_purchased, amount_cents').eq('stripe_session_id', cs.id).eq('reason', 'chargeback').limit(1)
-          if (rev && rev.length > 0) {
-            console.error(
-              `\u26a0\ufe0f DISPUTE WON ${dispute.id}: restore ${-(Number(rev[0].delta_purchased) || 0)} purchased points ` +
-              `($${((Number(rev[0].amount_cents) || 0) / 100).toFixed(2)}) to parent=${cs.metadata.parent_id} session=${cs.id} by hand -- ` +
-              `no automatic re-credit until a 'chargeback_won' ledger reason exists`
-            )
-          }
+        // Points: an online top-up is in the ledger under its checkout; a
+        // desk card sale has no checkout and is under the payment intent,
+        // the same key charge.dispute.created reversed it by.
+        const pointsKey = cs ? (cs.metadata?.kind === 'points' && cs.metadata?.parent_id ? cs.id : null) : piId
+        if (pointsKey) {
+          const r = await pointsDisputeWon(pointsKey, piId, dispute)
+          if (r) return r
         }
       } catch (e: any) {
         console.error(`charge.dispute.closed ${dispute.id}: could not resolve the checkout:`, e?.message)
@@ -694,6 +693,13 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error(`${event.type}: could not release lessons for parent ${topUp.parentId}:`, e)
     }
+
+    // A desk sale can come with granted points bought by the same payment --
+    // a bonus on a large top-up, or the programme rate on a private-lesson
+    // package -- and those used to stay spendable after the payment was
+    // taken back (found 2026-10-15). After the lessons are released, so any
+    // granted points those lessons return can count towards it.
+    if (terminalSale) await reverseDeskBonus(topUp.sessionId, topUp.parentId, topUp.amountCents, reverseCents, reason, note)
 
     console.error(
       `\u26a0\ufe0f PAYMENT REVERSED (${reason}) parent=${topUp.parentId} ` +
@@ -1085,6 +1091,129 @@ async function assessmentDisputeWon(paymentIntentId: string, sessionId: string |
   return NextResponse.json({ received: true })
 }
 
+/* charge.dispute.closed, won, for a points payment: an online top-up (`key` is
+   its checkout session) or a desk card sale (`key` is the payment intent).
+   The points charge.dispute.created took are NOT put back automatically yet
+   (see the TODO at the handler; owner, 2026-10-15: alert only), so the
+   school is told what to restore and, as importantly, what not to do: the
+   Members page "add points" gives GRANTED points, which never lift the
+   booking pause (arrears() reads the purchased side alone), and the family
+   must not be asked to pay a debt the bank has already paid back. Null
+   unless the lookup failed and Stripe should ask again. */
+async function pointsDisputeWon(key: string, paymentIntentId: string | null, dispute: Stripe.Dispute): Promise<NextResponse | null> {
+  const { data: rev, error } = await supabase.from('point_ledger')
+    .select('parent_id, delta_purchased, amount_cents').eq('stripe_session_id', key).eq('reason', 'chargeback').limit(1)
+  if (error) {
+    console.error(`dispute won ${dispute.id}: could not look up the points reversal:`, error.message)
+    return NextResponse.json({ error: 'could not resolve points dispute' }, { status: 503 })
+  }
+  const row = rev?.[0]
+  // Nothing was taken back (an inquiry, or a dispute that never reached us).
+  if (!row) return null
+  const pts = -(Number(row.delta_purchased) || 0)
+  const dollars = ((Number(row.amount_cents) || 0) / 100).toFixed(2)
+  const parentId: string | null = row.parent_id || null
+  const desk = key === paymentIntentId
+  const [{ data: parent }, { data: wallet }, { data: bonusRows }] = await Promise.all([
+    parentId ? supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle() : Promise.resolve({ data: null }),
+    parentId ? supabase.from('point_wallets').select('balance_purchased').eq('parent_id', parentId).maybeSingle() : Promise.resolve({ data: null }),
+    // The desk sale's bonus taken back with it (reverseDeskBonus).
+    desk && parentId
+      ? supabase.from('point_ledger').select('delta_granted').eq('parent_id', parentId).contains('pricing', { kind: 'pos_bonus_reversal', paymentIntentId: key })
+      : Promise.resolve({ data: [] as { delta_granted: number }[] }),
+  ])
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : (parentId ? `parent ${parentId}` : 'an unknown family')
+  const owed = wallet ? Math.max(0, -(Number((wallet as any).balance_purchased) || 0)) : null
+  const bonusTaken = (bonusRows || []).reduce((a: number, r: any) => a - (Number(r.delta_granted) || 0), 0)
+  const lines = [
+    `The school WON the dispute over ${family}'s ${desk ? 'front-desk card payment' : 'online points top-up'} of $${dollars} (dispute ${dispute.id}, payment ${paymentIntentId || 'unknown'}${desk ? '' : `, checkout ${key}`}${parentId ? `, parent ${parentId}` : ''}). The bank has returned the money to the school.`,
+    `When the dispute opened, ${pts} PURCHASED points were taken out of the family's wallet. They have NOT been put back automatically: restore ${pts} purchased points by hand.`,
+    owed === null ? 'The family\'s wallet could not be read.'
+      : owed > 0 ? `The wallet is still ${owed} purchased points short, so the family's booking is still paused.`
+      : 'The wallet is not short right now (released lessons or a payment by the family may have covered it).',
+    'Adding points on the family\'s Members page does NOT fix this: it adds GRANTED points, and booking stays paused until the PURCHASED balance is back at zero or above. Restoring purchased points is a database change for now.',
+    'Do NOT ask the family to pay what their wallet says they owe -- the school already has this money back. They were told by email and chat to settle it by card; if they already did, they have paid twice, and that payment should be refunded or left on the account as points.',
+    'The payment is still marked disputed on the Sales page: clear reversed_at and reversal_reason on its purchase so it counts again.',
+  ]
+  if (bonusTaken > 0) lines.push(`${bonusTaken} bonus points that came with this desk sale were also taken back. Those were granted points, so give them back with "add points" on the Members page.`)
+  console.error(`\u26a0\ufe0f DISPUTE WON ${dispute.id}: restore ${pts} purchased points ($${dollars}) to parent=${parentId} key=${key} by hand -- no automatic re-credit until a 'chargeback_won' ledger reason exists`)
+  await alertAdmin('Points dispute won', lines)
+  return null
+}
+
+/* Granted points a desk sale came with: complete-sale's bonus and
+   complete-sdp-sale's programme-rate points, both written as an admin_grant
+   carrying the purchase id in its pricing. */
+async function deskBonusPoints(purchaseId: string): Promise<number> {
+  const { data, error } = await supabase.from('point_ledger').select('delta_granted')
+    .eq('reason', 'admin_grant').contains('pricing', { kind: 'pos_bonus', purchaseId })
+  if (error) throw new Error('bonus lookup: ' + error.message)
+  return (data || []).reduce((a: number, r: any) => a + (Number(r.delta_granted) || 0), 0)
+}
+
+/* A desk sale was charged back or returned: its purchased points are already
+   gone (reversePurchase); this takes back the bonus or programme-rate points
+   the same payment bought, in proportion to the part reversed, from the
+   granted points the wallet still holds. Granted points already spent stay
+   spent and the school is told. Runs only in the delivery that did the
+   reversal (later ones stop at purchaseAlreadyReversed), with a ledger check
+   besides. Never throws: the payment side is already recorded. */
+async function reverseDeskBonus(paymentIntentId: string, parentId: string, amountCents: number, reverseCents: number, reason: ReversalReason, note: string) {
+  let bonus = 0
+  let share = 0
+  let taken = 0
+  let failed: string | null = null
+  try {
+    const { data: pur, error: purErr } = await supabase.from('purchases').select('id')
+      .eq('stripe_payment_intent_id', paymentIntentId).limit(1)
+    if (purErr) throw new Error('purchase lookup: ' + purErr.message)
+    const purchaseId = pur?.[0]?.id
+    if (!purchaseId) return
+    bonus = await deskBonusPoints(purchaseId)
+    share = amountCents > 0 ? Math.floor(bonus * Math.min(1, reverseCents / amountCents)) : 0
+    if (share <= 0) return
+    const { data: done, error: doneErr } = await supabase.from('point_ledger').select('id')
+      .eq('parent_id', parentId).contains('pricing', { kind: 'pos_bonus_reversal', paymentIntentId }).limit(1)
+    if (doneErr) throw new Error('ledger check: ' + doneErr.message)
+    if (done && done.length > 0) return
+    try {
+      // The reversal's own reason, so the family's statement reads the same
+      // as the purchased points' line. No session id and no amount: the
+      // one-reversal-per-session index and total_paid_cents belong to the
+      // purchased side, which reversePurchase has already done.
+      const res = await applyPoints(supabase, {
+        parentId, reason, points: -share, grantedOnly: true,
+        pricing: { kind: 'pos_bonus_reversal', purchaseId, paymentIntentId },
+        note: `${note} (bonus points from the same sale)`,
+        actor: 'system',
+      })
+      taken = res.grantedTaken
+    } catch (e) {
+      if (!(e instanceof InsufficientPoints)) throw e
+    }
+  } catch (e) {
+    failed = e instanceof Error ? e.message : String(e)
+    console.error(`desk bonus reversal ${paymentIntentId}:`, failed)
+  }
+  if (share <= 0 && !failed) return
+
+  const { data: parent } = await supabase.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle()
+  const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : `parent ${parentId}`
+  const lines = [
+    `${family}: front-desk card payment ${paymentIntentId} ($${(reverseCents / 100).toFixed(2)} of $${(amountCents / 100).toFixed(2)}) was ${reason === 'chargeback' ? 'disputed with the bank' : 'returned by the bank'}, and its purchased points were taken back.`,
+  ]
+  if (failed) {
+    lines.push(`The sale also came with bonus (granted) points${bonus > 0 ? ` -- ${bonus}, of which ${share} go with the reversed amount` : ''}, but they could NOT be taken back automatically (${failed}). Deduct them by hand on the family's points page if they are still there.`)
+  } else {
+    lines.push(`The sale also came with ${bonus} bonus (granted) points; ${share} of them go with the reversed amount.`)
+    lines.push(taken >= share
+      ? `All ${share} were taken out of the family's granted points.`
+      : `${taken} were taken out of the family's granted points. The other ${share - taken} had already been spent and could not be recovered -- decide by hand whether to chase them.`)
+    if (reason === 'chargeback' && taken > 0) lines.push(`If the school wins the dispute, give the ${taken} back with "add points" on the Members page.`)
+  }
+  await alertAdmin('Desk sale bonus points taken back', lines)
+}
+
 /* Clears "assessment used" for every swimmer whose assessment was paid by
    one of these purchases, when every assessment payment of theirs is taken
    back and none is booked (lib/assessments reopenReversedAssessment). True
@@ -1196,6 +1325,16 @@ async function dashboardRefund(charge: Stripe.Charge) {
   if (isPoints) {
     const pts = Math.floor((charge.amount_refunded || 0) / 100)
     lines.push(`This was a points purchase of ${Math.round((Number(p?.amount_cents) || charge.amount || 0) / 100)} points. The ${pts} refunded points were NOT taken out of the family's wallet. If they should be, deduct them by hand on the family's points page.`)
+    // A desk sale's bonus or programme-rate points came with this payment
+    // and were not mentioned (found 2026-10-15).
+    // A failed lookup must not throw: refunded_cents is already written, so a
+    // redelivery would stop at "already recorded" and the alert never go out.
+    if (kind === 'desk' && p) {
+      const bonus = await deskBonusPoints(p.id).catch(e => { console.error(`charge.refunded ${charge.id}:`, e instanceof Error ? e.message : e); return 0 })
+      const amt = Number(p.amount_cents) || charge.amount || 0
+      const share = amt > 0 ? Math.floor(bonus * Math.min(1, (charge.amount_refunded || 0) / amt)) : 0
+      if (bonus > 0) lines.push(`The sale also came with ${bonus} bonus points (granted points given because of this payment)${share > 0 && share < bonus ? `, ${share} of them for the refunded part` : ''}. They were NOT taken back either. If they should be, deduct them by hand on the family's points page (a deduction takes granted points first).`)
+    }
   } else if (!isAssessment) {
     lines.push('This was a front-desk card sale that is neither points nor a Swim Assessment; nothing else was changed.')
   } else {

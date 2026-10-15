@@ -270,6 +270,15 @@ type ApplyInput = {
    * balance is a debt: booking is blocked until it is paid off.
    */
   allowNegative?: boolean
+  /**
+   * Spends only: takes the points from the GRANTED side alone -- as many of
+   * them as it holds, never purchased ones -- even from a wallet in arrears.
+   * For granted points that came with a payment that was then reversed: a desk
+   * sale's bonus or programme-rate points (found 2026-10-15). The result's
+   * grantedTaken says how many were taken; InsufficientPoints when none were
+   * there.
+   */
+  grantedOnly?: boolean
 }
 
 export type ApplyResult = {
@@ -454,6 +463,13 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
       const owed = -input.points
       if (wallet.balance_purchased < owed) throw new InsufficientPoints(owed, Math.max(0, wallet.balance_purchased))
       dPurchased = input.points
+    } else if (input.grantedOnly) {
+      // Whatever is left of the gift goes; points already spent stay spent.
+      // Lots need no bookkeeping here: a granted debit is replayed from the
+      // ledger like any other (readGrantLots).
+      const take = Math.min(-input.points, Math.max(0, wallet.balance_granted))
+      if (take <= 0) throw new InsufficientPoints(-input.points, 0)
+      dGranted = -take
     } else if (input.allowNegative) {
       // A reversal undoes one specific purchase, so it comes out of the bucket
       // that purchase went into and nowhere else. Granted points were a gift

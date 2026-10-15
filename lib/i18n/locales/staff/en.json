@@ -531,7 +531,7 @@
   "admin.finance.card.cashTaken": "Cash taken, all time",
   "admin.finance.card.cashTakenNote": "Every top-up ever settled.",
   "admin.finance.card.cashRefunded": "Cash refunded, all time",
-  "admin.finance.card.cashRefundedNote": "Returned to families.",
+  "admin.finance.card.cashRefundedNote": "Returned to families, including refunds made by hand in the Stripe dashboard.",
   "admin.finance.stripeFees": "Stripe fees",
   "admin.finance.card.feesUnavailable": "Not being recorded yet — run docs/migration-stripe-fees.sql, then press the button below.",
   "admin.finance.card.feesNote": "What Stripe kept, read from the payments themselves — not a rate multiplied out. Never returned on a refund.",
