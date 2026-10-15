@@ -23,9 +23,6 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
   coachId: string; date: string; time: string; studentId: string; minutes: number
 }): Promise<string | null> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date) || !/^\d{2}:\d{2}$/.test(o.time)) return 'Invalid date or time format'
-  // On the 35-minute grid (lib/date.ts, found 2026-10-15): an assessment at
-  // 15:20 took both the 15:00 and the 15:35 slot.
-  if (!isGridStart(o.time)) return GRID_ERROR
   const today = getTodayLA(), nowMin = getNowMinutesLA()
   if (o.date < today || minutesUntil(o.date, o.time, today, nowMin) < LEAD_TIME_MINUTES)
     return 'Bookings must be made at least 30 minutes before the lesson starts. Please pick a later time.'
@@ -47,6 +44,10 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
   // A legacy coach (no zone rows) is held to his coach_availability hours; he
   // used to skip the check and take any time at all (found 2026-10-15).
   const eff = await getEffectiveZones(svc, o.coachId, o.date)
+  // On the 35-minute grid (lib/date.ts, found 2026-10-15): an assessment at
+  // 15:20 took both the 15:00 and the 15:35 slot. Zoned coaches only -- a
+  // legacy coach's hours run every 35 minutes from his own start time.
+  if (!eff.legacy && !isGridStart(o.time)) return GRID_ERROR
   const fits = eff.legacy
     ? await legacyHoursFit(svc, o.coachId, o.date, s, e)
     : eff.rows.some((z: any) => z.zone_type === 'private' && toMin(z.start_time) <= s && e <= toMin(z.end_time))

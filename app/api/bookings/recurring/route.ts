@@ -10,7 +10,7 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
-import { groupBandsFor } from '@/lib/zones'
+import { groupBandsFor, isLegacyCoach } from '@/lib/zones'
 import { getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
@@ -144,7 +144,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
   // The grid offers only slot starts (lib/date.ts isGridStart); commit
   // checks every slot it is sent the same way.
-  if (start_time != null && !isGridStart(start_time))
+  // Zoned coaches only: a legacy coach's hours run every 35 minutes from his
+  // own start time, never on the zone grid (found 2026-10-15).
+  const legacyCoach = new Map<string, boolean>()
+  const isLegacy = async (id: string) => {
+    if (!legacyCoach.has(id)) legacyCoach.set(id, await isLegacyCoach(svc, id))
+    return legacyCoach.get(id)!
+  }
+  if (start_time != null && !isGridStart(start_time) && !(await isLegacy(coach_id)))
     return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
 
   // Which course this batch is for. Defaults to the group class, so callers
@@ -269,7 +276,7 @@ export async function POST(req: NextRequest) {
       // On the 35-minute grid (lib/date.ts, found 2026-10-15): an off-grid
       // fixed class took two slots away from other families every week of the
       // term. An hour is its first half's start, so this is the same test.
-      if (!isGridStart(time))
+      if (!isGridStart(time) && !(await isLegacy(coach)))
         return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
       const fixed = typeof r?.fixed === 'string' && r.fixed ? r.fixed.slice(0, 80) : undefined
       // Only a fixed class books past the single-lesson window.

@@ -34,11 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing student' }, { status: 400 })
   if (!/^\d{4}-\d{2}-\d{2}$/.test(session_date) || !/^\d{2}:\d{2}$/.test(start_time))
     return NextResponse.json({ error: 'Invalid date or time format' }, { status: 400 })
-  // On the 35-minute grid (lib/date.ts isGridStart, found 2026-10-15): the
-  // zone check below tests containment only, so 15:20 passed and blocked both
-  // the 15:00 and 15:35 slots.
-  if (!isGridStart(start_time))
-    return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
 
   // Date & cutoff checks (LA time)
   const today = getTodayLA()
@@ -82,6 +77,12 @@ export async function POST(req: NextRequest) {
     if (!(await legacyHoursFit(svc, coach_id, session_date, h * 60 + m, endTotal)))
       return NextResponse.json({ error: 'This time is not available for this course type. Please pick another time.' }, { status: 409 })
   } else {
+    // On the 35-minute grid (lib/date.ts isGridStart, found 2026-10-15): the
+    // zone check below tests containment only, so 15:20 passed and blocked
+    // both the 15:00 and 15:35 slots. Zoned coaches only: a legacy coach's
+    // hours are offered every 35 minutes from his own start time.
+    if (!isGridStart(start_time))
+      return NextResponse.json({ error: GRID_ERROR }, { status: 400 })
     const zt = zoneTypeForSlug(course.slug)
     const toMinZ = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
     const slotStartMin = toMinZ(start_time)

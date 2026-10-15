@@ -207,6 +207,14 @@ for (const t of CATCH) {
 
 // Must NOT be treated as a booking claim at all.
 const TRIAL_PASS = [
+  // Review 2026-10-15: a desk hand-off and an ordinary class status are not
+  // assessment claims.
+  '我已經為您安排專人跟進。',
+  '已經為您安排櫃檯同事回覆。',
+  '我幫您安排了專人跟進這件事。',
+  "Yes, Kayden's spot in the Saturday 10:00 AM group class is confirmed.",
+  '您週六上午 10 點的時段已確認。',
+  "I've booked Kayden's Saturday lesson.",
   'Coach Mitzi has these times on July 20 - please pick one:',
   'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
   'Would you like me to book the 3:00 PM slot for Emma?',

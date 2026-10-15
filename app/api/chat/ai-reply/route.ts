@@ -500,7 +500,10 @@ export async function POST(req: NextRequest) {
     if (!rows?.length) return false
     if (kind === 'done') {
       const since = Date.now() - 60 * 60 * 1000
-      return rows.some((r: { created_at: string | null }) => r.created_at && new Date(r.created_at).getTime() >= since)
+      if (rows.some((r: { created_at: string | null }) => r.created_at && new Date(r.created_at).getTime() >= since)) return true
+      // "Yes, I booked Emma's assessment for Oct 20" a day later, or about
+      // one the family booked on the site, is still true: fall through to
+      // "is one coming up" (found 2026-10-15 in review).
     }
     const ids = [...new Set(rows.map((r: { class_session_id: string | null }) => r.class_session_id).filter(Boolean))] as string[]
     if (!ids.length) return false

@@ -240,8 +240,18 @@ export function claimsCompletedCancellation(text: string): boolean {
 //     "Kayden's Thursday lesson is booked" is an ordinary status answer.
 // scripts/chat-guard-check.mjs holds the worked cases.
 
+// "slot" / 時段 also matched an ordinary lesson's status, "Kayden's spot in
+// Saturday's class is confirmed", and replaced a true answer (found
+// 2026-10-15 in review): a sentence that names a lesson or class and not the
+// assessment is left alone (EN_LESSON below).
 const EN_TRIAL_SUBJECT = /\b(?:assessments?|evaluations?|slots?|spots?|appointments?|reservations?|trial|holds?)\b/i
 const ZH_TRIAL_SUBJECT = /(?:評估|评估|時段|时段|名額|名额|試課|试课|保留)/
+const EN_ASSESSMENT = /\b(?:assessments?|evaluations?|trial)\b/i
+const ZH_ASSESSMENT = /(?:評估|评估|試課|试课)/
+// A sentence about a lesson or class and not the assessment is about an
+// ordinary booking, which this guard does not judge.
+const EN_LESSON = /\b(?:lessons?|class(?:es)?)\b/i
+const ZH_LESSON = /(?<![試试])(?:課|课|班)/
 // A state that is a rule, not a fact: "the assessment is confirmed once
 // payment succeeds", "the slot is reserved for 15 minutes".
 const EN_TRIAL_AFTER_RULE = /^\s*(?:only\s+)?(?:once|when|after|if|as\s+soon\s+as|until|upon|for\s+(?:\d+|fifteen|thirty)\s+min)/i
@@ -275,7 +285,9 @@ const EN_TRIAL_CLAIMS: Claim[] = [
 const ZH_NAME = '\\s*[A-Za-z][A-Za-z\'’-]*(?:\\s[A-Za-z][A-Za-z\'’-]*)?\\s*'
 const ZH_AGENT = '(?<![因作成認认以行])(?:為|为|幫|帮|替|給|给)(?:(?:您|你)(?:的?' + ZH_NAME + ')?|' + ZH_NAME + ')'
 const ZH_BA = '(?:把[^，。！？,.!?]{0,24}?)?'
-const ZH_BOOK = '(?:保留|預約|预约|預訂|预订|安排|訂好|订好|約好|约好)'
+// Not 安排: 已為您安排專人跟進 is the natural line after a hand-off to the
+// desk (found 2026-10-15 in review).
+const ZH_BOOK = '(?:保留|預約|预约|預訂|预订|訂好|订好|約好|约好)'
 const ZH_TRIAL_CLAIMS: Claim[] = [
   // 已成功預約 / 已經順利為您保留
   { kind: 'done', re: new RegExp('(?<![您你])已(?:經|经)?(?:成功|順利|顺利)地?' + '(?:' + ZH_AGENT + ')?' + ZH_BA + ZH_BOOK + '(?![的或、])', 'g') },
@@ -289,15 +301,16 @@ const ZH_TRIAL_CLAIMS: Claim[] = [
   { kind: 'state', re: new RegExp(ZH_AGENT + '(?:成功)?' + ZH_BA + ZH_BOOK + '(?:好|完)?(?:了|囉|啰|咯|啦)', 'g') },
   // 時段已保留 / 評估已經預約好了 / 评估已确认 (not 已被預約 / 已預約滿:
   // taken by someone else)
-  { kind: 'state', subject: true, re: /已(?:經|经)?(?:保留|預約|预约|預訂|预订|安排)(?:好|妥)?(?![的或、滿满])/g },
-  { kind: 'state', subject: true, re: /(?:預約|预约|預訂|预订|保留|安排)(?:好|妥)(?:了|囉|啰|啦)/g },
-  { kind: 'state', subject: true, re: /(?:預約|预约|評估|评估|時段|时段)(?:已經?|已经)?(?:確認|确认)(?:了)?(?![的或、嗎吗])/g },
+  { kind: 'state', subject: true, re: /已(?:經|经)?(?:保留|預約|预约|預訂|预订)(?:好|妥)?(?![的或、滿满])/g },
+  { kind: 'state', subject: true, re: /(?:預約|预约|預訂|预订|保留)(?:好|妥)(?:了|囉|啰|啦)/g },
+  { kind: 'state', subject: true, re: /(?:預約|预约|評估|评估)(?:已經?|已经)?(?:確認|确认)(?:了)?(?![的或、嗎吗])/g },
 ]
 
 function trialExtra(s: string, m: RegExpExecArray, claim: Claim, lang: Lang): boolean {
   const [sStart, sEnd] = sentenceBounds(s, m.index, m.index + m[0].length)
   const sentence = s.slice(sStart, sEnd)
   if (claim.subject && !(lang === 'en' ? EN_TRIAL_SUBJECT : ZH_TRIAL_SUBJECT).test(sentence)) return false
+  if (!(lang === 'en' ? EN_ASSESSMENT : ZH_ASSESSMENT).test(sentence) && (lang === 'en' ? EN_LESSON : ZH_LESSON).test(sentence)) return false
   if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_AFTER_RULE.test(s.slice(m.index + m[0].length, sEnd))) return false
   if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_TAKEN.test(sentence)) return false
   return true

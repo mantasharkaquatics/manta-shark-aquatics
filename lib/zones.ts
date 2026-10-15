@@ -31,6 +31,19 @@ export function zoneTypeForSlug(slug: string): 'private' | 'group' | 'team' | nu
   return null
 }
 
+/** Whether a coach still runs on the legacy coach_availability hours (no zone
+ *  rows at all). Those hours start on the hour or half hour and are offered
+ *  every 35 minutes from there, so they never sit on the zone grid; the grid
+ *  check (lib/date.ts isGridStart) applies to zoned coaches only (found
+ *  2026-10-15, when it refused every time of a not-yet-zoned coach). */
+export async function isLegacyCoach(svc: SupabaseClient, coachId: string): Promise<boolean> {
+  const { count } = await svc
+    .from('coach_availability_zones')
+    .select('id', { count: 'exact', head: true })
+    .eq('coach_id', coachId)
+  return !count
+}
+
 export async function getEffectiveZones(
   svc: SupabaseClient,
   coachId: string,
