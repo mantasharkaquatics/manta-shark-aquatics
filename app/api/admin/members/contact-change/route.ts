@@ -160,8 +160,10 @@ export async function POST(req: NextRequest) {
 
     let delivered = false
     if (field === 'email') {
+      // STOP/HELP line, as on every other text to a family (owner,
+      // 2026-10-06); this one went without it (found 2026-10-15).
       const smsResult = await sendSms(normalizePhone(parent.phone),
-        `Manta Shark Aquatics: your verification code is ${code}. It expires in 10 minutes. Only share it with our staff if you asked to change your account email.`)
+        `Manta Shark Aquatics: your verification code is ${code}. It expires in 10 minutes. Only share it with our staff if you asked to change your account email.` + SMS_COMPLIANCE_SUFFIX)
       delivered = smsResult.ok
     } else {
       // sendEmail reports a failed send by returning false, not by throwing,

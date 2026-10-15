@@ -113,7 +113,11 @@ function SuccessContent() {
   let title: string, desc: string, items: string[]
   if (isTeam) {
     title = t('success.titleTeam'); desc = t('success.descTeam')
-    items = [t('success.team.1'), t('success.team.2'), t('success.emailSent'), t('success.team.4')]
+    // No "Confirmation email sent": nothing sends one for Swim Team yet (the
+    // webhook's team branch only writes the membership), so the line was
+    // untrue. It comes back with that email, which waits for the lawyer
+    // (found 2026-10-15).
+    items = [t('success.team.1'), t('success.team.2'), t('success.team.4')]
   } else if (isAssessment) {
     title = phase === 'done' ? t('success.assess.title') : phase === 'unpaid' ? t('success.assess.unpaidTitle') : t('success.received')
     desc = phase === 'done' ? (whenText || t('success.assess.confirmed'))
