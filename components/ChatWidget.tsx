@@ -73,6 +73,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const [messages, setMessages] = useState<any[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendFailed, setSendFailed] = useState(false)
   const [unread, setUnread] = useState(0)
   // The realtime callback below is created once per thread, and the thread is
   // now found on page load with the panel shut, so it reads `open` from this
@@ -337,8 +338,21 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     }
     if (!body || !threadId || sending) return
     setSending(true)
+    setSendFailed(false)
     if (!text) setInput('')
-    await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
+    // Checked (found 2026-10-15), as the desk's send has been since
+    // 2026-10-08: supabase-js returns a refused or dropped insert as { error }
+    // rather than throwing, so a flaky connection or an expired session lost
+    // the typed message with no word -- while the thread preview showed it and
+    // ai-reply ran against an older message. Now the text goes back in the box,
+    // a line says it was not sent, and nothing else moves.
+    const { error: sendError } = await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
+    if (sendError) {
+      if (!text) setInput(prev => prev ? prev : body)
+      setSendFailed(true)
+      setSending(false)
+      return
+    }
     await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body }).eq('id', threadId)
     setSending(false)
     setAwaitingAi(true)
@@ -518,6 +532,13 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
             )}
           </div>
 
+          {/* Not sent: right above the box the text went back into, so it is
+              seen without scrolling the conversation. */}
+          {sendFailed && (
+            <div role="alert" style={{ fontSize: '12.5px', color: '#9b1c1c', background: '#fdecec', borderTop: '1px solid #f5c2c2', padding: '8px 16px' }}>
+              {t('chat.sendFailed')}
+            </div>
+          )}
           {/* Input */}
           <div style={{ padding: '12px 16px', borderTop: '1px solid #e3ebf6', display: 'flex', gap: '8px', background: '#fff' }}>
             <input

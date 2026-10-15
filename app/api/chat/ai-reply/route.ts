@@ -21,7 +21,7 @@ import { allRows, allRowsIn } from '@/lib/db-paging'
 import { graceUsedThisMonth } from '@/lib/vouchers'
 import { translate } from '@/lib/i18n/all'
 import { takeSlots, keyHash } from '@/lib/ip-rate-limit'
-import { claimsCompletedCancellation } from '@/lib/ai/reply-guards'
+import { claimsCompletedCancellation, trialBookingClaim } from '@/lib/ai/reply-guards'
 
 // The fixed texts this route posts itself (the catch-all fallback and the two
 // guard replacements) used to be English only, even to a parent writing in
@@ -213,7 +213,9 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
       .map(([k, v]) => ({ time: k.split('|')[1], label: formatTime12h(k.split('|')[1]), already_booked_by_this_family_for: v }))
     if (times.length || own.length) out.push({ coach_id: c.id, coach: `${c.first_name} ${c.last_name}`, available_times: times, ...(own.length ? { this_familys_existing_bookings_at: own, note: 'Times in this_familys_existing_bookings_at are NOT free slots taken by others - they are THIS parent own existing bookings. Never suggest rebooking them or describe them as unavailable.' } : {}) })
   }
-  return { date, ...(location ? { pool: pools.name(location) } : {}), slots: out }
+  // The pool is named only when families see pools; with one, location is
+  // just the open pool the search was pinned to (searchPool).
+  return { date, ...(location && pools.multi ? { pool: pools.name(location) } : {}), slots: out }
 }
 
 // Static, like every tool description: it sits in the cached prefix.
@@ -469,6 +471,37 @@ export async function POST(req: NextRequest) {
     return hit ? hit.id : null
   }
   const badPool = () => ({ error: `Unknown location. Use one of these pool ids: ${pools.active.map(l => l.id).join(', ')}.` })
+  // The pool a slot or class search is narrowed to. With one pool open there
+  // is no picker and poolArg gives undefined, which getEffectiveZones and
+  // group-classes read as EVERY pool -- including one staff have already
+  // painted hours at but not opened (a hidden Monrovia). The chat then offered
+  // those times unlabelled, booked the assessment there, and with one pool no
+  // email, SMS or dashboard line names it, so the family went to Brea (found
+  // 2026-10-15). Pin the one open pool, as the booking page does
+  // (booking/page.tsx: `locList.length === 1 ? locList[0].id : null`). Before
+  // the locations migration there are no rows and nothing is narrowed.
+  // poolArg itself stays as it is: other tools rely on undefined = no filter.
+  const searchPool = (loc: string | undefined) =>
+    loc ?? (!pools.multi && pools.active.length === 1 ? pools.active[0].id : undefined)
+
+  // Backs trialBookingClaim (the reply guard below): is there an assessment
+  // the reply could truthfully be talking about?
+  async function trialBookingOnFile(kind: 'done' | 'state'): Promise<boolean> {
+    const { data: rows } = await svc.from('bookings')
+      .select('class_session_id, created_at')
+      .eq('parent_id', parent!.id).eq('is_trial', true)
+      .in('status', ['pending_payment', 'confirmed'])
+    if (!rows?.length) return false
+    if (kind === 'done') {
+      const since = Date.now() - 60 * 60 * 1000
+      return rows.some((r: { created_at: string | null }) => r.created_at && new Date(r.created_at).getTime() >= since)
+    }
+    const ids = [...new Set(rows.map((r: { class_session_id: string | null }) => r.class_session_id).filter(Boolean))] as string[]
+    if (!ids.length) return false
+    const { data: upcoming } = await svc.from('class_sessions')
+      .select('id').in('id', ids).gte('session_date', getTodayLA()).limit(1)
+    return !!upcoming?.length
+  }
 
   // ---------- helpers used by multiple tools ----------
   type LessonBooking = {
@@ -895,7 +928,7 @@ export async function POST(req: NextRequest) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'date must be YYYY-MM-DD.' }
       const location = poolArg(input.location)
       if (location === null) return badPool()
-      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id, pools, location)
+      return await getTrialSlots(svc, date, input.coach_id ? String(input.coach_id) : undefined, parent!.id, pools, searchPool(location))
     }
 
     if (name === 'get_group_classes') {
@@ -920,7 +953,9 @@ export async function POST(req: NextRequest) {
       }
       // location is passed on for the route to use, and the answer is also
       // narrowed here, so it holds whether or not the route filters by pool.
-      const res = await fetch(`${origin}/api/bookings/group-classes?student_id=${studentId}&${qs}${location ? `&location=${encodeURIComponent(location)}` : ''}`, { headers: { cookie: cookieHeader } })
+      // With one pool open, the route is asked for that pool only (searchPool).
+      const askPool = searchPool(location)
+      const res = await fetch(`${origin}/api/bookings/group-classes?student_id=${studentId}&${qs}${askPool ? `&location=${encodeURIComponent(askPool)}` : ''}`, { headers: { cookie: cookieHeader } })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok) return { error: data.error || 'Could not load group classes.' }
       if (!pools.multi) return data
@@ -974,9 +1009,16 @@ export async function POST(req: NextRequest) {
       // class_sessions trigger, the same way).
       const [th, tm] = time.split(':').map(Number)
       const endHm = `${String(Math.floor((th * 60 + tm + 30) / 60)).padStart(2, '0')}:${String((th * 60 + tm + 30) % 60).padStart(2, '0')}`
-      const poolField = pools.multi
-        ? { pool: pools.name(poolOfTime(await getEffectiveZones(svc, coachId, date), 'private', time, endHm)) }
-        : {}
+      // A time at a pool families cannot see is refused here too, not only
+      // left out of get_trial_slots (found 2026-10-15): the booking routes do
+      // not check the pool, and with one pool nothing would tell the family
+      // where to go.
+      const slotPool = allLocs.length
+        ? poolOfTime(await getEffectiveZones(svc, coachId, date), 'private', time, endHm)
+        : null
+      if (slotPool && !pools.active.some(l => l.id === slotPool))
+        return { error: 'This time is not available. Call get_trial_slots again and offer only the times it returns.' }
+      const poolField = pools.multi ? { pool: pools.name(slotPool) } : {}
 
       const { data: prepaid } = await svc
         .from('lesson_credits').select('id')
@@ -1189,9 +1231,19 @@ export async function POST(req: NextRequest) {
       finalText = CANNED.cancelGuard[lang]
     }
 
-    const claimsTrialBooked =
-      /(已保留|已為您保留|已為您預約|已幫您預約|預約成功|已成功預約|slot (is|has been) reserved|reserved (the|this|your) slot|successfully (booked|reserved))/i.test(finalText)
-    if (claimsTrialBooked && !trialBookSucceededThisTurn) {
+    // The same for a Swim Assessment booking. This was one inline regex of
+    // Traditional-only phrases, so 已經幫您預約好了, every Simplified claim
+    // and "I've booked Emma's assessment" got through (found 2026-10-15); the
+    // detector is now trialBookingClaim in lib/ai/reply-guards.ts, cases in
+    // scripts/chat-guard-check.mjs. A claim book_trial_pending did not back
+    // this turn is checked against the bookings before it is stopped, so a
+    // true one on a later turn ("you're welcome -- the assessment is booked")
+    // is not replaced with "nothing has been booked":
+    //   'done'  ("I've booked", 已為您預約) -- a held or confirmed assessment
+    //           made in the last hour, i.e. earlier in this conversation;
+    //   'state' ("the assessment is booked", 時段已保留) -- any upcoming one.
+    const trialClaim = trialBookingClaim(finalText)
+    if (trialClaim && !trialBookSucceededThisTurn && !(await trialBookingOnFile(trialClaim))) {
       console.error('[ai-reply guard] blocked hallucinated trial booking claim:', finalText.slice(0, 200))
       escalate = true
       finalText = CANNED.trialGuard[lang]

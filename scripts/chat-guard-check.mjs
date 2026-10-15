@@ -1,5 +1,5 @@
-// Checks the chat assistant's "claims a cancellation" guard against worked
-// replies (lib/ai/reply-guards.ts). Plain script, no test framework, like
+// Checks the chat assistant's "claims a cancellation" and "claims an
+// assessment booking" guards against worked replies (lib/ai/reply-guards.ts). Plain script, no test framework, like
 // scripts/points-check.mjs:
 //
 //   node scripts/chat-guard-check.mjs
@@ -23,7 +23,7 @@ import ts from 'typescript'
 
 const src = readFileSync(new URL('../lib/ai/reply-guards.ts', import.meta.url), 'utf8')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
-const { claimsCompletedCancellation } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
+const { claimsCompletedCancellation, trialBookingClaim } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
 
 // Policy answers: must NOT be treated as a claim.
 const PASS = [
@@ -197,5 +197,105 @@ for (const t of CATCH) {
   if (!got) { fails++; console.log(`  FAIL  claim not caught:\n        ${t}`) }
   else console.log(`  ok    catch  ${t.slice(0, 70)}`)
 }
-console.log(fails ? `\n${fails} FAILED` : `\nOK (${PASS.length} pass, ${CATCH.length} caught)`)
+// ---------- Swim Assessment booking claims (trialBookingClaim) ----------
+// Found 2026-10-15: the route's old inline regex knew only Traditional forms
+// with 已 right before 為/幫, so 已經幫您預約好了, every Simplified claim and
+// "I've booked Emma's assessment" went through. 'done' = the assistant says it
+// did it (held to "a trial booking was made just now"); 'state' = a
+// description (held to "the family has an upcoming assessment"), so a later
+// "you're welcome, the assessment is booked" passes when it is true.
+
+// Must NOT be treated as a booking claim at all.
+const TRIAL_PASS = [
+  'Coach Mitzi has these times on July 20 - please pick one:',
+  'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
+  'Would you like me to book the 3:00 PM slot for Emma?',
+  'Once you confirm, I will reserve the slot for 15 minutes while you pay.',
+  'The slot is held for 15 minutes; the booking is confirmed only after payment succeeds.',
+  'The assessment is confirmed once payment succeeds.',
+  'Kayden\'s 9:00 AM lesson on Thursday is booked.',
+  'You have 3 lessons booked this month.',
+  'Nothing has been booked yet.',
+  'I have not booked anything yet. Please pick a time.',
+  'If you pick a time, I can reserve it for you.',
+  'Is the assessment booked? Let me check.',
+  'After the assessment is booked, you will get a confirmation email.',
+  'Your assessment will be confirmed after payment.',
+  'Booked lessons can be cancelled more than 24 hours ahead.',
+  'Reserved slots are released after 15 minutes if unpaid.',
+  'All slots on Oct 20 are booked; here are other days.',
+  'Oct 20 is fully booked for assessments.',
+  'That slot is already booked by another family, so here are other times.',
+  // Traditional Chinese
+  '剛剛沒能為您保留這個時段，所以沒有預約，也沒有收取任何費用。我們已通知團隊成員，會盡快與您聯繫。',
+  '要幫您預約 10/20 下午 3:00 嗎？',
+  '確認後我就幫您預約了喔。',
+  '還沒有幫您預約任何時段。',
+  '預約成功後，您會收到確認信。',
+  '付款成功後，預約才算完成。',
+  '已預約的課程可以在 24 小時前取消。',
+  '因為您預約了週四的課，所以這個時間不能再選。',
+  '這個時段可以預約。',
+  '如果您確認，我會為您保留這個時段 15 分鐘。',
+  '目前沒有為您預約任何評估。',
+  '這個時段已經被預約了，請選其他時間。',
+  '10/20 的評估時段已預約滿了。',
+  'Mitzi 教練 10/20 有這些時段，請選一個：',
+  // Simplified Chinese
+  '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，会尽快与您联系。',
+  '要帮您预约这个时段吗？',
+  '付款成功后，预约才算确认。',
+  '如果预约成功，您会收到确认邮件。',
+  '目前还没有为您预约。',
+]
+
+// Must be caught, with this kind.
+const TRIAL_CATCH = [
+  ['done', 'I\'ve booked Emma\'s assessment for 3:00 PM on Oct 20.'],
+  ['done', 'I have reserved 3:00 PM for you.'],
+  ['done', 'Done! I booked the assessment with Coach Mitzi.'],
+  ['done', 'I reserved the slot for you.'],
+  ['done', 'Successfully booked!'],
+  ['done', 'Booked! See you on Oct 20.'],
+  ['done', 'Great news, I got Emma booked in for her assessment.'],
+  ['done', 'I\'ve set up Emma\'s assessment with Coach Mitzi.'],
+  ['done', 'We\'ve held the 3:00 PM spot for you.'],
+  ['state', 'Your assessment is booked for Oct 20 at 3:00 PM.'],
+  ['state', 'Emma\'s assessment is confirmed!'],
+  ['state', 'The 3:00 PM slot has been reserved for Emma.'],
+  ['state', 'Your slot is reserved.'],
+  ['state', 'You\'re all booked for the Swim Assessment on Oct 20.'],
+  // Traditional Chinese
+  ['done', '已經幫您預約好了。'],
+  ['done', '已為您預約 10/20 下午 3:00 的游泳評估。'],
+  ['done', '已幫您保留這個時段。'],
+  ['done', '預約成功！'],
+  ['done', '我已經幫您把 Emma 的評估預約好了。'],
+  ['done', '已成功預約。'],
+  ['state', '好的，幫您預約好了！'],
+  ['state', 'Emma 的游泳評估已預約好了。'],
+  ['state', '時段已保留，請在 15 分鐘內付款。'],
+  ['state', '評估已確認。'],
+  ['state', '您已為 Emma 預約了 10/20 的游泳評估。'],
+  // Simplified Chinese
+  ['done', '已为您预约好了。'],
+  ['done', '预约成功！'],
+  ['done', '已经帮您保留这个时段。'],
+  ['done', '已为 Emma 预约了评估。'],
+  ['state', '好的，我帮您预约了 10/20 下午 3 点的游泳评估。'],
+  ['state', '游泳评估已经预约好了。'],
+]
+
+for (const t of TRIAL_PASS) {
+  const got = trialBookingClaim(t)
+  if (got) { fails++; console.log(`  FAIL  trial: text flagged as a ${got} claim:\n        ${t}`) }
+  else console.log(`  ok    pass   ${t.slice(0, 70)}`)
+}
+for (const [kind, t] of TRIAL_CATCH) {
+  const got = trialBookingClaim(t)
+  if (got !== kind) { fails++; console.log(`  FAIL  trial: expected ${kind}, got ${got}:\n        ${t}`) }
+  else console.log(`  ok    ${kind.padEnd(6)} ${t.slice(0, 70)}`)
+}
+
+console.log(fails ? `\n${fails} FAILED` : `\nOK (${PASS.length} pass, ${CATCH.length} caught; trial ${TRIAL_PASS.length} pass, ${TRIAL_CATCH.length} caught)`)
 process.exit(fails ? 1 : 0)

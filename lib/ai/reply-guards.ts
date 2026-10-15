@@ -34,7 +34,10 @@
 // scripts/chat-guard-check.mjs holds the worked cases on both sides.
 
 type Kind = 'done' | 'state'
-type Claim = { re: RegExp; kind: Kind }
+// subject: the sentence must also name the assessment or a held time (used by
+// the trial-booking claims below, where "is booked" alone is as likely to be
+// about an ordinary lesson the family already holds).
+type Claim = { re: RegExp; kind: Kind; subject?: boolean }
 
 // ---------- English ----------
 
@@ -186,18 +189,131 @@ function isClaim(s: string, m: RegExpExecArray, kind: Kind, lang: Lang): boolean
   return true
 }
 
-function anyClaim(s: string, claims: Claim[], lang: Lang): boolean {
-  for (const { re, kind } of claims) {
+type Extra = (s: string, m: RegExpExecArray, claim: Claim, lang: Lang) => boolean
+
+function firstClaim(s: string, claims: Claim[], lang: Lang, extra?: Extra): Kind | null {
+  for (const claim of claims) {
+    const { re, kind } = claim
     re.lastIndex = 0
     for (let m = re.exec(s); m; m = re.exec(s)) {
       if (m[0].length === 0) { re.lastIndex++; continue }
-      if (isClaim(s, m, kind, lang)) return true
+      if (isClaim(s, m, kind, lang) && (!extra || extra(s, m, claim, lang))) return kind
     }
   }
-  return false
+  return null
+}
+
+function anyClaim(s: string, claims: Claim[], lang: Lang): boolean {
+  return firstClaim(s, claims, lang) !== null
 }
 
 export function claimsCompletedCancellation(text: string): boolean {
   const s = String(text || '')
   return anyClaim(s, EN_CLAIMS, 'en') || anyClaim(s, ZH_CLAIMS, 'zh')
+}
+
+// ---------- trial (Swim Assessment) bookings ----------
+//
+// trialBookingClaim: does the reply tell the family that a Swim Assessment
+// slot WAS booked, reserved or confirmed? app/api/chat/ai-reply swaps such a
+// reply for a "nothing was booked" notice when book_trial_pending did not
+// succeed in that turn and the database holds no such booking either. A
+// family told "it's booked" when it is not turns up for an assessment that
+// does not exist.
+//
+// It used to be one inline regex in the route listing only Traditional forms
+// with 已 right before 為/幫, so 已經幫您預約好了, every Simplified claim
+// (已为您预约, 预约成功) and the plain English ones ("I've booked Emma's
+// assessment", "Your assessment is confirmed") reached the parent unflagged
+// (found 2026-10-15). The phrasing list is now broad in all three scripts, and
+// the exceptions are the cancellation guard's: negation, modal, condition and
+// question context (isClaim above).
+//
+// Two kinds, because the route checks them against different facts:
+//   - 'done': the assistant says it did it ("I've booked", 已為您預約,
+//     预约成功). True only if a trial booking was made just now -- this turn,
+//     or an earlier turn of the same conversation.
+//   - 'state': a description ("the assessment is booked", 時段已保留). True
+//     if the family holds an upcoming assessment at all, so "you're welcome,
+//     Emma's assessment is booked for Oct 20" on a later turn passes. These
+//     need the sentence to name the assessment or a held slot (subject), since
+//     "Kayden's Thursday lesson is booked" is an ordinary status answer.
+// scripts/chat-guard-check.mjs holds the worked cases.
+
+const EN_TRIAL_SUBJECT = /\b(?:assessments?|evaluations?|slots?|spots?|appointments?|reservations?|trial|holds?)\b/i
+const ZH_TRIAL_SUBJECT = /(?:評估|评估|時段|时段|名額|名额|試課|试课|保留)/
+// A state that is a rule, not a fact: "the assessment is confirmed once
+// payment succeeds", "the slot is reserved for 15 minutes".
+const EN_TRIAL_AFTER_RULE = /^\s*(?:only\s+)?(?:once|when|after|if|as\s+soon\s+as|until|upon|for\s+(?:\d+|fifteen|thirty)\s+min)/i
+// Availability, not a booking: "all slots on Oct 20 are booked", "that slot
+// is already booked by another family".
+const EN_TRIAL_TAKEN = /\b(?:fully\s+booked|all\s+(?:\S+\s+){0,3}?(?:slots?|spots?|times?)|no\s+(?:\S+\s+)?(?:slots?|spots?|times?)|by\s+(?:another|someone|other)|already\s+taken|unavailable|not\s+available)\b/i
+
+const EN_BOOK_VERB = String.raw`(?:booked|reserved|held|secured|scheduled|locked\s+in)`
+const EN_TRIAL_CLAIMS: Claim[] = [
+  // I've booked / we have just reserved / I held the 3:00 PM slot for you
+  { kind: 'done', re: new RegExp(I_WE + EN_BOOK_VERB + String.raw`\b`, 'gi') },
+  // I've confirmed / set up Emma's assessment
+  { kind: 'done', re: new RegExp(I_WE + String.raw`(?:confirmed|set\s+up|arranged)\b(?=[^.!?\n]{0,40}\b(?:assessment|evaluation|slot|spot|appointment|reservation)s?\b)`, 'gi') },
+  // I got Emma booked in
+  { kind: 'done', re: new RegExp(I_WE + String.raw`(?:got|gotten)\s+(?:\S+\s+){0,4}?(?:booked|reserved|scheduled)\b`, 'gi') },
+  // successfully booked / reserved
+  { kind: 'done', re: new RegExp(String.raw`\bsuccessfully\s+` + EN_BOOK_VERB + String.raw`\b`, 'gi') },
+  // reserved the slot / held your 3:00 PM spot
+  { kind: 'done', re: /\b(?:reserved|held|secured|booked)\s+(?:the|this|that|your|a)\s+(?:\S+\s+){0,3}?(?:slot|spot|time)\b/gi },
+  // the booking / reservation was successful
+  { kind: 'done', re: /\b(?:booking|reservation|assessment)\s+(?:was|is|has\s+been)\s+(?:now\s+)?(?:successful|complete|completed|made)\b/gi },
+  // "Booked!", "Done, reserved." -- the word opening a sentence or clause
+  { kind: 'done', re: new RegExp(String.raw`(?:(?<=^\s*)|(?<=[.!?。！？\n:—–]\s*)|(?<=\b(?:done|all\s+set|ok(?:ay)?|great|sure|perfect|got\s+it|good\s+news)[\s,!.:—–-]*))(?:booked|reserved)\b` + NOT_A_NOUN + String.raw`(?!\s+(?:slots?|spots?|times?|assessments?|within|inside|more|less|by|before|after|at|in|if|when|once|for\s+\d)\b)`, 'gi') },
+  // the assessment is (now) booked / has been confirmed / slot is reserved
+  { kind: 'state', subject: true, re: /\b(?:is|are|'s|’s|'re|’re|has\s+been|have\s+been|was|were)\s+(?:(?:now|all|officially|already|successfully|fully|also)\s+)*(?:booked|reserved|confirmed|secured|scheduled)\b/gi },
+  // you're all booked / all set for the assessment
+  { kind: 'state', subject: true, re: /\byou(?:'re|’re|\s+are)\s+(?:(?:now|all)\s+)*(?:booked|set|confirmed)\b/gi },
+]
+
+// 為您 / 幫你 / 为 Emma -- not 因為您 ("because you"), 作為, 成為, 認為, 以為.
+const ZH_NAME = '\\s*[A-Za-z][A-Za-z\'’-]*(?:\\s[A-Za-z][A-Za-z\'’-]*)?\\s*'
+const ZH_AGENT = '(?<![因作成認认以行])(?:為|为|幫|帮|替|給|给)(?:(?:您|你)(?:的?' + ZH_NAME + ')?|' + ZH_NAME + ')'
+const ZH_BA = '(?:把[^，。！？,.!?]{0,24}?)?'
+const ZH_BOOK = '(?:保留|預約|预约|預訂|预订|安排|訂好|订好|約好|约好)'
+const ZH_TRIAL_CLAIMS: Claim[] = [
+  // 已成功預約 / 已經順利為您保留
+  { kind: 'done', re: new RegExp('(?<![您你])已(?:經|经)?(?:成功|順利|顺利)地?' + '(?:' + ZH_AGENT + ')?' + ZH_BA + ZH_BOOK + '(?![的或、])', 'g') },
+  // 已為您預約 / 已經幫您把 Emma 的評估預約好了 / 已为 Emma 保留
+  // (not 您已為 Emma 預約了: "you booked it", a description of the family's own booking)
+  { kind: 'done', re: new RegExp('(?<![您你])已(?:經|经)?' + ZH_AGENT + '(?:成功|順利|顺利)?' + ZH_BA + ZH_BOOK + '(?![的或、])', 'g') },
+  // 預約成功 / 预约成功 / 保留完成 / 成功預約了
+  { kind: 'done', re: /(?:預約|预约|預訂|预订|保留|訂位|订位)(?:已經?|已经)?(?:成功|完成)/g },
+  { kind: 'done', re: /成功(?:為您|为您|幫您|帮您)?(?:預約|预约|預訂|预订|保留)(?:了|囉|啰|啦)/g },
+  // 幫您預約好了 / 我为您保留了 (no 已)
+  { kind: 'state', re: new RegExp(ZH_AGENT + '(?:成功)?' + ZH_BA + ZH_BOOK + '(?:好|完)?(?:了|囉|啰|咯|啦)', 'g') },
+  // 時段已保留 / 評估已經預約好了 / 评估已确认 (not 已被預約 / 已預約滿:
+  // taken by someone else)
+  { kind: 'state', subject: true, re: /已(?:經|经)?(?:保留|預約|预约|預訂|预订|安排)(?:好|妥)?(?![的或、滿满])/g },
+  { kind: 'state', subject: true, re: /(?:預約|预约|預訂|预订|保留|安排)(?:好|妥)(?:了|囉|啰|啦)/g },
+  { kind: 'state', subject: true, re: /(?:預約|预约|評估|评估|時段|时段)(?:已經?|已经)?(?:確認|确认)(?:了)?(?![的或、嗎吗])/g },
+]
+
+function trialExtra(s: string, m: RegExpExecArray, claim: Claim, lang: Lang): boolean {
+  const [sStart, sEnd] = sentenceBounds(s, m.index, m.index + m[0].length)
+  const sentence = s.slice(sStart, sEnd)
+  if (claim.subject && !(lang === 'en' ? EN_TRIAL_SUBJECT : ZH_TRIAL_SUBJECT).test(sentence)) return false
+  if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_AFTER_RULE.test(s.slice(m.index + m[0].length, sEnd))) return false
+  if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_TAKEN.test(sentence)) return false
+  return true
+}
+
+// 'done' wins over 'state': the route holds a 'done' claim to the stricter test.
+export function trialBookingClaim(text: string): Kind | null {
+  const s = String(text || '')
+  const doneOnly = (cs: Claim[]) => cs.filter(c => c.kind === 'done')
+  const stateOnly = (cs: Claim[]) => cs.filter(c => c.kind === 'state')
+  return firstClaim(s, doneOnly(EN_TRIAL_CLAIMS), 'en', trialExtra)
+    ?? firstClaim(s, doneOnly(ZH_TRIAL_CLAIMS), 'zh', trialExtra)
+    ?? firstClaim(s, stateOnly(EN_TRIAL_CLAIMS), 'en', trialExtra)
+    ?? firstClaim(s, stateOnly(ZH_TRIAL_CLAIMS), 'zh', trialExtra)
+}
+
+export function claimsTrialBooked(text: string): boolean {
+  return trialBookingClaim(text) !== null
 }

@@ -58,7 +58,14 @@ export async function GET(req: NextRequest) {
   const allLocs = await getLocations(svc)
   const openLocs = activeLocations(allLocs)
   const multi = showLocations(allLocs)
-  const loc: string | null = multi ? (locationParam(req.nextUrl.searchParams.get('location'), openLocs) ?? openLocs[0].id) : null
+  // With one pool open it is that pool, not null: null reads as every pool
+  // (zoneAtLocation), and the preview listed the hours staff had already
+  // painted at a pool not yet open -- times the booking page, pinned to the
+  // open pool, then did not offer (found 2026-10-15). null only before the
+  // locations migration, when there are no pool rows at all.
+  const loc: string | null = multi
+    ? (locationParam(req.nextUrl.searchParams.get('location'), openLocs) ?? openLocs[0].id)
+    : (openLocs[0]?.id ?? null)
   const locInfo = multi ? { location: loc, locations: openLocs.map(l => ({ id: l.id, name: l.name })) } : {}
   // A coach with no zone rows is on the old weekly hours, which are Brea's.
   const legacyHere = !loc || loc === DEFAULT_LOCATION_ID

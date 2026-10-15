@@ -423,6 +423,7 @@
   "chat.openLink": "Open link →",
   "chat.placeholder": "Type a message…",
   "chat.send": "Send message",
+  "chat.sendFailed": "Your message was not sent. Please check your connection (or refresh the page) and try again.",
   "chat.subtitle": "AI assistant · a team member follows up when needed",
   "chat.subtitleHuman": "Our team is with you · they reply in this chat",
   "chat.title": "Manta Shark Support",
