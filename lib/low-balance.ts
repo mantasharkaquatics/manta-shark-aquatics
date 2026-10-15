@@ -17,7 +17,9 @@
 // started a fortnight ago is averaged over its two weeks, not four.
 //
 // Under LOW_BALANCE_WEEKS the family is "low": the daily cron emails them
-// once, and the dashboard shows a one-line hint. Who counts at all: a family
+// once, and the dashboard shows a one-line hint, turns the points pill amber
+// and, once per dip, pops up a small notice (low_balance_popup_at remembers it
+// was shown, on any device; it clears when the family is no longer low). Who counts at all: a family
 // with a points-paid lesson in the last ACTIVE_DAYS or one still booked. Swim
 // Team is a subscription with no points on its bookings, so a team-only
 // family never qualifies. A family in arrears is left out -- its dashboard
@@ -136,10 +138,11 @@ export async function sweepLowBalance(
   if (error) throw new Error('bookings read failed: ' + (error.message || error))
   const lessons = paidLessons(rows)
 
-  // Families flagged last time, so a family that has stopped taking lessons
-  // (and so is no longer in `lessons`) still gets its flag cleared.
+  // Families flagged last time (emailed, or shown the dashboard pop-up), so a
+  // family that has stopped taking lessons (and so is no longer in `lessons`)
+  // still gets its flags cleared.
   const { data: flagged, error: fErr } = await allRows(() => svc.from('point_wallets')
-    .select('parent_id').not('low_balance_notified_at', 'is', null).order('parent_id'))
+    .select('parent_id').or('low_balance_notified_at.not.is.null,low_balance_popup_at.not.is.null').order('parent_id'))
   if (fErr) throw new Error('wallet flags read failed: ' + (fErr.message || fErr))
 
   const ids = [...new Set([...lessons.keys(), ...flagged.map((w: any) => w.parent_id)])]
@@ -154,6 +157,7 @@ export async function sweepLowBalance(
     const w = walletOf.get(id) || null
     const r = runwayOf(w, lessons.get(id) || [], today)
     const notified = !!w?.low_balance_notified_at
+    const popped = !!w?.low_balance_popup_at
     try {
       if (r?.low) {
         res.low++
@@ -168,8 +172,8 @@ export async function sweepLowBalance(
           res.failed++
           await svc.from('point_wallets').update({ low_balance_notified_at: null }).eq('parent_id', id)
         }
-      } else if (notified && !opts.dry) {
-        await svc.from('point_wallets').update({ low_balance_notified_at: null }).eq('parent_id', id)
+      } else if ((notified || popped) && !opts.dry) {
+        await svc.from('point_wallets').update({ low_balance_notified_at: null, low_balance_popup_at: null }).eq('parent_id', id)
         res.cleared++
       }
     } catch (e) {
@@ -178,4 +182,25 @@ export async function sweepLowBalance(
     }
   }
   return res
+}
+
+/** What the dashboard needs: the hint, and whether to pop up the one-time
+ *  notice. Also forgets a pop-up already shown once the family is no longer
+ *  low, so the next dip shows it again without waiting for the daily cron.
+ *  Before docs/migration-low-balance-popup.sql the column is absent and the
+ *  pop-up stays off. */
+export async function dashboardRunway(svc: Svc, parentId: string, wallet: Wallet & { low_balance_popup_at?: string | null }) {
+  const r = await familyRunway(svc, parentId, wallet).catch(() => null)
+  const hasColumn = 'low_balance_popup_at' in wallet
+  if (!r?.low) {
+    if (hasColumn && wallet.low_balance_popup_at) {
+      await svc.from('point_wallets').update({ low_balance_popup_at: null }).eq('parent_id', parentId)
+    }
+    return null
+  }
+  return {
+    weeksLeft: Math.floor(r.weeksLeft * 10) / 10,
+    balance: r.balance,
+    popup: hasColumn && !wallet.low_balance_popup_at,
+  }
 }

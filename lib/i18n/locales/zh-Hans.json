@@ -1863,5 +1863,10 @@
   "lowbal.email.rowWeekly": "最近每周大约使用",
   "lowbal.email.rowBooked": "已预约的课（已付）",
   "lowbal.email.rowLeft": "大约还够上",
-  "lowbal.email.points": "{n} 点"
+  "lowbal.email.points": "{n} 点",
+  "dash.lowBal.popEyebrow": "点数提醒",
+  "dash.lowBal.popTitle": "点数快用完了",
+  "dash.lowBal.popBody1": "目前有 {n} 点，按照最近的上课量，大约还够上 1 周。",
+  "dash.lowBal.popBody0": "目前有 {n} 点，按照最近的上课量，已经不够上 1 周。",
+  "dash.lowBal.later": "稍后再说"
 }

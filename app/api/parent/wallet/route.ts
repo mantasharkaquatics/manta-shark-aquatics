@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { walletSummary, getWallet, arrears } from '@/lib/points-wallet'
-import { familyRunway } from '@/lib/low-balance'
+import { dashboardRunway } from '@/lib/low-balance'
 
 export const runtime = 'nodejs'
 
@@ -61,8 +61,8 @@ export async function GET(req: NextRequest) {
       // The plain read is the dashboard's: it also says whether the points
       // are running low (lib/low-balance.ts), for the hint under the balance.
       const [summary, wallet] = await Promise.all([walletSummary(ctx.svc, ctx.parent.id), getWallet(ctx.svc, ctx.parent.id)])
-      const r = await familyRunway(ctx.svc, ctx.parent.id, wallet).catch(() => null)
-      return NextResponse.json({ ...summary, runway: r?.low ? { weeksLeft: Math.floor(r.weeksLeft * 10) / 10 } : null })
+      const runway = await dashboardRunway(ctx.svc, ctx.parent.id, wallet).catch(() => null)
+      return NextResponse.json({ ...summary, runway })
     }
     const summary = (before || params.get('only') === 'history') ? null : await walletSummary(ctx.svc, ctx.parent.id)
 

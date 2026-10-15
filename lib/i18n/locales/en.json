@@ -1863,5 +1863,10 @@
   "lowbal.email.rowWeekly": "Recent use per week",
   "lowbal.email.rowBooked": "Already paid for booked lessons",
   "lowbal.email.rowLeft": "Lasts about",
-  "lowbal.email.points": "{n} points"
+  "lowbal.email.points": "{n} points",
+  "dash.lowBal.popEyebrow": "Points",
+  "dash.lowBal.popTitle": "Your points are running low",
+  "dash.lowBal.popBody1": "You have {n} points, about 1 more week of lessons at your recent pace.",
+  "dash.lowBal.popBody0": "You have {n} points, less than a week of lessons at your recent pace.",
+  "dash.lowBal.later": "Later"
 }

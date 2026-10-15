@@ -937,8 +937,8 @@ type WalletSummary = {
   forgiveness: number
   lessonsPerForgiveness: number
   /** Set only when the points will not last two more weeks of this family's
-   *  lessons (lib/low-balance.ts). */
-  runway?: { weeksLeft: number } | null
+   *  lessons (lib/low-balance.ts). `popup`: the one-time notice is still due. */
+  runway?: { weeksLeft: number; balance?: number; popup?: boolean } | null
 }
 const SYSTEM_ONLY_NOTES = new Set([
   'Lesson cancelled by the school',
@@ -1650,7 +1650,7 @@ export default function DashboardPage() {
     return k ? t(k) : (raw || t(fallbackKey))
   }
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
-  const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void } | null>(null)
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
 
   /* "I'm here": a one-tap check-in from the pool. The server says which
@@ -1882,6 +1882,25 @@ export default function DashboardPage() {
   }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet])
   // Focus into each of these dialogs as it opens, and back to what opened it.
   const infoBox = useDialogFocus(!!infoModal)
+  /* Points running low (owner, 2026-10-15): a small notice, once per dip --
+     the server remembers it was shown (any device), and forgets once the
+     points are back above the line. Marked shown as it opens, so closing it
+     any way (button, backdrop, Esc) counts. Not over another dialog. */
+  const lowPopupDone = useRef(false)
+  useEffect(() => {
+    const r = wallet?.runway
+    if (!r?.popup || lowPopupDone.current || infoModal || pointsOpen) return
+    lowPopupDone.current = true
+    fetch('/api/parent/low-balance-seen', { method: 'POST' }).catch(() => {})
+    setInfoModal({
+      eyebrow: t('dash.lowBal.popEyebrow'),
+      title: t('dash.lowBal.popTitle'),
+      message: t(r.weeksLeft < 1 ? 'dash.lowBal.popBody0' : 'dash.lowBal.popBody1', { n: (r.balance ?? wallet!.balance).toLocaleString() }),
+      actionLabel: t('dash.topUp'),
+      onAction: () => { window.location.href = '/plans#buy' },
+      closeLabel: t('dash.lowBal.later'),
+    })
+  }, [wallet, infoModal, pointsOpen, t])
   const voucherBox = useDialogFocus(voucherSheet)
   const cancelBox = useDialogFocus(!!cancelTarget)
   const resActionBox = useDialogFocus(!!rescheduleActionModal)
@@ -2914,12 +2933,12 @@ export default function DashboardPage() {
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t('common.notice')}</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: infoModal.eyebrow ? '#b86e00' : '#c0392b', marginBottom: '8px' }}>{infoModal.eyebrow || t('common.notice')}</div>
             <div id="dash-info-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                {t('common.close')}
+                {infoModal.closeLabel || t('common.close')}
               </button>
               {infoModal.onAction && (
                 <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
