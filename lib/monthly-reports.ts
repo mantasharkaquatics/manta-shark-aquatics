@@ -571,10 +571,20 @@ export async function approveReport(svc: Svc, id: string, adminId: string, summa
 // ---- Sending ---------------------------------------------------------------------
 
 /**
- * Releases every month that is ready: all of its reports approved, and the
- * month over (today is on or after the 1st of the next one). Marking the rows
- * sent is what puts them on the families' dashboards, the whole month at once
- * (owner's rule). Safe to run as often as you like.
+ * The last day a finished month waits for reports that have not been written
+ * at all: the 7th of the next month, the end of the cron's catch-up window
+ * (app/api/cron/monthly-reports). After it, a swimmer whose report still
+ * cannot be written no longer holds every other family's report.
+ */
+export function missingHoldEnd(month: string): string {
+  return nextMonth(month).slice(0, 8) + '07'
+}
+
+/**
+ * Releases every month that is ready: all of its reports written and
+ * approved, and the month over (today is on or after the 1st of the next
+ * one). Marking the rows sent is what puts them on the families' dashboards,
+ * the whole month at once (owner's rule). Safe to run as often as you like.
  *
  * It no longer emails. The emails used to go out here, one family after
  * another inside the same request that released the month (the last
@@ -591,7 +601,8 @@ export async function sendReadyMonths(svc: Svc, today = getTodayLA()) {
   const months: string[] = [...new Set<string>((waiting || []).filter((r: any) => r.status === 'approved').map((r: any) => String(r.month)))]
   // heldEarly: of heldBy, the reports waiting to be rewritten (not on an
   // admin) -- the cron carries on with those (app/api/cron/monthly-reports).
-  const result: { month: string; sent: number; heldBy: number; heldEarly: number }[] = []
+  // heldMissing: swimmers who qualify for the month but have no report yet.
+  const result: { month: string; sent: number; heldBy: number; heldEarly: number; heldMissing: number }[] = []
   for (const month of months) {
     if (nextMonth(month) > today) continue
     // A report written before the month's last day (Generate pressed
@@ -605,12 +616,29 @@ export async function sendReadyMonths(svc: Svc, today = getTodayLA()) {
       && new Date(r.generated_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) < last
     const held = (waiting || []).filter((r: any) => r.month === month && (r.status === 'draft' || isEarly(r))).length
     const heldEarly = (waiting || []).filter((r: any) => r.month === month && isEarly(r)).length
-    if (held > 0) { result.push({ month, sent: 0, heldBy: held, heldEarly }); continue }
+    if (held > 0) { result.push({ month, sent: 0, heldBy: held, heldEarly, heldMissing: 0 }); continue }
+    // A report that does not exist yet holds the month too. Only existing rows
+    // used to be counted, and the cron writes three or four reports an hour,
+    // so approving the ones written by the morning of the 1st released the
+    // month without the rest; they went out later, a batch at a time, and a
+    // second email reached families with two swimmers (found 2026-10-15).
+    // Owner's rule: the month goes out only when ALL its reports are
+    // approved. Held through the catch-up window only (missingHoldEnd). A
+    // failed read throws: nothing is released, the next run tries again.
+    if (today <= missingHoldEnd(month)) {
+      const { byStudent } = await lessonsByStudent(svc, month, today)
+      const { data: have, error: haveErr } = await allRows(() => svc.from('monthly_reports')
+        .select('id, student_id').eq('month', month).order('id'))
+      if (haveErr) throw new Error('monthly report: reports read failed: ' + (haveErr.message || haveErr))
+      const written = new Set((have || []).map((r: { student_id: string }) => r.student_id))
+      const missing = [...byStudent.keys()].filter(id => !written.has(id)).length
+      if (missing > 0) { result.push({ month, sent: 0, heldBy: missing, heldEarly: 0, heldMissing: missing }); continue }
+    }
     const { data: claimed } = await svc.from('monthly_reports')
       .update({ status: 'sent', sent_at: new Date().toISOString() })
       .eq('month', month).eq('status', 'approved')
       .select('id')
-    result.push({ month, sent: (claimed || []).length, heldBy: 0, heldEarly: 0 })
+    result.push({ month, sent: (claimed || []).length, heldBy: 0, heldEarly: 0, heldMissing: 0 })
   }
   return result
 }

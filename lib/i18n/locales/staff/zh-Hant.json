@@ -1271,6 +1271,7 @@
   "admin.monthly.status.sentOn": "已於 {date} 寄給家長。",
   "admin.monthly.status.drafts": "還有 {n} 份尚未核准。全部核准後，這個月的月報就會寄出。",
   "admin.monthly.status.draftsFrom": "還有 {n} 份尚未核准。全部核准後，這個月的月報會在 {date} 或之後寄出。",
+  "admin.monthly.status.notWritten": "還有 {n} 份尚未寫好。全部寫好並核准後，這個月的月報才會寄出；若到 {date} 仍無法寫好，之後會先寄出其他月報。",
   "admin.monthly.status.allApproved": "已全部核准，將於 {date} 寄出。",
   "admin.monthly.status.none": "這個月目前還沒有月報。",
   "admin.monthly.chip.draft": "草稿",

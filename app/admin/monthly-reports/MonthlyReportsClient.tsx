@@ -26,7 +26,7 @@ type Report = {
 const PREVIEW_LANGS: { lang: Locale; labelKey: string }[] = [
   { lang: 'en', labelKey: 'locale.en.native' }, { lang: 'zh-Hant', labelKey: 'locale.zh-Hant.native' }, { lang: 'zh-Hans', labelKey: 'locale.zh-Hans.native' },
 ]
-type Payload = { month: string; months: string[]; today: string; reports: Report[]; eligible: number | null; sendsFrom: string }
+type Payload = { month: string; months: string[]; today: string; reports: Report[]; eligible: number | null; sendsFrom: string; missingHoldEnd: string }
 
 const monthLabel = (m: string, locale: Locale) => new Date(m + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { year: 'numeric', month: 'long', timeZone: 'UTC' })
 const dayLabel = (d: string, locale: Locale) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
@@ -91,13 +91,21 @@ export default function MonthlyReportsClient() {
     }
   }
 
-  const load = useCallback(async (m: string | null) => {
+  /** `actedOn`: reloading the same month after acting on one report. Only that
+   *  report's edits go; every other draft keeps what was typed and not saved.
+   *  Clearing them all here wiped another report's unsaved text after an
+   *  approve, rewrite or email, and its Approve then sent the AI draft
+   *  (found 2026-10-15). A month change still starts clean. */
+  const load = useCallback(async (m: string | null, actedOn?: string) => {
     const r = await fetch('/api/admin/monthly-reports' + (m ? '?month=' + m : '')).catch(() => null)
     if (!r || !r.ok) { setAlertMsg(t('admin.monthly.err.load')); return }
     const j: Payload = await r.json()
     setData(j)
     setMonth(j.month)
-    setEdits({})
+    if (actedOn && j.month === m) {
+      const drafts = new Set(j.reports.filter(x => x.status === 'draft').map(x => x.id))
+      setEdits(p => Object.fromEntries(Object.entries(p).filter(([id]) => id !== actedOn && drafts.has(id))))
+    } else setEdits({})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t only words the alert; a language switch must not reload and drop unsaved edits
   }, [])
   useEffect(() => { load(null) }, [load])
@@ -149,7 +157,7 @@ export default function MonthlyReportsClient() {
     setBusy(null)
     if (j) {
       setNotice(t('admin.monthly.email.done'))
-      await load(month)
+      await load(month, r.id)
     }
   }
 
@@ -160,7 +168,7 @@ export default function MonthlyReportsClient() {
     setBusy(null)
     if (j) {
       if (action === 'approve' && j.sent?.some((s: any) => s.sent > 0)) setNotice(t('admin.monthly.allSent'))
-      await load(month)
+      await load(month, r.id)
     }
   }
 
@@ -208,6 +216,9 @@ export default function MonthlyReportsClient() {
         <p className="basis-full text-xs text-gray-400">
           {sent > 0 && drafts + approved === 0 ? (reports[0]?.sent_at ? t('admin.monthly.status.sentOn', { date: new Date(reports[0].sent_at).toLocaleDateString(dateTag(locale, 'en-US'), { month: 'short', day: 'numeric' }) }) : t('admin.monthly.status.sent'))
             : drafts > 0 ? (monthOver ? t('admin.monthly.status.drafts', { n: drafts }) : t('admin.monthly.status.draftsFrom', { n: drafts, date: dayLabel(data.sendsFrom, locale) }))
+            // Every written report approved, but some not written: the month
+            // waits for them until missingHoldEnd (found 2026-10-15).
+            : missing > 0 && monthOver && data.today <= data.missingHoldEnd ? t('admin.monthly.status.notWritten', { n: missing, date: dayLabel(data.missingHoldEnd, locale) })
             : reports.length > 0 && !monthOver ? t('admin.monthly.status.allApproved', { date: dayLabel(data.sendsFrom, locale) })
             : reports.length === 0 ? t('admin.monthly.status.none') : ''}
         </p>

@@ -4,7 +4,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
 import {
   generateMonth, approveReport, sendReadyMonths, emailPendingReports, emailFamilyReports, lessonsByStudent,
-  isMonth, monthOf, monthEnd, previousMonth, nextMonth,
+  isMonth, monthOf, monthEnd, previousMonth, nextMonth, missingHoldEnd,
 } from '@/lib/monthly-reports'
 import { allRows, allRowsIn } from '@/lib/db-paging'
 
@@ -104,6 +104,8 @@ export async function GET(req: NextRequest) {
     eligible,
     /** The 1st of the month after: before it nothing is sent, however many are approved. */
     sendsFrom: nextMonth(month),
+    /** The last day the month waits for reports not written yet (lib/monthly-reports sendReadyMonths). */
+    missingHoldEnd: missingHoldEnd(month),
   })
 }
 

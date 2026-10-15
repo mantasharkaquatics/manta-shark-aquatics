@@ -1271,6 +1271,7 @@
   "admin.monthly.status.sentOn": "Sent to the families on {date}.",
   "admin.monthly.status.drafts": "{n} not yet approved. The month goes out once all of them are.",
   "admin.monthly.status.draftsFrom": "{n} not yet approved. The month goes out once all of them are, on or after {date}.",
+  "admin.monthly.status.notWritten": "{n} not written yet. The month goes out once they are written and approved; if they still cannot be written, it goes out without them after {date}.",
   "admin.monthly.status.allApproved": "All approved. They go out on {date}.",
   "admin.monthly.status.none": "No reports for this month yet.",
   "admin.monthly.chip.draft": "Draft",
