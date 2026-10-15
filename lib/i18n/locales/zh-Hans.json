@@ -1849,8 +1849,8 @@
   "bday.email.p2AdultReturningOther": "好久不见，期待很快在泳池再见到 {name}！",
   "bday.email.p2AdultNewSelf": "期待在泳池见到您，和您一起开始！",
   "bday.email.p2AdultNewOther": "期待在泳池见到 {name}，一起开始！",
-  "dash.lowBal.under1": "点数剩不到 1 周",
-  "dash.lowBal.about1": "点数约剩 1 周",
+  "dash.lowBal.under1": "点数剩不到 1 周",
+  "dash.lowBal.about1": "点数约剩 1 周",
   "lowbal.email.subject": "您的游泳点数快用完了",
   "lowbal.email.title": "点数快用完了",
   "lowbal.email.left1": "约 1 周",
@@ -1866,7 +1866,7 @@
   "lowbal.email.points": "{n} 点",
   "dash.lowBal.popEyebrow": "点数提醒",
   "dash.lowBal.popTitle": "点数快用完了",
-  "dash.lowBal.popBody1": "目前有 {n} 点，按照最近的上课量，大约还够上 1 周。",
-  "dash.lowBal.popBody0": "目前有 {n} 点，按照最近的上课量，已经不够上 1 周。",
+  "dash.lowBal.popBody1": "目前有 {n} 点，按照最近的上课量，大约还够上 1 周。",
+  "dash.lowBal.popBody0": "目前有 {n} 点，按照最近的上课量，已经不够上 1 周。",
   "dash.lowBal.later": "稍后再说"
 }

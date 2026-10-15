@@ -1850,7 +1850,7 @@
   "bday.email.p2AdultNewSelf": "We look forward to seeing you in the pool and getting started together.",
   "bday.email.p2AdultNewOther": "We look forward to seeing {name} in the pool and getting started together.",
   "dash.lowBal.under1": "Points cover less than a week",
-  "dash.lowBal.about1": "Points cover about 1 more week",
+  "dash.lowBal.about1": "Points cover about 1 more week",
   "lowbal.email.subject": "Your swim points are running low",
   "lowbal.email.title": "Points running low",
   "lowbal.email.left1": "1 week",
@@ -1866,7 +1866,7 @@
   "lowbal.email.points": "{n} points",
   "dash.lowBal.popEyebrow": "Points",
   "dash.lowBal.popTitle": "Your points are running low",
-  "dash.lowBal.popBody1": "You have {n} points, about 1 more week of lessons at your recent pace.",
+  "dash.lowBal.popBody1": "You have {n} points, about 1 more week of lessons at your recent pace.",
   "dash.lowBal.popBody0": "You have {n} points, less than a week of lessons at your recent pace.",
   "dash.lowBal.later": "Later"
 }
