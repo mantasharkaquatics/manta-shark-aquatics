@@ -769,6 +769,9 @@ export default function BookingPage() {
         const s2 = v?.student2Id ? (studs || []).find((x: any) => x.id === v.student2Id) : null
         if (!v || !ct || !s1 || (v.student2Id && !s2)) {
           setNotice('err.voucherGone')
+          // Say it once: drop the dead voucher from the address, or every
+          // reload (Safari reopening an old tab) said it again (found 2026-10-15).
+          try { const u = new URL(window.location.href); u.searchParams.delete('voucher'); window.history.replaceState(null, '', u.toString()) } catch {}
         } else {
           setMakeUp(v)
           // The month calendar (1-on-1 / 1-on-2) opens on the voucher's first
