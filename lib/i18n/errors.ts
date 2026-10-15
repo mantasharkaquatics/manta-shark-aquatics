@@ -62,6 +62,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['MOVE_CHANGED', 'err.fixedPlanChanged'],
   ['NOTHING_TO_MOVE', 'err.fixedNothingToMove'],
   ['SAME_SLOT', 'err.fixedSameSlot'],
+  ['NO_ROOM_TO_MOVE', 'err.fixedNoRoom'],
   ['This fixed class cannot be renewed', 'err.fixedCannotRenew'],
   ['A renewal keeps the same weekday, time and coach', 'err.fixedCannotRenew'],
   ['Single lessons can be booked up to', 'err.singleTooFar'],

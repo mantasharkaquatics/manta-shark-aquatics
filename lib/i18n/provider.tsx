@@ -111,7 +111,13 @@ export function LocaleProvider(
   const [override, setOverride] = useState<Locale | null>(null);
   useEffect(() => { setOverride(null); }, [locale]);
 
-  const wanted = override ?? locale ?? detected;
+  // Only a provider handed a locale uses the override. The root one has none,
+  // so nothing ever cleared it: after picking 简体中文 on / and then English
+  // (or 繁體) on /zh-Hans, the root still rendered the first choice over the
+  // cookie -- and /register sent it as the new account's preferred_language
+  // (found 2026-10-15). setLocale and the pathname re-read keep `detected`
+  // current, which is all the root needs.
+  const wanted = (locale ? override : null) ?? locale ?? detected;
 
   // Show a language only once its text is in memory. Until then keep showing
   // the last one that was (English at first), and fetch the wanted one.

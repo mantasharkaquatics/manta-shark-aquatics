@@ -7,6 +7,7 @@ import { formatTime12h } from '@/lib/date'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { releaseTrialHold, syncTrialBooking } from '@/lib/trial-booking'
 import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { sessionLocationLine } from '@/lib/locations'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
@@ -139,11 +140,15 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (!existingSession) {
-      const { data: conflicts } = await svc
-        .from('class_sessions').select('id')
+      // A session a 1-on-2 invitation is waiting on reads enrolled_count 0 but
+      // is taken (lib/bookings/invite-holds) -- on the desk path too, which
+      // skips assessmentSlotError (found 2026-10-15).
+      const { data: sameStart } = await svc
+        .from('class_sessions').select('id, enrolled_count')
         .eq('coach_id', coachId).eq('session_date', date).eq('start_time', time)
-        .in('status', ['open', 'full']).gt('enrolled_count', 0)
-      if (conflicts && conflicts.length > 0)
+        .in('status', ['open', 'full'])
+      const inviteHeld = await sessionsHeldByInvites(svc, (sameStart || []).filter((c: any) => (c.enrolled_count || 0) <= 0).map((c: any) => c.id))
+      if ((sameStart || []).some((c: any) => (c.enrolled_count || 0) > 0 || inviteHeld.has(c.id)))
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 400 })
     }
 

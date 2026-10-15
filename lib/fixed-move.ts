@@ -108,6 +108,23 @@ export async function planMove(svc: Svc, ctx: MoveCtx, target: MoveTarget): Prom
     studentBusy(svc, ctx.studentIds, target.startDate, last, ignoreIds),
     renewalHolds(svc, target.startDate, last, ctx.fc.parent_id, today),
   ])
+  // The target has to be one the options list could offer (moveOptions): a
+  // coach on the zone model, with a weekly zone of this course's type (and,
+  // for a group, the swimmer's level band) on that weekday, at a time on that
+  // zone's grid. The route used to take any time from any active coach; a
+  // time nobody teaches failed every week, so the whole term became 'moved'
+  // vouchers usable at once -- past the ±14-day leave window -- and the
+  // class was left on a slot that does not exist (found 2026-10-15).
+  const zoneType = zoneTypeForSlug(ctx.ct.slug)
+  const wd = weekdayOf(target.startDate)
+  const onGrid = w.zoned.has(target.coachId) && (w.zones.get(target.coachId) || []).some(r =>
+    r.kind === 'weekly' && r.weekday === wd && r.zone_type === zoneType
+    && !(zoneType === 'group' && r.group_level_min != null && r.group_level_max != null
+      && (ctx.level < r.group_level_min || ctx.level > r.group_level_max))
+    && startMin >= toMin(r.start_time) && (startMin - toMin(r.start_time)) % SLOT_STEP_MINUTES === 0
+    && startMin + ctx.fc.minutes <= toMin(r.end_time))
+  if (!onGrid) return { error: 'Invalid slot', status: 400 }
+
   const ok = (coachId: string, date: string) => evalSlot(w, {
     coachId, date, startMin, minutes: ctx.fc.minutes, ct: ctx.ct, level: ctx.level, seats: ctx.seats,
     holds, ignoreSeats, busy, today, nowMin,
@@ -129,6 +146,9 @@ export async function planMove(svc: Svc, ctx: MoveCtx, target: MoveTarget): Prom
   const items: MoveItem[] = ctx.movable.map((l, i) => targets[i]
     ? { from: l.date, to: targets[i].date, coachId: targets[i].coachId, kind: targets[i].kind }
     : { from: l.date, to: null, coachId: null, kind: 'voucher' })
+  // A move that places nothing is not a change of slot, only every lesson
+  // turned into a voucher; refused (found 2026-10-15).
+  if (!items.some(i => i.to)) return { error: 'NO_ROOM_TO_MOVE', status: 409 }
   return { items, sig: hashSig(items) }
 }
 
@@ -352,15 +372,19 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
   // 5. The class takes its new slot. A move that changes the last lesson
   //    date also clears renewal_notified_at: the notice already sent was for
   //    the old date, and with the flag left set the family never got one for
-  //    the new date (found 2026-10-05).
-  const lastAfter = await lastDateOf(svc, fc.id)
+  //    the new date (found 2026-10-05). The new last date is read only after
+  //    the slot is written: termLastDates counts a leave only on the class's
+  //    current slot, so read before, the old slot's leave still counted
+  //    (found 2026-10-15).
   const { error: fcErr } = await svc.from('fixed_classes')
-    .update({
-      coach_id: target.coachId, weekday: weekdayOf(target.startDate), start_time: target.startTime,
-      ...(lastAfter !== lastBefore ? { renewal_notified_at: null } : {}),
-    })
+    .update({ coach_id: target.coachId, weekday: weekdayOf(target.startDate), start_time: target.startTime })
     .eq('id', fc.id)
   if (fcErr) console.error(`⚠️ fixed-class move: lessons moved but class ${fc.id} still shows the old slot:`, fcErr.message)
+  const lastAfter = await lastDateOf(svc, fc.id)
+  if (lastAfter !== lastBefore) {
+    const { error: nErr } = await svc.from('fixed_classes').update({ renewal_notified_at: null }).eq('id', fc.id)
+    if (nErr) console.error(`fixed-class move: renewal notice flag not cleared for ${fc.id}:`, nErr.message)
+  }
 
   // 6. Sessions nobody is left in are closed.
   const oldSessions = new Set(plan.items.flatMap(i => byDate.get(i.from)!.rows.map(r => r.class_session_id)))

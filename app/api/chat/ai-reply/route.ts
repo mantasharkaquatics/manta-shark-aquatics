@@ -15,6 +15,7 @@ import { cancelLesson } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
 import { ASSESSMENT_MAX_DAYS } from '@/lib/assessment-slot'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
+import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { LEAVE_WINDOW_DAYS } from '@/lib/vouchers'
 import { allRows, allRowsIn } from '@/lib/db-paging'
@@ -136,17 +137,22 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
   // book_trial_pending refuses a time inside one (lib/assessment-slot), so
   // offering it here meant the parent picked a time and was told it was gone
   // (found 2026-10-08). This family's own holds never keep it out.
-  const [availRes, offRes, sessRes, holds] = await Promise.all([
+  // inviteHeld: sessions a 1-on-2 invitation is waiting on read enrolled_count
+  // 0 but are taken (lib/bookings/invite-holds), as on the /booking grid; the
+  // chat offered them and could book an assessment over the invitation
+  // (found 2026-10-15).
+  const [availRes, offRes, sessRes, holds, inviteHeld] = await Promise.all([
     svc.from('coach_availability').select('coach_id, start_time, end_time').in('coach_id', ids).eq('day_of_week', dow).eq('is_active', true),
     svc.from('coach_time_off').select('coach_id, start_time, end_time, block_type').in('coach_id', ids).eq('date', date),
     svc.from('class_sessions').select('coach_id, start_time, end_time').in('coach_id', ids).eq('session_date', date).in('status', ['open', 'full']).gt('enrolled_count', 0),
     renewalHolds(svc, date, date, parentId),
+    inviteHeldSessions(svc, { coachIds: ids, from: date, to: date }),
   ])
   const offBlocks: any[] = offRes.data || []
   // Interval-based: a lesson running 09:40–10:10 must hide the 09:45 slot too
   const toMinAi = (x: string) => { const [h, m] = String(x).slice(0, 5).split(':').map(Number); return h * 60 + m }
   const busy = new Map<string, { s: number; e: number }[]>()
-  for (const s of sessRes.data || []) {
+  for (const s of [...(sessRes.data || []), ...inviteHeld]) {
     const st = toMinAi(String(s.start_time))
     const en = (s as any).end_time ? toMinAi(String((s as any).end_time)) : st + 30
     if (!busy.has(s.coach_id)) busy.set(s.coach_id, [])

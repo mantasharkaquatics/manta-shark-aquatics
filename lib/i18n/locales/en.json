@@ -1743,6 +1743,7 @@
   "err.fixedPlanChanged": "The schedule just changed. Please check the new plan and confirm again.",
   "err.fixedNothingToMove": "There are no lessons more than 24 hours away to move.",
   "err.fixedSameSlot": "That's the current slot.",
+  "err.fixedNoRoom": "None of the coming weeks are open at that time any more. Please pick another slot.",
   "err.fixedCannotRenew": "This fixed class can't be renewed that way. Refresh and try again.",
   "faq.q.fixedWhat": "What is a fixed class?",
   "faq.a.fixedWhat": "A fixed class is the same day, time and coach every week — at least 10 lessons, and as many more as you like. The whole class is paid for when you book it, at the same price as single lessons. A week the coach is away is skipped and not charged. Near the end we hold the same time for you so you can renew first. Pick a time on the booking page and tap the “Fixed class” button under it.",

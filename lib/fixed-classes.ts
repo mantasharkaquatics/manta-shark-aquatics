@@ -142,7 +142,16 @@ export function classState(lessons: Lesson[] | undefined, today = getTodayLA(), 
 }
 
 /** Each class's last lesson date, including lessons a parent cancelled (leave
- *  or grace) -- not ones moved by a change of slot or cancelled by the school. */
+ *  or grace) -- not ones moved by a change of slot or cancelled by the school.
+ *
+ *  A parent-cancelled lesson counts only while it sits on the class's current
+ *  slot (weekday and time), and never when a change of slot turned it into a
+ *  'moved' voucher. Both used to count: after 換時段 to another weekday, a
+ *  leave left on the old Thursday (or a lesson the move vouchered, which is
+ *  stamped cancelled_by_parent too) stayed the "last lesson", so the renewal
+ *  started on a Thursday the class no longer has and every renewal was
+ *  refused, and the hold sat on Thursdays while the real Monday slot was not
+ *  held (found 2026-10-15). Confirmed and taught lessons always count. */
 export async function termLastDates(svc: Svc, fcIds: string[]): Promise<Map<string, string>> {
   return (await termLastDatesChecked(svc, fcIds)).map
 }
@@ -153,24 +162,57 @@ export async function termLastDatesChecked(svc: Svc, fcIds: string[]): Promise<{
   let readErr: any = null
   if (fcIds.length === 0) return { map: out, error: null }
   // Paged and chunked like lessonsOf (found 2026-10-05).
-  const { data: rows, error: rErr } = await allRowsIn(fcIds, chunk => svc.from('bookings')
-    .select('id, fixed_class_id, class_session_id, status, cancellation_reason')
-    .in('fixed_class_id', chunk)
-    .or('status.in.(confirmed,completed),and(status.eq.cancelled,cancellation_reason.eq.cancelled_by_parent)')
-    .order('id'))
+  const [{ data: rows, error: rErr }, { data: fcRows, error: fErr }, { data: moved, error: vErr }] = await Promise.all([
+    allRowsIn(fcIds, chunk => svc.from('bookings')
+      .select('id, fixed_class_id, class_session_id, status, cancellation_reason')
+      .in('fixed_class_id', chunk)
+      .or('status.in.(confirmed,completed),and(status.eq.cancelled,cancellation_reason.eq.cancelled_by_parent)')
+      .order('id')),
+    allRowsIn(fcIds, chunk => svc.from('fixed_classes').select('id, weekday, start_time, minutes').in('id', chunk).order('id')),
+    allRowsIn(fcIds, chunk => svc.from('make_up_vouchers').select('id, source_booking_id')
+      .in('fixed_class_id', chunk).eq('reason', 'moved').order('id')),
+  ])
   if (rErr) readErr = rErr
+  if (fErr) readErr = fErr
+  if (vErr) readErr = vErr
+  const slotOf = new Map<string, any>((fcRows || []).map((f: any) => [f.id, f]))
+  const movedSrc = new Set((moved || []).map((v: any) => v.source_booking_id).filter(Boolean))
   const sids = [...new Set((rows || []).map((r: any) => r.class_session_id))]
-  const dateOf = new Map<string, string>()
+  const sessOf = new Map<string, { date: string; start: string }>()
   for (let i = 0; i < sids.length; i += 150) {
-    const { data: ss, error: sErr } = await svc.from('class_sessions').select('id, session_date').in('id', sids.slice(i, i + 150))
+    const { data: ss, error: sErr } = await svc.from('class_sessions').select('id, session_date, start_time').in('id', sids.slice(i, i + 150))
     if (sErr) readErr = sErr
-    for (const x of ss || []) dateOf.set(x.id, x.session_date)
+    for (const x of ss || []) sessOf.set(x.id, { date: x.session_date, start: String(x.start_time) })
+  }
+  // A moved voucher names one row of its lesson; the lesson's other rows
+  // (the second half of an hour, a sibling's seat) go with it.
+  const movedLesson = new Set<string>()
+  for (const r of rows || []) {
+    const s = sessOf.get(r.class_session_id)
+    if (s && movedSrc.has(r.id)) movedLesson.add(`${r.fixed_class_id}|${s.date}`)
   }
   for (const r of rows || []) {
-    const d = dateOf.get(r.class_session_id)
-    if (d && (!out.has(r.fixed_class_id) || d > out.get(r.fixed_class_id)!)) out.set(r.fixed_class_id, d)
+    const s = sessOf.get(r.class_session_id)
+    if (!s) continue
+    if (r.status === 'cancelled') {
+      if (movedLesson.has(`${r.fixed_class_id}|${s.date}`)) continue
+      const f = slotOf.get(r.fixed_class_id)
+      const st = toMin(s.start)
+      // Either half of an hour is on the slot.
+      if (!f || weekdayOf(s.date) !== f.weekday || st < toMin(f.start_time) || st >= toMin(f.start_time) + (f.minutes || 30)) continue
+    }
+    const d = s.date
+    if (!out.has(r.fixed_class_id) || d > out.get(r.fixed_class_id)!) out.set(r.fixed_class_id, d)
   }
   return { map: out, error: readErr }
+}
+
+/** The first date on the class's weekday after `last`: where a renewal and
+ *  its hold begin. Normally last + 7; read from the weekday so that a last
+ *  date off the class's weekday can never put the renewal on the wrong day
+ *  (found 2026-10-15). */
+export function nextOnWeekday(last: string, weekday: number): string {
+  return addDaysStr(last, ((weekday - weekdayOf(last) + 6) % 7) + 1)
 }
 
 /** The hold is on until 14 days before the last lesson. */
@@ -196,8 +238,9 @@ export type Hold = {
  * exceptParentId (a family is never kept out of its own slot).
  */
 export async function renewalHolds(svc: Svc, from: string, to: string, exceptParentId?: string | null, today = getTodayLA()): Promise<Hold[]> {
-  // The earliest a held week can be: L+7 with L at least today+14.
-  if (to < addDaysStr(today, HOLD_RELEASE_DAYS + 7)) return []
+  // The earliest a held week can be: the class's weekday after L (L+7, or
+  // sooner were L ever off that weekday -- nextOnWeekday), with L at least today+14.
+  if (to < addDaysStr(today, HOLD_RELEASE_DAYS + 1)) return []
   // Paged: past 1,000 active classes the rest would have held nothing (found 2026-10-05).
   const { data: fcs, error } = await allRows(() => svc.from('fixed_classes').select(FC_COLUMNS).eq('status', 'active').order('id'))
   if (error) { console.error('renewalHolds: fixed classes not read:', error.message); return [] }
@@ -215,8 +258,10 @@ export async function renewalHolds(svc: Svc, from: string, to: string, exceptPar
     if (!holdLive(last, today)) continue
     const startMin = toMin(f.start_time)
     const whole = slugOf.get(f.course_type_id) !== '1on4'
+    // On the class's own weekday (nextOnWeekday), the slot it renews into.
+    const first = nextOnWeekday(last!, f.weekday)
     for (let k = 1; k <= HOLD_WEEKS; k++) {
-      const date = addDaysStr(last!, 7 * k)
+      const date = addDaysStr(first, 7 * (k - 1))
       if (date < from || date > to) continue
       out.push({
         fixedClassId: f.id, parentId: f.parent_id, coachId: f.coach_id, courseTypeId: f.course_type_id,

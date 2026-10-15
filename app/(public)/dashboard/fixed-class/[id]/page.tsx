@@ -162,7 +162,11 @@ export default function FixedClassPage() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const renewStart = fc?.last ? addDays(fc.last, 7) : ''
+  // The class's weekday after its last lesson (lib/fixed-classes nextOnWeekday):
+  // normally last + 7, but never a day the class is not on -- a last date
+  // left on the old weekday by a change of slot put every renewal on that
+  // day, and the server refused them all (found 2026-10-15).
+  const renewStart = fc?.last ? addDays(fc.last, ((fc.weekday - new Date(fc.last + 'T12:00:00Z').getUTCDay() + 6) % 7) + 1) : ''
   const loadRenew = useCallback(async (w: number, keep?: Set<string>) => {
     if (!fc || !renewStart) return
     setBusy(true); setErr('')

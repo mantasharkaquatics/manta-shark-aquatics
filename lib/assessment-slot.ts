@@ -4,6 +4,7 @@ import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getEffectiveZones } from '@/lib/zones'
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
+import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 
 /** How far ahead a Swim Assessment can be booked online. */
 export const ASSESSMENT_MAX_DAYS = 60
@@ -40,10 +41,17 @@ export async function assessmentSlotError(svc: SupabaseClient, o: {
     return 'This time is not available for this course type. Please pick another time.'
 
   const overlaps = (x: any) => { const a = toMin(x.start_time); const b = x.end_time ? toMin(x.end_time) : a + 30; return s < b && e > a }
+  // A session a 1-on-2 invitation is waiting on still reads enrolled_count 0,
+  // and counts as taken (lib/bookings/invite-holds), as in the other booking
+  // routes. Read with the empty sessions it used to skip, an assessment could
+  // land on an invitation's time and the invitation was then cancelled as
+  // 'slot_taken' when the other family accepted (found 2026-10-15).
   const { data: coachDay } = await svc.from('class_sessions')
     .select('id, start_time, end_time, enrolled_count').eq('coach_id', o.coachId).eq('session_date', o.date)
-    .in('status', ['open', 'full']).gt('enrolled_count', 0)
-  if ((coachDay || []).some(overlaps)) return 'The coach already has another class at this time. Please pick another time.'
+    .in('status', ['open', 'full'])
+  const inviteHeld = await sessionsHeldByInvites(svc, (coachDay || []).filter((c: any) => (c.enrolled_count || 0) <= 0).map((c: any) => c.id))
+  if ((coachDay || []).some((c: any) => ((c.enrolled_count || 0) > 0 || inviteHeld.has(c.id)) && overlaps(c)))
+    return 'The coach already has another class at this time. Please pick another time.'
 
   // Another family's renewal hold (lib/fixed-classes) takes the slot even
   // though nothing is booked in it yet; an assessment used to be able to land
