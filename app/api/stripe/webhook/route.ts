@@ -1,6 +1,6 @@
 import { sendEmail } from '@/lib/email'
 import { centsToPoints } from '@/lib/points'
-import { applyPoints, creditPurchase, DuplicateLedgerEntry, InsufficientPoints, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
+import { applyPoints, arrears, creditPurchase, DuplicateLedgerEntry, getWallet, InsufficientPoints, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears, type ReleasedLesson } from '@/lib/points-arrears'
 import { formatTime12h, getTodayLA } from '@/lib/date'
 import { captureFee } from '@/lib/stripe-fees'
@@ -128,13 +128,31 @@ export async function POST(req: NextRequest) {
                checkout opened before 2026-10-13 that did not convert it. Take
                it over, as the conversion above would have. Returning here
                without a row was the bug: paid, no membership recorded. */
+            /* Only a LAPSED one (found 2026-10-15). A checkout opened before the
+               desk sold prepaid months the same day, then paid, took over the
+               in-date prepaid too: its months were wiped and billing started
+               at once, so the family paid twice. An in-date prepaid keeps the
+               slot, and this subscription is the duplicate: cancelled and
+               refunded like any other (owner, 2026-10-06). */
+            const nowIso = new Date().toISOString()
             const { data: took, error: takeErr } = await supabase.from('team_memberships')
-              .update({ stripe_subscription_id: newSub, status: 'active', expires_at: null, team_tier_id: meta.team_tier_id, updated_at: new Date().toISOString() })
+              .update({ stripe_subscription_id: newSub, status: 'active', expires_at: null, team_tier_id: meta.team_tier_id, updated_at: nowIso })
               .eq('student_id', meta.student_id).eq('status', 'active').is('stripe_subscription_id', null)
+              .or(`expires_at.is.null,expires_at.lte."${nowIso}"`)
               .select('id')
             if (!takeErr && took && took.length > 0) {
               console.log(`✅ Prepaid membership ${took[0].id} taken over by subscription ${newSub}`)
               return NextResponse.json({ received: true })
+            }
+            if (!takeErr) {
+              const { data: inDate } = await supabase.from('team_memberships')
+                .select('id, expires_at').eq('student_id', meta.student_id).eq('status', 'active')
+                .is('stripe_subscription_id', null).gt('expires_at', nowIso).limit(1)
+              const p = inDate && inDate[0]
+              if (p) {
+                await cancelDuplicateTeamSubscription(session, `a prepaid membership ${p.id}, paid at the desk through ${String(p.expires_at).slice(0, 10)}`)
+                return NextResponse.json({ received: true })
+              }
             }
             console.error(`Team membership for ${newSub} not recorded:`, takeErr?.message || 'no row to take over')
             await alertAdmin('Swim team subscription not recorded', [
@@ -168,6 +186,34 @@ export async function POST(req: NextRequest) {
     if (await purchaseAlreadyCredited(supabase, session.id)) {
       console.log(`↩︎ points for session ${session.id} were already credited`)
       return NextResponse.json({ received: true })
+    }
+
+    // A bank debit completes unpaid and is credited anyway (see the reversal
+    // branch below) -- but only while it can still arrive. Stripe does not
+    // order events: a completion redelivered days late, after the debit came
+    // back, found payment_intent.payment_failed already answered with "never
+    // credited, nothing to reverse", and credited points for money that never
+    // came (found 2026-10-15). Ask where the payment stands first.
+    if (session.payment_status !== 'paid') {
+      const piRef = session.payment_intent
+      const piId = typeof piRef === 'string' ? piRef : piRef?.id ?? null
+      if (piId) {
+        let piStatus: string
+        try {
+          piStatus = (await stripe.paymentIntents.retrieve(piId)).status
+        } catch (e) {
+          console.error(`checkout ${session.id}: could not read payment ${piId}:`, e instanceof Error ? e.message : e)
+          return NextResponse.json({ error: 'could not read payment intent' }, { status: 503 })
+        }
+        if (piStatus === 'requires_payment_method' || piStatus === 'canceled') {
+          console.error(`checkout ${session.id}: bank debit ${piId} already failed (${piStatus}); no points credited`)
+          await alertAdmin('Bank debit failed before its points were credited', [
+            `Parent ${parent_id}'s $${(amount_cents / 100).toFixed(2)} points top-up by bank debit (checkout ${session.id}, payment ${piId}) had already failed (${piStatus}) when its checkout completion reached the site, so no points were credited.`,
+            'Nothing else to do unless the family says they were charged; check the payment in Stripe.',
+          ])
+          return NextResponse.json({ received: true })
+        }
+      }
     }
 
     // The wallet first. Everything after this -- the purchase row, the invoice,
@@ -403,7 +449,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (event.type === 'customer.subscription.updated') {
-    const sub = event.data.object as Stripe.Subscription
+    let sub = event.data.object as Stripe.Subscription
+    // Read as it stands now, not as this event carried it (found 2026-10-15):
+    // a cancel and a quick undo in the portal delivered in the wrong order
+    // left "Cancels <date>" on a membership that will renew. If Stripe cannot
+    // be read, the event's copy is used, as before.
+    try {
+      sub = await stripe.subscriptions.retrieve(sub.id)
+    } catch (e) {
+      console.error(`sub.updated ${sub.id}: could not re-read the subscription, using the event's copy:`, e instanceof Error ? e.message : e)
+    }
     const ts = (sub as any).cancel_at || (sub as any).current_period_end
     const scheduled = sub.cancel_at_period_end || (sub as any).cancel_at != null
     const cancelsAt = scheduled && ts ? new Date(ts * 1000).toISOString() : null
@@ -430,9 +485,25 @@ export async function POST(req: NextRequest) {
     // invoice has no top-level subscription, so reading only that left subId
     // empty and a failed Swim Team charge never showed as past_due.
     const subId = invoiceSubscriptionId(inv)
-    if (subId) await supabase.from('team_memberships')
-      .update({ status: 'past_due', updated_at: new Date().toISOString() })
-      .eq('stripe_subscription_id', subId).eq('status', 'active')
+    if (subId) {
+      // Stripe does not order events: a failure delivered after the card was
+      // updated and the invoice paid put a paid member back on "Payment
+      // failed" until next month (found 2026-10-15). Only a subscription that
+      // is still not paid up is marked.
+      try {
+        const sub = await stripe.subscriptions.retrieve(subId)
+        if (sub.status === 'active' || sub.status === 'trialing') {
+          console.log(`invoice.payment_failed ${inv.id}: subscription ${subId} is ${sub.status} again, not marked past due`)
+          return NextResponse.json({ received: true })
+        }
+      } catch (e) {
+        console.error(`invoice.payment_failed ${inv.id}: could not read subscription ${subId}:`, e instanceof Error ? e.message : e)
+        return NextResponse.json({ error: 'could not read subscription' }, { status: 503 })
+      }
+      await supabase.from('team_memberships')
+        .update({ status: 'past_due', updated_at: new Date().toISOString() })
+        .eq('stripe_subscription_id', subId).eq('status', 'active')
+    }
     return NextResponse.json({ received: true })
   }
 
@@ -445,8 +516,16 @@ export async function POST(req: NextRequest) {
         .eq('stripe_subscription_id', subId).eq('status', 'past_due')
 
       // Mirror the paid Stripe invoice into our invoices table (MSA-branded PDF + Sales page)
-      const { data: existing } = await supabase.from('invoices')
-        .select('id').eq('stripe_payment_intent_id', inv.id).maybeSingle()
+      // A failed lookup is not "not mirrored yet" (found 2026-10-15): it wrote
+      // a second copy. limit(1), not maybeSingle(): two copies already there
+      // made maybeSingle() error, which read as none and wrote a third.
+      const { data: existingRows, error: existingErr } = await supabase.from('invoices')
+        .select('id').eq('stripe_payment_intent_id', inv.id).limit(1)
+      if (existingErr) {
+        console.error(`invoice.paid ${inv.id}: could not check for a mirrored invoice:`, existingErr.message)
+        return NextResponse.json({ error: 'invoice lookup failed' }, { status: 503 })
+      }
+      const existing = existingRows && existingRows.length > 0
       if (!existing && (inv.amount_paid ?? 0) > 0) {
         const { data: tm } = await supabase.from('team_memberships')
           .select('id, student_id, team_tiers(name)')
@@ -474,7 +553,11 @@ export async function POST(req: NextRequest) {
             ours = (sub.metadata as any)?.type === 'team_subscription'
             ended = sub.status === 'canceled' || sub.status === 'incomplete_expired'
           } catch (e: any) {
+            // Without the answer this could be a first payment that arrived
+            // before its membership row: passing it let that month's invoice
+            // go unmirrored for good (found 2026-10-15). Ask again.
             console.error(`invoice.paid ${inv.id}: could not read subscription ${subId}:`, e?.message)
+            if (e?.code !== 'resource_missing') return NextResponse.json({ error: 'could not read subscription' }, { status: 503 })
           }
           if (ours && ended) {
             console.error(`invoice.paid ${inv.id}: team subscription ${subId} is already cancelled and has no membership row (a cancelled duplicate) - not mirrored`)
@@ -696,6 +779,19 @@ export async function POST(req: NextRequest) {
       reclaimed = await reclaimForArrears(supabase, topUp.parentId, note)
     } catch (e) {
       console.error(`${event.type}: could not release lessons for parent ${topUp.parentId}:`, e)
+      // The default above says nothing is owed, and the notice below then told
+      // the family "you can book again" while booking was blocked (found
+      // 2026-10-15). Say what the wallet says; if even that cannot be read,
+      // the whole reversed amount, so a failure never reads as settled. Some
+      // lessons may have been released before the failure without being
+      // named below, so a person checks.
+      let owedNow = Math.round(reverseCents / 100)
+      try { owedNow = arrears(await getWallet(supabase, topUp.parentId)) } catch {}
+      reclaimed = { ...reclaimed, arrearsAfter: owedNow }
+      await alertAdmin('Lessons not released after a reversed payment', [
+        `Parent ${topUp.parentId}'s payment ${paymentIntentId} ($${(reverseCents / 100).toFixed(2)}) was ${reason === 'chargeback' ? 'disputed' : 'returned by the bank'} and its points were taken back, but releasing their unswum lessons failed (${e instanceof Error ? e.message : String(e)}).`,
+        `The family was told they owe ${owedNow} points. Check their upcoming lessons and wallet by hand: some lessons may already have been cancelled and refunded without being listed in the notice.`,
+      ])
     }
 
     // A desk sale can come with granted points bought by the same payment --
@@ -1328,7 +1424,7 @@ async function dashboardRefund(charge: Stripe.Charge) {
   }
   if (isPoints) {
     const pts = Math.floor((charge.amount_refunded || 0) / 100)
-    lines.push(`This was a points purchase of ${Math.round((Number(p?.amount_cents) || charge.amount || 0) / 100)} points. The ${pts} refunded points were NOT taken out of the family's wallet. If they should be, deduct them by hand on the family's points page.`)
+    lines.push(`This was a points purchase of ${Math.round((Number(p?.amount_cents) || charge.amount || 0) / 100)} points. The ${pts} refunded points were NOT taken out of the family's wallet. If they should be, deduct them on the family's points page (Members) with "Money already refunded in the Stripe dashboard" ticked, so they come off the purchased points and not the family's granted ones.`)
     // A desk sale's bonus or programme-rate points came with this payment
     // and were not mentioned (found 2026-10-15).
     // A failed lookup must not throw: refunded_cents is already written, so a

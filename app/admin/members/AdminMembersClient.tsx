@@ -1187,6 +1187,8 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
   const [w, setW] = useState<WalletView | null>(null)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  // A deduction for money already refunded outside the site: purchased points only.
+  const [outside, setOutside] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -1220,6 +1222,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
 
   const n = Math.trunc(Number(amount))
   const valid = Number.isFinite(n) && n !== 0 && note.trim().length >= 3
+  const outsideOn = outside && n < 0
 
   async function submit() {
     setConfirming(false)
@@ -1227,7 +1230,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
     const res = await fetch('/api/admin/points', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim() }),
+      body: JSON.stringify({ parent_id: parentId, points: n, note: note.trim(), refunded_outside: outsideOn }),
     }).catch(() => null)
     // The connection dropped: the adjustment may or may not have gone in. The
     // button used to stay on "busy" for good; now the statement is read again
@@ -1244,6 +1247,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
       // The route's words are English; each case the desk meets has ours.
       const code = String(d?.code || '')
       setErr(code === 'insufficient' ? t('admin.members.pts.err.insufficient', { n: Number(d?.available) || 0 })
+        : code === 'insufficient_purchased' ? t('admin.members.pts.err.insufficientPurchased', { n: Number(d?.available) || 0 })
         : code === 'in_arrears' ? t('admin.members.pts.err.arrears', { n: Number(d?.owed) || 0 })
         : code === 'too_many' ? t('admin.members.pts.err.tooMany', { n: Number(d?.max) || 0 })
         : code === 'reason_required' ? t('admin.members.pts.err.reason')
@@ -1251,7 +1255,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
         : t('admin.members.pts.err.adjust'))
       return
     }
-    setAmount(''); setNote('')
+    setAmount(''); setNote(''); setOutside(false)
     load()
   }
 
@@ -1312,6 +1316,12 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
                   {t('admin.members.pts.adjust')}
                 </button>
               </div>
+              {n < 0 && (
+                <label className="flex items-center gap-2 text-xs text-gray-400">
+                  <input type="checkbox" checked={outside} onChange={e => setOutside(e.target.checked)} />
+                  {t('admin.members.pts.refundedOutside')}
+                </label>
+              )}
 
               <RefundPanel parentId={parentId} onDone={load} />
 
@@ -1358,7 +1368,7 @@ function ParentPointsSection({ parentId }: { parentId: string }) {
             <p className="text-gray-500 text-xs mb-4">
               {n > 0
                 ? t('admin.members.pts.grantExplain')
-                : t('admin.members.pts.deductExplain')}
+                : outsideOn ? t('admin.members.pts.deductOutsideExplain') : t('admin.members.pts.deductExplain')}
               {' '}{t('admin.members.pts.reasonAppears')}
             </p>
             <div className="flex gap-2 justify-end">

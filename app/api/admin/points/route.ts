@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const { parent_id, points, note } = body
+  const { parent_id, points, note, refunded_outside } = body
 
   const n = Math.trunc(Number(points))
   if (!parent_id) return NextResponse.json({ error: 'parent_id required' }, { status: 400 })
@@ -114,6 +114,12 @@ export async function POST(req: NextRequest) {
   if (reasonText.length < 3)
     return NextResponse.json({ error: 'A reason is required — the parent sees it on their statement', code: 'reason_required' }, { status: 400 })
 
+  // Points whose money was refunded in the Stripe dashboard (the dashboard-
+  // refund alert sends the desk here) come off the purchased side alone, and
+  // are marked so the finance page counts them as refunded, not written off
+  // (found 2026-10-15).
+  const outside = refunded_outside === true && n < 0
+
   try {
     const res = await applyPoints(auth.svc, {
       parentId: parent_id,
@@ -123,6 +129,8 @@ export async function POST(req: NextRequest) {
       // granted points first anyway, which is the right order: take back what
       // was given before touching what was paid for.
       toGranted: n > 0,
+      purchasedOnly: outside,
+      pricing: outside ? { kind: 'refunded_outside' } : null,
       note: reasonText.slice(0, 300),
       actor: `admin:${auth.admin.id}`,
     })
@@ -132,6 +140,8 @@ export async function POST(req: NextRequest) {
     // generic "Could not adjust" 500 (found 2026-10-04).
     if (e instanceof WalletInArrears)
       return NextResponse.json({ error: `This family owes ${e.owed} points from a returned payment; a deduction cannot be made until it is settled.`, code: 'in_arrears', owed: e.owed }, { status: 400 })
+    if (e?.name === 'InsufficientPoints' && outside)
+      return NextResponse.json({ error: `This family only has ${e.available} purchased points`, code: 'insufficient_purchased', available: e.available }, { status: 409 })
     if (e?.name === 'InsufficientPoints')
       return NextResponse.json({ error: `This family only has ${e.available} points`, code: 'insufficient', available: e.available }, { status: 409 })
     console.error('admin points adjust failed:', e)

@@ -334,6 +334,19 @@ export async function restoreWonAssessment(
  * cannot pay twice; if the grant then fails, the claim is put back for
  * tomorrow. The lesson on the deadline day itself is only "past" the day after,
  * so a row is expired only once today is later than the deadline.
+ *
+ * A run killed between the claim and the ledger used to leave the row
+ * 'awarded' with no points and nothing that would ever look at it again
+ * (found 2026-10-15). Now, as with referrals (lib/referrals awardDueReferrals):
+ *   - the ledger row carries the report's id in `pricing`
+ *     ({ kind: 'assessment_credit', assessmentId }), and a credit whose ledger
+ *     row already exists is linked rather than paid again;
+ *   - an 'awarded' row still without credit_ledger_id an hour after its claim
+ *     is a run that died part-way, and is taken over and finished (or closed,
+ *     if its payment was taken back in the meantime). One from
+ *     before the pricing tag, whose family has an assessment_credit line since
+ *     the claim, is left alone and logged: it was most likely paid, and paying
+ *     on a guess could pay twice.
  */
 export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: number; expired: number; failed: number }> {
   const today = getTodayLA()
@@ -345,6 +358,77 @@ export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: numb
     .order('id'))
   if (pendingErr) throw new Error(`pending assessment credits not read: ${pendingErr.message || pendingErr}`)
   let awarded = 0, expired = 0, failed = 0
+
+  // The 85 points for one report, unless the ledger already has them; then
+  // the row is linked to that line. Throws when the points did not land.
+  const grant = async (r: { id: string; student_id: string; parent_id: string }): Promise<string> => {
+    const { data: had, error: hadErr } = await svc.from('point_ledger')
+      .select('id').eq('parent_id', r.parent_id).eq('reason', 'assessment_credit')
+      .contains('pricing', { assessmentId: r.id }).limit(1)
+    if (hadErr) throw new Error(`ledger not read: ${hadErr.message}`)
+    if (had && had.length > 0) return had[0].id
+    const { data: st } = await svc.from('students').select('full_name').eq('id', r.student_id).maybeSingle()
+    const res = await applyPoints(svc, {
+      parentId: r.parent_id, reason: 'assessment_credit', points: CREDIT_POINTS,
+      toGranted: true, actor: 'system', note: st?.full_name || undefined,
+      pricing: { kind: 'assessment_credit', assessmentId: r.id },
+    })
+    return res.ledgerId
+  }
+
+  // Claims a run died holding (see above).
+  const staleCut = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: stuck, error: stuckErr } = await allRows(() => svc.from('student_assessments')
+    .select('id, student_id, parent_id, credit_awarded_at')
+    .eq('credit_status', 'awarded').is('credit_ledger_id', null)
+    .lt('credit_awarded_at', staleCut)
+    .order('id'))
+  if (stuckErr) throw new Error(`unfinished assessment credits not read: ${stuckErr.message || stuckErr}`)
+  for (const r of stuck) {
+    try {
+      const { data: tagged, error: tagErr } = await svc.from('point_ledger')
+        .select('id').eq('parent_id', r.parent_id).eq('reason', 'assessment_credit')
+        .contains('pricing', { assessmentId: r.id }).limit(1)
+      if (tagErr) throw new Error(`ledger not read: ${tagErr.message}`)
+      if (!tagged || tagged.length === 0) {
+        const { data: since, error: sinceErr } = await svc.from('point_ledger')
+          .select('id').eq('parent_id', r.parent_id).eq('reason', 'assessment_credit')
+          .gte('created_at', r.credit_awarded_at).limit(1)
+        if (sinceErr) throw new Error(`ledger not read: ${sinceErr.message}`)
+        if (since && since.length > 0) {
+          console.error(`assessment credit ${r.id}: awarded with no credit_ledger_id; the family has an untagged assessment_credit line since (${since[0].id}) -- check by hand, not paid again`)
+          continue
+        }
+      }
+      // Take the claim over, so two runs cannot both finish it.
+      const stamp = new Date().toISOString()
+      const { data: took } = await svc.from('student_assessments')
+        .update({ credit_awarded_at: stamp })
+        .eq('id', r.id).eq('credit_status', 'awarded').is('credit_ledger_id', null)
+        .eq('credit_awarded_at', r.credit_awarded_at)
+        .select('id')
+      if (!took || took.length === 0) continue
+      // Its payment may have been taken back while it sat unfinished (the
+      // webhook only closes a pending credit). Then it is closed, not paid;
+      // with no award date, so a dispute the school wins can reopen it.
+      if (!tagged || tagged.length === 0) {
+        if (await assessmentPaymentReversed(svc, r.student_id)) {
+          const { data: closed } = await svc.from('student_assessments')
+            .update({ credit_status: 'expired', credit_awarded_at: null })
+            .eq('id', r.id).eq('credit_status', 'awarded').is('credit_ledger_id', null).eq('credit_awarded_at', stamp)
+            .select('id')
+          if (closed && closed.length) expired++
+          continue
+        }
+      }
+      const ledgerId = await grant(r)
+      await svc.from('student_assessments').update({ credit_ledger_id: ledgerId }).eq('id', r.id)
+      awarded++
+    } catch (e) {
+      console.error(`assessment credit ${r.id}: an unfinished credit could not be finished; will retry tomorrow:`, e)
+      failed++
+    }
+  }
 
   for (const r of pending) {
     let count = 0
@@ -387,13 +471,9 @@ export async function settleAssessmentCredits(svc: Svc): Promise<{ awarded: numb
       .select('id')
     if (!claimed || claimed.length === 0) continue
 
-    const { data: st } = await svc.from('students').select('full_name').eq('id', r.student_id).maybeSingle()
     try {
-      const res = await applyPoints(svc, {
-        parentId: r.parent_id, reason: 'assessment_credit', points: CREDIT_POINTS,
-        toGranted: true, actor: 'system', note: st?.full_name || undefined,
-      })
-      await svc.from('student_assessments').update({ credit_ledger_id: res.ledgerId }).eq('id', r.id)
+      const ledgerId = await grant(r)
+      await svc.from('student_assessments').update({ credit_ledger_id: ledgerId }).eq('id', r.id)
       awarded++
     } catch (e) {
       console.error(`assessment credit ${r.id}: could not credit the family; will retry tomorrow:`, e)

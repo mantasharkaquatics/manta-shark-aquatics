@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
-import { FIRST_TOPUP_BANK_CAP_DOLLARS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
+import { FIRST_TOPUP_BANK_CAP_DOLLARS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -159,6 +159,13 @@ export async function POST(req: NextRequest) {
     }
     const dollars = Math.floor(Number(pointsDollars))
     if (!Number.isFinite(dollars) || dollars < MIN_TOPUP_DOLLARS || dollars > MAX_TOPUP_DOLLARS) {
+      return NextResponse.json({ error: 'INVALID_AMOUNT' }, { status: 400 })
+    }
+    // Only the amounts the website sells (lib/points TOPUP_PRESETS); any other
+    // is a front-desk sale. The page and the chat assistant only ever send a
+    // preset, but this route took any whole dollar from the minimum up (found
+    // 2026-10-15). Settling arrears keeps its exact amount.
+    if (settleArrears !== true && !TOPUP_PRESETS.includes(dollars)) {
       return NextResponse.json({ error: 'INVALID_AMOUNT' }, { status: 400 })
     }
 

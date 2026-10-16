@@ -7,7 +7,7 @@ type Month = {
   month: string; earned: number; topUpCash: number; refundCash: number
   purchasedIn: number; purchasedOut: number; granted: number
   cashIn: number; feeCents: number; netCash: number; feePending: number
-  sold: number; usedNet: number
+  sold: number; usedNet: number; writtenOff: number
 }
 type Data = {
   today: string
@@ -18,6 +18,8 @@ type Data = {
   }
   months: Month[]
   feesUnavailable: string | null
+  /** Reads that failed: every figure is then lower than the truth. */
+  incomplete: string[] | null
   pools: Pools | null
 }
 type Pools = {
@@ -92,6 +94,12 @@ export default function AdminFinanceClient() {
         {t('admin.finance.intro', { date: d.today })}
       </p>
 
+      {d.incomplete && (
+        <p role="alert" style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,120,100,0.08)', border: '1px solid rgba(255,120,100,0.35)', color: '#ff9d8f', fontSize: 13, lineHeight: 1.6, maxWidth: 820 }}>
+          {t('admin.finance.incomplete')}
+        </p>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14, marginBottom: 16 }}>
         <Card accent label={t('admin.finance.title')} value={pts(L.deferredTotal)}
           note={t('admin.finance.card.deferredNote')} />
@@ -126,7 +134,7 @@ export default function AdminFinanceClient() {
 
       <h2 style={{ fontSize: 17, fontWeight: 700, color: '#fff', marginBottom: 10 }}>{t('admin.finance.byMonth')}</h2>
       <div style={{ overflowX: 'auto', background: '#111d38', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
           <thead>
             <tr>
               <th style={{ ...th, textAlign: 'left' }}>{t('admin.finance.col.month')}</th>
@@ -137,11 +145,12 @@ export default function AdminFinanceClient() {
               <th style={th}>{t('admin.finance.col.cashRefunded')}</th>
               <th style={th}>{t('admin.finance.col.pointsSold')}</th>
               <th style={th}>{t('admin.finance.col.pointsUsed')}</th>
+              <th style={th}>{t('admin.finance.col.writtenOff')}</th>
             </tr>
           </thead>
           <tbody>
             {d.months.length === 0 && (
-              <tr><td style={{ ...td, textAlign: 'left', color: 'rgba(255,255,255,0.4)' }} colSpan={8}>{t('admin.finance.empty')}</td></tr>
+              <tr><td style={{ ...td, textAlign: 'left', color: 'rgba(255,255,255,0.4)' }} colSpan={9}>{t('admin.finance.empty')}</td></tr>
             )}
             {d.months.map(m => (
               <tr key={m.month}>
@@ -159,6 +168,7 @@ export default function AdminFinanceClient() {
                 <td style={td}>{m.refundCash ? money(m.refundCash) : '—'}</td>
                 <td style={td}>{pts(m.sold)}</td>
                 <td style={td}>{pts(m.usedNet)}</td>
+                <td style={td}>{m.writtenOff ? pts(m.writtenOff) : '—'}</td>
               </tr>
             ))}
           </tbody>

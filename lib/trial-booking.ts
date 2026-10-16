@@ -1,7 +1,7 @@
 import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
-import { formatTime12h } from '@/lib/date'
+import { formatTime12h, getTodayLA } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentSlotError } from '@/lib/assessment-slot'
@@ -96,6 +96,30 @@ export async function confirmTrialBooking(
     .update({ cancellation_reason: null })
     .eq('id', booking_id).eq('cancellation_reason', 'payment_records_failed')
   if (unstampErr) console.error(`Trial booking ${booking_id}: could not clear the payment_records_failed stamp:`, unstampErr.message)
+
+  // Two checkouts opened together for one swimmer (two tabs, the site and the
+  // chat assistant) both pass /api/stripe/trial-checkout's read, and if both
+  // are paid both confirm here -- $85 twice, with nothing said (found
+  // 2026-10-15). A unique index would stop the second hold; until then the
+  // school is told so one can be refunded. Best effort.
+  try {
+    const { data: rivals } = await supabase.from('bookings')
+      .select('id, class_session_id').eq('student_id', student_id).eq('is_trial', true).eq('status', 'confirmed').neq('id', booking_id).limit(10)
+    // Only ones still to come: an assessment already taken is not a double.
+    const { data: ahead } = rivals && rivals.length > 0
+      ? await supabase.from('class_sessions').select('id').in('id', rivals.map(r => r.class_session_id)).gte('session_date', getTodayLA())
+      : { data: [] as { id: string }[] }
+    const aheadIds = new Set((ahead || []).map(a => a.id))
+    const others = (rivals || []).filter(r => aheadIds.has(r.class_session_id))
+    if (others.length > 0) {
+      await alertAdmin('Two Swim Assessments paid for one swimmer', [
+        `Booking ${booking_id} was just paid and confirmed, but swimmer ${student_id} already has another confirmed Swim Assessment (${others.map(o => o.id).join(', ')}).`,
+        `Cancel one and refund its payment in Stripe if the family did not mean to book two. This payment: checkout ${session.id}, payment ${piOf(session) || 'unknown'}, $${(amount_cents / 100).toFixed(2)}.`,
+      ])
+    }
+  } catch (e) {
+    console.error(`Trial booking ${booking_id}: duplicate assessment check failed:`, e)
+  }
 
   const { data: invStudent } = await supabase
     .from('students').select('full_name').eq('id', student_id).single()

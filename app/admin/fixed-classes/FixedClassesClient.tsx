@@ -47,7 +47,11 @@ export default function FixedClassesClient() {
     setBusy(false)
     if (!r || !r.ok) { setAlertMsg(j.error || t('admin.fixed.err.saveFailed')); return }
     setEnding(null)
-    setDoneMsg(t('admin.fixed.done.body', { n: j.lessons || 0, extra: mode === 'refund' ? t('admin.fixed.done.refunded', { n: j.refunded || 0 }) : mode === 'voucher' ? t('admin.fixed.done.vouchers', { n: j.vouchers || 0 }) : '' }))
+    // Lessons whose voucher could not be issued are back on the calendar.
+    const failed: string[] = Array.isArray(j.failed) ? j.failed : []
+    const failedDates = failed.map(d => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })).join(', ')
+    setDoneMsg(t('admin.fixed.done.body', { n: j.lessons || 0, extra: mode === 'refund' ? t('admin.fixed.done.refunded', { n: j.refunded || 0 }) : mode === 'voucher' ? t('admin.fixed.done.vouchers', { n: j.vouchers || 0 }) : '' })
+      + (failed.length > 0 ? ' ' + t('admin.fixed.done.voucherFailed', { dates: failedDates }) : ''))
     await load()
   }
 

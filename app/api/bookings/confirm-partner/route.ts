@@ -6,6 +6,7 @@ import { cookies } from 'next/headers'
 import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
+import { alertAdmin } from '@/lib/admin-alert'
 import { readJson, badRequest } from '@/lib/http'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
@@ -335,9 +336,17 @@ export async function POST(req: NextRequest) {
   // Claim the WHOLE group in one update - the status filter is the lock. If the
   // count comes back short somebody else moved part of it, so hand back what we
   // took rather than leaving half the lesson confirmed.
+  //
+  // The price goes on with the status (found 2026-10-15). Written afterwards,
+  // row by row, a cancel landing in between -- or a write that failed, which
+  // nothing checked -- read points_charged null and refunded nothing to
+  // either family. Both families pay the same one-seat price per half hour
+  // (quoteFor), so one value fits every row; the granted shares, which
+  // differ per row, still follow in assign() and a refund re-reads them.
   const groupIds = group.map(r => r.id)
+  const samePerRow = myQuote.perRow === theirQuote.perRow
   const { data: claimed, error: claimErr } = await supabase.from('bookings')
-    .update({ status: 'confirmed' })
+    .update({ status: 'confirmed', ...(samePerRow ? { points_charged: myQuote.perRow } : {}) })
     .in('id', groupIds).eq('status', 'pending_partner').select('id')
   // A refusal by the database's own guards is not "already processed" (found
   // 2026-10-07): that told the family to retry something that fails the same
@@ -361,7 +370,7 @@ export async function POST(req: NextRequest) {
     // Only rows still as this request left them: a withdrawal racing this
     // accept may have cancelled one since, and it must stay cancelled.
     if (claimed && claimed.length > 0) {
-      await supabase.from('bookings').update({ status: 'pending_partner' })
+      await supabase.from('bookings').update({ status: 'pending_partner', points_charged: null })
         .in('id', claimed.map((r: any) => r.id)).eq('status', 'confirmed')
     }
     await refundSpent('the invitation was already processed')
@@ -371,10 +380,12 @@ export async function POST(req: NextRequest) {
   // Stamp each row with its own half of what that family paid, so a later
   // cancellation refunds the right family the right number of points.
   // Each row also carries its share of any granted points that family used.
-  const assign = async (rows: any[], perRow: number, t: { granted: number; expires: string | null } | undefined) => {
+  // A failed write used to be dropped unread (found 2026-10-15): it is tried
+  // once more, and then the school is told which row to fix by hand.
+  const assign = async (rows: any[], perRow: number, t: { parentId: string; granted: number; expires: string | null } | undefined) => {
     const shares = splitGranted(t?.granted ?? 0, rows.map(() => perRow))
     for (const [i, row] of rows.entries()) {
-      await supabase.from('bookings').update({
+      const patch = {
         lesson_credit_id: null,
         token_package_id: null,
         points_charged: perRow,
@@ -382,7 +393,16 @@ export async function POST(req: NextRequest) {
         points_granted_expires_at: shares[i] > 0 ? (t?.expires ?? null) : null,
         pending_action: null,
         pending_expires_at: null,
-      }).eq('id', row.id)
+      }
+      let { error } = await supabase.from('bookings').update(patch).eq('id', row.id)
+      if (error) ({ error } = await supabase.from('bookings').update(patch).eq('id', row.id))
+      if (error) {
+        console.error(`confirm-partner: booking ${row.id} not stamped with its points:`, error.message)
+        await alertAdmin('1-on-2 lesson points not recorded', [
+          `A cross-family 1-on-2 invitation was accepted and parent ${t?.parentId ?? row.parent_id} paid ${perRow} points for booking ${row.id}${shares[i] > 0 ? ` (${shares[i]} of them granted points, expiring ${t?.expires ?? 'never'})` : ''}, but the booking could not be stamped with them (${error.message}).`,
+          `Set points_charged = ${perRow}, points_granted = ${shares[i]} on booking ${row.id} by hand${samePerRow ? '' : ' -- until then a cancellation refunds nothing'}.`,
+        ])
+      }
     }
   }
   await assign(mine, myQuote.perRow, taken.find(t => t.parentId === confirmingParent.id))

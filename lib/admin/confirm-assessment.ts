@@ -4,7 +4,7 @@ import { isLevelNumber } from '@/lib/levels'
 import { setStudentLevel } from '@/lib/level-change'
 import {
   isRecommendedCourse, isWeeklyFrequency, RECOMMENDATION_NOTE_MAX, CREDIT_DAYS,
-  addDays, translateRecommendation,
+  addDays, translateRecommendation, assessmentPaymentReversed,
 } from '@/lib/assessments'
 import { formatDateLA } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
@@ -248,7 +248,15 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
   const assessedOn: string = sess?.session_date || hist.session_date || now.slice(0, 10)
   const creditDeadline = addDays(creditStartDate(assessedOn, now), CREDIT_DAYS)
   const { data: existing } = await svc.from('student_assessments')
-    .select('recommendation_note, recommendation_note_i18n, emailed_at').eq('student_id', rec.student_id).maybeSingle()
+    .select('recommendation_note, recommendation_note_i18n, emailed_at, credit_status').eq('student_id', rec.student_id).maybeSingle()
+  // An assessment payment refunded in full or charged back before this
+  // confirm earns no credit (owner, 2026-10-08), and settleAssessmentCredits
+  // only found out at the 8th lesson: the report and email promised 85 points
+  // the family then chased for nothing (found 2026-10-15). A new or still
+  // pending credit starts closed, and the email leaves the promise out. A
+  // failed read promises as before -- the settle step still checks.
+  const reversed = await assessmentPaymentReversed(svc, rec.student_id).catch(() => false)
+  const closeCredit = reversed && (!existing || existing.credit_status === 'pending')
   // A retry with the same words does not pay for the translation twice.
   const i18n = existing && (existing.recommendation_note || '') === reasonText
     ? (existing.recommendation_note_i18n || {})
@@ -268,6 +276,7 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     confirmed_by: adminId,
     confirmed_at: now,
     credit_deadline: creditDeadline,
+    ...(closeCredit ? { credit_status: 'expired' } : {}),
   }, { onConflict: 'student_id' })
   if (reportErr) return fail(reportErr.message, 500)
 
@@ -319,7 +328,7 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
           studentName: student.full_name || '', lang,
           level, course: recommended_course, frequency: weekly_frequency,
           reason: reasonText ? (i18n[lang] || reasonText) : '',
-          creditDeadline: creditDeadline,
+          creditDeadline: reversed ? undefined : creditDeadline,
         })
       }
     } catch (e) {

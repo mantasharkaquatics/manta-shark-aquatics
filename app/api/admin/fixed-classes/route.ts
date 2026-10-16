@@ -131,8 +131,18 @@ export async function POST(req: NextRequest) {
   if (!fc) return NextResponse.json({ error: 'This class has already ended. Refresh and try again.' }, { status: 409 })
   const { data: ct } = await svc.from('course_types').select('slug, name').eq('id', fc.course_type_id).single()
 
+  // What each row was before it is cancelled, so a lesson whose voucher is
+  // not written can be put back (voucher mode only; see below).
+  type Prior = { pending_action: string | null; cancellation_reason: string | null; cancelled_by: string | null; cancelled_at: string | null }
+  const before = new Map<string, Prior>()
+  if (mode === 'voucher' && rows.length > 0) {
+    const { data: prev } = await allRowsIn(rows.map(r => r.id), chunk => svc.from('bookings')
+      .select('id, pending_action, cancellation_reason, cancelled_by, cancelled_at').in('id', chunk).order('id'))
+    for (const b of prev) before.set(b.id, b)
+  }
+
   let refunded = 0, vouchers = 0
-  const cancelled: any[] = []
+  let cancelled: any[] = []
   for (const r of rows) {
     const { data: c } = await svc.from('bookings')
       .update({
@@ -146,23 +156,50 @@ export async function POST(req: NextRequest) {
     if (mode === 'refund' && (r.points_charged || 0) > 0)
       refunded += await refundBookingPoints(svc, { booking: r, parentId: r.parent_id, reason: 'cancel_refund', actor: 'admin', note: `Fixed class ended: ${reason}` })
   }
+  // Lessons whose voucher could not be written: put back on the calendar and
+  // named to the desk. They used to stay cancelled with only a log line, so
+  // the family lost the lesson, the voucher and its points, and the class was
+  // already ended so the desk could not try again (found 2026-10-15). Put
+  // back rather than refunded, as lib/fixed-move does: a plain undo of the
+  // cancel just made, which the desk can voucher or refund by hand.
+  const failed: string[] = []
   if (mode === 'voucher') {
     // One voucher per lesson: a sibling 1-on-2's two seats are one lesson, and
     // so are the two halves of an hour.
     const seen = new Set<string>()
+    const putBack = new Set<string>()
     for (const r of cancelled) {
       const key = r.lesson_group_id || r.class_session_id
       if (seen.has(key)) continue
       seen.add(key)
-      const v = await issueVoucher(svc, {
-        parentId: fc.parent_id, studentId: fc.student_id, student2Id: fc.student2_id,
-        courseSlug: ct?.slug || '', minutes: fc.minutes, reason: 'end_of_term',
-        expiresOn: voucherExpiry(r.session.session_date), sourceBookingId: r.id, fixedClassId: fc.id,
-        createdBy: admin.id, note: reason,
-      })
-      if (v.voucher) vouchers++
-      else console.error('fixed class end: voucher not issued', r.id, v)
+      let v: Awaited<ReturnType<typeof issueVoucher>>
+      try {
+        v = await issueVoucher(svc, {
+          parentId: fc.parent_id, studentId: fc.student_id, student2Id: fc.student2_id,
+          courseSlug: ct?.slug || '', minutes: fc.minutes, reason: 'end_of_term',
+          expiresOn: voucherExpiry(r.session.session_date), sourceBookingId: r.id, fixedClassId: fc.id,
+          createdBy: admin.id, note: reason,
+        })
+      } catch (e) { v = { error: e instanceof Error ? e.message : String(e) } }
+      if (v.voucher) { vouchers++; continue }
+      // A voucher for this lesson already exists: the family has it.
+      if (v.duplicate) { console.error('fixed class end: a voucher already exists for', r.id); continue }
+      console.error('fixed class end: voucher not issued', r.id, v)
+      const lesson = cancelled.filter(x => (x.lesson_group_id || x.class_session_id) === key)
+      let restored = true
+      for (const x of lesson) {
+        const p: Partial<Prior> = before.get(x.id) || {}
+        const { data: back, error: rErr } = await svc.from('bookings')
+          .update({ status: 'confirmed', pending_action: p.pending_action ?? null, cancellation_reason: p.cancellation_reason ?? null,
+            cancelled_by: p.cancelled_by ?? null, cancelled_at: p.cancelled_at ?? null })
+          .eq('id', x.id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
+        if (rErr || !back || back.length === 0) restored = false
+        else putBack.add(x.id)
+      }
+      if (!restored) console.error(`⚠️ fixed class end: lesson ${r.session.session_date} (${lesson.map(x => x.id).join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
+      failed.push(r.session.session_date)
     }
+    cancelled = cancelled.filter(x => !putBack.has(x.id))
   }
   // Sessions nobody is left in are closed.
   for (const sid of new Set(cancelled.map((r: any) => r.class_session_id))) {
@@ -184,5 +221,5 @@ export async function POST(req: NextRequest) {
 
   // Lessons, not rows: a 60-minute lesson is two rows and a sibling 1-on-2 two
   // seats, and "20 bookings cancelled" for a 10-lesson class read as 20 lessons.
-  return NextResponse.json({ ok: true, lessons: new Set(cancelled.map((r: any) => r.lesson_group_id || r.class_session_id)).size, refunded, vouchers })
+  return NextResponse.json({ ok: true, lessons: new Set(cancelled.map((r: any) => r.lesson_group_id || r.class_session_id)).size, refunded, vouchers, failed: failed.sort() })
 }

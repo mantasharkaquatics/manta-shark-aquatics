@@ -38,7 +38,7 @@ export const runtime = 'nodejs'
 
 const MONTHS_BACK = 13
 
-type Row = { created_at: string; delta_purchased: number; delta_granted: number; reason: string; amount_cents: number | null }
+type Row = { created_at: string; delta_purchased: number; delta_granted: number; reason: string; amount_cents: number | null; pricing: { kind?: string } | null }
 
 /** 'YYYY-MM' in LA. Month boundaries are a local-calendar question and the
  *  server is UTC in production, so a December 31st evening top-up must not land
@@ -77,10 +77,22 @@ export async function GET(req: NextRequest) {
   const today = getTodayLA()
   const since = new Date(Date.now() - MONTHS_BACK * 31 * 86_400_000).toISOString()
 
-  const [{ data: wallets }, { data: ledger }, { data: bookings }, { data: purchases, error: purchasesErr }, { data: vouchers }] = await Promise.all([
+  // A read that failed part-way comes back with what it had, and every figure
+  // built from it is low with nothing on screen saying so -- what the note on
+  // allRows above says must not happen (found 2026-10-15: only the fee read
+  // kept its error). Each failed read is named in `incomplete`, which the
+  // page shows above the figures.
+  const failedReads: string[] = []
+  const readFailed = (what: string, error: { message?: string } | null | undefined) => {
+    if (!error) return
+    console.error(`finance: ${what} not read:`, error.message || error)
+    failedReads.push(what)
+  }
+
+  const [{ data: wallets, error: walletsErr }, { data: ledger, error: ledgerErr }, { data: bookings, error: bookingsErr }, { data: purchases, error: purchasesErr }, { data: vouchers, error: vouchersErr }] = await Promise.all([
     allRows(() => svc.from('point_wallets').select('balance_purchased, balance_granted, total_paid_cents, total_refunded_cents').order('parent_id')),
     allRows(() => svc.from('point_ledger')
-      .select('created_at, delta_purchased, delta_granted, reason, amount_cents')
+      .select('created_at, delta_purchased, delta_granted, reason, amount_cents, pricing')
       .gte('created_at', since)
       .order('created_at', { ascending: true }).order('id', { ascending: true })),
     // Everything that carries points. Deliberately NOT an
@@ -122,7 +134,12 @@ export async function GET(req: NextRequest) {
   // Swim Assessments, for the per-pool section only: money paid for one
   // lesson rather than points, earned on the assessment's date at its pool.
   // A booking still waiting on its payment, or cancelled, earned nothing.
-  const [pools, { data: assessmentRows }] = await Promise.all([
+  readFailed('wallets', walletsErr)
+  readFailed('points ledger', ledgerErr)
+  readFailed('bookings', bookingsErr)
+  readFailed('make-up vouchers', vouchersErr)
+
+  const [pools, { data: assessmentRows, error: assessmentErr }] = await Promise.all([
     getLocations(svc as any),
     allRows(() => svc.from('bookings')
       .select('id, class_session_id, status, lesson_credit_id')
@@ -132,6 +149,7 @@ export async function GET(req: NextRequest) {
   // ?pools=1 shows the section with a single open pool too: a way to look at
   // it (and check it adds up) before a second pool opens to families.
   const byPool = showLocations(pools) || req.nextUrl.searchParams.get('pools') === '1'
+  if (byPool) readFailed('Swim Assessment bookings', assessmentErr)
 
   const sessionIds = [...new Set([...(bookings || []), ...(byPool ? assessmentRows || [] : [])]
     .map((b: any) => b.class_session_id).filter(Boolean))]
@@ -139,11 +157,12 @@ export async function GET(req: NextRequest) {
   // Where each lesson was taught. Every lesson has one (a database trigger
   // fills it from the coach's zone); a missing value is read as the first pool.
   const poolById: Record<string, string> = {}
-  for (let i = 0; i < sessionIds.length; i += 500) {
-    const { data: rows } = await svc.from('class_sessions')
-      .select('id, session_date, location_id').in('id', sessionIds.slice(i, i + 500))
-    for (const r of rows || []) { dateById[r.id] = r.session_date; poolById[r.id] = r.location_id || DEFAULT_LOCATION_ID }
-  }
+  // A lesson whose date was not read is skipped below (owed nowhere, earned
+  // nowhere), so a failed chunk is named rather than dropped (found 2026-10-15).
+  const { data: sessRows, error: sessErr } = await allRowsIn(sessionIds, chunk => svc.from('class_sessions')
+    .select('id, session_date, location_id').in('id', chunk).order('id'))
+  readFailed('lesson dates', sessErr)
+  for (const r of sessRows) { dateById[r.id] = r.session_date; poolById[r.id] = r.location_id || DEFAULT_LOCATION_ID }
   const poolOf = (sessionId: string | null | undefined) => (sessionId && poolById[sessionId]) || DEFAULT_LOCATION_ID
 
   // Which voucher, if any, a cancelled row's points now wait on. A voucher
@@ -221,8 +240,8 @@ export async function GET(req: NextRequest) {
     } else earn(date, pts, poolOf(b.class_session_id))
   }
 
-  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number; sold: number; usedNet: number }> = {}
-  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, cashInCents: 0, feeCents: 0, feePending: 0, sold: 0, usedNet: 0 })
+  const months: Record<string, { topUpCash: number; refundCash: number; purchasedIn: number; purchasedOut: number; granted: number; cashInCents: number; feeCents: number; feePending: number; sold: number; usedNet: number; writtenOff: number }> = {}
+  const bucket = (k: string) => (months[k] ||= { topUpCash: 0, refundCash: 0, purchasedIn: 0, purchasedOut: 0, granted: 0, cashInCents: 0, feeCents: 0, feePending: 0, sold: 0, usedNet: 0, writtenOff: 0 })
   for (const r of (ledger || []) as Row[]) {
     const m = bucket(monthKeyLA(r.created_at))
     const dp = Number(r.delta_purchased) || 0
@@ -235,6 +254,12 @@ export async function GET(req: NextRequest) {
     // refunds. Money movements and manual adjustments are neither.
     if (r.reason === 'purchase') m.sold += dp
     else if (!NOT_LESSON_TRAFFIC.has(r.reason)) m.usedNet -= dp
+    // Purchased points a manager took away by hand leave the liability with
+    // nothing else on the page to show for it: not earned, not refunded, not
+    // used (found 2026-10-15). Its own column, so the months add up. Except a
+    // deduction for money refunded outside the site, which the refunds below
+    // already count as cash refunded.
+    if (r.reason === 'admin_deduct' && dp < 0 && r.pricing?.kind !== 'refunded_outside') m.writtenOff += -dp
     m.granted += Number(r.delta_granted) || 0
     if (r.reason === 'purchase') m.topUpCash += Number(r.amount_cents) || 0
     if (r.reason === 'cash_refund') m.refundCash += Number(r.amount_cents) || 0
@@ -291,7 +316,7 @@ export async function GET(req: NextRequest) {
   const { data: refundedRows, error: refundedErr } = await allRows(() => svc.from('purchases')
     .select('id, amount_cents, refunded_cents, paid_at, reversed_at, stripe_session_id, stripe_payment_intent_id')
     .eq('status', 'paid').gt('refunded_cents', 0).order('id'))
-  if (refundedErr) console.error('finance: refunded purchases not read:', refundedErr.message || refundedErr)
+  readFailed('refunded payments', refundedErr)
   const reversedOfRefunded = await reversedCentsByPurchase(svc, refundedRows.filter(p => p.reversed_at))
   const siteLegCents: Record<string, number> = {}
   if (refundedRows.length > 0) {
@@ -325,19 +350,18 @@ export async function GET(req: NextRequest) {
     const past = ((assessmentRows || []) as any[]).filter(b => { const d = dateById[b.class_session_id]; return d && d < today })
     const creditIds = [...new Set(past.map(b => b.lesson_credit_id))]
     const purchaseByCredit: Record<string, string> = {}
-    for (let i = 0; i < creditIds.length; i += 500) {
-      const { data: rows } = await svc.from('lesson_credits').select('id, purchase_id').in('id', creditIds.slice(i, i + 500))
-      for (const r of rows || []) if (r.purchase_id) purchaseByCredit[r.id] = r.purchase_id
-    }
+    const { data: creditRows, error: creditErr } = await allRowsIn(creditIds, chunk =>
+      svc.from('lesson_credits').select('id, purchase_id').in('id', chunk).order('id'))
+    readFailed('Swim Assessment credits', creditErr)
+    for (const r of creditRows) if (r.purchase_id) purchaseByCredit[r.id] = r.purchase_id
     const purchaseIds = [...new Set(Object.values(purchaseByCredit))]
     const paidById: Record<string, number> = {}
-    for (let i = 0; i < purchaseIds.length; i += 500) {
-      const { data: rows } = await svc.from('purchases').select('id, amount_cents, refunded_cents, status, reversed_at')
-        .in('id', purchaseIds.slice(i, i + 500))
-      for (const r of rows || []) {
-        if (r.status !== 'paid' || r.reversed_at) continue
-        paidById[r.id] = Math.max(0, (Number(r.amount_cents) || 0) - (Number(r.refunded_cents) || 0))
-      }
+    const { data: paidRows, error: paidErr } = await allRowsIn(purchaseIds, chunk =>
+      svc.from('purchases').select('id, amount_cents, refunded_cents, status, reversed_at').in('id', chunk).order('id'))
+    readFailed('Swim Assessment payments', paidErr)
+    for (const r of paidRows) {
+      if (r.status !== 'paid' || r.reversed_at) continue
+      paidById[r.id] = Math.max(0, (Number(r.amount_cents) || 0) - (Number(r.refunded_cents) || 0))
     }
     // One payment counted once, however many booking rows point at it.
     const counted = new Set<string>()
@@ -377,6 +401,8 @@ export async function GET(req: NextRequest) {
     // screen, and one of them is a $0 that is not true. The migration not
     // having been run is exactly when this matters.
     feesUnavailable: purchasesErr ? (purchasesErr.message || 'could not read fees') : null,
+    // The reads that failed, or null: the figures are then lower than the truth.
+    incomplete: failedReads.length > 0 ? failedReads : null,
     // Per pool (owner, 2026-10-14), only while more than one pool is open to
     // families -- with one, the page reads exactly as it did before. Lesson
     // revenue in points (= dollars), assessments in cents.
@@ -394,6 +420,7 @@ export async function GET(req: NextRequest) {
       purchasedOut: months[k]?.purchasedOut || 0,
       sold: months[k]?.sold || 0,
       usedNet: months[k]?.usedNet || 0,
+      writtenOff: months[k]?.writtenOff || 0,
       granted: months[k]?.granted || 0,
       cashIn: months[k]?.cashInCents || 0,
       feeCents: months[k]?.feeCents || 0,

@@ -625,13 +625,25 @@ export async function POST(req: NextRequest) {
     // points for a lesson that is no longer on anyone's calendar.
     if (isPartnerBooking) {
       for (const row of (oldLessonRows.length > 0 ? oldLessonRows : [oldBooking])) {
-        await refundBookingPoints(svc, {
+        const back = await refundBookingPoints(svc, {
           booking: row,
           parentId: parent.id,
           reason: 'cancel_refund',
           actor: 'system',
           note: 'rescheduled into a new 1-on-2 invitation',
         })
+        // A failed refund here was invisible (found 2026-10-15): 'rescheduled'
+        // tells the Reviews queue the points moved to the new row, and here
+        // nothing moved -- an invitation charges nothing until accepted. Only
+        // a failed row is relabelled, so it shows as "refund not finished"
+        // and refund-retry can act on it; the schedule's activity feed keys
+        // on 'rescheduled' and keeps every row that did refund.
+        if (back === 0 && (Number(row.points_charged) || 0) > (Number(row.points_refunded) || 0)) {
+          const { error: relErr } = await svc.from('bookings')
+            .update({ cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent' })
+            .eq('id', row.id).eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
+          if (relErr) console.error(`⚠️ booking ${row.id}: refund failed and the row could not be relabelled for Reviews -- refund it by hand:`, relErr.message)
+        }
       }
     }
   }

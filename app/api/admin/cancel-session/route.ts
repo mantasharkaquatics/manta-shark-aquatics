@@ -86,6 +86,12 @@ export async function POST(req: NextRequest) {
   // email (found 2026-10-15: it said the lesson was "turned into a make-up
   // voucher", with no dates, as if a new one had been made).
   const voucherBackBy = new Map<string, { expires_on: string; usable_from: string | null }>()
+  // Families whose points did not go back because the wallet write failed.
+  // The route used to answer ok as if every refund had landed (found
+  // 2026-10-15). The lesson is still cancelled and they are still told so --
+  // nothing would send the notice later -- and the desk is told to finish
+  // the refund on Reviews ("refund not finished"), where refund-retry acts.
+  const refundPending = new Set<string>()
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -120,6 +126,8 @@ export async function POST(req: NextRequest) {
           : { data: null }
         if (v) voucherBackBy.set(b.parent_id, { expires_on: v.expires_on, usable_from: v.usable_from ?? null })
       }
+      if (!b.is_trial && refunded === 0 && back === 0 && (Number(b.points_charged) || 0) > (Number(b.points_refunded) || 0))
+        refundPending.add(b.parent_id)
       // A paid Swim Assessment has no points to return: it stays owed, and
       // shows on the admin Reviews page until the desk books it again --
       // unless its payment was refunded in full or charged back. Then nothing
@@ -245,5 +253,5 @@ export async function POST(req: NextRequest) {
     }
   } catch {}
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, refundPending: refundPending.size })
 }

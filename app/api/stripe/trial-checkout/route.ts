@@ -211,6 +211,11 @@ export async function POST(req: NextRequest) {
 
     if (bookErr || !booking) {
       console.error('trial-checkout booking insert failed:', bookErr?.message)
+      // 23505: another request for this swimmer placed its hold first, past
+      // the read above (bookings_one_live_trial_per_student, once that index
+      // is in; found 2026-10-15).
+      if (bookErr?.code === '23505')
+        return NextResponse.json({ error: 'This swimmer has a Swim Assessment waiting for payment. Pay for it or cancel it on your dashboard.' }, { status: 400 })
       return NextResponse.json({ error: (bookErr?.message || '').includes('STUDENT_DOUBLE_BOOKED')
         ? 'This swimmer already has a lesson at this time. Please pick another time.' : 'Failed to create booking' }, { status: 500 })
     }

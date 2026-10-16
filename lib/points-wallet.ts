@@ -280,6 +280,15 @@ type ApplyInput = {
    * there.
    */
   grantedOnly?: boolean
+  /**
+   * Spends only: takes the points from the PURCHASED side alone. For a
+   * deduction of points whose money was refunded outside the site (a refund
+   * made in the Stripe dashboard): taken granted-first like
+   * any spend, it left refunded money behind as purchased points that never
+   * expire while the family's gift was used up instead (found 2026-10-15).
+   * InsufficientPoints when the purchased side is short.
+   */
+  purchasedOnly?: boolean
 }
 
 export type ApplyResult = {
@@ -348,6 +357,12 @@ async function writeMovement(
     .eq('balance_purchased', wallet.balance_purchased)
     .eq('balance_granted', wallet.balance_granted)
     .eq('forgiveness_used', wallet.forgiveness_used)
+    // The running totals are written from this read too, so they are part of
+    // the guard (found 2026-10-15): a purchase and a spend of the same size
+    // landing between the read and the write left the balances as read, and
+    // the write then dropped the other purchase from total_paid_cents.
+    .eq('total_paid_cents', wallet.total_paid_cents)
+    .eq('total_refunded_cents', wallet.total_refunded_cents)
     .select('*')
     .maybeSingle()
 
@@ -471,6 +486,14 @@ export async function applyPoints(svc: Svc, input: ApplyInput): Promise<ApplyRes
       const take = Math.min(-input.points, Math.max(0, wallet.balance_granted))
       if (take <= 0) throw new InsufficientPoints(-input.points, 0)
       dGranted = -take
+    } else if (input.purchasedOnly) {
+      // The refund already happened, so the totals stay as they are: the
+      // money out is on the purchase (refunded_cents), as a Stripe dashboard
+      // refund is recorded. A family owing us cannot be in this position.
+      if (wallet.balance_purchased < 0) throw new WalletInArrears(-wallet.balance_purchased)
+      const owed = -input.points
+      if (wallet.balance_purchased < owed) throw new InsufficientPoints(owed, Math.max(0, wallet.balance_purchased))
+      dPurchased = input.points
     } else if (input.allowNegative) {
       // A reversal undoes one specific purchase, so it comes out of the bucket
       // that purchase went into and nowhere else. Granted points were a gift

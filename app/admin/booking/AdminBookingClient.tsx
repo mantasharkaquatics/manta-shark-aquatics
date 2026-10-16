@@ -2004,6 +2004,15 @@ function DetailModal({ session, loc, coaches, students, onClose, supabase, onRef
       setCancelError(data.error || t('admin.booking.err.cancelSessionFailed'))
       return
     }
+    // Cancelled, but some family's points did not go back (found 2026-10-15:
+    // this closed as if every refund had landed). Kept open to say so.
+    const done: { refundPending?: number } = await res.json().catch(() => ({}))
+    if (Number(done.refundPending) > 0) {
+      setCancelling(false)
+      setCancelError(t('admin.booking.err.refundPending', { n: Number(done.refundPending) }))
+      onRefresh()
+      return
+    }
     onRefresh()
     onClose()
   }
