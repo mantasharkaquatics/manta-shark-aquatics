@@ -147,6 +147,10 @@ export async function planRefund(
     .filter((p: any) => !assessmentPurchases.has(p.id))
     .map((p: any) => ({ ...p, left: (p.amount_cents ?? 0) - (p.refunded_cents ?? 0) - (reversedCents.get(p.id) ?? 0) }))
     .filter((p: any) => p.left > 0)
+    // A partly disputed payment goes last: Stripe may refuse to refund a
+    // disputed charge, and refunds are taken newest first (found 2026-10-15
+    // in review). The order is otherwise kept.
+    .sort((a: any, b: any) => (reversedCents.has(a.id) ? 1 : 0) - (reversedCents.has(b.id) ? 1 : 0))
 
   const chargesRefundableCents = available.reduce((a: number, p: any) => a + p.left, 0)
   const maxRefundCents = Math.min(walletRefundableCents, chargesRefundableCents)
@@ -388,14 +392,20 @@ async function recordLegs(
   ctx: { parentId: string; ledgerId: string; actor: string; note: string | null },
   legs: RefundLegResult[],
 ) {
-  const rows = legs.filter(l => l.outcome !== 'failed').map(l => ({
+  // A leg Stripe created but answered 'failed' at once is saved as failed:
+  // its points were already put back here, and without the row a later
+  // refund.failed webhook found nothing, inserted one and put the points back
+  // a second time (found 2026-10-15 in review). A leg Stripe refused outright
+  // has no refund id, so no webhook can follow; it is not saved.
+  const rows = legs.filter(l => l.outcome !== 'failed' || !!l.stripeRefundId).map(l => ({
     parent_id: ctx.parentId,
     ledger_id: ctx.ledgerId,
     purchase_id: l.purchaseId,
     amount_cents: l.cents,
     kind: l.outcome === 'hand_back' ? 'hand_back' : 'stripe',
-    status: l.outcome === 'hand_back' ? 'to_hand_back' : l.stripeStatus === 'succeeded' ? 'succeeded' : 'pending',
+    status: l.outcome === 'failed' ? 'failed' : l.outcome === 'hand_back' ? 'to_hand_back' : l.stripeStatus === 'succeeded' ? 'succeeded' : 'pending',
     stripe_refund_id: l.stripeRefundId ?? null,
+    ...(l.outcome === 'failed' ? { failure_reason: l.error ?? null } : {}),
     note: ctx.note,
     created_by: ctx.actor,
   }))

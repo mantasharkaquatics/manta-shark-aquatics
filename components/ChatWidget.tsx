@@ -501,8 +501,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
           role="dialog" aria-label={t('chat.title')} aria-modal={isMobile || undefined}
           onKeyDown={e => {
             // Escape closes it, full screen on a phone included; not while an
-            // IME is composing, where Escape only drops the candidate.
-            if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
+            // IME is composing, where Escape only drops the candidate (keyCode 229:
+            // Safari reports isComposing late, as with Enter below).
+            if (e.key !== 'Escape' || e.nativeEvent.isComposing || e.keyCode === 229) return
             e.stopPropagation()
             closePanel()
           }}>
