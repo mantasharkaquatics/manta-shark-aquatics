@@ -29,6 +29,7 @@ import { masteryOf, masteryKey, MASTERY_COLOR, MASTERY_VALUE, PASS_LEVEL, UNLOCK
 import { placeLevel, routeWires } from '@/lib/tree-layout'
 import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -313,6 +314,8 @@ export default function SkillTree({
   const [lv, setLv] = useState(Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL))
   const [sel, setSel] = useState<TreeSkill | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  // Focus into the map as it opens and back after (found 2026-10-15).
+  const dialogRef = useDialogFocus(true)
 
   useEffect(() => {
     let alive = true
@@ -518,7 +521,7 @@ export default function SkillTree({
   const color = LEVEL_COLORS[String(lv)] || GOLD
 
   return (
-    <div className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
+    <div ref={dialogRef} className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
       onClick={onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="mst-panel" onClick={e => e.stopPropagation()}>

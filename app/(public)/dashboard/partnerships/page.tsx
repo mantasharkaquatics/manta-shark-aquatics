@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 type Partnership = {
   id: string
@@ -122,6 +123,8 @@ export default function PartnershipsPage() {
     partnerStudents.filter(s => s.parent_id === partnerParentId)
 
   const closeRevoke = () => { if (revokeBusy) return; setRevokeConfirm(false); setRevokeId(null); setRevokeError(null) }
+  /* The unlink confirm had no name, no focus and no Esc (found 2026-10-15). */
+  const revokeBox = useDialogFocus(revokeConfirm, closeRevoke)
 
   if (loading) return (
     <div className="ac-root ac-loading">
@@ -205,7 +208,7 @@ export default function PartnershipsPage() {
                     onChange={e => setInputCode(e.target.value.toUpperCase())} style={{ letterSpacing: '0.1em', flex: 1 }} />
                   <button type="button" className="ac-btn gold" onClick={handleJoin} disabled={!inputCode.trim() || joinBusy} aria-busy={joinBusy}>{joinBusy ? t('link.linking') : t('link.linkBtn')}</button>
                 </div>
-                {joinError && <div className="ac-err">{joinError}</div>}
+                {joinError && <div className="ac-err" role="alert">{joinError}</div>}
               </>
             )}
           </section>
@@ -215,9 +218,9 @@ export default function PartnershipsPage() {
       {/* Unlink confirmation */}
       {revokeConfirm && (
         <div className="ac-back-drop" onClick={closeRevoke}>
-          <div className="ac-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+          <div ref={revokeBox} className="ac-modal" role="dialog" aria-modal="true" aria-labelledby="link-unlink-title" onClick={e => e.stopPropagation()}>
             <div className="eyebrow">{t('link.unlinkEyebrow')}</div>
-            <h2>{t('link.unlinkTitle')}</h2>
+            <h2 id="link-unlink-title">{t('link.unlinkTitle')}</h2>
             <p>{t('link.unlinkDesc')}</p>
             {revokeError && <div className="ac-err" role="alert">{revokeError}</div>}
             <div className="ac-pair">

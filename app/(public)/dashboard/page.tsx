@@ -1,7 +1,7 @@
 'use client'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
-import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, useRef, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -28,7 +28,8 @@ import type { MonthlyReport } from './MonthlyReportSheet'
 const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
-import { openChat, ACCOUNT_CHANGED_EVENT } from '@/lib/chat-open'
+import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, type Location } from '@/lib/locations'
 
 /* The phone layout lives here rather than in inline styles, because an inline
@@ -112,10 +113,12 @@ ${REPORT_SHEET_CSS}
   font-variant-numeric: tabular-nums }
 .msa-act-pts.owe b, .msa-act-pts.owe em { color: #c0392b }
 /* Points running low (owner, 2026-10-14): the same pill in amber, with the
-   one-line hint under it. Not a pop-up -- it stays out of the way. */
+   one-line hint under it. Not a pop-up -- it stays out of the way.
+   "Top up" was #b86e00, 3.8:1 on the pill (found 2026-10-15); #a36100 is the
+   same amber just dark enough for 4.5:1. So is the pop-up's eyebrow. */
 .msa-act-pts.low { border: 2px solid #f09800; background: #fff8ec; padding: 9px 19px }
 .msa-act-pts.low b { color: #8a5300 }
-.msa-act-pts.low em { color: #b86e00 }
+.msa-act-pts.low em { color: #a36100 }
 .msa-low { grid-column: 2; justify-self: end; display: inline-flex; align-items: center; gap: 6px;
   background: none; border: none; padding: 0 6px; margin-top: -2px; cursor: pointer;
   font-size: 13px; font-weight: 600; color: #8a5300 }
@@ -495,6 +498,8 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
   const t = useT()
   const locale = useLocale()
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  // Focus into the sheet as it opens (found 2026-10-15: it stayed on the opener).
+  const box = useDialogFocus(true)
 
   type Row = { key: string; date: string; start?: string; end?: string; course?: string; courseId?: string; coach?: string; b?: Booking; rec?: ProgressRecord }
   const hm = (x?: string) => (x || '').slice(0, 5)
@@ -525,7 +530,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
 
   return (
     <div className="msa-sheet-back" onClick={onClose}>
-      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
         aria-label={t('dash.recordsOf', { name: student.full_name })}>
         <div className="msa-sheet-head">
           <b>{t('dash.recordsOf', { name: student.full_name })}</b>
@@ -639,6 +644,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+  const box = useDialogFocus(true)
 
   const longDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(intlOf(locale), { year: 'numeric', month: 'long', day: 'numeric' })
   const skillName = (s: { id: string; name: string }) => tDb(locale, 'skills', s.id, s.name)
@@ -665,7 +671,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
 
   return (
     <div className="msa-sheet-back" onClick={onClose}>
-      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
         aria-label={t('assess.report.sheetTitle', { name: student.full_name })}>
         <div className="msa-sheet-head">
           <b>{t('assess.report.sheetTitle', { name: student.full_name })}</b>
@@ -749,7 +755,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
             </div>
           )}
 
-          <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#8592a8', margin: '4px 0 0' }}>{t('assess.report.footer')}</p>
+          <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#667690', margin: '4px 0 0' }}>{t('assess.report.footer')}</p>
         </div>
       </div>
     </div>
@@ -799,7 +805,7 @@ function SuggestionSheet({ onClose }: { onClose: () => void }) {
             style={{ marginTop: '12px', width: '100%', border: 0, borderRadius: '12px', padding: '13px', background: text.trim() ? AMBER : '#e3ebf6', color: text.trim() ? NAVY : '#8592a8', fontWeight: 800, fontSize: '15px', cursor: text.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
             {state === 'sending' ? t('suggest.sending') : t('suggest.send')}
           </button>
-          <p style={{ margin: '10px 0 0', textAlign: 'center', fontSize: '11.5px', color: '#8592a8' }}>{t('suggest.note')}</p>
+          <p style={{ margin: '10px 0 0', textAlign: 'center', fontSize: '11.5px', color: '#667690' }}>{t('suggest.note')}</p>
         </>)}
       </div>
     </div>
@@ -810,6 +816,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>('')
+  const box = useDialogFocus(true)
 
   useEffect(() => {
     const payload = makeQRPayload(student.id)
@@ -841,6 +848,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
       }}
     >
       <div
+        ref={box}
         onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')}
         style={{
@@ -1307,7 +1315,7 @@ function ReferralCard({ focus }: { focus: boolean }) {
           2026-10-02): the code only counts at sign-up, and the assessment is
           not the first lesson. The family reading this is the one who tells
           the friend. The rest is one tap away in the FAQ. */}
-      <div style={{ fontSize: '11.5px', color: '#7a879b', lineHeight: 1.6, marginBottom: '12px' }}>
+      <div style={{ fontSize: '11.5px', color: '#68768b', lineHeight: 1.6, marginBottom: '12px' }}>
         {t('ref.fine')}
         <a href={localePath('/faq', locale) + '#faq-q-referral'} style={{ marginLeft: '6px', color: '#2050a0', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>{t('ref.rules')} ›</a>
       </div>
@@ -1490,20 +1498,8 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
 
 /* The confirm and detail dialogs below were plain divs: VoiceOver stayed on the
    button that opened one and could read on into the page behind it (found
-   2026-10-08). Each now carries role="dialog" + aria-modal, and this moves
-   focus to its first control as it opens and back to the opener as it closes.
-   Read in a passive effect (not autoFocus) so the opener is still the active
-   element -- also when one dialog hands over to the next. */
-function useDialogFocus(open: boolean) {
-  const box = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!open) return
-    const back = document.activeElement as HTMLElement | null
-    box.current?.querySelector<HTMLElement>('button, a[href]')?.focus()
-    return () => { if (back && back !== document.body && back.isConnected) back.focus() }
-  }, [open])
-  return box
-}
+   2026-10-08). Each now carries role="dialog" + aria-modal, and useDialogFocus
+   (lib/use-dialog-focus) moves focus into it and back to the opener. */
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -1601,7 +1597,7 @@ export default function DashboardPage() {
       if (!r.ok) return
       const j = await r.json()
       if (seq === monthlySeq.current) setMonthlyReports(j.reports || [])
-    } catch {}
+    } catch {} finally { setMonthlyRead(true) }
   }
 
   /* The wallet read takes a second or two, longer than the lesson list, so
@@ -1660,6 +1656,8 @@ export default function DashboardPage() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
+  // The "cancel this unpaid assessment?" confirm, by booking id.
+  const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
 
   /* "I'm here": a one-tap check-in from the pool. The server says which
      swimmers have a lesson open for check-in right now (30 minutes before
@@ -1731,6 +1729,9 @@ export default function DashboardPage() {
   const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
   const [reportFor, setReportFor] = useState<Student | null>(null)
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
+  // The first read has finished (with or without reports): a ?report= link
+  // can be settled, found or not.
+  const [monthlyRead, setMonthlyRead] = useState(false)
   const [monthlyFor, setMonthlyFor] = useState<{ student: Student; id: string } | null>(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
   // Make-up vouchers, and which children have used this month's grace -- the
@@ -1844,15 +1845,18 @@ export default function DashboardPage() {
   }
   // The email's button opens the dashboard on its report (?report=<id>), once.
   const reportLink = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') : null)
+  // Set as the link's sheet is asked for, until it is open (the low-balance
+  // notice below runs in the same pass and must not open first).
+  const reportOpening = useRef(false)
   useEffect(() => {
     const want = reportLink.current
-    if (!want || monthlyReports.length === 0 || students.length === 0) return
+    if (!want || !monthlyRead || students.length === 0) return
     reportLink.current = null
     const r = monthlyReports.find(x => x.id === want)
     const st = r ? students.find(x => x.id === r.studentId) : undefined
-    if (r && st) setMonthlyFor({ student: st, id: r.id })
+    if (r && st) { reportOpening.current = true; setMonthlyFor({ student: st, id: r.id }) }
     try { const u = new URL(window.location.href); u.searchParams.delete('report'); window.history.replaceState(null, '', u.toString()) } catch {}
-  }, [monthlyReports, students])
+  }, [monthlyReports, monthlyRead, students])
   const [recordsPage, setRecordsPage] = useState(0)
   const [pointsOpen, setPointsOpen] = useState(false)
   // Opened from the "refer a friend" line: scroll the sheet to that card.
@@ -1893,11 +1897,22 @@ export default function DashboardPage() {
   /* Points running low (owner, 2026-10-15): a small notice, once per dip --
      the server remembers it was shown (any device), and forgets once the
      points are back above the line. Marked shown as it opens, so closing it
-     any way (button, backdrop, Esc) counts. Not over another dialog. */
+     any way (button, backdrop, Esc) counts. Not over another dialog.
+     "Another dialog" was only the points sheet (found 2026-10-15): an email
+     link that opens the vouchers (?vouchers=1), a monthly report (?report=)
+     or the chat (?chat=1) put the notice underneath it, with focus on its
+     hidden Later button, and it was recorded as seen. It now waits until no
+     sheet, dialog or chat panel is open, nor a ?report= link still loading,
+     and is recorded only when it actually opens. */
+  const chatOpen = useSyncExternalStore(onChatStateChange, chatIsOpen, () => false)
   const lowPopupDone = useRef(false)
   useEffect(() => {
     const r = wallet?.runway
+    if (monthlyFor) reportOpening.current = false
     if (!r?.popup || lowPopupDone.current || infoModal || pointsOpen) return
+    if (qrStudent || recordsFor || reportFor || monthlyFor || suggestOpen || voucherSheet || treeFor || teamSheet
+      || cancelTarget || rescheduleTarget || rescheduleActionModal || pendingCancelConfirm || lessonDetail || daySheet) return
+    if (reportLink.current || reportOpening.current || chatOpen || chatIsOpen()) return
     lowPopupDone.current = true
     fetch('/api/parent/low-balance-seen', { method: 'POST' }).catch(() => {})
     setInfoModal({
@@ -1908,13 +1923,19 @@ export default function DashboardPage() {
       onAction: () => { window.location.href = '/plans#buy' },
       closeLabel: t('dash.lowBal.later'),
     })
-  }, [wallet, infoModal, pointsOpen, t])
+  }, [wallet, infoModal, pointsOpen, t, qrStudent, recordsFor, reportFor, monthlyFor, suggestOpen, voucherSheet, treeFor, teamSheet,
+    cancelTarget, rescheduleTarget, rescheduleActionModal, pendingCancelConfirm, lessonDetail, daySheet, chatOpen, monthlyRead, students])
   const voucherBox = useDialogFocus(voucherSheet)
   const cancelBox = useDialogFocus(!!cancelTarget)
   const resActionBox = useDialogFocus(!!rescheduleActionModal)
   const dayBox = useDialogFocus(!!daySheet)
   const detailBox = useDialogFocus(!!lessonDetail)
   const teamBox = useDialogFocus(!!teamSheet)
+  // These had none (found 2026-10-15). The points sheet waits for the wallet
+  // it shows; the reschedule and unpaid-assessment confirms were not dialogs.
+  const pointsBox = useDialogFocus(pointsOpen && !!wallet)
+  const rescheduleBox = useDialogFocus(!!rescheduleTarget)
+  const pendCancelBox = useDialogFocus(!!pendingCancelConfirm)
   // An hour invitation arrives as two rows (one per half). Show ONE card
   // spanning both, priced at the number of rows this family actually owes.
   // Confirming from it sends the first row's id; the server resolves the group.
@@ -1964,7 +1985,6 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(id)
   }, [dayWindow])
   const [pendingPayBusy, setPendingPayBusy] = useState<string | null>(null)
-  const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
   const [pendingPayMsg, setPendingPayMsg] = useState('')
   /* A Swim Assessment awaiting payment is checked against Stripe directly --
      once when the page loads (so a family back from paying sees it confirmed
@@ -2909,7 +2929,7 @@ export default function DashboardPage() {
 
       {pointsOpen && wallet && (
         <div className="msa-sheet-back" onClick={() => { setPointsOpen(false); setReferralFocus(false) }}>
-          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('points.card.title')}>
+          <div ref={pointsBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('points.card.title')}>
             <div className="msa-sheet-head">
               <b>{t('points.card.title')}</b>
               <button className="msa-sheet-x" onClick={() => { setPointsOpen(false); setReferralFocus(false) }} aria-label={t('common.close')}>✕</button>
@@ -2940,10 +2960,10 @@ export default function DashboardPage() {
       {/* Info Modal */}
       {infoModal && (
         <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: infoModal.eyebrow ? '#b86e00' : '#c0392b', marginBottom: '8px' }}>{infoModal.eyebrow || t('common.notice')}</div>
+          <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" aria-describedby="dash-info-msg" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: infoModal.eyebrow ? '#a36100' : '#c0392b', marginBottom: '8px' }}>{infoModal.eyebrow || t('common.notice')}</div>
             <div id="dash-info-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
-            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
+            <p id="dash-info-msg" style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {infoModal.closeLabel || t('common.close')}
@@ -2993,9 +3013,10 @@ export default function DashboardPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{v.studentNames.join(' & ')} · {voucherKind(v.courseSlug, v.minutes)}</div>
                     <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{v.usableFrom && v.usableFrom > getTodayLA() ? t('voucher.window', { from: shortDate(v.usableFrom), to: shortDate(v.expiresOn) }) : t('voucher.useBy', { date: shortDate(v.expiresOn) })}</div>
-                    {/* Where it came from (owner, 2026-10-03): the reason, and the lesson it replaced. */}
+                    {/* Where it came from (owner, 2026-10-03): the reason, and the lesson it replaced.
+                        #68768b: the grey it had read 3.6:1 (found 2026-10-15). */}
                     {VOUCHER_REASONS.has(v.reason) && (
-                      <div style={{ fontSize: '11.5px', color: '#7a879b', marginTop: '2px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#68768b', marginTop: '2px' }}>
                         {v.fromDate
                           ? t('voucher.source', { reason: t('voucher.reason.' + v.reason), when: shortDate(v.fromDate) + (v.fromTime ? ' ' + formatTime(v.fromTime) : '') })
                           : t('voucher.reason.' + v.reason)}
@@ -3062,8 +3083,11 @@ export default function DashboardPage() {
                   seconds a 60-minute or sibling cancel takes -- a second tap
                   sent a second cancel, which answered "Already cancelled" over
                   the top of the one that had worked, and closing it at the end
-                  also closed whatever modal the parent had opened meanwhile. */}
-              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                  also closed whatever modal the parent had opened meanwhile.
+                  #d93825, not #e05a4a: white on that red was 3.7:1 (found
+                  2026-10-15); this is the same red just dark enough for 4.5:1,
+                  as are the reschedule-decline and unpaid-cancel buttons. */}
+              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
@@ -3074,9 +3098,9 @@ export default function DashboardPage() {
       {/* Reschedule Confirm Modal */}
       {rescheduleTarget && (
         <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+          <div ref={rescheduleBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-res-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
+            <div id="dash-res-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
@@ -3419,7 +3443,7 @@ export default function DashboardPage() {
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
                 if (res.ok) await fetchAll({ progress: false })
                 else { const j = await res.json().catch(() => ({})); setNotice(errText(j.error, 'err.generic')) }
-              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
+              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
             </div>
           </div>
         </div>
@@ -3492,20 +3516,33 @@ export default function DashboardPage() {
                     const dayBookings = byDate[ds] || []
                     const isPast = ds < todayDs
                     const isTodayCell = ds === todayDs
+                    const dayNumStyle: React.CSSProperties = { textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? '#9aa6ba' : dayBookings.length > 0 ? '#16294a' : '#56647d' }
+                    const dayLong = dayBookings.length > 0 ? new Date(ds + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' }) : ''
+                    /* The cell was role="button" with the lesson buttons inside it,
+                       which makes them part of one button to a screen reader -- read
+                       as "15 10:55a Kayden 3:35p Kylie" with no month, and the
+                       lessons not reachable on their own (found 2026-10-15). A tap
+                       anywhere on the cell still opens the day; for the keyboard and
+                       screen readers the day number is the button, named in full. */
                     return (
                       <div key={ds}
                         onClick={() => { if (dayBookings.length > 0) setDaySheet(ds) }}
-                        role={dayBookings.length > 0 ? 'button' : undefined}
-                        tabIndex={dayBookings.length > 0 ? 0 : undefined}
-                        onKeyDown={e => { if (dayBookings.length > 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setDaySheet(ds) } }}
                         style={{ cursor: dayBookings.length > 0 ? 'pointer' : 'default', backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${isTodayCell ? GOLD + '66' : '#e3ebf6'}`, borderRadius: '8px', padding: '5px 3px', minHeight: '76px', minWidth: 0 }}>
-                        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? '#9aa6ba' : dayBookings.length > 0 ? '#16294a' : '#56647d' }}>{i + 1}</div>
+                        {dayBookings.length > 0 ? (
+                          <button type="button" className="tap-auto" onClick={e => { e.stopPropagation(); setDaySheet(ds) }}
+                            aria-label={t('dash.month.dayAria', { date: dayLong, lessons: t(dayBookings.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: dayBookings.length }) })}
+                            style={{ ...dayNumStyle, display: 'block', width: '100%', padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>{i + 1}</button>
+                        ) : (
+                          <div style={dayNumStyle}>{i + 1}</div>
+                        )}
                         {/* Three at most. A busy Tuesday had six, which made one cell
                             three times the height of its neighbours and pushed the rest of
                             the month off the screen. The rest are one tap away. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
-                            <button key={b.id + j} onClick={e => { e.stopPropagation(); setLessonDetail(b) }} style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center',
+                            <button key={b.id + j} onClick={e => { e.stopPropagation(); setLessonDetail(b) }}
+                              aria-label={t(b.checked_in ? 'dash.month.lessonAriaIn' : 'dash.month.lessonAria', { time: t12(b.start_time), date: dayLong, name: b.student_name || '' })}
+                              style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center',
                               border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
                               background: isPast ? '#f6f9fd' : `${GOLD}14` }}>
                               <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', color: isPast ? '#56647d' : '#16294a' }}>
@@ -3920,8 +3957,8 @@ export default function DashboardPage() {
                           {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
                           {pendingCancelConfirm === booking.id && (
                             <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                              <div style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
-                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
+                              <div ref={pendCancelBox} role="dialog" aria-modal="true" aria-labelledby="dash-pend-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+                                <div id="dash-pend-title" style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
                                 <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '20px' }}>
                                   {t('dash.pend.cancelBody')}
                                 </div>
@@ -3944,7 +3981,7 @@ export default function DashboardPage() {
                                       setPendingPayBusy(null); setPendingCancelConfirm(null)
                                     }}
                                     disabled={pendingPayBusy === booking.id}
-                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#e05a4a', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                                     {pendingPayBusy === booking.id ? t('dash.pend.cancelling') : t('dash.cancelModal.yesCancel')}
                                   </button>
                                 </div>

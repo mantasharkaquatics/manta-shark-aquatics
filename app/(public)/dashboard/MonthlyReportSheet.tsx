@@ -4,6 +4,7 @@ import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 import { useLocale, useT, useTFor } from '@/lib/i18n/provider'
 import { tDb, type Locale } from '@/lib/i18n'
 import { BRAND } from '@/lib/brand'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 // The monthly report sheet, as the family reads it on /dashboard. It lives in
 // its own file so the admin Monthly Reports page can show the very same sheet
@@ -87,6 +88,8 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+  // Focus into the sheet as it opens and back after (found 2026-10-15).
+  const box = useDialogFocus(true)
   const r = reports.find(x => x.id === id) || reports[0]
   if (!r) return null
   const d = r.data
@@ -112,7 +115,7 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
 
   return (
     <div className="msa-sheet-back" onClick={onClose}>
-      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
+      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
         aria-label={t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}>
         <div className="msa-sheet-head">
           <b>{t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}</b>

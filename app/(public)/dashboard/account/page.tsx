@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 interface Parent {
   id: string; first_name: string; last_name: string; email: string; phone: string
@@ -31,6 +32,9 @@ export default function AccountPage() {
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  /* The add-swimmer confirm had no name, no focus and no Esc (found
+     2026-10-15). Not closable while the swimmer is being added. */
+  const confirmBox = useDialogFocus(confirmingAdd, () => { if (!adding) setConfirmingAdd(false) })
 
   useEffect(() => { fetchAll() }, [])
   /* The "add a swimmer" card on the home page lands here with ?add=1, and the
@@ -215,7 +219,8 @@ export default function AccountPage() {
                     max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                     onChange={e => setNewDob(e.target.value)} />
                 </div>
-                {addError && <div className="ac-err" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
+                {/* role="alert": a failure closes the confirm, so nothing else says it failed. */}
+                {addError && <div className="ac-err" role="alert" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
                 <div className="ac-pair">
                   <button type="button" className="ac-btn line"
                     onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}>
@@ -234,8 +239,8 @@ export default function AccountPage() {
 
       {confirmingAdd && (
         <div className="ac-back-drop" onClick={() => !adding && setConfirmingAdd(false)}>
-          <div className="ac-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-            <h2>{t('account.confirmTitle')}</h2>
+          <div ref={confirmBox} className="ac-modal" role="dialog" aria-modal="true" aria-labelledby="ac-add-title" onClick={e => e.stopPropagation()}>
+            <h2 id="ac-add-title">{t('account.confirmTitle')}</h2>
             <p>{t('account.confirmA')}<strong>{newName}</strong>{t('account.confirmB')}</p>
             <div className="ac-pair">
               <button type="button" className="ac-btn line" onClick={() => setConfirmingAdd(false)} disabled={adding}>

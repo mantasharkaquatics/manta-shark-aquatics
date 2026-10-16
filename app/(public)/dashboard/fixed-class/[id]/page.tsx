@@ -15,6 +15,7 @@ import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
 import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -59,7 +60,7 @@ button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: 
 .fc-leave .row { display: flex; gap: 10px; }
 .fc-leave .row button { flex: 1; padding: 12px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .fc-leave .keep { border: 1px solid #e3ebf6; background: transparent; color: #56647d; }
-.fc-leave .go { border: none; background: #e05a4a; color: #fff; }
+.fc-leave .go { border: none; background: #d93825; color: #fff; }
 .fc-leave .go:disabled { opacity: .6; cursor: wait; }
 .fc-sum { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #f6f9fd; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .fc-sum div { display: flex; justify-content: space-between; gap: 12px; }
@@ -102,6 +103,9 @@ export default function FixedClassPage() {
   // leave for it here (owner, 2026-10-02).
   const [leaveFor, setLeaveFor] = useState<{ date: string; start: string; bookingId: string } | null>(null)
   const [leaving, setLeaving] = useState(false)
+  /* The leave confirm had no name, kept focus on the date button behind it
+     and ignored Esc (found 2026-10-15). Not closable while the leave runs. */
+  const leaveBox = useDialogFocus(!!leaveFor && !!fc, () => { if (!leaving) setLeaveFor(null) })
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   async function takeLeave() {
     if (!leaveFor) return
@@ -336,12 +340,13 @@ export default function FixedClassPage() {
           })()}
         </div>
 
-        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'}>{msg.ok ? '✓ ' : ''}{msg.text}</div></div>}
+        {/* Announced: the dialog that led here has closed, and its opener may be gone. */}
+        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? '✓ ' : ''}{msg.text}</div></div>}
         {leaveFor && fc && (
           <div className="fc-leave-back" onClick={() => !leaving && setLeaveFor(null)}>
-            <div className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div ref={leaveBox} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-leave-title">
               <div className="eb">{t('dash.cancelModal.eyebrowLeave')}</div>
-              <h3>{t('dash.cancelModal.titleLeave')}</h3>
+              <h3 id="fc-leave-title">{t('dash.cancelModal.titleLeave')}</h3>
               <div className="what">{tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
                 <small>{day(leaveFor.date)} · {formatTime12h(leaveFor.start)}</small></div>
               <p>{t('dash.cancelModal.bodyLeaveWindow', {

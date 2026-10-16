@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
-import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen } from '@/lib/chat-open'
+import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -63,12 +63,20 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const supabase = createClient()
   const [open, setOpen] = useState(false)
   // Auto-restore the open chat after navigating away (e.g. to payment) and back
+  const restoring = useRef(false)
   useEffect(() => {
-    try { if (sessionStorage.getItem('msa_chat_open') === '1') setOpen(true) } catch {}
+    try { if (sessionStorage.getItem('msa_chat_open') === '1') { restoring.current = true; setOpen(true) } } catch {}
   }, [])
   useEffect(() => {
     try { sessionStorage.setItem('msa_chat_open', open ? '1' : '0') } catch {}
+    // Told to the page (lib/chat-open), so the dashboard holds its low-balance
+    // notice while the panel is open (found 2026-10-15). Not the "closed" of
+    // the first pass of a restore: the panel is about to open.
+    if (!open && restoring.current) return
+    restoring.current = false
+    reportChatOpen(open)
   }, [open])
+  useEffect(() => () => reportChatOpen(false), [])
   const [threadId, setThreadId] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [input, setInput] = useState('')

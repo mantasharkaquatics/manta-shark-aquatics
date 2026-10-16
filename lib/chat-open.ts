@@ -14,6 +14,8 @@ export const CHAT_OPEN_EVENT = 'msa:chat-open'
 const PENDING_KEY = '__msaChatOpenPending'
 const PENDING_MAX_AGE_MS = 60_000
 type Pending = { text: string; at: number }
+// Set by the widget (reportChatOpen below): is the panel open.
+const OPEN_KEY = '__msaChatIsOpen'
 
 export function openChat(text?: string) {
   if (typeof window === 'undefined') return
@@ -28,7 +30,39 @@ export function takePendingChatOpen(): { text: string } | null {
   const p = w[PENDING_KEY]
   w[PENDING_KEY] = null
   if (!p || Date.now() - p.at > PENDING_MAX_AGE_MS) return null
+  // The widget opens on it now; count it open until the widget says so itself.
+  ;(window as unknown as Record<string, boolean | undefined>)[OPEN_KEY] = true
   return { text: p.text }
+}
+
+/* Whether the chat panel is open, or about to be (found 2026-10-15): the
+   dashboard's low-balance notice opened under the chat that a ?chat=1 email
+   link had opened -- full-screen on a phone -- and was then recorded as seen.
+   The widget reports each change; before it has mounted, a request still
+   waiting (openChat above) or a panel the widget will restore from this tab's
+   last page (msa_chat_open) counts as open. */
+export const CHAT_STATE_EVENT = 'msa:chat-state'
+
+export function reportChatOpen(open: boolean) {
+  if (typeof window === 'undefined') return
+  ;(window as unknown as Record<string, boolean | undefined>)[OPEN_KEY] = open
+  window.dispatchEvent(new Event(CHAT_STATE_EVENT))
+}
+
+export function chatIsOpen(): boolean {
+  if (typeof window === 'undefined') return false
+  const w = window as unknown as Record<string, unknown>
+  const p = w[PENDING_KEY] as Pending | null | undefined
+  if (p && Date.now() - p.at <= PENDING_MAX_AGE_MS) return true
+  const known = w[OPEN_KEY] as boolean | undefined
+  if (known !== undefined) return known
+  try { return sessionStorage.getItem('msa_chat_open') === '1' } catch { return false }
+}
+
+export function onChatStateChange(cb: () => void) {
+  window.addEventListener(CHAT_STATE_EVENT, cb)
+  window.addEventListener(CHAT_OPEN_EVENT, cb)
+  return () => { window.removeEventListener(CHAT_STATE_EVENT, cb); window.removeEventListener(CHAT_OPEN_EVENT, cb) }
 }
 
 // The notice posted when the desk hands a conversation back to the assistant
