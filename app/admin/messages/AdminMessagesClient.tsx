@@ -139,7 +139,10 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
   async function loadMoreThreads() {
     if (loadingThreads) return
     setLoadingThreads(true)
-    const { data, error } = await threadPage(threads.length)
+    // Overlapping the page before: a thread deleted since (a guest chat merged
+    // into a family's) shifted every offset by one, and the thread at the
+    // page edge was skipped (found 2026-10-15 in review). Repeats are dropped.
+    const { data, error } = await threadPage(Math.max(0, threads.length - 10))
     setLoadingThreads(false)
     if (error) return
     setThreads(prev => {

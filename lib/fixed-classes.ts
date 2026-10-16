@@ -74,7 +74,14 @@ export async function lessonsOfChecked(svc: Svc, fcIds: string[], minDate?: stri
   const out = new Map<string, Lesson[]>()
   let readErr: any = null
   if (fcIds.length === 0) return { map: out, error: null }
-  if (minDate) return lessonsFrom(svc, fcIds, minDate)
+  if (minDate) {
+    // The embedded date filter, with the plain two-step read below as the
+    // fallback: an error here used to leave the renewal holds empty, and other
+    // families saw the held slots as free (found 2026-10-15 in review).
+    const r = await lessonsFrom(svc, fcIds, minDate)
+    if (!r.error) return r
+    console.error('lessonsFrom failed, reading every lesson instead:', r.error?.message || r.error)
+  }
   let rows: LessonRow[] = []
   // bookings has two keys into class_sessions (class_session_id and
   // pending_new_session_id), so the embed has to name which one it means.

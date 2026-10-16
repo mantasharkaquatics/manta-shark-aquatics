@@ -52,15 +52,22 @@ export async function POST(req: NextRequest) {
   if (!thread || thread.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   if (input.action === 'read') {
-    const at = typeof input.at === 'string' ? Date.parse(input.at) : NaN
-    if (!Number.isFinite(at)) return badRequest()
-    const target = new Date(Math.min(at, Date.now())).toISOString()
+    if (typeof input.at !== 'string' || !Number.isFinite(Date.parse(input.at))) return badRequest()
+    // The mark is the newest message's own created_at, as stored (to the
+    // microsecond), and it only moves forward -- compared in the database.
+    // Rebuilt through Date it lost the microseconds, so the message just read
+    // stayed "unread" and its dot never cleared (found 2026-10-15 in review).
+    // Reading the message row also caps the mark at a real message, so a
+    // client cannot set it in the future.
+    const { data: m } = await svc.from('chat_messages').select('created_at')
+      .eq('thread_id', thread.id).lte('created_at', input.at)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (!m?.created_at) return NextResponse.json({ ok: true })
     // Skipped quietly before docs/migration-fix5-A.sql (no such column).
-    const { data: cur, error } = await svc.from('chat_threads').select('parent_last_read_at').eq('id', thread.id).maybeSingle()
-    if (error || !cur) return NextResponse.json({ ok: true, skipped: true })
-    if (cur.parent_last_read_at && Date.parse(cur.parent_last_read_at) >= Date.parse(target)) return NextResponse.json({ ok: true })
-    await svc.from('chat_threads').update({ parent_last_read_at: target }).eq('id', thread.id)
-    return NextResponse.json({ ok: true })
+    const { error } = await svc.from('chat_threads').update({ parent_last_read_at: m.created_at })
+      .eq('id', thread.id)
+      .or(`parent_last_read_at.is.null,parent_last_read_at.lt.${m.created_at}`)
+    return NextResponse.json(error ? { ok: true, skipped: true } : { ok: true })
   }
 
   if (input.action === 'flag') {

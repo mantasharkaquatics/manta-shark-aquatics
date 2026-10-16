@@ -218,6 +218,9 @@ export default function RegisterClient() {
   const [referralCode, setReferralCode] = useState('')
   const [referral, setReferral] = useState<{ valid: boolean; referrer?: string } | null>(null)
   const [referralChecking, setReferralChecking] = useState(false)
+  // The check itself failed (network, bad answer): the code is let through
+  // rather than blocked as "not found" (found 2026-10-15 in review).
+  const [referralLookupFailed, setReferralLookupFailed] = useState(false)
   // The input is hidden until asked for: most families have no referrer, and a
   // family whose link already applied one only needs it to change it.
   const [referralOpen, setReferralOpen] = useState(false)
@@ -239,6 +242,7 @@ export default function RegisterClient() {
   useEffect(() => {
     const code = referralCode.trim()
     setReferralChecking(false)
+    setReferralLookupFailed(false)
     if (!code) { setReferral(null); return }
     const ready = code.length === 6
     if (!ready) { setReferral(null); return }
@@ -255,7 +259,7 @@ export default function RegisterClient() {
           // typed instead.
           forgetReferral(); setReferralLinkBad(true); setReferralOpen(true)
         }
-      } catch { setReferral(null) }
+      } catch { setReferral(null); setReferralLookupFailed(true) }
       referralFromLinkRef.current = false
       setReferralChecking(false)
     }, 350)
@@ -417,7 +421,7 @@ export default function RegisterClient() {
     // (found 2026-10-15): it went as null at the end and the reward cannot be
     // added later. The parent finishes it or clears it. Mid-check is let
     // through; the check finishes long before step 2 is sent.
-    if (referralCode && !referralChecking && !referral?.valid) {
+    if (referralCode && !referralChecking && !referral?.valid && !referralLookupFailed) {
       setReferralOpen(true)
       setError(t(referralCode.length < 6 ? 'register.ref.tooShort' : 'register.referralBad')); return
     }

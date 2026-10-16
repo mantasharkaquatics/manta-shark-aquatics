@@ -90,6 +90,9 @@ export default function CoachLoginPage() {
     if (code.length !== 8 || locked || loading) return
     setLoading(true)
     setError('')
+    // Signed in: stay "loading" while the next page loads, so the Sign in
+    // button cannot send the PIN again (found 2026-10-15 in review).
+    let signedIn = false
     try {
       const res = await fetch('/api/coach/pin-login', {
         method: 'POST',
@@ -121,11 +124,12 @@ export default function CoachLoginPage() {
         return
       }
 
+      signedIn = true
       router.push(coachNext())
     } catch {
       setError(t('coach.login.network'))
     } finally {
-      setLoading(false)
+      if (!signedIn) setLoading(false)
     }
   }
 
