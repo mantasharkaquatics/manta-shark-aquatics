@@ -2,6 +2,7 @@ import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/l
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
+import { dropEmptySessions } from '@/lib/bookings/unrestored'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
@@ -371,7 +372,10 @@ export async function POST(req: NextRequest) {
         pointsTaken = 0
       }
       if (createdBookings.length > 0) await svc.from('bookings').delete().in('id', createdBookings)
-      if (createdSessions.length > 0) await svc.from('class_sessions').delete().in('id', createdSessions)
+      // Only a session still empty: one another family booked into in the
+      // meantime stays (F81; the foreign key would refuse anyway). Best
+      // effort -- a failure here is logged and never replaces the real answer.
+      await dropEmptySessions(svc, createdSessions, 'hour booking rollback')
       if (hourVoucher) await releaseVoucher(svc, hourVoucher.id)
     }
 

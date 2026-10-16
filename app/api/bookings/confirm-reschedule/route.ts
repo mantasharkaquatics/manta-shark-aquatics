@@ -9,8 +9,8 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
-import { isSessionFull, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
-import { settleUnrestored } from '@/lib/bookings/unrestored'
+import { isSessionFull, SESSION_FULL_CODE, lessonLostBody } from '@/lib/bookings/session-full'
+import { settleUnrestored, NOTHING_SETTLED, type Settled } from '@/lib/bookings/unrestored'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -177,8 +177,9 @@ export async function POST(req: NextRequest) {
     pending_action: null, pending_expires_at: null,
   }
 
-  /** Undo everything this request did, in the reverse order it did it. */
-  const putBack = async (newIds: string[], oldIds: string[]) => {
+  /** Undo everything this request did, in the reverse order it did it.
+   *  Says what was lost when an old lesson could not go back (F81). */
+  const putBack = async (newIds: string[], oldIds: string[]): Promise<Settled> => {
     if (newIds.length > 0) {
       const { error } = await supabase.from('bookings').delete().in('id', newIds)
       if (error) console.error('confirm-reschedule: could not remove the half-made booking:', error.message)
@@ -192,9 +193,14 @@ export async function POST(req: NextRequest) {
         `reschedule. Those lessons are cancelled with nobody refunded -- fix by hand:`, error.message)
       // The old seats sold in the meantime (last-seat guard, F81): those
       // rows' points go back and the desk is told.
-      await settleUnrestored(supabase, { rowIds: oldIds, error, where: '1-on-2 reschedule accepted (bookings/confirm-reschedule)' })
+      return settleUnrestored(supabase, { rowIds: oldIds, error, where: '1-on-2 reschedule accepted (bookings/confirm-reschedule)' })
     }
+    return NOTHING_SETTLED
   }
+  // The old lesson is gone (its seats sold while it was being moved): the
+  // family hears that and how many points came back, and the "left where
+  // they were" email does not go -- the desk has the settleUnrestored alert.
+  const lostReply = (lost: Settled) => NextResponse.json(lessonLostBody(lost.byParent[myBooking.parent_id] ?? 0), { status: 409 })
 
   const { data: claimedMine } = await supabase.from('bookings')
     .update(OLD_PATCH).eq('id', myBooking.id).eq('status', 'confirmed').select('id')
@@ -205,7 +211,8 @@ export async function POST(req: NextRequest) {
   const { data: claimedPartner } = await supabase.from('bookings')
     .update(OLD_PATCH).eq('id', partnerBookingId).eq('status', 'confirmed').select('id')
   if (!claimedPartner || claimedPartner.length === 0) {
-    await putBack([], [myBooking.id])
+    const lost = await putBack([], [myBooking.id])
+    if (lost.rows > 0) return lostReply(lost)
     return NextResponse.json({ error: 'This reschedule has already been dealt with.' }, { status: 409 })
   }
 
@@ -235,7 +242,8 @@ export async function POST(req: NextRequest) {
   }).select('id').single()
 
   if (myErr || !newMyBooking) {
-    await putBack([], oldIds)
+    const lost = await putBack([], oldIds)
+    if (lost.rows > 0) return lostReply(lost)
     await mailRescheduleNotMoved(supabase, { bookingIds: oldIds, newSessionId, outcome: 'unavailable' })
     console.error('confirm-reschedule: first booking failed:', myErr?.message)
     return NextResponse.json({
@@ -261,7 +269,8 @@ export async function POST(req: NextRequest) {
     // The half that DID go in comes out again. Half a 1-on-2 is not a lesson,
     // and leaving it would put one swimmer alone in a slot the other family is
     // still paying for.
-    await putBack([newMyBooking.id], oldIds)
+    const lost = await putBack([newMyBooking.id], oldIds)
+    if (lost.rows > 0) return lostReply(lost)
     await mailRescheduleNotMoved(supabase, { bookingIds: oldIds, newSessionId, outcome: 'unavailable' })
     console.error('confirm-reschedule: partner booking failed:', partnerErr?.message)
     return NextResponse.json({

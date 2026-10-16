@@ -56,3 +56,8 @@ export const CANCEL_ERROR_KEYS: Record<string, string> = {
 export const BOOKING_ERROR_KEYS: Record<string, string> = {
   session_full: 'admin.booking.err.sessionFull',
 }
+
+/** The same codes when the route also names the date (bulk-create). */
+export const BOOKING_ERROR_DATED_KEYS: Record<string, string> = {
+  session_full: 'admin.booking.err.sessionFullOn',
+}

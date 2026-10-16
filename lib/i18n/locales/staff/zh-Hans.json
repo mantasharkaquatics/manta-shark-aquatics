@@ -163,6 +163,7 @@
   "admin.booking.err.updateBlock": "更新封锁时段失败",
   "admin.booking.err.createBlock": "建立封锁时段失败",
   "admin.booking.err.sessionFull": "这堂课已经额满，无法再加人。没有预约也没有扣点。请选别的时段，或先取消其中一位。",
+  "admin.booking.err.sessionFullOn": "{date} 的课已经额满，无法再加人。没有预约也没有扣点。请选别的时段，或先取消其中一位。",
   "admin.booking.err.pickCourseStudentFirst": "请先选择课程类型和学生",
   "admin.booking.err.previewFailed": "预览失败",
   "admin.booking.err.previewRetry": "预览失败，请再试一次",

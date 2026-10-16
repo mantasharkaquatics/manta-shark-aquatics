@@ -16,7 +16,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
-import { errorKey } from '@/lib/i18n/errors'
+import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
@@ -274,6 +274,12 @@ export default function BookingPage() {
   const tErr = (raw: string | null | undefined, fallbackKey: string): string => {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t(fallbackKey))
+  }
+  // A whole error answer: a lost original lesson names its points, a class
+  // that filled names its date, in the batch notice's date format (F81).
+  const tErrOf = (j: Parameters<typeof errorKeyFor>[0], fallbackKey: string): string => {
+    const r = errorKeyFor(j, d => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
+    return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t(fallbackKey))
   }
   const router = useRouter()
   const supabase = createClient()
@@ -1881,7 +1887,7 @@ export default function BookingPage() {
         setNotice(t('booking.recur.err.fixedTaken', { dates: dates.join(', '), need, n: Math.max(1, need - have) }))
         setStep(3); setSubmitting(false); return
       }
-      if (!res.ok) { setNotice(tErr(j.error, 'booking.recur.err.commit')); setSubmitting(false); return }
+      if (!res.ok) { setNotice(tErrOf(j, 'booking.recur.err.commit')); setSubmitting(false); return }
       // Every time was taken between choosing and confirming: nothing was
       // booked, charged or spent. This used to land on a ✅ "0 lessons
       // booked!" card listing the dates (found 2026-10-03).
@@ -2077,7 +2083,7 @@ export default function BookingPage() {
     })
     const j = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setNotice(tErr(j.error, 'booking.err.bookingFailed'))
+      setNotice(tErrOf(j, 'booking.err.bookingFailed'))
       setSubmitting(false)
       return
     }

@@ -54,9 +54,19 @@ having count(b.id) > cs.max_students
 order by cs.session_date, cs.start_time;
 
 -- 2. The guard.
+--    SECURITY DEFINER: the count must see EVERY family's bookings in the
+--    lesson. Today every booking write is a server route on the service role,
+--    which RLS does not filter; but a trigger runs as the user who wrote the
+--    row, so if some future path ever wrote with a family's own login, RLS
+--    would hide the other families' rows from the count and the last seat
+--    could be sold twice again. Running as the function's owner avoids that.
+--    search_path is pinned to public, so the definer's rights cannot be
+--    pointed at another schema's look-alike tables (and the Supabase linter's
+--    "mutable search_path" warning does not fire).
 create or replace function public.bookings_capacity_guard()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 declare
@@ -111,12 +121,13 @@ create trigger trg_booking_capacity_guard
   for each row execute function public.bookings_capacity_guard();
 
 -- 4. Verification. Expect one row: trg_booking_capacity_guard, BEFORE, with
---    INSERT and UPDATE, and the function with search_path=public.
+--    INSERT and UPDATE, security_definer true, and search_path=public.
 select t.tgname as trigger_name,
        case when t.tgtype & 2 = 2 then 'BEFORE' else 'AFTER' end as timing,
        (t.tgtype & 4 = 4) as on_insert,
        (t.tgtype & 16 = 16) as on_update,
        p.proname as function_name,
+       p.prosecdef as security_definer,
        p.proconfig as function_settings
 from pg_trigger t
 join pg_proc p on p.oid = t.tgfoid

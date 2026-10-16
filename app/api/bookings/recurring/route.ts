@@ -12,7 +12,7 @@ import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { groupBandsFor, isLegacyCoach } from '@/lib/zones'
 import { activeLocations, getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
-import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
+import { isSessionFull, sessionFullBody, fullSessionId, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -642,7 +642,15 @@ export async function POST(req: NextRequest) {
       await dropFixed()
       // The database's last-seat guard (F81): one of the classes filled up
       // after the check above. The insert is one statement, so none went in.
-      if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
+      // Which class: the guard names its session; the date goes in the answer
+      // so the page can say which week to change.
+      if (isSessionFull(bookErr)) {
+        const sid = fullSessionId(bookErr)
+        const fullDate = sid ? [...sessionIdByKey.entries()].find(([, v]) => v === sid)?.[0].split('|')[0] : undefined
+        return NextResponse.json(fullDate
+          ? { error: `The class on ${fullDate} is now full, so nothing was booked. Please pick another time for that date.`, code: SESSION_FULL_CODE, date: fullDate }
+          : sessionFullBody(), { status: 409 })
+      }
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
     }
     // Each voucher points at one of the rows it paid for (the first one).

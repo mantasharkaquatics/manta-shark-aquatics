@@ -37,3 +37,25 @@ export const sessionFullDeskBody = () => ({
   error: 'This lesson is full, so nobody else can be added. Nothing was booked or charged.',
   code: SESSION_FULL_CODE,
 })
+
+/** A move that lost the family's ORIGINAL lesson (lib/bookings/unrestored):
+ *  the old seat was sold while the lesson was being moved, so it could not be
+ *  put back, and its points were returned. Never say it was kept. */
+export const LESSON_LOST_CODE = 'LESSON_LOST_REFUNDED'
+/** Needle for lib/i18n/errors.ts (err.lessonLost). */
+export const LESSON_LOST_ERROR = 'Your original lesson could not be kept because its spot was just taken.'
+export const lessonLostBody = (points: number) => ({
+  error: points > 0
+    ? `${LESSON_LOST_ERROR} We have returned ${points} points to your account, and our team will contact you.`
+    : `${LESSON_LOST_ERROR} Our team will contact you.`,
+  code: LESSON_LOST_CODE,
+  points,
+})
+
+/** The class_sessions id the guard named (its DETAIL, docs/migration-capacity-guard.sql). */
+export function fullSessionId(err: unknown): string | null {
+  const e = err as { details?: unknown; message?: unknown } | null
+  const text = `${typeof e?.details === 'string' ? e.details : ''} ${typeof e?.message === 'string' ? e.message : ''}`
+  const m = text.match(/class_session ([0-9a-f-]{36})/i)
+  return m ? m[1] : null
+}

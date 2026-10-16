@@ -7,7 +7,7 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
-import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
+import { isSessionFull, sessionFullBody, lessonLostBody } from '@/lib/bookings/session-full'
 import { settleUnrestored } from '@/lib/bookings/unrestored'
 import { familyZones, getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
@@ -407,15 +407,21 @@ export async function POST(req: NextRequest) {
   // lessons for one payment (found 2026-10-03). Anything that fails below
   // puts it back.
   const claimedOldIds: string[] = []
-  const restoreOld = async () => {
-    if (claimedOldIds.length === 0) return
+  const restoreOld = async (): Promise<NextResponse | null> => {
+    if (claimedOldIds.length === 0) return null
     const ids = [...claimedOldIds]
     claimedOldIds.length = 0
     const { error: backErr } = await svc.from('bookings')
       .update({ status: 'confirmed', cancellation_reason: null, pending_new_session_id: null })
       .in('id', ids).eq('status', 'cancelled')
-    // The old seat sold in the meantime (F81): its points go back, desk told.
-    if (backErr) await settleUnrestored(svc, { rowIds: ids, error: backErr, where: 'online lesson move (bookings/create)' })
+    // The old seat sold in the meantime (F81): its points go back, desk told,
+    // and the family must hear that the old lesson is gone -- not the
+    // failure's usual "nothing changed" (lostReply).
+    if (!backErr) return null
+    const lost = await settleUnrestored(svc, { rowIds: ids, error: backErr, where: 'online lesson move (bookings/create)' })
+    return lost.rows > 0
+      ? NextResponse.json(lessonLostBody(lost.byParent[parent.id] ?? lost.points), { status: 409 })
+      : null
   }
   if (oldBooking) {
     const oldIds = oldLessonRows.length > 0 ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]
@@ -424,7 +430,7 @@ export async function POST(req: NextRequest) {
       .in('id', oldIds).eq('status', 'confirmed').select('id')
     claimedOldIds.push(...(got || []).map((r: any) => r.id))
     if (claimedOldIds.length !== oldIds.length) {
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       return NextResponse.json({ error: 'Only confirmed bookings can be rescheduled' }, { status: 409 })
     }
   }
@@ -471,7 +477,7 @@ export async function POST(req: NextRequest) {
       grantedExpires = paid.grantedExpiresAt
       seatGranted = splitGranted(paid.grantedTaken, Array(seatCount).fill(price.perSeat))
     } catch (e: any) {
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       if (e instanceof WalletInArrears)
         return NextResponse.json({ error: 'WALLET_IN_ARREARS', owed: e.owed }, { status: 402 })
       if (e instanceof InsufficientPoints) {
@@ -505,7 +511,7 @@ export async function POST(req: NextRequest) {
     .select('id').single()
   if (bookErr || !newBooking) {
     await refundSpent(isSessionFull(bookErr) ? 'the time filled up' : 'booking insert failed')
-    await restoreOld()
+    { const lost = await restoreOld(); if (lost) return lost }
     // The database's last-seat guard (F81): someone took it first.
     if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
     const m = bookErr?.message || ''
@@ -539,7 +545,7 @@ export async function POST(req: NextRequest) {
       await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' })
         .eq('id', newBooking.id)
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
 
       if (isSessionFull(s2Err)) return NextResponse.json(sessionFullBody(), { status: 409 })
       const who = student2.full_name || 'The second swimmer'
@@ -562,12 +568,12 @@ export async function POST(req: NextRequest) {
     // is not told about another family's swimmers (found 2026-10-15).
     if (!pStudent || pStudent.parent_id !== partner.parent_id || pStudent.is_active === false) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       return NextResponse.json({ error: 'Partner student not found' }, { status: 400 })
     }
     if (pStudent.current_level == null) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_needs_assessment' }).eq('id', newBooking.id)
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       return NextResponse.json({ error: 'The partner student must complete a Swim Assessment before booking lessons.' }, { status: 400 })
     }
     // The invited child's own lessons (found 2026-10-07): only the family and
@@ -576,7 +582,7 @@ export async function POST(req: NextRequest) {
     const partnerClash = await studentsBusyAt(svc, [pStudent.id], session_date, [{ s: newStartMin, e: newEndMin }])
     if (partnerClash.length > 0) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_double_booked' }).eq('id', newBooking.id)
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       return NextResponse.json({ error: `The other family's swimmer (${pStudent.full_name}) already has a lesson at that time. Please pick another time.` }, { status: 409 })
     }
     const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString()
@@ -595,7 +601,7 @@ export async function POST(req: NextRequest) {
     }).select('id').single()
     if (guestErr || !guest) {
       await svc.from('bookings').update({ status: 'cancelled', cancellation_reason: 'partner_invalid' }).eq('id', newBooking.id)
-      await restoreOld()
+      { const lost = await restoreOld(); if (lost) return lost }
       return NextResponse.json({ error: 'Could not create partner invitation. Please try again.' }, { status: 500 })
     }
     partnerBookingId = guest.id

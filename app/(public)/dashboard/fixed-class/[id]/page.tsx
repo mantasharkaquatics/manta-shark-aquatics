@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
-import { errorKey } from '@/lib/i18n/errors'
+import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
@@ -93,6 +93,9 @@ export default function FixedClassPage() {
   const tErr = (raw?: string | null, fb = 'cart.err.network') => { const k = errorKey(raw); return k ? t(k) : (raw || t(fb)) }
   const day = (d: string, o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', weekday: 'short' }) =>
     new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { ...o, timeZone: 'UTC' })
+  // A whole error answer: a lost original lesson names its points, a full
+  // class its date (lib/i18n/errors errorKeyFor, F81).
+  const tErrOf = (j: Parameters<typeof errorKeyFor>[0]) => { const r = errorKeyFor(j, d => day(d)); return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t('cart.err.network')) }
   const weekdayName = (wd: number) => day(`2026-01-${String(4 + wd).padStart(2, '0')}`, { weekday: 'long' })
 
   const [fc, setFc] = useState<FC | null>(null)
@@ -186,7 +189,7 @@ export default function FixedClassPage() {
         }),
       })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) { setErr(tErr(j.error)); setBusy(false); return }
+      if (!res.ok) { setErr(tErrOf(j)); setBusy(false); return }
       const list: Cand[] = j.candidates || []
       setCands(list); setWeeks(w); setBalance(j.balance ?? 0); setOwed(Number(j.arrears) || 0); setRenewOpenUI(true)
       if (keep) setTicked(keep)
@@ -237,7 +240,7 @@ export default function FixedClassPage() {
         }),
       })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) { setErr(tErr(j.error)); setBusy(false); return }
+      if (!res.ok) { setErr(tErrOf(j)); setBusy(false); return }
       setMsg({ ok: true, text: t('fixedPage.renew.done', { n: j.booked ?? dates.length }) })
       setRenewOpenUI(false); setCands([]); setTicked(new Set())
       await load()
@@ -264,7 +267,7 @@ export default function FixedClassPage() {
         body: JSON.stringify({ action: 'options', fixed_class_id: fc.id }),
       })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) { setMErr(tErr(j.error)); setMBusy(false); return }
+      if (!res.ok) { setMErr(tErrOf(j)); setMBusy(false); return }
       setOpts(j.options || []); setMoving(j.moving || 0); setStaying(j.staying || [])
       setOptCoaches(new Map((j.coaches || []).map((c: any) => [c.id, c.first_name])))
     } catch { setMErr(t('cart.err.network')) }
@@ -279,7 +282,7 @@ export default function FixedClassPage() {
         body: JSON.stringify({ action: 'preview', fixed_class_id: fc.id, start_date: o.startDate, start_time: o.time, coach_id: o.coachId }),
       })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) { setMErr(tErr(j.error)); setMBusy(false); return }
+      if (!res.ok) { setMErr(tErrOf(j)); setMBusy(false); return }
       setPlan({ items: j.plan || [], sig: j.sig })
     } catch { setMErr(t('cart.err.network')) }
     setMBusy(false)
@@ -294,7 +297,7 @@ export default function FixedClassPage() {
       })
       const j = await res.json().catch(() => ({}))
       if (res.status === 409 && j.plan) { setPlan({ items: j.plan, sig: j.sig }); setMErr(t('err.fixedPlanChanged')); setMBusy(false); return }
-      if (!res.ok) { setMErr(tErr(j.error)); setMBusy(false); return }
+      if (!res.ok) { setMErr(tErrOf(j)); setMBusy(false); return }
       const done = t('fixedPage.move.done', { weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time) })
       const parts = [done]
       if (j.vouchers > 0) parts.push(t('fixedPage.move.doneVouchers', { n: j.vouchers }))

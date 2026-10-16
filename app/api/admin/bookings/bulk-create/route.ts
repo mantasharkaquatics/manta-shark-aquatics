@@ -14,6 +14,7 @@ import { allRows } from '@/lib/db-paging'
 import { sessionLocationLines } from '@/lib/locations'
 import { bandRange } from '@/lib/zone-colors'
 import { isSessionFull, sessionFullDeskBody } from '@/lib/bookings/session-full'
+import { dropEmptySessions } from '@/lib/bookings/unrestored'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -445,9 +446,10 @@ export async function POST(req: NextRequest) {
       }
       // Sessions we created ourselves go too, or a failed hour booking leaves an
       // empty off-grid slot sitting in the calendar.
-      if (createdSessionIds.length > 0) {
-        await svc.from('class_sessions').delete().in('id', createdSessionIds)
-      }
+      // Only a session still empty: one another family booked into in the
+      // meantime stays (F81; the foreign key would refuse anyway). Best
+      // effort -- a failure here is logged and never replaces the real answer.
+      await dropEmptySessions(svc, createdSessionIds, 'desk booking rollback')
     }
 
     // Both families settle before anything is written, so a family who cannot

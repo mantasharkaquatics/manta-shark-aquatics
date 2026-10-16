@@ -7,6 +7,7 @@ import { issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { allRows, allRowsIn } from '@/lib/db-paging'
 import { settleUnrestored } from '@/lib/bookings/unrestored'
+import { isSessionFull } from '@/lib/bookings/session-full'
 
 export const runtime = 'nodejs'
 
@@ -188,6 +189,8 @@ export async function POST(req: NextRequest) {
       console.error('fixed class end: voucher not issued', r.id, v)
       const lesson = cancelled.filter(x => (x.lesson_group_id || x.class_session_id) === key)
       let restored = true
+      const backIds: string[] = []
+      let fullErr: unknown = null
       for (const x of lesson) {
         const p: Partial<Prior> = before.get(x.id) || {}
         const { data: back, error: rErr } = await svc.from('bookings')
@@ -195,9 +198,21 @@ export async function POST(req: NextRequest) {
             cancelled_by: p.cancelled_by ?? null, cancelled_at: p.cancelled_at ?? null })
           .eq('id', x.id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
         if (rErr || !back || back.length === 0) restored = false
-        else putBack.add(x.id)
-        // Its seat sold in the meantime (last-seat guard, F81): points back, desk told.
-        if (rErr) await settleUnrestored(svc, { rowIds: [x.id], error: rErr, where: 'fixed class ended, voucher not issued (admin/fixed-classes)' })
+        else { putBack.add(x.id); backIds.push(x.id) }
+        if (isSessionFull(rErr)) fullErr = rErr
+      }
+      // A seat of this lesson sold in the meantime (last-seat guard, F81):
+      // it cannot come back whole, so the rows that did go back are cancelled
+      // again and the whole lesson is refunded, with the desk told.
+      if (fullErr) {
+        if (backIds.length > 0) {
+          const { error: reErr } = await svc.from('bookings')
+            .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'admin', cancelled_at: new Date().toISOString() })
+            .in('id', backIds).eq('status', 'confirmed')
+          if (reErr) console.error(`⚠️ fixed class end: ${backIds.join(', ')} went back without the rest of their lesson -- fix by hand:`, reErr.message)
+          else for (const id of backIds) putBack.delete(id)
+        }
+        await settleUnrestored(svc, { rowIds: lesson.map(x => x.id), error: fullErr, where: 'fixed class ended, voucher not issued (admin/fixed-classes)' })
       }
       if (!restored) console.error(`⚠️ fixed class end: lesson ${r.session.session_date} (${lesson.map(x => x.id).join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
       failed.push(r.session.session_date)

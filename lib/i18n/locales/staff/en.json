@@ -163,6 +163,7 @@
   "admin.booking.err.updateBlock": "Failed to update block",
   "admin.booking.err.createBlock": "Failed to create block",
   "admin.booking.err.sessionFull": "This lesson is full, so nobody else can be added. Nothing was booked or charged. Pick another time, or cancel someone first.",
+  "admin.booking.err.sessionFullOn": "The lesson on {date} is full, so nobody else can be added. Nothing was booked or charged. Pick another time, or cancel someone first.",
   "admin.booking.err.pickCourseStudentFirst": "Please select a course type and student first",
   "admin.booking.err.previewFailed": "Preview failed",
   "admin.booking.err.previewRetry": "Preview failed, please try again",

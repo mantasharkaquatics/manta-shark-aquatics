@@ -119,6 +119,9 @@ const MAP: readonly (readonly [string, string])[] = [
   ['The coach already has another', 'err.coachBusy'],
   // The database's last-seat guard (lib/bookings/session-full.ts, F81).
   ['This time is now full', 'err.sessionFull'],
+  ['is now full, so nothing was booked', 'err.sessionFull'],
+  ['Your original lesson could not be kept', 'err.lessonLost'],
+  ['LESSON_LOST_REFUNDED', 'err.lessonLost'],
   ['SESSION_FULL', 'err.sessionFull'],
   ['This time slot was taken by another customer', 'err.slotTaken'],
   ['This time slot is no longer available', 'err.slotTaken'],
@@ -250,4 +253,23 @@ export function errorKey(raw?: string | null): string | null {
     if (raw.includes(needle)) return key
   }
   return null
+}
+
+/**
+ * errorKey for a whole error answer, with the variables some answers carry
+ * (found 2026-10-16, F81): a lost original lesson names the points returned,
+ * and a batch blocked by a full class names the date. Without them it falls
+ * back to errorKey's plain message, so a key never shows a bare {points}.
+ * fmtDate formats a YYYY-MM-DD the way the calling page shows dates.
+ */
+export function errorKeyFor(
+  body: { error?: unknown; code?: unknown; points?: unknown; date?: unknown } | null | undefined,
+  fmtDate?: (ymd: string) => string,
+): { key: string; vars?: Record<string, string | number> } | null {
+  const points = Number(body?.points)
+  if (body?.code === 'LESSON_LOST_REFUNDED' && points > 0) return { key: 'err.lessonLostPoints', vars: { points } }
+  if (body?.code === 'session_full' && typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) && fmtDate)
+    return { key: 'err.sessionFullOn', vars: { date: fmtDate(body.date) } }
+  const k = errorKey(typeof body?.error === 'string' ? body.error : null)
+  return k ? { key: k } : null
 }

@@ -4,7 +4,7 @@ import { zoneFill, bandRange } from '@/lib/zone-colors'
 
 import { formatTime12h, daySlots, getTodayLA } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
-import { CANCEL_ERROR_KEYS, BOOKING_ERROR_KEYS } from '@/lib/admin/desk-errors'
+import { CANCEL_ERROR_KEYS, BOOKING_ERROR_KEYS, BOOKING_ERROR_DATED_KEYS } from '@/lib/admin/desk-errors'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -167,8 +167,12 @@ async function postWithHoldCheck(url: string, body: Record<string, unknown>, t: 
 
 /* A booking write the desk sent came back refused: the staff screen's own
    words for a code it knows (the last-seat guard, F81: session_full), else
-   the route's message, else the screen's fallback. */
-function bookingErrText(t: TFunction, data: { code?: unknown; error?: string } | null | undefined, fallbackKey: string): string {
+   the route's message, else the screen's fallback. A series names the date
+   that was full (bulk-create's `date`, YYYY-MM-DD as its English says it). */
+function bookingErrText(t: TFunction, data: { code?: unknown; error?: string; date?: unknown } | null | undefined, fallbackKey: string): string {
+  const date = typeof data?.date === 'string' ? data.date : null
+  const dated = date ? BOOKING_ERROR_DATED_KEYS[String(data?.code || '')] : undefined
+  if (dated && date) return t(dated, { date })
   const key = BOOKING_ERROR_KEYS[String(data?.code || '')]
   return key ? t(key) : (data?.error || t(fallbackKey))
 }

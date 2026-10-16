@@ -14,7 +14,7 @@ import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb, dateTag, getT, isLocale, matchLocaleTags, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
-import { errorKey } from '@/lib/i18n/errors'
+import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import { localePath } from '@/lib/i18n/paths'
 import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
@@ -3958,7 +3958,8 @@ export default function DashboardPage() {
                               setReschedulingId(booking.id)
                               const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
                               const json = await res.json()
-                              if (!res.ok) setNotice(errText(json.error, 'dash.resAction.failed'))
+                              // A lost original lesson names the points returned (F81).
+                              if (!res.ok) { const r = errorKeyFor(json); setNotice(r ? t(r.key, r.vars) : errText(json.error, 'dash.resAction.failed')) }
                               await fetchAll({ progress: false })
                               setReschedulingId(null)
                             }}

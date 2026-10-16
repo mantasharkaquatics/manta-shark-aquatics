@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
     if (body.sig !== plan.sig)
       return NextResponse.json({ error: 'PLAN_CHANGED', plan: plan.items, sig: plan.sig }, { status: 409 })
     const done = await commitMove(svc, ctx, target, plan)
-    if ('error' in done) return NextResponse.json({ error: done.error }, { status: done.status })
+    // A lost original lesson (F81) carries its code and points for the page.
+    if ('error' in done) return NextResponse.json({ error: done.error, ...(done.code ? { code: done.code, points: done.points } : {}) }, { status: done.status })
 
     try {
       const [{ data: p }, { data: kids }, { data: coaches }] = await Promise.all([

@@ -23,8 +23,8 @@ import {
   type FixedClass, type Lesson,
 } from '@/lib/fixed-classes'
 import { zoneTypeForSlug, groupBandsFor } from '@/lib/zones'
-import { isSessionFull } from '@/lib/bookings/session-full'
-import { settleUnrestored } from '@/lib/bookings/unrestored'
+import { isSessionFull, lessonLostBody } from '@/lib/bookings/session-full'
+import { settleUnrestored, addSettled, dropEmptySessions, NOTHING_SETTLED, type Settled } from '@/lib/bookings/unrestored'
 
 type Svc = SupabaseClient
 
@@ -230,7 +230,7 @@ async function lastDateOf(svc: Svc, fcId: string): Promise<string | null> {
  *  of lessons that could neither be placed nor turned into a voucher and so
  *  were left on their old slot. */
 export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, plan: MovePlan):
-  Promise<{ ok: true; moved: number; vouchers: number; notMoved: string[] } | { error: string; status: number }> {
+  Promise<{ ok: true; moved: number; vouchers: number; notMoved: string[] } | { error: string; status: number; code?: string; points?: number }> {
   if (!isGridStart(target.startTime)) return { error: GRID_ERROR, status: 400 }
   const byDate = new Map(ctx.movable.map(l => [l.date, l]))
   const moving = plan.items.filter(i => i.to)
@@ -244,20 +244,51 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
   // 1. Take the old rows out of their lessons -- conditionally, so a second
   //    press finds nothing to take.
   const oldIds = moving.flatMap(i => byDate.get(i.from)!.rows.map(r => r.id))
-  const putBack = async (ids: string[]) => {
-    if (ids.length === 0) return
-    const { error } = await svc.from('bookings').update({ status: 'confirmed', cancellation_reason: null })
-      .in('id', ids).eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
-    if (error) console.error(`⚠️ fixed-class move: could not restore ${ids.join(', ')} -- fix by hand:`, error.message)
-    // The old seats sold in the meantime (last-seat guard, F81): points back, desk told.
-    if (error) await settleUnrestored(svc, { rowIds: ids, error, where: 'fixed-class move (lib/fixed-move)' })
+  // Which lesson (its date) each old row belongs to: a 60-minute lesson's
+  // two halves and a sibling pair's two seats are one lesson.
+  const lessonOfRow = new Map<string, string>()
+  for (const i of moving) for (const r of byDate.get(i.from)!.rows) lessonOfRow.set(r.id, i.from)
+  const restore = (ids: string[]) => svc.from('bookings').update({ status: 'confirmed', cancellation_reason: null })
+    .in('id', ids).eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
+  /** Put the claimed old rows back. One update for the lot; if the
+   *  last-seat guard refuses it (F81: one week's freed seat was sold
+   *  meanwhile, and one row failing fails the statement), again lesson by
+   *  lesson, so only the weeks that really cannot go back are settled
+   *  (refunded, desk told) -- not the whole term. Returns what was lost. */
+  const putBack = async (ids: string[]): Promise<Settled> => {
+    if (ids.length === 0) return NOTHING_SETTLED
+    const { error } = await restore(ids)
+    if (!error) return NOTHING_SETTLED
+    if (!isSessionFull(error)) {
+      console.error(`⚠️ fixed-class move: could not restore ${ids.join(', ')} -- fix by hand:`, error.message)
+      return NOTHING_SETTLED
+    }
+    const byLesson = new Map<string, string[]>()
+    for (const id of ids) {
+      const k = lessonOfRow.get(id) ?? id
+      byLesson.set(k, [...(byLesson.get(k) || []), id])
+    }
+    let lost = NOTHING_SETTLED
+    for (const group of byLesson.values()) {
+      const { error: oneErr } = await restore(group)
+      if (!oneErr) continue
+      console.error(`⚠️ fixed-class move: could not restore ${group.join(', ')}:`, oneErr.message)
+      lost = addSettled(lost, await settleUnrestored(svc, { rowIds: group, error: oneErr, where: 'fixed-class move (lib/fixed-move)' }))
+    }
+    return lost
   }
+  // The old lesson(s) are gone, refunded: say so instead of MOVE_CHANGED.
+  const lostReply = (lost: Settled) => ({ ...lessonLostBody(lost.byParent[fc.parent_id] ?? lost.points), status: 409 })
   if (oldIds.length > 0) {
     const { data: claimed } = await svc.from('bookings')
       .update({ status: 'cancelled', cancellation_reason: 'rescheduled' })
       .in('id', oldIds).eq('status', 'confirmed').select('id')
     const got = (claimed || []).map((r: any) => r.id)
-    if (got.length !== oldIds.length) { await putBack(got); return { error: 'MOVE_CHANGED', status: 409 } }
+    if (got.length !== oldIds.length) {
+      const lost = await putBack(got)
+      if (lost.rows > 0) return lostReply(lost)
+      return { error: 'MOVE_CHANGED', status: 409 }
+    }
   }
 
   // 2. The sessions the lessons go into: reused when one exists with room,
@@ -284,7 +315,8 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
         ...bands[i],
       }))).select('id, coach_id, session_date, start_time')
       if (error || !made) {
-        await putBack(oldIds)
+        const lost = await putBack(oldIds)
+        if (lost.rows > 0) return lostReply(lost)
         return { error: error?.message?.includes('coach_timeslot_conflict') ? 'MOVE_CHANGED' : 'Could not move the lessons.', status: 409 }
       }
       for (const s of made as any[]) {
@@ -324,9 +356,12 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
   if (rows.length > 0) {
     const { error } = await svc.from('bookings').insert(rows)
     if (error) {
-      if (createdSessions.length) await svc.from('class_sessions').delete().in('id', createdSessions)
-      await putBack(oldIds)
+      // Only sessions still empty: one another family booked into meanwhile
+      // stays (the foreign key would refuse the delete anyway). Best effort.
+      await dropEmptySessions(svc, createdSessions, 'fixed-class move rollback')
+      const lost = await putBack(oldIds)
       console.error('fixed-class move: rows not written:', error.message)
+      if (lost.rows > 0) return lostReply(lost)
       // SESSION_FULL: the database's last-seat guard (F81) -- a class filled
       // after the plan was made. The insert is one statement, so none went in.
       return { error: error.message.includes('STUDENT_DOUBLE_BOOKED') || error.message.includes('coach_timeslot_conflict') || isSessionFull(error) ? 'MOVE_CHANGED' : 'Could not move the lessons.', status: 409 }
@@ -369,6 +404,8 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
     console.error('fixed-class move: voucher not issued for', l.rows[0].id, v)
     const prev = new Map((before || []).map((b: any) => [b.id, b]))
     let restored = true
+    const backIds: string[] = []
+    let fullErr: unknown = null
     for (const { id } of c as { id: string }[]) {
       const p = prev.get(id) || {}
       const { data: back, error: rErr } = await svc.from('bookings')
@@ -376,8 +413,21 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
           cancelled_by: p.cancelled_by ?? null, cancelled_at: p.cancelled_at ?? null })
         .eq('id', id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
       if (rErr || !back || back.length === 0) restored = false
-      // Its seat sold in the meantime (last-seat guard, F81): points back, desk told.
-      if (rErr) await settleUnrestored(svc, { rowIds: [id], error: rErr, where: 'fixed-class move, voucher not issued (lib/fixed-move)' })
+      else backIds.push(id)
+      if (isSessionFull(rErr)) fullErr = rErr
+    }
+    // A seat of this lesson sold in the meantime (last-seat guard, F81): the
+    // lesson cannot come back whole, and half an hour or one sibling's seat
+    // is not a lesson. The rows that did go back are cancelled again, and
+    // the whole lesson is refunded, with the desk told.
+    if (fullErr) {
+      if (backIds.length > 0) {
+        const { error: reErr } = await svc.from('bookings')
+          .update({ status: 'cancelled', pending_action: null, cancellation_reason: 'cancelled_by_parent', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
+          .in('id', backIds).eq('status', 'confirmed')
+        if (reErr) console.error(`⚠️ fixed-class move: ${backIds.join(', ')} went back without the rest of their lesson -- fix by hand:`, reErr.message)
+      }
+      await settleUnrestored(svc, { rowIds: (c as { id: string }[]).map(x => x.id), error: fullErr, where: 'fixed-class move, voucher not issued (lib/fixed-move)' })
     }
     if (!restored) console.error(`⚠️ fixed-class move: lesson ${i.from} (${ids.join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
     notMoved.push(i.from)

@@ -567,18 +567,30 @@ export async function cancelBookingWithPartner(
           sourceBookingId: booking.id,
           fixedClassId: booking.fixed_class_id ?? null,
         })
+    let lostSeat = false
     if (!r.voucher) {
       const { error: backErr } = await svc.from('bookings')
         .update({ status: booking.status, cancellation_reason: null, cancelled_by: null, cancelled_at: null })
         .in('id', cancelledBookingIds)
       // The seat was sold in the moment it was free (last-seat guard, F81):
       // the lesson cannot come back, so its points do and the desk is told.
-      if (backErr) await settleUnrestored(svc, { rowIds: cancelledBookingIds, error: backErr, where: 'parent cancellation, voucher not issued (lib/bookings/cancel)' })
-      return r.duplicate && voucherReason === 'grace'
-        ? { ok: false, status: 400, error: 'NO_GRACE_LEFT', cancelledBookingIds: [] }
-        : { ok: false, status: 500, error: 'Could not cancel this lesson. Please try again.', cancelledBookingIds: [] }
+      // It IS cancelled now, and refunded: carry on as a refund, so the
+      // partner sweep, the email and the caller (second half of an hour,
+      // the dashboard, the AI) all see what really happened.
+      const lost = backErr
+        ? await settleUnrestored(svc, { rowIds: cancelledBookingIds, error: backErr, where: 'parent cancellation, voucher not issued (lib/bookings/cancel)' })
+        : null
+      if (lost && lost.rows > 0) {
+        outcome = 'refund'
+        refunded += lost.points
+        lostSeat = true
+      } else {
+        return r.duplicate && voucherReason === 'grace'
+          ? { ok: false, status: 400, error: 'NO_GRACE_LEFT', cancelledBookingIds: [] }
+          : { ok: false, status: 500, error: 'Could not cancel this lesson. Please try again.', cancelledBookingIds: [] }
+      }
     }
-    voucher = r.voucher
+    if (!lostSeat) voucher = r.voucher ?? null
   } else if (outcome === 'restore' && booking.voucher_id) {
     const { data: v } = await svc.from('make_up_vouchers').select('expires_on, usable_from').eq('id', booking.voucher_id).maybeSingle()
     restoredExpiry = v?.expires_on
