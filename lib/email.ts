@@ -649,7 +649,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       // (found 2026-10-07). The escaped vars stay for the HTML body.
       const plainNames = (payload.studentNames || []).join(L === 'en' ? ' & ' : '、')
       subject = t('fixed.email.renew.subject', { ...vars, names: plainNames })
-      html = shell(t('fixed.email.renew.title'), `<p style="color: #16294a; line-height: 1.6;">${t('fixed.email.renew.body', vars)}</p>` + poolP,
+      html = shell(t('fixed.email.renew.title'), `<p style="color: #16294a; line-height: 1.6;">${t(payload.expiresOn ? 'fixed.email.renew.body' : 'fixed.email.renew.bodyNoHold', vars)}</p>` + poolP,
         payload.linkUrl || 'https://www.mantasharkaquatics.net/dashboard', t('fixed.email.renew.button'))
     } else {
       const items = payload.moveItems || []

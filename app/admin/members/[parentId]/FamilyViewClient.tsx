@@ -110,7 +110,7 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
                 </>
               ) : <span className="fv-lv"><i />{ft('dash.pendingAssessment')}</span>}
               {c.lastReport && <div className="fv-line">📊 {ft('monthly.cardLine', { month: day(c.lastReport, { month: 'long' }) })}</div>}
-              {c.credit && <div className="fv-credit">🎁 {ft('assess.credit.cardLine', { done: c.credit.lessons, n: c.credit.needed, days: c.credit.daysLeft })}</div>}
+              {c.credit && <div className="fv-credit">🎁 {ft(c.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: c.credit.lessons, n: c.credit.needed, days: c.credit.daysLeft })}</div>}
             </div>
           ))}
         </div>

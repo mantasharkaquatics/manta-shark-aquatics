@@ -82,6 +82,10 @@ export async function POST(req: NextRequest) {
   }
 
   const notified: { parent_id: string; student_id: string; kind: 'points' | 'voucher' | 'none' | 'assessment' | 'assessment_refunded' }[] = []
+  // A make-up's voucher that came back, per family, with its dates for the
+  // email (found 2026-10-15: it said the lesson was "turned into a make-up
+  // voucher", with no dates, as if a new one had been made).
+  const voucherBackBy = new Map<string, { expires_on: string; usable_from: string | null }>()
 
   for (const b of allBookings) {
     if (b.status === 'confirmed') {
@@ -109,6 +113,13 @@ export async function POST(req: NextRequest) {
       })
       // A make-up lesson cost a voucher, not points: that comes back instead.
       const back = await giveBackVouchers(svc, [b.id])
+      if (back > 0) {
+        const { data: vb } = await svc.from('bookings').select('voucher_id').eq('id', b.id).maybeSingle()
+        const { data: v } = vb?.voucher_id
+          ? await svc.from('make_up_vouchers').select('expires_on, usable_from').eq('id', vb.voucher_id).maybeSingle()
+          : { data: null }
+        if (v) voucherBackBy.set(b.parent_id, { expires_on: v.expires_on, usable_from: v.usable_from ?? null })
+      }
       // A paid Swim Assessment has no points to return: it stays owed, and
       // shows on the admin Reviews page until the desk books it again --
       // unless its payment was refunded in full or charged back. Then nothing
@@ -210,6 +221,7 @@ export async function POST(req: NextRequest) {
         const { data: kids } = await svc.from('students').select('id, full_name').in('id', studentsByParent.get(t.parent_id) || [t.student_id])
         const kidNames = (studentsByParent.get(t.parent_id) || [t.student_id])
           .map(id => (kids || []).find((k: any) => k.id === id)?.full_name).filter(Boolean)
+        const vBack = refundKind === 'voucher' ? voucherBackBy.get(t.parent_id) : undefined
         if (p?.email) {
           await sendEmail({
             type: 'booking_cancelled',
@@ -221,6 +233,11 @@ export async function POST(req: NextRequest) {
             date: sess.session_date,
             time: timeStr,
             refundKind,
+            // Here a voucher only ever comes back: the school cancelling never
+            // turns a lesson into a new one.
+            voucherBack: refundKind === 'voucher',
+            expiresOn: vBack?.expires_on,
+            usableFrom: vBack?.usable_from ?? undefined,
             location,
           })
         }

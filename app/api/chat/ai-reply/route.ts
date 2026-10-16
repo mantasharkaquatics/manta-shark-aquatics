@@ -1138,7 +1138,7 @@ export async function POST(req: NextRequest) {
     const hh = String(Math.floor(nowMins / 60)).padStart(2, '0')
     const mm = String(nowMins % 60).padStart(2, '0')
     const planList = [
-      '1 dollar buys 1 point. Points the family buys never expire (bonus points the school adds expire after one year) and are not tied to a course type.',
+      '1 dollar buys 1 point. Points the family buys never expire (bonus points the school adds usually expire after one year; the birthday gift after three months) and are not tied to a course type.',
       `The website sells exactly these amounts, and nothing else: ${TOPUP_PRESETS.map(p => {
         const shape = presetLessons(p)
         return shape ? `$${p.toLocaleString('en-US')} (${shape.lessons} x ${shape.slug})` : '$' + p.toLocaleString('en-US')

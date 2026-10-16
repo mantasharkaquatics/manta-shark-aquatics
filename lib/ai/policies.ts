@@ -1,7 +1,7 @@
 // Business policies fed to the AI chat assistant.
 // Source: owner questionnaire, July 2026. When a policy changes: edit this
 // file, npm run build, git push.
-import { OFF_PEAK_ENABLED, REFERRAL_POINTS, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
+import { OFF_PEAK_ENABLED, BASE_POINTS, REFERRAL_POINTS, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { TRIAL_HOLD_MINUTES, TRIAL_PRICE_CENTS } from '@/lib/plans'
 
 export const POLICIES = `
@@ -24,7 +24,7 @@ export const POLICIES = `
 - No-show without cancelling: the lesson counts as taken and the points are used. A plain no-show has NO exceptions and NO compensation of any kind - no doctor's note changes this. Do not apply the ILLNESS / EMERGENCY EXCEPTION to no-show questions; that is a separate policy that only applies when the parent contacts us about an illness or emergency.
 
 === POINTS (HOW LESSONS ARE PAID FOR) ===
-- Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points the family PAID FOR never expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account. Points the school ADDS without payment (bonus points) expire ONE YEAR after they are added, are spent before purchased points, and the dashboard shows the next expiry date.
+- Lessons are paid for out of a points balance on the family account. 1 point = US$1.00, fixed. Points the family PAID FOR never expire, there are no fees of any kind for holding them, and they are shared by every swimmer on the account. Points the school ADDS without payment (bonus points) expire ONE YEAR after they are added -- except the BIRTHDAY GIFT, which expires THREE MONTHS after it is added -- are spent before purchased points, and the dashboard shows the next expiry date. BIRTHDAY GIFT: on a swimmer's birthday, families subscribed to the newsletter get a birthday card by email with ${BASE_POINTS['1on4']} bonus points (one 1-on-4 lesson's worth), valid three months. For the exact expiry date of a family's bonus points, call get_my_points; never guess a date.
 - A family adds points by choosing a dollar amount, online on the Points page or at the front desk; the page shows the amounts allowed. Online, points can be added only once at least one swimmer in the family has FINISHED the Swim Assessment and has a level (owner, 2026-10-13); before that the family books the assessment first. The front desk can still sell points. There is NO bulk discount on the purchase - do not imply that adding more is cheaper per point, because it is not.
 - Unused points that were PAID FOR can be refunded in cash at $1 per point at any time, with no deadline and no fee. See REFUNDS.
 - Points the school ADDS without payment - a promotion, a goodwill adjustment, a negotiated programme rate - book lessons exactly like any other point but cannot be cashed out. Never promise a cash refund on bonus points.

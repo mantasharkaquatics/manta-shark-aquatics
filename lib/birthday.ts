@@ -73,6 +73,19 @@ export function birthdayIn(year: number, dob: string): string {
 
 const firstWord = (name: string) => (name || '').trim().split(/\s+/)[0] || ''
 
+/** Is this swimmer the account holder? The swimmer has one free-text name and
+ *  the parent a first and a last, so: the same first word ("Jane Doe" / Jane),
+ *  or the whole name equal to first+last or last+first with the spaces taken
+ *  out (found 2026-10-15: 王小明 / 名字 小明 + 姓氏 王 was written about in the
+ *  third person). A nickname (Jen / Jennifer) still reads as someone else. */
+function isAccountHolder(fullName: string, first: string, last: string): boolean {
+  const fold = (x: string) => (x || '').replace(/\s+/g, '').toLowerCase()
+  const f = fold(first), l = fold(last), n = fold(fullName)
+  if (!f || !n) return false
+  if (firstWord(first).toLowerCase() === firstWord(fullName).toLowerCase()) return true
+  return !!l && (n === f + l || n === l + f)
+}
+
 function addDays(ymd: string, n: number): string {
   const d = new Date(ymd + 'T12:00:00Z')
   d.setUTCDate(d.getUTCDate() + n)
@@ -100,7 +113,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
   const parentIds = [...new Set(due.map((x: any) => x.s.parent_id).filter(Boolean))] as string[]
   const parents = new Map<string, any>()
   for (let i = 0; i < parentIds.length; i += 300) {
-    const { data } = await svc.from('parents').select('id, first_name, email, preferred_language, newsletter_subscribed').in('id', parentIds.slice(i, i + 300))
+    const { data } = await svc.from('parents').select('id, first_name, last_name, email, preferred_language, newsletter_subscribed').in('id', parentIds.slice(i, i + 300))
     for (const p of data || []) parents.set(p.id, p)
   }
 
@@ -137,7 +150,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
       kind: adult ? 'adult' : isActive ? 'active' : 'returning',
       active: isActive,
       history: isActive ? 'active' : ever.has(s.id) ? 'returning' : 'new',
-      self: adult && !!p.first_name && firstWord(p.first_name).toLowerCase() === firstName.toLowerCase(),
+      self: adult && isAccountHolder(s.full_name, p.first_name, p.last_name),
       parentFirstName: p.first_name || '',
       email: p.email || null,
       lang: toLocale(p.preferred_language),
@@ -190,7 +203,7 @@ export function renderBirthdayCard(sw: BirthdaySwimmer, opts: { points: number; 
   const h = sw.history
   const who = sw.self ? 'Self' : 'Other'
   const hi = band === 'kid' ? t('bday.email.dearKid', { name })
-    : sw.self ? t('assess.email.hi', { name }) : t('assess.email.hi', { name: esc(sw.parentFirstName || '') })
+    : sw.self ? t('assess.email.hi', { name: esc(sw.parentFirstName) || name }) : t('assess.email.hi', { name: esc(sw.parentFirstName || '') })
   const sub = t(band === 'kid' ? 'bday.email.sub' : `bday.email.sub${band}`)
   const p1 = band === 'kid' ? t('bday.email.p1Kid') : t(`bday.email.p1Adult${band}${who}`, { name })
   const hk = h === 'active' ? 'Active' : h === 'returning' ? 'Returning' : 'New'

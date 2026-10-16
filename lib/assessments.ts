@@ -498,7 +498,10 @@ export async function assessmentsForParent(svc: Svc, parentId: string, lang: str
         needed: CREDIT_LESSONS,
         points: CREDIT_POINTS,
         deadline: r.credit_deadline,
-        daysLeft: daysLeft(r.credit_deadline, today),
+        // Capped at the published 60 (found 2026-10-15): the deadline is the
+        // start day + 60 and the count includes the deadline day, so the day
+        // the report is confirmed would otherwise read "61 days left".
+        daysLeft: Math.min(daysLeft(r.credit_deadline, today), CREDIT_DAYS),
       },
     })
   }

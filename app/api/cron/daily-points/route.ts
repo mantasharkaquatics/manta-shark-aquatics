@@ -5,7 +5,7 @@ import { awardDueReferrals } from '@/lib/referrals'
 import { settleAssessmentCredits } from '@/lib/assessments'
 import { sweepVouchers } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
-import { sendRenewalNotices, HOLD_RELEASE_DAYS } from '@/lib/fixed-classes'
+import { sendRenewalNotices, holdLive, HOLD_RELEASE_DAYS } from '@/lib/fixed-classes'
 import { addDaysStr } from '@/lib/vouchers'
 import { formatTime12h } from '@/lib/date'
 import { allRows } from '@/lib/db-paging'
@@ -120,7 +120,11 @@ export async function GET(req: NextRequest) {
         type: 'fixed_class_renewal', to: p.email, parentName: p.first_name || '',
         lang: p.preferred_language || 'en', studentNames: (kids || []).map((k: any) => k.full_name),
         weekday: fc.weekday, time: formatTime12h(String(fc.start_time).slice(0, 5)), coachName: coach?.first_name || '',
-        date: last, expiresOn: addDaysStr(last, -HOLD_RELEASE_DAYS),
+        date: last,
+        // The hold date only while the hold is still on (found 2026-10-15): a
+        // notice sent late -- a retried email, a moved class, a cron outage --
+        // said the slot was held until a day already past.
+        expiresOn: holdLive(last) ? addDaysStr(last, -HOLD_RELEASE_DAYS) : undefined,
         location: await lessonLocationLine(svc, lastLoc),
         linkUrl: `https://www.mantasharkaquatics.net/dashboard/fixed-class/${fc.id}?renew=1`,
       })

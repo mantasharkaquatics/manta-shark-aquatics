@@ -3207,7 +3207,7 @@ export default function DashboardPage() {
                         {monthlyLine}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
-                            🎁 {t('assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
+                            🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
                           </div>
                         )}
                         <div className="msa-mcard-btns">
