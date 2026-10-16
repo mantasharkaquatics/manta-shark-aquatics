@@ -197,6 +197,9 @@ export default function Navbar() {
   const locale = useLocale()
   const setLocale = useSetLocale()
   const navRef = useRef<HTMLElement>(null)
+  const langBtnRef = useRef<HTMLButtonElement>(null)
+  const acctBtnRef = useRef<HTMLButtonElement>(null)
+  const burgerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const urlNamesLocale = () => {
@@ -253,13 +256,22 @@ export default function Navbar() {
   // Any navigation closes whatever was open.
   useEffect(() => { setOpen(null) }, [pathname])
 
-  // A click anywhere else, or Escape, closes a menu.
+  // A click anywhere else, or Escape, closes a menu. Escape hands focus back
+  // to the button that opened it (found 2026-10-15): the item that had focus
+  // is unmounted with the menu, and focus used to fall to the page.
   useEffect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {
       if (navRef.current && !navRef.current.contains(e.target as Node)) setOpen(null)
     }
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(null) }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      const a = document.activeElement
+      const inside = !a || a === document.body || !!navRef.current?.contains(a)
+      const trigger = open === 'lang' ? langBtnRef : open === 'acct' ? acctBtnRef : burgerRef
+      setOpen(null)
+      if (inside) trigger.current?.focus()
+    }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
@@ -336,6 +348,13 @@ export default function Navbar() {
   return (
     <>
       <style>{css}</style>
+      {/* Skip link (found 2026-10-15): a keyboard parent tabbed through the
+          logo, every Programs item, language and account on every page before
+          reaching it. Hidden until focused; the layouts give the page its
+          <main id="main-content">. */}
+      <a href="#main-content" className="skip-link">
+        {t('nav.skipToContent')}
+      </a>
       <div className="rn-space" aria-hidden="true" />
       <nav ref={navRef} className="rn" aria-label={t('nav.mainAria')}>
         {open === 'drawer' && <div className="rn-scrim" onClick={() => setOpen(null)} />}
@@ -353,21 +372,26 @@ export default function Navbar() {
             <div className="rn-links">
               {navLinks.map(link => link.href === '/programs' ? (
                 <div key={link.href} className={'rn-dd' + (ddShut ? ' shut' : '')} onMouseLeave={() => setDdShut(false)}>
-                  <Link href={localePath(link.href, locale)} aria-current={current(link.href)} aria-haspopup="true">
+                  <Link href={localePath(link.href, locale)} aria-current={current(link.href)}>
                     {t(link.labelKey)}
                     <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
                       <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </Link>
                   <div className="rn-ddm">
-                    <div className="box" role="menu" aria-label={t(link.labelKey)}>
+                    {/* Plain links, not role="menu" (found 2026-10-15): a menu
+                        role makes NVDA and JAWS expect arrow keys, which these
+                        three pop-ups never had. Tab and Shift+Tab move through
+                        them, the disclosure pattern; the triggers keep
+                        aria-expanded. */}
+                    <div className="box">
                       {PROGRAM_ITEMS.map(it => (
-                        <Link key={it.key} role="menuitem" href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={closeDd}>
+                        <Link key={it.key} href={localePath(it.href, locale)} aria-current={current(it.href)} onClick={closeDd}>
                           <b>{t('nav.prog.' + it.key)}</b><span>{t('nav.prog.' + it.key + 'Sub')}</span>
                         </Link>
                       ))}
                       <hr />
-                      <Link role="menuitem" className="all" href={localePath('/programs', locale)} onClick={closeDd}>{t('nav.prog.all')} →</Link>
+                      <Link className="all" href={localePath('/programs', locale)} onClick={closeDd}>{t('nav.prog.all')} →</Link>
                     </div>
                   </div>
                 </div>
@@ -383,14 +407,14 @@ export default function Navbar() {
             {cta}
 
             <div className="rn-pop">
-              <button type="button" className="rn-ic" aria-label={t('nav.language')} aria-expanded={open === 'lang'}
+              <button ref={langBtnRef} type="button" className="rn-ic" aria-label={t('nav.language')} aria-expanded={open === 'lang'}
                 onClick={() => toggle('lang')}>
                 {LOCALE_SHORT[locale]}
               </button>
               {open === 'lang' && (
-                <div className="rn-menu" role="menu">
+                <div className="rn-menu" role="group" aria-label={t('nav.language')}>
                   {LOCALES.map(l => (
-                    <button key={l} type="button" role="menuitemradio" aria-checked={l === locale}
+                    <button key={l} type="button" aria-pressed={l === locale}
                       className={l === locale ? 'on' : ''} onClick={() => changeLocale(l)}>
                       {t('locale.' + l + '.native')}{l === locale && <span aria-hidden="true">✓</span>}
                     </button>
@@ -400,35 +424,35 @@ export default function Navbar() {
             </div>
 
             <div className="rn-pop">
-              <button type="button" className={`rn-ic${isLoggedIn ? ' me' : ''}`} aria-label={t('nav.account')}
+              <button ref={acctBtnRef} type="button" className={`rn-ic${isLoggedIn ? ' me' : ''}`} aria-label={t('nav.account')}
                 aria-expanded={open === 'acct'} onClick={() => toggle('acct')}>
                 {authLoading ? null : isLoggedIn && firstName ? firstName.charAt(0).toUpperCase() : <PersonIcon />}
               </button>
               {open === 'acct' && (
-                <div className="rn-menu" role="menu">
+                <div className="rn-menu">
                   {isLoggedIn ? (
                     <>
                       {fullName && <div className="who">{fullName}</div>}
-                      <Link href="/dashboard" role="menuitem">{t('nav.myPage')}</Link>
-                      <Link href="/dashboard/account" role="menuitem">{t('nav.dashboard')}</Link>
-                      <Link href="/dashboard/partnerships" role="menuitem">{t('quick.partnerships')}</Link>
-                      <Link href="/policies" role="menuitem">{t('page.policies')}</Link>
+                      <Link href="/dashboard">{t('nav.myPage')}</Link>
+                      <Link href="/dashboard/account">{t('nav.dashboard')}</Link>
+                      <Link href="/dashboard/partnerships">{t('quick.partnerships')}</Link>
+                      <Link href="/policies">{t('page.policies')}</Link>
                       <hr />
-                      <button type="button" role="menuitem" className="out" onClick={handleSignOut}>{t('nav.signOut')}</button>
+                      <button type="button" className="out" onClick={handleSignOut}>{t('nav.signOut')}</button>
                     </>
                   ) : (
                     <>
-                      <Link href="/login" role="menuitem">{t('nav.signIn')}</Link>
-                      <Link href="/register" role="menuitem">{t('nav.createAccount')}</Link>
+                      <Link href="/login">{t('nav.signIn')}</Link>
+                      <Link href="/register">{t('nav.createAccount')}</Link>
                       <hr />
-                      <Link href="/policies" role="menuitem">{t('page.policies')}</Link>
+                      <Link href="/policies">{t('page.policies')}</Link>
                     </>
                   )}
                 </div>
               )}
             </div>
 
-            <button type="button" className="rn-ic rn-burger" aria-label={t('nav.menu')} aria-expanded={open === 'drawer'}
+            <button ref={burgerRef} type="button" className="rn-ic rn-burger" aria-label={t('nav.menu')} aria-expanded={open === 'drawer'}
               onClick={() => toggle('drawer')}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
                 strokeLinecap="round" aria-hidden="true">

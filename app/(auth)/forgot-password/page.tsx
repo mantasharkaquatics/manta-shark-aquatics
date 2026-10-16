@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
 
         {sent ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-[#b7e0cc] bg-[#e6f4ee] px-4 py-3 text-sm text-[#1f7a57] leading-relaxed">
+            <div role="status" className="rounded-lg border border-[#b7e0cc] bg-[#e6f4ee] px-4 py-3 text-sm text-[#1f7a57] leading-relaxed">
               {t('forgot.sent', { email: email.trim() })}
             </div>
             <p className="text-sm text-[#56647d] leading-relaxed">{t('forgot.sentHelp')}</p>
@@ -67,7 +67,8 @@ export default function ForgotPasswordPage() {
                 onKeyDown={e => { if (e.key === 'Enter') submit() }}
                 autoComplete="email" inputMode="email" className={field} placeholder="you@example.com" />
             </div>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {/* role="alert": read out when it appears; focus stays on the button (found 2026-10-15). */}
+            {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
             <button onClick={submit} disabled={sending}
               className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] font-bold py-3 rounded-lg text-sm transition disabled:opacity-50">
               {sending ? t('forgot.sending') : t('forgot.send')}

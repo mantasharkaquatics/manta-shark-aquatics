@@ -2701,8 +2701,19 @@ export default function BookingPage() {
                   const hasPick = batchFlow && [...recurSel.keys()].some(k => k.startsWith(dsX + '|'))
                   const hasGhost = batchFlow && !hasPick && [...ghost.keys()].some(k => k.startsWith(dsX + '|'))
                   return (
-                    <button key={dsC}
+                    // A keyboard parent could not see which day had focus (the
+                    // inline outline beat any stylesheet; .kb-focus wins with
+                    // !important), and a screen reader heard a bare "15" with no
+                    // month, no selection and no way to tell a closed day. A day
+                    // with nothing to book says so with aria-disabled -- not the
+                    // disabled attribute, which can swallow the touch that starts
+                    // a month swipe on the card (found 2026-10-15).
+                    <button key={dsC} className="kb-focus"
                       title={elsewhere.length > 0 ? t('booking.loc.elsewhereTip', { there: elsewhere.map(x => x.name).join(', ') }) : undefined}
+                      aria-label={date.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      aria-pressed={isSelected}
+                      aria-current={isTodayDate ? 'date' : undefined}
+                      aria-disabled={!available || undefined}
                       onClick={() => {
                         // Re-clicking the day already open would clear its times and never refetch them.
                         if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
@@ -2755,6 +2766,7 @@ export default function BookingPage() {
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                       {([30, 60] as const).map(v => (
                         <button key={v} disabled={recurSel.size > 0 && lessonLength !== v}
+                          aria-pressed={lessonLength === v} className="kb-focus-in"
                           title={recurSel.size > 0 && lessonLength !== v ? t('booking.lenLocked') : undefined}
                           onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false) }}
                           style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',

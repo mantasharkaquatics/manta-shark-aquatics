@@ -32,7 +32,10 @@ export default function NotFound() {
       <div style={{ display: 'contents', fontFamily: FONT_BODY }}>
         <BrandStyles />
         <Navbar />
-        <NotFoundBody />
+        {/* Where the nav bar's skip link lands, as in the page layouts. */}
+        <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
+          <NotFoundBody />
+        </main>
         <Footer />
       </div>
     </LocaleProvider>

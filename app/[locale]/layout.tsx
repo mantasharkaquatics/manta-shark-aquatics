@@ -54,7 +54,13 @@ export default async function LocaleLayout({
         <BrandStyles />
         <Navbar />
         <ActivityPing />
-        {children}
+        {/* The page's own landmark, and where the nav bar's skip link lands
+            (found 2026-10-15: no parent page had a <main>). A flex column, as
+            the body is, so each page's top element lays out exactly as it did
+            when it sat in the body directly. */}
+        <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
+          {children}
+        </main>
         <Footer locations={pools} />
         <GlobalChat />
       </div>

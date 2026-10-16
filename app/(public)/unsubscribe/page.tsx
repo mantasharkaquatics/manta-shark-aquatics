@@ -29,7 +29,8 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
   const body = !valid ? t('unsub.badBody') : done ? t('unsub.doneBody') : t('unsub.body')
 
   return (
-    <main lang={lang} className="min-h-dvh px-4 pt-32 pb-20 bg-[#f4f7fc]">
+    // A <div>: the layout's <main> already holds this page (found 2026-10-15).
+    <div lang={lang} className="min-h-dvh px-4 pt-32 pb-20 bg-[#f4f7fc]">
       <div className="mx-auto max-w-lg rounded-2xl border border-[#d5e0ef] bg-white p-8 text-[#16294a]">
         <h1 className="text-2xl font-bold text-[#12254a]" style={{ textWrap: 'balance' }}>{title}</h1>
         <p className="mt-3 leading-relaxed">{body}</p>
@@ -45,6 +46,6 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
         )}
         {done && <p className="mt-4 text-sm text-[#56647d]">{t('unsub.resubscribe')}</p>}
       </div>
-    </main>
+    </div>
   )
 }

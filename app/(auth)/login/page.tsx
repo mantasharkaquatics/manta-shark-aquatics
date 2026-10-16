@@ -114,7 +114,8 @@ export default function LoginPage() {
             <PasswordField id="login-password" value={password} onChange={setPassword} onEnter={handleLogin}
               autoComplete="current-password" className={field} placeholder="••••••••" />
           </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {/* role="alert": read out when it appears; focus stays on the button (found 2026-10-15). */}
+          {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
           <button onClick={handleLogin} disabled={loading}
             className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] font-bold py-3 rounded-lg text-sm transition disabled:opacity-50">
             {loading ? t('login.signingIn') : t('login.signIn')}

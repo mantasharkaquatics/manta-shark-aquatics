@@ -42,7 +42,7 @@ function monthName(mm: string, tag: string): string {
   return new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(mm) - 1, 1)))
 }
 
-function DobSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function DobSelect({ value, onChange, labelledBy }: { value: string; onChange: (v: string) => void; labelledBy?: string }) {
   const t = useT()
   const monthTag = dateTag(useLocale())
   const [vy = '', vm = '', vd = ''] = (value || '').split('-')
@@ -74,17 +74,20 @@ function DobSelect({ value, onChange }: { value: string; onChange: (v: string) =
   }
 
   const selCls = "bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-2 py-2.5 text-sm"
+  // One named group (found 2026-10-15): a screen reader heard only "Month",
+  // "Day", "Year" for every child, with no word that it was a birthday,
+  // whose, or that it was required.
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls} aria-label={t('register.dob.month')}>
+    <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby={labelledBy}>
+      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls} aria-label={t('register.dob.month')} aria-required="true">
         <option value="">{t('register.dob.month')}</option>
         {months.map(mm => <option key={mm} value={mm}>{monthName(mm, monthTag)}</option>)}
       </select>
-      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls} aria-label={t('register.dob.day')}>
+      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls} aria-label={t('register.dob.day')} aria-required="true">
         <option value="">{t('register.dob.day')}</option>
         {days.map(dd => <option key={dd} value={dd}>{Number(dd)}</option>)}
       </select>
-      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls} aria-label={t('register.dob.year')}>
+      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls} aria-label={t('register.dob.year')} aria-required="true">
         <option value="">{t('register.dob.year')}</option>
         {years.map(yr => <option key={yr} value={String(yr)}>{yr}</option>)}
       </select>
@@ -103,6 +106,16 @@ export default function RegisterClient() {
   const supabase = createClient()
   const router = useRouter()
   const [step, setStep] = useState(1)
+  // Changing step swaps the whole form, so the button that was pressed is gone
+  // and focus fell to the page. It goes to the "Step n" line instead, which a
+  // screen reader then reads (found 2026-10-15). Not on the first render.
+  const stepRef = useRef<HTMLParagraphElement>(null)
+  const stepShownRef = useRef(step)
+  useEffect(() => {
+    if (stepShownRef.current === step) return
+    stepShownRef.current = step
+    stepRef.current?.focus()
+  }, [step])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -510,7 +523,7 @@ export default function RegisterClient() {
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto mb-2 object-cover" style={{ width: 204, height: 106 }} priority />
           </Link>
           <h1 className="text-2xl font-bold text-[#12254a] auth-title">{t('register.title')}</h1>
-          <p className="text-sm text-[#56647d] mt-1">{t('register.step', { n: step })}</p>
+          <p ref={stepRef} tabIndex={-1} className="text-sm text-[#56647d] mt-1 focus:outline-none">{t('register.step', { n: step })}</p>
         </div>
 
         {step === 1 && (
@@ -578,6 +591,7 @@ export default function RegisterClient() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <input id="reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk || !!finish}
                   autoComplete="email" inputMode="email"
+                  aria-invalid={!!emailError && !emailOtpSent} aria-describedby={emailError ? 'reg-email-err' : undefined}
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {emailOk ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
@@ -593,6 +607,7 @@ export default function RegisterClient() {
                   <input
                     type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code"
                     aria-label={t('register.emailCodePh')}
+                    aria-invalid={!!emailError} aria-describedby={emailError ? 'reg-email-err' : undefined}
                     value={emailOtpCode}
                     onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.emailCodePh')}
@@ -603,7 +618,8 @@ export default function RegisterClient() {
                   </button>
                 </div>
               )}
-              {emailError && <p className="text-red-600 text-xs mt-1">{emailError}</p>}
+              {/* Read out when it appears, and tied to the field it is about (found 2026-10-15). */}
+              {emailError && <p id="reg-email-err" role="alert" className="text-red-600 text-xs mt-1">{emailError}</p>}
             </div>
 
             <div>
@@ -614,6 +630,7 @@ export default function RegisterClient() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <input id="reg-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={phoneVerified}
                   autoComplete="tel"
+                  aria-invalid={!!phoneError && !phoneOtpSent} aria-describedby={phoneError ? 'reg-phone-err' : undefined}
                   placeholder="(555) 123-4567"
                   className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
                 {phoneVerified ? (
@@ -630,6 +647,7 @@ export default function RegisterClient() {
                   <input
                     type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code"
                     aria-label={t('register.smsCodePh')}
+                    aria-invalid={!!phoneError} aria-describedby={phoneError ? 'reg-phone-err' : undefined}
                     value={phoneOtpCode}
                     onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.smsCodePh')}
@@ -640,7 +658,7 @@ export default function RegisterClient() {
                   </button>
                 </div>
               )}
-              {phoneError && <p className="text-red-600 text-xs mt-1">{phoneError}</p>}
+              {phoneError && <p id="reg-phone-err" role="alert" className="text-red-600 text-xs mt-1">{phoneError}</p>}
               <p className="text-xs text-[#56647d] mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
             </div>
 
@@ -721,7 +739,7 @@ export default function RegisterClient() {
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
             </div>}
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
             <button
               onClick={handleContinue}
               disabled={!emailOk || !phoneVerified}
@@ -738,8 +756,11 @@ export default function RegisterClient() {
         {step === 2 && (
           <div className="space-y-4">
             {students.map((s, i) => (
-              <div key={i} className="border border-[#d5e0ef] rounded-xl p-4">
-                <p className="text-sm font-semibold text-[#16294a] mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-600">*</span>}</p>
+              // Each child is a named group, so "Full name" and the birthday are
+              // heard as Student 1's or Student 2's (found 2026-10-15). A group
+              // role rather than <fieldset>: a legend is drawn in the border.
+              <div key={i} role="group" aria-labelledby={`reg-student-h-${i}`} className="border border-[#d5e0ef] rounded-xl p-4">
+                <p id={`reg-student-h-${i}`} className="text-sm font-semibold text-[#16294a] mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-600" aria-hidden="true">*</span>}</p>
                 <div className="space-y-3">
                   <div>
                     <label htmlFor={`reg-student-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.fullName')}</label>
@@ -747,8 +768,8 @@ export default function RegisterClient() {
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600">*</span></label>
-                    <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} />
+                    <p id={`reg-dob-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600" aria-hidden="true">*</span></p>
+                    <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} labelledBy={`reg-dob-${i}`} />
                   </div>
                 </div>
               </div>
@@ -780,7 +801,7 @@ export default function RegisterClient() {
                 <span className="text-sm text-[#16294a]"><b className="font-semibold">{t('register.newsletter')}</b><span className="block text-xs text-[#56647d] mt-0.5 leading-relaxed">{t('register.newsletterDesc')}</span></span>
               </label>
             </div>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
             {unfinishedLogin && (
               <p className="rounded-xl border border-[#f3dfb4] bg-[#fff7e6] px-4 py-3 text-sm text-[#16294a] leading-relaxed">
                 {t('register.err.unfinishedLogin')}{' '}

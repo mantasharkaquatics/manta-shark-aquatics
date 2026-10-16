@@ -52,6 +52,7 @@ export default function ApplyForm() {
   const [alreadyApplied, setAlreadyApplied] = useState(false)
   const router = useRouter()
   const fileInput = useRef<HTMLInputElement | null>(null)
+  const resumeBtn = useRef<HTMLButtonElement | null>(null)
 
   const [roleApplied, setRoleApplied] = useState('swim_coach')
   const [city, setCity] = useState('')
@@ -136,8 +137,12 @@ export default function ApplyForm() {
   async function submit() {
     setError('')
     // Checked here as well as on the server so the applicant is told before a
-    // round trip, and told next to the field rather than at the top.
-    if (!resume) { setError('Please attach your résumé.'); return }
+    // round trip, and told next to the field rather than at the top. The
+    // comment said so; the code put it at the top of the page, ten fields
+    // above the button, so on a phone nothing seemed to happen (found
+    // 2026-10-15). Now it is the résumé's own line, and focus goes to the
+    // button that fixes it, which also scrolls it into view.
+    if (!resume) { setResumeError('Please attach your résumé.'); resumeBtn.current?.focus(); return }
     // A half-filled date used to be dropped without a word.
     const parts = [startMonth, startDay, startYear].filter(Boolean).length
     if (parts > 0 && parts < 3) { setError('Please complete the start date, or leave all three boxes empty.'); return }
@@ -227,8 +232,6 @@ export default function ApplyForm() {
         <p style={SUB}>
           Hi {firstName} — we already have your name, email and phone. Just a few more things.
         </p>
-
-        {error ? <div style={ERROR}>{error}</div> : null}
 
         <div style={FIELD}>
           <label style={LABEL} htmlFor="role">Position you are applying for</label>
@@ -328,7 +331,7 @@ export default function ApplyForm() {
               was not in the Tab order, and the file input behind it is hidden
               so the browser's own control cannot show its non-English text. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button type="button" id="resume" style={FILE_BTN} aria-describedby="resume-name"
+            <button ref={resumeBtn} type="button" id="resume" style={FILE_BTN} aria-describedby="resume-name"
               onClick={() => fileInput.current?.click()}>Choose file</button>
             <span id="resume-name" style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
               {resume ? resume.name : 'No file chosen'}
@@ -352,6 +355,10 @@ export default function ApplyForm() {
           <textarea id="msg" style={AREA} value={message}
             onChange={(e) => setMessage(e.target.value)} />
         </div>
+
+        {/* Right above the button that was pressed, and read out (found
+            2026-10-15): at the top of the card it was out of sight. */}
+        {error ? <div role="alert" style={ERROR}>{error}</div> : null}
 
         <button
           style={busy || !canSubmit ? BUTTON_DISABLED : BUTTON}

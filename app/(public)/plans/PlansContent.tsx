@@ -266,8 +266,11 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
       {/* Which class, first. The points are not tied to one -- the note below
           says so -- but a parent thinking about buying is thinking about a
           class, not about a balance. */}
-      <p className="p-label">{t('points.buy.pickCourse')}</p>
-      <div className="p-seg" role="group">
+      {/* The group is named by its visible label, and the lesson counts get a
+          name of their own, so a screen reader hears what each set of buttons
+          chooses (found 2026-10-15). */}
+      <p className="p-label" id="plans-pick-course">{t('points.buy.pickCourse')}</p>
+      <div className="p-seg" role="group" aria-labelledby="plans-pick-course">
         {TOPUP_COURSES.map(c => (
           <button key={c} type="button" aria-pressed={course === c} onClick={() => setCourse(c)}>
             {t('home.program.' + ({ '1on1': 'private', '1on2': 'semi', '1on4': 'group' } as const)[c] + '.name')}
@@ -278,7 +281,7 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
       {/* Then how many. The biggest thing on the card is the number of LESSONS:
           choosing between ten and thirty lessons is choosing a course of study.
           The money is right underneath and the rate is unchanged. */}
-      <div className="p-counts">
+      <div className="p-counts" role="group" aria-label={t('points.buy.pickCount')}>
         {TOPUP_LESSON_COUNTS.map(n => {
           const price = topUpAmount(course, n)
           return (
@@ -318,16 +321,17 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
         </button>
       )}
 
+      {/* Read out when they appear, after Buy (found 2026-10-15). */}
       {needsAssessment && (
-        <div className="p-warn">
+        <div className="p-warn" role="alert">
           <div style={{ marginBottom: 8 }}>{t('points.buy.err.assessment')}</div>
           <Link href={localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
         </div>
       )}
       {assessmentPending && (
-        <div className="p-warn">{t('points.buy.err.assessmentPending')}</div>
+        <div className="p-warn" role="alert">{t('points.buy.err.assessmentPending')}</div>
       )}
-      {error && <div className="p-err">{error}</div>}
+      {error && <div className="p-err" role="alert">{error}</div>}
 
       <p className="p-fine" style={{ marginTop: 16 }}>{t('points.buy.fine')}</p>
     </div>

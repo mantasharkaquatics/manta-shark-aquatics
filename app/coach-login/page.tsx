@@ -159,16 +159,19 @@ export default function CoachLoginPage() {
           <Image src="/logo.png" alt="Manta Shark" width={72} height={72} className="mb-4" />
           <p className="text-[#c9a84c] text-xs font-semibold uppercase tracking-widest mb-1">{t('coach.portal')}</p>
           <h1 className="text-white text-2xl font-bold">{t('coach.login.title')}</h1>
-          <p className="text-gray-400 text-sm mt-1">{t('coach.login.prompt')}</p>
+          <p id="pin-prompt" className="text-gray-400 text-sm mt-1">{t('coach.login.prompt')}</p>
         </div>
 
         {/* Eight fixed 40px boxes plus seven 8px gaps is 376px, which does not fit a
             360px phone -- the last digit sat off-screen. They share the row instead
             now and cap at the old 40px, so the desktop layout is unchanged. */}
-        <div className="flex gap-1.5 sm:gap-2 justify-center mb-6">
+        {/* Named for a screen reader (found 2026-10-15): eight unlabelled secure
+            fields, with nothing tying them to the prompt above. */}
+        <div className="flex gap-1.5 sm:gap-2 justify-center mb-6" role="group" aria-labelledby="pin-prompt">
           {pin.map((digit, i) => (
             <input
               key={i}
+              aria-label={t('coach.login.digit', { n: i + 1 })}
               ref={el => { inputs.current[i] = el }}
               type="password"
               inputMode="numeric"
@@ -183,8 +186,10 @@ export default function CoachLoginPage() {
           ))}
         </div>
 
-        {inactive && !error && <p className="text-amber-300 text-sm text-center mb-4">{t('coach.login.inactive')}</p>}
-        {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
+        {/* Read out (found 2026-10-15): a wrong PIN, the attempts left and the
+            lockout were silent, with focus still in the boxes. */}
+        {inactive && !error && <p role="status" className="text-amber-300 text-sm text-center mb-4">{t('coach.login.inactive')}</p>}
+        {error && <p role="alert" className="text-red-400 text-sm text-center mb-4">{error}</p>}
         {locked && (
           <div className="flex justify-center mb-4">
             <button
@@ -196,7 +201,7 @@ export default function CoachLoginPage() {
             </button>
           </div>
         )}
-        {loading && <p className="text-gray-400 text-sm text-center">{t('coach.login.verifying')}</p>}
+        {loading && <p role="status" className="text-gray-400 text-sm text-center">{t('coach.login.verifying')}</p>}
         {/* No "Sign in with Email" here any more (owner, 2026-10-08): coach
             accounts have no password, so that page was a dead end. A coach
             locked out of PIN sign-in asks the front desk, who can unlock it

@@ -96,7 +96,7 @@ function ResetForm() {
             </Link>
           </div>
         ) : done ? (
-          <div className="rounded-lg border border-[#b7e0cc] bg-[#e6f4ee] px-4 py-3 text-sm text-[#1f7a57] font-semibold text-center">
+          <div role="status" className="rounded-lg border border-[#b7e0cc] bg-[#e6f4ee] px-4 py-3 text-sm text-[#1f7a57] font-semibold text-center">
             ✓ {t('reset.done')}
           </div>
         ) : (
@@ -113,7 +113,8 @@ function ResetForm() {
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
             </div>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {/* role="alert": read out when it appears; focus stays on the button (found 2026-10-15). */}
+            {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
             <button onClick={save} disabled={saving}
               className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] font-bold py-3 rounded-lg text-sm transition disabled:opacity-50">
               {saving ? t('reset.saving') : t('reset.save')}

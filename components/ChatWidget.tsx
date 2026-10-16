@@ -118,6 +118,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   useEffect(() => {
     const onOpen = (e: Event) => {
       takePendingChatOpen()
+      focusOnOpenRef.current = true
       setOpen(true)
       const text = (e as CustomEvent).detail?.text
       if (text) setInput(text)
@@ -128,6 +129,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     const timer = setTimeout(() => {
       const pending = takePendingChatOpen()
       if (!pending) return
+      focusOnOpenRef.current = true
       setOpen(true)
       if (pending.text) setInput(pending.text)
     }, 0)
@@ -135,6 +137,59 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   }, [])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useIsMobile()
+
+  /* Keyboard and screen-reader use (found 2026-10-15). The launcher unmounts
+     when the panel opens and the panel is last in the page, so focus fell to
+     the body and a keyboard parent had to Tab through the whole page to reach
+     the box; closing did the same in reverse. Opening by hand (the button, or
+     a page's openChat()) now moves focus in -- to the box on a computer, to
+     the panel itself on a phone, where focusing the box would throw the
+     keyboard up over the conversation. The panel reopened by itself after a
+     page change takes nothing. Closing with focus inside hands it back to the
+     launcher. */
+  const panelRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const launcherRef = useRef<HTMLButtonElement>(null)
+  const focusOnOpenRef = useRef(false)
+  const focusLauncherRef = useRef(false)
+  useEffect(() => {
+    if (open && focusOnOpenRef.current) {
+      focusOnOpenRef.current = false
+      ;(isMobile ? panelRef.current : inputRef.current)?.focus()
+    } else if (!open && focusLauncherRef.current) {
+      focusLauncherRef.current = false
+      launcherRef.current?.focus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+  function openPanel() {
+    focusOnOpenRef.current = true
+    setOpen(true)
+  }
+  function closePanel() {
+    const a = document.activeElement
+    focusLauncherRef.current = !!panelRef.current && (!a || a === document.body || panelRef.current.contains(a))
+    setOpen(false)
+  }
+
+  /* Replies are read out. The list itself is not a live region: opening the
+     panel loads the whole history into it, and every old message would be
+     read. Instead the newest message from the school (the AI or the desk)
+     that was not already on screen is written into a hidden polite region.
+     What a history load brings is marked as heard first (loadMessages and
+     the guest's first load), and so is anything that arrives while the panel
+     is shut -- the launcher's unread count covers that. Written straight to
+     the node so no extra render is needed. */
+  const heardRef = useRef<Set<string>>(new Set())
+  const liveRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const school = messages.filter(m => (m.sender_type === 'ai' || m.sender_type === 'admin') && m.id && !heardRef.current.has(m.id))
+    if (!school.length) return
+    school.forEach(m => heardRef.current.add(m.id))
+    const m = school[school.length - 1]
+    if (open && liveRef.current) liveRef.current.textContent = `${t(m.sender_type === 'ai' ? 'chat.fromAi' : 'chat.fromDesk')}: ${m.body}`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, open])
 
   useEffect(() => {
     if (!open) return
@@ -241,7 +296,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     if (guest) {
       const k = readGuestKey()
       setGuestKey(k)
-      if (k) await loadGuest(k)
+      if (k) await loadGuest(k, true)
       return
     }
     // Normally already done by GlobalChat at sign-in; harmless if not.
@@ -274,11 +329,14 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     return plain.data ? { id: plain.data.id, lastRead: null, readKnown: false, mode: modeOf(plain.data) } : null
   }
 
-  async function loadGuest(k: string) {
+  async function loadGuest(k: string, initial = false) {
     try {
       const r = await fetch('/api/chat/guest?key=' + encodeURIComponent(k))
       const d = await r.json()
       if (d.gone) { try { localStorage.removeItem(GUEST_KEY) } catch {}; setGuestKey(null); setMessages([]); return }
+      // The history on opening is not read out; a reply the 15-second poll
+      // picks up later is (see heardRef).
+      if (initial && Array.isArray(d.messages)) d.messages.forEach((m: { id?: string } | null) => { if (m?.id) heardRef.current.add(m.id) })
       // Keep a message still on its way (shown before the server has it).
       if (Array.isArray(d.messages)) setMessages(prev => [...d.messages, ...prev.filter(m => m._local)])
     } catch {}
@@ -330,6 +388,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       // over (or hand back) while the panel was shut.
       supabase.from('chat_threads').select('mode').eq('id', threadId).maybeSingle(),
     ])
+    // The history is on screen, not news: not read out (see heardRef).
+    ;(data || []).forEach((m: { id?: string } | null) => { if (m?.id) heardRef.current.add(m.id) })
     setMessages((data || []).reverse())
     if (th) setMode((th as any).mode === 'human' ? 'human' : 'ai')
   }
@@ -395,6 +455,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     position: 'fixed', inset: 0, zIndex: 1000,
     display: 'flex', flexDirection: 'column',
     background: PAPER, fontFamily: FONT_BODY,
+    // Focused in code on opening (a phone); the dialog itself needs no ring.
+    outline: 'none',
   } : {
     position: 'fixed', bottom: '80px', right: '20px', zIndex: 1000,
     width: '360px', height: '500px',
@@ -402,6 +464,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     display: 'flex', flexDirection: 'column',
     background: PAPER, border: '1px solid #d3deec', fontFamily: FONT_BODY,
     boxShadow: '0 20px 60px rgba(14,29,59,0.28)',
+    outline: 'none',
   }
 
   return (
@@ -411,7 +474,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       `}</style>
       {/* FAB Button */}
       {!open && (
-        <button data-chat-toggle onClick={() => setOpen(true)} style={{
+        <button ref={launcherRef} data-chat-toggle onClick={openPanel} style={{
           position: 'fixed', bottom: `${20 + lift}px`, right: '20px', zIndex: 999,
           width: '56px', height: '56px', borderRadius: '50%',
           background: BLUE, border: '2px solid #fff', cursor: 'pointer', color: '#fff',
@@ -434,7 +497,16 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
 
       {/* Chat Window */}
       {open && (
-        <div style={windowStyle}>
+        <div ref={panelRef} style={windowStyle} tabIndex={-1}
+          role="dialog" aria-label={t('chat.title')} aria-modal={isMobile || undefined}
+          onKeyDown={e => {
+            // Escape closes it, full screen on a phone included; not while an
+            // IME is composing, where Escape only drops the candidate.
+            if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
+            e.stopPropagation()
+            closePanel()
+          }}>
+          <div ref={liveRef} className="sr-only" aria-live="polite" aria-atomic="true" />
           {/* Header */}
           <div style={{ background: NAVY, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <img src="/logo.png" alt="Manta Shark Aquatics" width={36} height={36}
@@ -443,7 +515,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, color: '#fff', fontSize: '16px' }}>{t('chat.title')}</div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{!guest && mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
             </div>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
+            <button onClick={closePanel} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
           </div>
 
           {/* Signed out: what an account adds, and the way to get one. */}
@@ -550,6 +622,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
           {/* Input */}
           <div style={{ padding: '12px 16px', borderTop: '1px solid #e3ebf6', display: 'flex', gap: '8px', background: '#fff' }}>
             <input
+              ref={inputRef}
+              className="kb-focus"
+              aria-label={t('chat.placeholder')}
               value={input}
               onChange={e => setInput(e.target.value)}
               // Enter while a Chinese/Japanese IME is composing picks the
@@ -565,7 +640,10 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               style={{
                 // 16px: anything smaller and iOS zooms the page when the field is tapped.
                 flex: 1, background: '#fff', border: '1px solid #d5e0ef',
-                borderRadius: '10px', padding: '10px 14px', color: BRAND.ink, fontSize: '16px', outline: 'none', fontFamily: 'inherit',
+                borderRadius: '10px', padding: '10px 14px', color: BRAND.ink, fontSize: '16px',
+                // No ring of its own; .kb-focus draws one (found 2026-10-15:
+                // the box had no visible focus at all).
+                outline: 'none', fontFamily: 'inherit',
               }}
             />
             <button onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')} style={{
