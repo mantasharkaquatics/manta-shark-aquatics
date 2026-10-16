@@ -672,7 +672,11 @@ export async function POST(req: NextRequest) {
     // The points are already back; this marks the payment itself, which the
     // Sales page and the finance page read. A failure used to be dropped
     // silently, leaving the payment counted as revenue (found 2026-10-08):
-    // the alert names it so a person can mark it.
+    // the alert names it so a person can mark it. reversed_at marks the
+    // payment, not the amount: how much was taken back is the reversal's
+    // ledger row (reverseCents), which reversedCentsByPurchase reads for
+    // Sales, finance and refunds, so a partial dispute no longer drops the
+    // whole payment (found 2026-10-15).
     const { error: markErr } = await supabase.from('purchases')
       .update({ reversed_at: new Date().toISOString(), reversal_reason: reason })
       .eq(terminalSale ? 'stripe_payment_intent_id' : 'stripe_session_id', topUp.sessionId)

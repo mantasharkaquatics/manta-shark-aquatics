@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_AMOUNT', message: 'Not a number.' }, { status: 400 })
 
   try {
-    const plan = await planRefund(auth.svc, parentId, dollars == null ? null : Math.round(dollars * 100))
+    const plan = await planRefund(auth.svc, stripe, parentId, dollars == null ? null : Math.round(dollars * 100))
     // plan.feeNotReturnedCents is what this refund costs the school: Stripe
     // keeps the processing fee from the original payment whatever happens here.
     // It comes from each charge's own balance transaction, so it is what was

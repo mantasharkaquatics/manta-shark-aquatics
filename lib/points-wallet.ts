@@ -18,6 +18,7 @@ import {
   type PriceBreakdown,
 } from '@/lib/points'
 import { formatDateLA } from '@/lib/date'
+import { allRowsIn } from '@/lib/db-paging'
 
 type Svc = any
 
@@ -610,6 +611,45 @@ export async function purchaseAlreadyReversed(svc: Svc, stripeSessionId: string)
     .in('reason', REVERSAL_REASONS as unknown as string[])
     .limit(1)
   return !!(data && data.length)
+}
+
+/**
+ * How much of each reversed payment was actually taken back, in cents, by
+ * purchase id. Pass the rows whose reversed_at is set.
+ *
+ * purchases.reversed_at marks the payment, not the amount: a dispute can be
+ * for part of it, and the webhook takes back only that part (in whole
+ * dollars), but every reader used to drop the whole row -- a $100 dispute on
+ * a $1,000 top-up showed $0 on Sales and left the other $900 unrefundable
+ * (found 2026-10-15). The amount lives on the reversal's ledger row, keyed
+ * like the purchase (checkout session online, payment intent at the desk;
+ * one per payment, point_ledger_reversal_uniq). A payment with no such row --
+ * a Swim Assessment chargeback, an assessment bank return, or a failed read
+ * -- counts as reversed in full, which is what every reader did before.
+ */
+export async function reversedCentsByPurchase(
+  svc: Svc,
+  rows: { id: string; amount_cents: number | null; stripe_session_id?: string | null; stripe_payment_intent_id?: string | null }[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  for (const r of rows) out.set(r.id, Number(r.amount_cents) || 0)
+  const keys = [...new Set(rows.flatMap(r => [r.stripe_session_id, r.stripe_payment_intent_id]).filter((k): k is string => !!k))]
+  if (keys.length === 0) return out
+  const { data, error } = await allRowsIn(keys, chunk => svc.from('point_ledger')
+    .select('id, stripe_session_id, amount_cents')
+    .in('reason', REVERSAL_REASONS as unknown as string[])
+    .in('stripe_session_id', chunk).order('id'))
+  if (error) {
+    console.error('reversed amounts not read; counting reversed payments in full:', error.message || error)
+    return out
+  }
+  const byKey = new Map<string, number>()
+  for (const l of data) if (l.stripe_session_id) byKey.set(l.stripe_session_id, Number(l.amount_cents) || 0)
+  for (const r of rows) {
+    const taken = (r.stripe_session_id && byKey.get(r.stripe_session_id)) || (r.stripe_payment_intent_id && byKey.get(r.stripe_payment_intent_id))
+    if (taken && taken > 0) out.set(r.id, Math.min(Number(r.amount_cents) || 0, taken))
+  }
+  return out
 }
 
 /** Points the family owes us, or 0. A wallet in arrears cannot book. */

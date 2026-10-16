@@ -7,6 +7,7 @@ import SalesClient from './SalesClient'
 export const dynamic = 'force-dynamic'
 
 import { allRowsOrLog, IN_CHUNK } from '@/lib/db-paging'
+import { reversedCentsByPurchase } from '@/lib/points-wallet'
 
 // Every row, a page at a time; a failed page is logged and the page shows
 // what it has (lib/db-paging.ts).
@@ -52,7 +53,8 @@ export default async function AdminSalesPage() {
   // (purchases.refunded_cents, which the site's own refunds and refunds made
   // in the Stripe dashboard both write). Its invoice stays listed and marked,
   // and is left out of the total and the CSV's net amount. The deferred
-  // revenue page leaves out reversed payments and, since 2026-10-15, shows
+  // revenue page leaves out what the bank took back (only the disputed part of
+  // a partly disputed payment, since 2026-10-15) and, since 2026-10-15, shows
   // dashboard refunds under "Cash refunded" (it used to miss them). A purchase is
   // matched to its invoice by checkout session, by the desk's 'pos:<id>' key,
   // by payment intent, or (a Swim Assessment) through its assessment credit.
@@ -73,6 +75,9 @@ export default async function AdminSalesPage() {
     if (p.stripe_payment_intent_id) byKey.set('pi:' + p.stripe_payment_intent_id, p)
     byKey.set('s:pos:' + p.id, p)
   }
+  // How much of each reversed payment the bank took. A dispute can be for
+  // part of a payment, and the whole sale used to read $0 (found 2026-10-15).
+  const reversedCents = await reversedCentsByPurchase(supabase, reversed)
   const flaggedIds = [...flagged.keys()]
   for (let i = 0; i < flaggedIds.length; i += IN_CHUNK) {
     const credits = await allRows(() => supabase.from('lesson_credits')
@@ -85,10 +90,15 @@ export default async function AdminSalesPage() {
       || (inv.lesson_credit_id && byKey.get('c:' + inv.lesson_credit_id))
     if (!p) return inv
     const amount = Number(inv.amount) || 0
+    const back = (Number(p.refunded_cents) || 0) / 100
     if (p.reversed_at) {
+      const taken = reversedCents.get(p.id) ?? (Number(p.amount_cents) || 0)
+      if (taken < (Number(p.amount_cents) || 0)) {
+        // Partly disputed: what the bank left counts, less any refund of it.
+        return { ...inv, sale_status: 'partly_disputed', disputed_amount: taken / 100, net_amount: Math.max(0, Math.round((amount - taken / 100 - back) * 100) / 100) }
+      }
       return { ...inv, sale_status: p.reversal_reason === 'chargeback' ? 'disputed' : 'returned', net_amount: 0 }
     }
-    const back = (Number(p.refunded_cents) || 0) / 100
     return back >= amount
       ? { ...inv, sale_status: 'refunded', net_amount: 0 }
       : { ...inv, sale_status: 'partial', refunded_amount: back, net_amount: Math.round((amount - back) * 100) / 100 }

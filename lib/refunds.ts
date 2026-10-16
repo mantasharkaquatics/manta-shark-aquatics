@@ -24,7 +24,7 @@
 // reason puts back.
 
 import Stripe from 'stripe'
-import { applyPoints, arrears, getWallet } from '@/lib/points-wallet'
+import { applyPoints, arrears, getWallet, reversedCentsByPurchase } from '@/lib/points-wallet'
 import { centsToPoints, refundableCents } from '@/lib/points'
 import { alertAdmin } from '@/lib/admin-alert'
 
@@ -90,9 +90,14 @@ export type RefundPlan = {
  * the money to a replacement card, but "usually" is doing real work in that
  * sentence. Unwinding the recent money first leaves the awkward charges in the
  * wallet rather than in a refund that has to be chased.
+ *
+ * `stripe` is needed for one kind of payment: an online top-up from before
+ * 2026-09-02 recorded only its checkout session, and the payment intent a
+ * refund is sent to has to be asked for.
  */
 export async function planRefund(
   svc: Svc,
+  stripe: Stripe,
   parentId: string,
   requestedCents: number | null,
 ): Promise<RefundPlan> {
@@ -108,12 +113,17 @@ export async function planRefund(
 
   const { data: purchases, error: purchasesErr } = await svc
     .from('purchases')
-    .select('id, amount_cents, refunded_cents, paid_at, payment_method, stripe_payment_intent_id, stripe_session_id, fee_cents')
+    .select('id, amount_cents, refunded_cents, reversed_at, paid_at, payment_method, stripe_payment_intent_id, stripe_session_id, fee_cents')
     .eq('parent_id', parentId)
     .eq('status', 'paid')
-    .is('reversed_at', null)
     .order('paid_at', { ascending: false })
   if (purchasesErr) throw new Error('Could not read the family\'s payments: ' + purchasesErr.message)
+
+  // A payment taken back by the bank still has whatever the bank did not
+  // take. A dispute can be for part of a payment, and reversed_at used to
+  // drop the whole charge here, so the undisputed rest could never be
+  // refunded (found 2026-10-15). A bank return takes all of it.
+  const reversedCents = await reversedCentsByPurchase(svc, (purchases || []).filter((p: { reversed_at: string | null }) => p.reversed_at))
 
   // Only money that bought POINTS can come back as a points refund. The $85
   // Swim Assessment is a purchases row too (online: lib/trial-booking; at the
@@ -135,7 +145,7 @@ export async function planRefund(
 
   const available = (purchases || [])
     .filter((p: any) => !assessmentPurchases.has(p.id))
-    .map((p: any) => ({ ...p, left: (p.amount_cents ?? 0) - (p.refunded_cents ?? 0) }))
+    .map((p: any) => ({ ...p, left: (p.amount_cents ?? 0) - (p.refunded_cents ?? 0) - (reversedCents.get(p.id) ?? 0) }))
     .filter((p: any) => p.left > 0)
 
   const chargesRefundableCents = available.reduce((a: number, p: any) => a + p.left, 0)
@@ -159,6 +169,32 @@ export async function planRefund(
   for (const p of available) {
     if (remaining <= 0) break
     const take = Math.min(p.left, remaining)
+    // An online top-up from before 2026-09-02 recorded only its checkout
+    // session. With no payment intent it was planned as desk cash: the desk
+    // was told to hand over drawer cash for a card payment, and the card was
+    // never refunded (found 2026-10-15). Money goes back the way it came, so
+    // ask Stripe which payment it was; if Stripe cannot say, refuse rather
+    // than guess. Only a payment with neither id was taken at the desk.
+    let paymentIntentId: string | null = p.stripe_payment_intent_id || null
+    if (!paymentIntentId && p.stripe_session_id) {
+      const paid = p.paid_at ? ` on ${String(p.paid_at).slice(0, 10)}` : ''
+      try {
+        const cs = await stripe.checkout.sessions.retrieve(p.stripe_session_id)
+        paymentIntentId = typeof cs.payment_intent === 'string' ? cs.payment_intent : cs.payment_intent?.id ?? null
+      } catch (e) {
+        console.error(`refund plan: checkout ${p.stripe_session_id} (purchase ${p.id}) not read:`, e instanceof Error ? e.message : e)
+        throw new RefundNotPossible(
+          'PAYMENT_LOOKUP_FAILED',
+          `Could not ask Stripe how the $${((p.amount_cents ?? 0) / 100).toFixed(2)} payment${paid} was made. Try again in a minute.`,
+        )
+      }
+      if (!paymentIntentId) {
+        throw new RefundNotPossible(
+          'PAYMENT_LOOKUP_FAILED',
+          `Stripe has no payment for the $${((p.amount_cents ?? 0) / 100).toFixed(2)} online payment${paid} (checkout ${p.stripe_session_id}). Refund it in the Stripe dashboard instead.`,
+        )
+      }
+    }
     // Prorated by how much of the charge is coming back. Refunding $100 of a
     // $500 payment forfeits a fifth of what that payment cost to collect.
     //
@@ -173,7 +209,7 @@ export async function planRefund(
         : Math.round((Number(p.fee_cents) * take) / Number(p.amount_cents))
     legs.push({
       purchaseId: p.id,
-      paymentIntentId: p.stripe_payment_intent_id || null,
+      paymentIntentId,
       paymentMethod: p.payment_method || null,
       paidAt: p.paid_at || null,
       cents: take,
@@ -233,7 +269,7 @@ export async function executeRefund(
   stripe: Stripe,
   args: { parentId: string; amountCents: number | null; actor: string; note?: string | null },
 ): Promise<RefundResult> {
-  const plan = await planRefund(svc, args.parentId, args.amountCents)
+  const plan = await planRefund(svc, stripe, args.parentId, args.amountCents)
 
   // Points first. See the note at the top of this file.
   const { ledgerId } = await applyPoints(svc, {
@@ -300,14 +336,30 @@ export async function executeRefund(
   if (failedCents > 0) {
     // Put back exactly the part that did not go, and unwind its share of the
     // running total with it.
-    await applyPoints(svc, {
-      parentId: args.parentId,
-      reason: 'refund_failed',
-      points: centsToPoints(failedCents),
-      amountCents: failedCents,
-      actor: 'system',
-      note: `Refund of $${(failedCents / 100).toFixed(2)} could not be delivered`,
-    })
+    //
+    // A throw here used to skip recordLegs below and answer "Nothing was
+    // sent" while money had gone out on the other legs -- and a desk-cash leg
+    // then never reached the "cash to hand back" list (found 2026-10-15). The
+    // money has moved either way, so the bookkeeping goes on and a person is
+    // told to put the points back.
+    try {
+      await applyPoints(svc, {
+        parentId: args.parentId,
+        reason: 'refund_failed',
+        points: centsToPoints(failedCents),
+        amountCents: failedCents,
+        actor: 'system',
+        note: `Refund of $${(failedCents / 100).toFixed(2)} could not be delivered`,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`⚠️ refund ${ledgerId}: ${failedCents} cents were not delivered and their points were NOT put back:`, msg)
+      await alertAdmin('Refund failed, points not put back', [
+        `Part of a refund for parent ${args.parentId} (ledger ${ledgerId}) could not be sent: $${(failedCents / 100).toFixed(2)}.`,
+        `The ${centsToPoints(failedCents)} points taken out for it could not be put back automatically (${msg}).`,
+        `Put ${centsToPoints(failedCents)} PURCHASED points back in the family's wallet by hand. The rest of the refund went through.`,
+      ]).catch(() => {})
+    }
   }
 
   await recordLegs(svc, { parentId: args.parentId, ledgerId, actor: args.actor, note: args.note ?? null }, legs)
@@ -418,6 +470,41 @@ export async function refundStatusChanged(svc: Svc, refund: Stripe.Refund): Prom
     }
   }
 
+  // The points the refund took out go back.
+  //
+  // The claim above is what stops a second delivery, so a throw here must
+  // give it back: a retry used to find the row already 'failed', answer
+  // "already handled", and the family had neither the money nor the points,
+  // with no alert (found 2026-10-15). Released, the claim is taken again by
+  // Stripe's redelivery of this event (the webhook answers 503). Points come
+  // before refunded_cents so the claim is the only thing to undo.
+  try {
+    await applyPoints(svc, {
+      parentId,
+      reason: 'refund_failed',
+      points: centsToPoints(cents),
+      amountCents: cents,
+      actor: 'system',
+      note: `Refund of $${(cents / 100).toFixed(2)} could not be delivered (${why})`,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    const { data: released, error: relErr } = await svc.from('refund_legs')
+      .update({ status: 'pending', failure_reason: null })
+      .eq('stripe_refund_id', refund.id).eq('status', 'failed')
+      .select('id')
+    const retried = !relErr && !!released && released.length > 0
+    console.error(`⚠️ refund ${refund.id}: points not put back (${msg}); ${retried ? 'claim released for a retry' : 'claim NOT released'}`)
+    await alertAdmin('Refund failed, points not put back yet', [
+      `A refund of $${(cents / 100).toFixed(2)} for parent ${parentId} (Stripe ${refund.id}) ${refund.status === 'canceled' ? 'was cancelled' : 'failed'}: ${why}.`,
+      `The ${centsToPoints(cents)} points it took out could not be put back (${msg}).`,
+      retried
+        ? 'The site will try again when Stripe resends the event. If no "A refund did not reach the family" alert follows within a day, put the points back by hand.'
+        : `The site will NOT try again (${relErr?.message || 'the refund record could not be reopened'}). Put ${centsToPoints(cents)} PURCHASED points back in the family's wallet by hand.`,
+    ]).catch(() => {})
+    throw e
+  }
+
   // The charge can be refunded again.
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: p } = await svc.from('purchases').select('refunded_cents').eq('id', purchaseId).maybeSingle()
@@ -428,16 +515,6 @@ export async function refundStatusChanged(svc: Svc, refund: Stripe.Refund): Prom
       .eq('id', purchaseId).eq('refunded_cents', before).select('id')
     if (done && done.length > 0) break
   }
-
-  // The points the refund took out go back.
-  await applyPoints(svc, {
-    parentId,
-    reason: 'refund_failed',
-    points: centsToPoints(cents),
-    amountCents: cents,
-    actor: 'system',
-    note: `Refund of $${(cents / 100).toFixed(2)} could not be delivered (${why})`,
-  })
 
   const { data: parent } = await svc.from('parents').select('first_name, last_name, email').eq('id', parentId).maybeSingle()
   const family = parent ? `${parent.first_name || ''} ${parent.last_name || ''}`.trim() + (parent.email ? ` (${parent.email})` : '') : `parent ${parentId}`

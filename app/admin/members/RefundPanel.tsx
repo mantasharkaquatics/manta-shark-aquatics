@@ -74,6 +74,7 @@ export default function RefundPanel({ parentId, onDone }: { parentId: string; on
     : code === 'ABOVE_REFUNDABLE' ? t('admin.refund.err.above', { max: (message || '').replace(/^.*\$/, '$').replace(/\.$/, '') })
     : code === 'INVALID_AMOUNT' ? (blankAmount ? t('admin.refund.err.nothing') : t('admin.refund.err.amount'))
     : code === 'REFUNDS_NOT_ENABLED' ? t('admin.refund.notEnabled')
+    : code === 'PAYMENT_LOOKUP_FAILED' ? t('admin.refund.err.lookup')
     : t('admin.refund.err.failed')
 
   async function preview() {

@@ -46,12 +46,14 @@ const PM_RAW_KEYS: Record<string, string> = {
 const STATUS_KEYS: Record<string, string> = {
   refunded: 'admin.sales.status.refunded',
   partial: 'admin.sales.status.partial',
+  partly_disputed: 'admin.sales.status.partlyDisputed',
   disputed: 'admin.sales.status.disputed',
   returned: 'admin.sales.status.returned',
 }
 const STATUS_CSV: Record<string, string> = {
   refunded: 'Refunded',
   partial: 'Partially refunded',
+  partly_disputed: 'Partly disputed',
   disputed: 'Disputed',
   returned: 'Returned by bank',
 }
@@ -276,12 +278,12 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
                       <td className="px-5 py-4 text-gray-300 text-sm">{planLabel(planName)}</td>
                       <td className="px-5 py-4 text-gray-400 text-xs">{inv.payment_method ? (PM_RAW_KEYS[inv.payment_method] ? t(PM_RAW_KEYS[inv.payment_method]) : inv.payment_method) : '—'}</td>
                       <td className="px-5 py-4 text-white text-sm font-medium">
-                        <span className={inv.sale_status && inv.sale_status !== 'partial' ? 'line-through text-gray-500' : undefined}>
+                        <span className={inv.sale_status && inv.sale_status !== 'partial' && inv.sale_status !== 'partly_disputed' ? 'line-through text-gray-500' : undefined}>
                           ${(inv.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         {inv.sale_status && (
                           <span className="block mt-1 w-fit px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 text-[10px] font-semibold">
-                            {t(STATUS_KEYS[inv.sale_status] || 'admin.sales.status.refunded', { amount: (inv.refunded_amount || 0).toFixed(2) })}
+                            {t(STATUS_KEYS[inv.sale_status] || 'admin.sales.status.refunded', { amount: ((inv.sale_status === 'partly_disputed' ? inv.disputed_amount : inv.refunded_amount) || 0).toFixed(2) })}
                           </span>
                         )}
                       </td>

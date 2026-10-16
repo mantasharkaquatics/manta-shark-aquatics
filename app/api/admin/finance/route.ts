@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
 import { DEFAULT_LOCATION_ID, getLocations, showLocations } from '@/lib/locations'
+import { reversedCentsByPurchase } from '@/lib/points-wallet'
 
 export const runtime = 'nodejs'
 
@@ -57,8 +58,11 @@ function monthKeyLA(iso: string): string {
 
 // Ledger reasons that move purchased points without being a lesson taken or
 // given back: money in or out, reversals, and hand adjustments by staff.
+// refund_failed is the points of a refund that never reached the family going
+// back; counted as lessons, it lowered "Points used" by the failed amount
+// (found 2026-10-15).
 const NOT_LESSON_TRAFFIC = new Set([
-  'purchase', 'cash_refund', 'payment_failed', 'chargeback',
+  'purchase', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback',
   'admin_grant', 'admin_deduct', 'referral_bonus', 'grant_expired', 'birthday_gift',
 ])
 
@@ -100,10 +104,11 @@ export async function GET(req: NextRequest) {
     // A payment with no fee recorded is either cash at the desk or a bank debit
     // that has not settled -- counted separately so the total is never quietly
     // understated.
+    // Reversed ones too: a dispute can be for part of a payment, and the part
+    // the bank left is still cash in (found 2026-10-15). See below.
     allRows(() => svc.from('purchases')
-      .select('amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, stripe_payment_intent_id, stripe_session_id')
+      .select('id, amount_cents, fee_cents, net_cents, fee_captured_at, paid_at, reversed_at, stripe_payment_intent_id, stripe_session_id')
       .eq('status', 'paid')
-      .is('reversed_at', null)
       .gte('paid_at', since).order('id')),
     // Vouchers that replaced a lesson someone paid for. One issued by hand
     // (no source lesson) defers nothing: no points were taken for it.
@@ -233,20 +238,30 @@ export async function GET(req: NextRequest) {
     m.granted += Number(r.delta_granted) || 0
     if (r.reason === 'purchase') m.topUpCash += Number(r.amount_cents) || 0
     if (r.reason === 'cash_refund') m.refundCash += Number(r.amount_cents) || 0
+    // ...less what did not arrive: cash_refund records the whole refund
+    // asked for, and a leg Stripe refused (at once, or a bank account days
+    // later) is taken off in the month it failed -- as the wallet's
+    // total_refunded_cents does, so the all-time card and the months agree.
+    if (r.reason === 'refund_failed') m.refundCash -= Number(r.amount_cents) || 0
   }
 
   let feeCentsTotal = 0
   let feePendingTotal = 0
   let cashInTotal = 0
+  // A payment the bank took back counts for what it left: nothing for a bank
+  // return or a full dispute (left out, as before), the undisputed rest of a
+  // partial one.
+  const reversedIn = await reversedCentsByPurchase(svc, (purchases || []).filter(p => p.reversed_at))
   for (const p of (purchases || []) as any[]) {
     if (!p.paid_at) continue
+    const amt = (Number(p.amount_cents) || 0) - (reversedIn.get(p.id) ?? 0)
+    if (p.reversed_at && amt <= 0) continue
     const m = bucket(monthKeyLA(p.paid_at))
     // Cash and fee are read from the same rows on purpose. The ledger's view of
     // a month is what turned into POINTS, which is not the same set: a Swim
     // Assessment is money in but never becomes points. Pairing a points-only
     // cash figure with a fee that covered the assessment too gave a net that
     // subtracted a fee from money it was not charged on.
-    const amt = Number(p.amount_cents) || 0
     m.cashInCents += amt
     cashInTotal += amt
     if (p.fee_captured_at != null && p.fee_cents != null) {
@@ -271,10 +286,13 @@ export async function GET(req: NextRequest) {
   // already counted above through their cash_refund ledger rows, so each
   // purchase's refund legs that did not fail are taken off first. A purchase
   // has no refund date, so the refund shows in the month of the payment.
+  // A partly disputed payment can be refunded too (its undisputed rest), so
+  // reversed rows come and are capped at what the bank left (found 2026-10-15).
   const { data: refundedRows, error: refundedErr } = await allRows(() => svc.from('purchases')
-    .select('id, amount_cents, refunded_cents, paid_at')
-    .eq('status', 'paid').is('reversed_at', null).gt('refunded_cents', 0).order('id'))
+    .select('id, amount_cents, refunded_cents, paid_at, reversed_at, stripe_session_id, stripe_payment_intent_id')
+    .eq('status', 'paid').gt('refunded_cents', 0).order('id'))
   if (refundedErr) console.error('finance: refunded purchases not read:', refundedErr.message || refundedErr)
+  const reversedOfRefunded = await reversedCentsByPurchase(svc, refundedRows.filter(p => p.reversed_at))
   const siteLegCents: Record<string, number> = {}
   if (refundedRows.length > 0) {
     const { data: legs, error: legErr } = await allRowsIn(refundedRows.map((p: any) => p.id), ids =>
@@ -286,7 +304,9 @@ export async function GET(req: NextRequest) {
   }
   let stripeRefundedTotal = 0
   for (const p of refundedRows as any[]) {
-    const cents = Math.max(0, Math.min(Number(p.amount_cents) || 0, Number(p.refunded_cents) || 0) - (siteLegCents[p.id] || 0))
+    const standing = (Number(p.amount_cents) || 0) - (reversedOfRefunded.get(p.id) ?? 0)
+    if (standing <= 0) continue
+    const cents = Math.max(0, Math.min(standing, Number(p.refunded_cents) || 0) - (siteLegCents[p.id] || 0))
     if (cents <= 0) continue
     stripeRefundedTotal += cents
     if (p.paid_at && Date.parse(p.paid_at) >= Date.parse(since)) bucket(monthKeyLA(p.paid_at)).refundCash += cents
