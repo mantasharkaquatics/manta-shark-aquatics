@@ -26,6 +26,7 @@ export default function AccountPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [newsletterSaving, setNewsletterSaving] = useState(false)
+  const [newsletterError, setNewsletterError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDob, setNewDob] = useState('')
@@ -72,10 +73,21 @@ export default function AccountPage() {
   async function toggleNewsletter() {
     if (!parent) return
     setNewsletterSaving(true)
+    setNewsletterError(null)
     const newVal = !parent.newsletter_subscribed
-    await supabase.from('parents').update({ newsletter_subscribed: newVal }).eq('id', parent.id)
-    setParent(prev => prev ? { ...prev, newsletter_subscribed: newVal } : prev)
-    setNewsletterSaving(false)
+    /* The switch moves only once the row is written (found 2026-10-15). An
+       error, or an expired session that RLS turns into zero rows, used to flip
+       it anyway, so a parent could read "off" and still get the emails. */
+    try {
+      const { data, error } = await supabase.from('parents').update({ newsletter_subscribed: newVal })
+        .eq('id', parent.id).select('newsletter_subscribed')
+      if (error || !data || data.length !== 1) throw new Error('not saved')
+      setParent(prev => prev ? { ...prev, newsletter_subscribed: newVal } : prev)
+    } catch {
+      setNewsletterError(t('err.generic'))
+    } finally {
+      setNewsletterSaving(false)
+    }
   }
 
   const MAX_STUDENTS = 3
@@ -107,6 +119,10 @@ export default function AccountPage() {
         : j.code === 'LIMIT' ? t('account.limitReached', { n: MAX_STUDENTS })
         : j.code === 'DOB_FUTURE' ? t('register.err.dobFuture')
         : j.code === 'DOB' ? t('register.err.studentDob')
+        // A name the server will not take (the field stops at 120 characters,
+        // so this is rare) or its own failure: English text with no key
+        // (found 2026-10-15).
+        : j.code === 'NAME' || res.status >= 500 ? t('err.generic')
         : (() => { const k = errorKey(j.error); return k ? t(k) : (j.error || t('err.generic')) })()
       setAddError(t('account.err.addFailed') + why)
       setAdding(false)
@@ -172,6 +188,7 @@ export default function AccountPage() {
             <div>
               <b>{t('account.newsletter')}</b>
               <small>{t('account.newsletterDesc')}</small>
+              {newsletterError && <div className="ac-err" role="alert">{newsletterError}</div>}
             </div>
             <button type="button" role="switch" aria-checked={!!parent?.newsletter_subscribed} aria-label={t('account.newsletter')}
               onClick={toggleNewsletter} disabled={newsletterSaving} className="tap-auto ac-toggle">
@@ -210,7 +227,7 @@ export default function AccountPage() {
               <div className="ac-item" style={{ display: 'block' }}>
                 <div style={{ marginBottom: 12 }}>
                   <label className="ac-flabel" htmlFor="ac-name">{t('register.fullName')}</label>
-                  <input id="ac-name" className="ac-input" type="text" value={newName}
+                  <input id="ac-name" className="ac-input" type="text" value={newName} maxLength={120}
                     onChange={e => setNewName(e.target.value)} placeholder={t('account.namePlaceholder')} />
                 </div>
                 <div style={{ marginBottom: 14 }}>

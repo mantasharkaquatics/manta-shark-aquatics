@@ -108,12 +108,20 @@ function CheckoutContent() {
     if (!selectedStudentId) { setError(t('checkout.err.selectStudent')); return }
     setPaying(true)
     setError('')
-    const res = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId: 'team', studentId: selectedStudentId }),
-    })
-    const data = await res.json()
+    // A dropped connection or a non-JSON answer (a platform timeout page)
+    // used to throw here and leave the button on "Redirecting…" for good
+    // (found 2026-10-15). The button resets on everything but the redirect.
+    let data: { url?: string; error?: string } = {}
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: 'team', studentId: selectedStudentId }),
+      })
+      data = await res.json().catch(() => ({}))
+    } catch {
+      data = {}
+    }
     if (data.url) {
       window.location.href = data.url
     } else {

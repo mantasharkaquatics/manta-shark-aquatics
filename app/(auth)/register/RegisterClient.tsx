@@ -413,6 +413,14 @@ export default function RegisterClient() {
     if (!finish && password.length < 6) { setError(t('err.passwordShort')); return }
     if (!emailOk) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
+    // A referral code that is not a found one is not dropped in silence
+    // (found 2026-10-15): it went as null at the end and the reward cannot be
+    // added later. The parent finishes it or clears it. Mid-check is let
+    // through; the check finishes long before step 2 is sent.
+    if (referralCode && !referralChecking && !referral?.valid) {
+      setReferralOpen(true)
+      setError(t(referralCode.length < 6 ? 'register.ref.tooShort' : 'register.referralBad')); return
+    }
     setError(''); setStep(2)
   }
 
@@ -567,6 +575,9 @@ export default function RegisterClient() {
                   <p className="text-xs text-red-600 mt-1.5">{t('register.ref.linkBad')}</p>
                 ) : referral && !referral.valid ? (
                   <p className="text-xs text-red-600 mt-1.5">{t('register.referralBad')}</p>
+                ) : referralCode && referralCode.length < 6 ? (
+                  // Under six it is not checked at all, so it said nothing.
+                  <p className="text-xs text-[#56647d] mt-1.5">{t('register.ref.tooShort')}</p>
                 ) : null}
               </div>
             )}

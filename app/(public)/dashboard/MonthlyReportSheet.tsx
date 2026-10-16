@@ -113,8 +113,12 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
     if (res && res.ok) { setFbState('done'); onFeedback?.(r.id, fb, comment) } else setFbState('error')
   }
 
+  // A tap on the dim area closes it only with no unsent comment (found
+  // 2026-10-15): on a phone that tap puts the keyboard away, and it lost what
+  // was typed. ✕ and Escape still close it on purpose.
+  const keep = !!comment.trim() && fbState !== 'done'
   return (
-    <div className="msa-sheet-back" onClick={onClose}>
+    <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
       <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
         aria-label={t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}>
         <div className="msa-sheet-head">

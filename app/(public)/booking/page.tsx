@@ -2166,7 +2166,9 @@ export default function BookingPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    // dvh, less the nav spacer above it: 100vh is taller than what Safari
+    // shows, so the centre sat well below the middle (found 2026-10-15).
+    <div style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
@@ -2177,7 +2179,7 @@ export default function BookingPage() {
   )
 
   if (success) return (
-    <div style={{ minHeight: '100vh', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '24px' }}>
+    <div style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '24px' }}>
       <div style={{
         background: '#fff', borderRadius: '20px', padding: '48px', boxShadow: '0 16px 40px rgba(18,37,74,0.12)',
         textAlign: 'center', maxWidth: '480px', width: '100%',
@@ -2762,19 +2764,29 @@ export default function BookingPage() {
                       lesson moved as an hour was booked as a NEW hour and charged,
                       the old one left in place (found 2026-10-03). */}
                   {!isTrial && !makeUp && !isReschedule && (selectedCourse?.slug === '1on1'
-                    || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (
+                    || (selectedCourse?.slug === '1on2' && !!selectedStudent2)) && (<>
                     <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
-                      {([30, 60] as const).map(v => (
-                        <button key={v} disabled={recurSel.size > 0 && lessonLength !== v}
+                      {([30, 60] as const).map(v => {
+                        const locked = recurSel.size > 0 && lessonLength !== v
+                        return (
+                        <button key={v} disabled={locked}
                           aria-pressed={lessonLength === v} className="kb-focus-in"
-                          title={recurSel.size > 0 && lessonLength !== v ? t('booking.lenLocked') : undefined}
+                          aria-describedby={locked ? 'bk-len-locked' : undefined}
+                          title={locked ? t('booking.lenLocked') : undefined}
                           onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false) }}
-                          style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer',
+                          style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1,
                             background: lessonLength === v ? NAVY : '#fff', color: lessonLength === v ? '#fff' : '#56647d' }}>
                           {t('booking.lenMin', { n: v })}</button>
-                      ))}
+                        )
+                      })}
                     </div>
-                  )}
+                    {/* Said on the page, not only in the tooltip: a phone never
+                        shows a title, and the locked button did nothing with no
+                        reason given (found 2026-10-15). */}
+                    {recurSel.size > 0 && (
+                      <div id="bk-len-locked" style={{ flexBasis: '100%', fontSize: '12px', color: '#56647d', lineHeight: 1.5 }}>{t('booking.lenLocked')}</div>
+                    )}
+                  </>)}
                 </div>
                 {lessonLength === 60 && (() => {
                   const rows = hourSlots

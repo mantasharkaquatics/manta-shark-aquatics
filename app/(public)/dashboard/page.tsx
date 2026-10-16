@@ -184,7 +184,12 @@ ${REPORT_SHEET_CSS}
 .msa-lesson-head { grid-column: 1 / -1 }
 .msa-lesson-date { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column;
                    align-items: center; justify-content: center; flex-shrink: 0 }
-.msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end }
+/* row-gap 20px: when the buttons wrap (English, a narrow phone) each one's
+   ::after reaches 10px past it, and at a 6px gap the lower button's area
+   covered the bottom of the upper one -- a tap low on Reschedule opened Cancel
+   (found 2026-10-15). 20px is the two reaches exactly; it only shows when
+   they wrap. Sideways the reach is 3px, half the 6px gap, for the same reason. */
+.msa-lesson-actions { display: flex; flex-wrap: wrap; gap: 20px 6px; justify-content: flex-end }
 /* The lesson buttons (請假 / 取消 / 改期) are the size of the status pill above
    them and sit right under it (owner, 2026-10-03) -- a full-width red bar read
    as the main thing on the card. !important because each one carries its own
@@ -193,7 +198,7 @@ ${REPORT_SHEET_CSS}
 .msa-lesson-actions > button, .msa-lesson-actions > div, .msa-lesson-actions > a {
   border-radius: 20px !important; padding: 3px 10px !important; font-size: 11px !important; font-weight: 700 !important;
   letter-spacing: 1px; line-height: 1.5; min-height: 0 !important; white-space: nowrap; position: relative }
-.msa-lesson-actions > button::after, .msa-lesson-actions > a::after { content: ''; position: absolute; inset: -10px -4px }
+.msa-lesson-actions > button::after, .msa-lesson-actions > a::after { content: ''; position: absolute; inset: -10px -3px }
 .msa-lesson-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
 .msa-lesson-side { flex-direction: row; justify-content: flex-end; align-items: center; gap: 8px }
 .msa-lesson-status { display: flex; align-items: center; gap: 8px }
@@ -780,8 +785,12 @@ function SuggestionSheet({ onClose }: { onClose: () => void }) {
     }).catch(() => null)
     setState(r && r.ok ? 'done' : r && r.status === 429 ? 'many' : 'error')
   }
+  /* A tap on the dim area closes only an empty sheet (found 2026-10-15). On a
+     phone that tap is how people put the keyboard away, and it threw the draft
+     away with no warning. ✕, Close and Escape still close it on purpose. */
+  const keep = !!text.trim() && state !== 'done'
   return (
-    <div className="msa-sheet-back" onClick={onClose}>
+    <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
       <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.title')}>
         <div className="msa-sheet-head">
           <b>{t('suggest.title')}</b>
@@ -956,6 +965,12 @@ const SYSTEM_ONLY_NOTES = new Set([
   'booking insert failed', 'second swimmer could not be booked',
   'the time filled up', 'the time slot could not be created', 'the booking could not be written',
   'the partner invitation could not be written', 'a booking row could not be written',
+  // The rest of the rollback reasons: 1-on-2 acceptance, weekly batch and the
+  // desk's booking page (found 2026-10-15).
+  'the inviting family could not pay', 'the lesson could not be confirmed',
+  'the invitation was already processed', 'the lessons could not be booked',
+  'the other side of the booking could not pay', 'one half of the hour was already taken',
+  'a session could not be created', 'a class filled up', 'the two families could not be linked',
 ])
 
 type LedgerRow = {
@@ -1071,7 +1086,17 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
     if (n === 'rescheduled into a new 1-on-2 invitation') return t('points.note.movedTo1on2')
     if (n === 'the other family cancelled this 1-on-2') return t('points.note.partnerCancelled')
     if ((m = n.match(/^Bonus on a \$([\d,]+) desk purchase$/))) return t('points.note.deskBonus', { amount: '$' + m[1] })
-    if ((m = n.match(/^Refund of \$([\d.,]+) could not be delivered$/))) return t('points.note.refundUndelivered', { amount: '$' + m[1] })
+    // A trailing "(why)" is Stripe's reason, written for staff.
+    if ((m = n.match(/^Refund of \$([\d.,]+) could not be delivered( \(.*\))?$/))) return t('points.note.refundUndelivered', { amount: '$' + m[1] })
+    // A bank return or dispute: the label says which, and the note carries the
+    // Stripe payment id, which is not the family's to read (found 2026-10-15).
+    if (/^(Bank returned payment|Customer disputed payment) /.test(n)) return ''
+    // The yearly gift: the label says "Birthday gift"; the note adds whose.
+    if ((m = n.match(/^Birthday gift for (.+)$/))) return t('points.note.forSwimmer', { name: m[1] })
+    // A desk SDP sale: "4 × 1-on-1 Private for Ethan Chen — <desk note>". The
+    // course name is the English catalogue name; the swimmer is what matters
+    // here. Whatever the desk typed after the dash stays as typed.
+    if ((m = n.match(/^\d+ × .+? for (.+?)(?: — (.*))?$/))) return t('points.note.forSwimmer', { name: m[1] }) + (m[2] ? ' — ' + m[2] : '')
     // An SDP sale's programme-rate grant. The full note spells out the desk's
     // price against the list price, which is staff wording; the family sees
     // whose programme it was (found 2026-10-07).
@@ -1200,7 +1225,9 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#56647d' }}>{reasonLabel(row.reason)}</div>
                     <div style={{ fontSize: '10px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
-                      {new Date(row.at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
+                      {/* The school's day, as on the receipt (found 2026-10-15: an
+                          evening top-up read as the next day outside Pacific time). */}
+                      {new Date(row.at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                       {row.lesson ? ' · ' + lessonText(row.lesson) : ''}
                       {row.note && noteText(row.note) ? ' · ' + noteText(row.note) : ''}
                     </div>
@@ -1861,7 +1888,8 @@ export default function DashboardPage() {
   const [pointsOpen, setPointsOpen] = useState(false)
   // Opened from the "refer a friend" line: scroll the sheet to that card.
   const [referralFocus, setReferralFocus] = useState(false)
-  // The low-balance email's button lands here with ?points=1 (lib/low-balance.ts).
+  // The low-balance email's button lands here with ?points=1 (lib/low-balance.ts),
+  // and so does the payment-reversed email's "Pay by card" (lib/email.ts).
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('points') !== '1') return
     setPointsOpen(true)
@@ -2385,6 +2413,13 @@ export default function DashboardPage() {
             (b as any)._partner_student_name = partners[b.class_session_id]
           }
         }
+        // An invitation names who it would be with: a family linked to more
+        // than one other could not tell from the card, and had 15 minutes to
+        // find out from the email (found 2026-10-15). The invitee's row is
+        // linked to the inviter's, so the same answer covers it.
+        if (latest() && (pendingRaw || []).some((b: { class_session_id: string | null }) => !!b.class_session_id && !!partners[b.class_session_id])) {
+          setPendingPartnerBookings(prev => prev.map(p => partners[p.class_session_id] ? { ...p, _partner_student_name: partners[p.class_session_id] } : p))
+        }
       }
     } catch {}
 
@@ -2520,7 +2555,15 @@ export default function DashboardPage() {
     // Each child of a merged card carries its own check-in, so a checked-in
     // sibling's row stops offering Cancel (found 2026-10-07).
     for (const b of allUpcoming) for (const m of b._group || []) m.checked_in = checkedInSet.has(m.id)
-    if (latest()) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
+    // A merged card reads "checked in" only when every child on it is: its id
+    // is the first child's booking, so one sibling's scan used to tick the
+    // whole card (found 2026-10-15). Each child's row carries its own mark.
+    const cardIn = (b: Booking) => {
+      if (!b._group) return checkedInSet.has(b.id)
+      const live = b._group.filter(m => m.status !== 'cancelled')
+      return live.length > 0 && live.every(m => m.checked_in)
+    }
+    if (latest()) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: cardIn(b) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     // No display cap: the history list already paginates at 10 per page, and the
@@ -2759,14 +2802,22 @@ export default function DashboardPage() {
 
   async function rejectPartnerBooking(bookingId: string) {
     setRejectingId(bookingId)
+    /* The answer is read (found 2026-10-15): a failed decline left the
+       invitation listed with nothing said. 404 means it is already gone --
+       withdrawn or expired -- which is what the parent wanted, so it stays
+       quiet; the reload below removes it. */
+    let msg: string | null = null
     try {
-      await fetch('/api/bookings/reject-partner', {
+      const res = await fetch('/api/bookings/reject-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: bookingId }),
       })
-    } catch {}
+      if (res.status === 409) msg = t('err.inviteDone')
+      else if (!res.ok && res.status !== 404) msg = t('err.generic')
+    } catch { msg = t('dash.pend.network') }
     await fetchAll({ progress: false })
+    if (msg) setNotice(msg)
     setRejectingId(null)
   }
 
@@ -2826,7 +2877,8 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    // dvh: iOS 100vh includes the area behind Safari's bars (found 2026-10-15).
+    <div style={{ minHeight: '100dvh', background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
@@ -3385,7 +3437,9 @@ export default function DashboardPage() {
                       <div>
                         <div style={{ fontSize: '11px', color: '#6d4fc2', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 {t('dash.invite.badge')}</div>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>
-                          {t('dash.invite.line', { name: student?.full_name || '' })}
+                          {b._partner_student_name
+                            ? t('dash.invite.lineWith', { name: student?.full_name || '', partner: b._partner_student_name })
+                            : t('dash.invite.line', { name: student?.full_name || '' })}
                         </div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '2px' }}>
                           {ct?.id ? tDb(locale, 'course_types', ct.id, ct.name) : ct?.name} · {coach?.first_name} · {cs?.session_date ? formatDate(cs.session_date, intlOf(locale)) : ''} {cs?.start_time ? formatTime(cs.start_time) : ''}{b._endTime ? ` – ${formatTime(b._endTime)}` : ''}<PoolLink id={cs?.location_id} prefix=" · " />
@@ -3537,10 +3591,13 @@ export default function DashboardPage() {
                         )}
                         {/* Three at most. A busy Tuesday had six, which made one cell
                             three times the height of its neighbours and pushed the rest of
-                            the month off the screen. The rest are one tap away. */}
+                            the month off the screen. The rest are one tap away.
+                            tap-auto: the phone 44px button floor stretched each chip to
+                            44px, so a three-lesson day was ~210px tall again (found
+                            2026-10-15). The whole 76px cell already opens the day. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
-                            <button key={b.id + j} onClick={e => { e.stopPropagation(); setLessonDetail(b) }}
+                            <button key={b.id + j} className="tap-auto" onClick={e => { e.stopPropagation(); setLessonDetail(b) }}
                               aria-label={t(b.checked_in ? 'dash.month.lessonAriaIn' : 'dash.month.lessonAria', { time: t12(b.start_time), date: dayLong, name: b.student_name || '' })}
                               style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center',
                               border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
@@ -3560,7 +3617,7 @@ export default function DashboardPage() {
                             </button>
                           ))}
                           {dayBookings.length > MAX_PER_DAY && (
-                            <button onClick={e => { e.stopPropagation(); setDaySheet(ds) }}
+                            <button className="tap-auto" onClick={e => { e.stopPropagation(); setDaySheet(ds) }}
                               style={{ padding: '3px 2px', borderRadius: '5px', width: '100%', cursor: 'pointer', textAlign: 'center',
                                 fontSize: '9.5px', fontWeight: 800, color: '#56647d',
                                 background: '#f6f9fd', border: '1px solid #e3ebf6' }}>
@@ -3625,7 +3682,12 @@ export default function DashboardPage() {
                   // 2026-10-05: the sheet said 65 points for a 130-point hour).
                   // A make-up is paid with a voucher; its row stores 0 points, so
                   // it read "0 points" (found 2026-10-07).
-                  const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
+                  // A card that holds two children (a sibling 1-on-2, or both in one
+                  // 1-on-4) is every seat on it, as the cancel dialog and the ledger
+                  // line count it -- it showed one seat (found 2026-10-15).
+                  const seats = b._group ? b._group.filter(x => x.status !== 'cancelled' && x.points_charged != null) : null
+                  const seatPts = seats ? (seats.length > 0 ? seats.reduce((a, x) => a + (x.points_charged ?? 0), 0) : null) : b.points_charged
+                  const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : seatPts != null ? t('points.unit', { n: seatPts * (b._hour ? 2 : 1) }) : '—'
                   return (
                     <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
@@ -3797,7 +3859,7 @@ export default function DashboardPage() {
                             return (
                               <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
                                 <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} /></div>
+                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} />{m.checked_in && <span role="img" aria-label={t('dash.up.checkedIn')} title={t('dash.up.checkedIn')} style={{ marginLeft: '6px', fontSize: '13px', color: '#1f7a57' }}>&#10003;</span>}</div>
                                   <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
                                     {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}<PoolLink id={m.location_id} prefix=" · " />
                                   </div>
