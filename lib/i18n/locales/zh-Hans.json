@@ -417,6 +417,7 @@
   "chat.guest.empty": "您好！课程、等级、游泳评估，有任何问题都可以问我们。",
   "chat.guest.fallback": "抱歉，刚刚没办法回答。请稍后再试，或创建免费账号，团队会在这里回复您。",
   "chat.guest.limit": "未注册的消息已达上限。创建免费账号后，团队会从这里接着回复您。",
+  "chat.guest.sendFailed": "消息没有发出，聊天系统目前较忙，请稍后再试一次。",
   "chat.guest.signIn": "登录",
   "chat.guest.signUp": "创建免费账号",
   "chat.handback": "前台人员的服务已结束，接下来由 AI 助理在这里继续为您服务。",

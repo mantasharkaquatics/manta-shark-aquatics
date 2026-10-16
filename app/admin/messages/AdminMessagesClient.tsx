@@ -18,7 +18,9 @@ const HISTORY_LIMIT = 200
 // opened at all. "Load more" reads the next page.
 const THREAD_PAGE = 100
 
-export default function AdminMessagesClient({ adminId, adminName }: { adminId: string; adminName: string }) {
+// adminId is no longer read here: the desk's reply is stamped with the
+// signed-in admin by app/api/admin/chat-message (2026-10-15).
+export default function AdminMessagesClient({ adminName }: { adminId: string; adminName: string }) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -193,8 +195,17 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     await markRead(thread.id)
   }
 
+  // Every write to the chat tables goes through a server route (audit F39,
+  // 2026-10-15): app/api/admin/chat-message and chat-thread.
+  async function threadAction(threadId: string, action: 'read' | 'clear_summary') {
+    try {
+      const r = await fetch('/api/admin/chat-thread', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: threadId, action }) })
+      return r.ok
+    } catch { return false }
+  }
+
   async function markRead(threadId: string) {
-    await supabase.from('chat_threads').update({ unread_by_admin: false }).eq('id', threadId)
+    await threadAction(threadId, 'read')
     setThreads(prev => prev.map(th => th.id === threadId ? { ...th, unread_by_admin: false } : th))
   }
 
@@ -216,14 +227,21 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     // Checked (found 2026-10-08): a refused or dropped insert used to lose the
     // typed reply with no word, while the thread's preview and mode were
     // updated as if it had gone. Now the text comes back and nothing else moves.
-    const { error } = await supabase.from('chat_messages').insert({ thread_id: selectedThread.id, sender_type: 'admin', body, sender_admin_id: adminId })
-    if (error) {
+    // The server writes the message and the thread's preview together, with
+    // this admin as the sender (app/api/admin/chat-message).
+    let sent: { id: string; thread_id: string } | null = null
+    try {
+      const r = await fetch('/api/admin/chat-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: selectedThread.id, body }) })
+      if (r.ok) sent = (await r.json().catch(() => null))?.message ?? null
+    } catch {}
+    if (!sent) {
       setInput(prev => prev ? prev : body)
       setSendError(t('admin.messages.sendFailed'))
       setSending(false)
       return
     }
-    await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body, unread_by_admin: false }).eq('id', selectedThread.id)
+    const row = sent
+    if (selectedThreadRef.current?.id === row.thread_id) setMessages(prev => prev.some(m => m.id === row.id) ? prev : [...prev, row])
     if (selectedThread.mode !== 'human') await setThreadMode('human')
     setSending(false)
   }
@@ -336,7 +354,7 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, letterSpacing: '1px' }}>{t('admin.messages.escalations')}</div>
                         <button onClick={async () => {
-                          await supabase.from('chat_threads').update({ escalation_summary: null }).eq('id', selectedThread.id)
+                          if (!(await threadAction(selectedThread.id, 'clear_summary'))) return
                           setSelectedThread((prev: any) => prev ? { ...prev, escalation_summary: null } : prev)
                         }} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>{t('admin.messages.resolvedClear')}</button>
                       </div>

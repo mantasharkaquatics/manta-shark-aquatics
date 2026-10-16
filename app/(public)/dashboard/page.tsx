@@ -3575,12 +3575,16 @@ export default function DashboardPage() {
                 {/* One day, in full. A bottom sheet on a phone and a centred card on
                     a desktop -- same markup, the width decides. Tapping a line hands
                     over to the lesson detail that already exists. */}
+                {/* zIndex 1000 on this sheet and the lesson detail below, like
+                    every other dashboard sheet: at 200 the chat button (999)
+                    sat over the right end of the sheet's Close button on a
+                    phone, and a tap there opened the chat (found 2026-10-15). */}
                 {daySheet && (() => {
                   const rows = byDate[daySheet] || []
                   const dateStr = new Date(daySheet + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })
                   return (
                     <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
-                      style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                      style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div ref={dayBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-day-title"
                         style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
                         <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: '#eef2f8', margin: '0 auto 14px' }} />
@@ -3623,7 +3627,7 @@ export default function DashboardPage() {
                   // it read "0 points" (found 2026-10-07).
                   const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : b.points_charged != null ? t('points.unit', { n: b.points_charged * (b._hour ? 2 : 1) }) : '—'
                   return (
-                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                       <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                           <div>

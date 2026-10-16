@@ -3,8 +3,9 @@
 //
 // claimsCompletedCancellation: does the reply tell the family that a lesson
 // WAS cancelled or refunded just now? app/api/chat/ai-reply swaps such a reply
-// for a "nothing was changed" notice when no cancel_booking succeeded in that
-// turn. A family told "it's cancelled" when it is not skips a lesson that is
+// for a "can't confirm that, a person will check" notice when no cancel_booking
+// succeeded in that turn and the family has no lesson cancelled in the last
+// day either (2026-10-15). A family told "it's cancelled" when it is not skips a lesson that is
 // still booked and loses the points, so this is the last line behind the
 // system-prompt rule.
 //
@@ -258,6 +259,13 @@ const EN_TRIAL_AFTER_RULE = /^\s*(?:only\s+)?(?:once|when|after|if|as\s+soon\s+a
 // Availability, not a booking: "all slots on Oct 20 are booked", "that slot
 // is already booked by another family".
 const EN_TRIAL_TAKEN = /\b(?:fully\s+booked|all\s+(?:\S+\s+){0,3}?(?:slots?|spots?|times?)|no\s+(?:\S+\s+)?(?:slots?|spots?|times?)|by\s+(?:another|someone|other)|already\s+taken|unavailable|not\s+available)\b/i
+// "After paying, it is booked": 付款完成後就預約成功了 is how the assistant
+// explains the flow to a family that has booked nothing, and ZH_CONDITION only
+// knows 在…之後, so the explanation was swapped for "nothing has been booked"
+// (found 2026-10-15). A payment named in a time clause right before the claim,
+// in the same clause, makes it a rule. Kept to payment words and to this
+// guard: "我查了之後就幫您取消了" is a real claim for the cancellation guard.
+const ZH_TRIAL_AFTER_PAY = /(?:付款|付費|付费|繳費|缴费|支付|結帳|结账)[^，。！？,.!?]{0,8}?(?:後|后|以後|以后|之後|之后)/
 
 const EN_BOOK_VERB = String.raw`(?:booked|reserved|held|secured|scheduled|locked\s+in)`
 const EN_TRIAL_CLAIMS: Claim[] = [
@@ -313,6 +321,7 @@ function trialExtra(s: string, m: RegExpExecArray, claim: Claim, lang: Lang): bo
   if (!(lang === 'en' ? EN_ASSESSMENT : ZH_ASSESSMENT).test(sentence) && (lang === 'en' ? EN_LESSON : ZH_LESSON).test(sentence)) return false
   if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_AFTER_RULE.test(s.slice(m.index + m[0].length, sEnd))) return false
   if (claim.kind === 'state' && lang === 'en' && EN_TRIAL_TAKEN.test(sentence)) return false
+  if (lang === 'zh' && ZH_TRIAL_AFTER_PAY.test(lastClause(s.slice(sStart, m.index)))) return false
   return true
 }
 

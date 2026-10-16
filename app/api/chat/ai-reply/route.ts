@@ -34,16 +34,20 @@ import { claimsCompletedCancellation, trialBookingClaim } from '@/lib/ai/reply-g
 // than in the locale files: these are message bodies stored in the thread,
 // not UI chrome.
 type ReplyLang = 'en' | 'zh-Hant' | 'zh-Hans'
-const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited', Record<ReplyLang, string>> = {
+const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited' | 'moreOptions', Record<ReplyLang, string>> = {
   fallback: {
     en: 'Thanks for your message! A member of our team will get back to you shortly.',
     'zh-Hant': '謝謝您的訊息！我們的團隊成員會盡快回覆您。',
     'zh-Hans': '谢谢您的消息！我们的团队成员会尽快回复您。',
   },
+  // It used to say "nothing has been changed on your account", which is not
+  // something this route has checked -- and was false when the lesson really
+  // had been cancelled on an earlier turn (found 2026-10-15). Now it says only
+  // what is known: it cannot confirm it, and a person will.
   cancelGuard: {
-    en: 'I was not able to complete that cancellation just now, so nothing has been changed on your account. A team member has been notified and will follow up shortly.',
-    'zh-Hant': '剛剛沒能完成這次取消，您的帳戶沒有任何變更。我們已通知團隊成員，會盡快與您聯繫。',
-    'zh-Hans': '刚刚没能完成这次取消，您的账户没有任何变更。我们已通知团队成员，会尽快与您联系。',
+    en: "I can't confirm that cancellation from here, so please don't treat the lesson as cancelled yet. A team member has been notified and will check your account and follow up shortly.",
+    'zh-Hant': '我這邊無法確認這次取消，請先不要把這堂課當作已取消。我們已通知團隊成員，會查看您的帳戶並盡快與您聯繫。',
+    'zh-Hans': '我这边无法确认这次取消，请先不要把这节课当作已取消。我们已通知团队成员，会查看您的账户并尽快与您联系。',
   },
   trialGuard: {
     en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
@@ -55,7 +59,15 @@ const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited', 
     'zh-Hant': '您在短時間內傳送了很多訊息，自動回覆先暫停一下。我們已通知團隊成員，會在這裡回覆您。',
     'zh-Hans': '您在短时间内发送了很多消息，自动回复先暂停一下。我们已通知团队成员，会在这里回复您。',
   },
+  // Lead-in for the quick-reply choices past MAX_OPTIONS, named in the body.
+  moreOptions: {
+    en: 'Also available (type one to choose it):',
+    'zh-Hant': '其他可選（直接輸入即可選擇）：',
+    'zh-Hans': '其他可选（直接输入即可选择）：',
+  },
 }
+// Quick-reply buttons one reply can carry (the prompt says the same).
+const MAX_OPTIONS = 12
 // Common characters that differ between the two scripts, pair for pair.
 const SIMPLIFIED_ONLY = new Set('们这个么说为时吗课预账号还让请谢点发会没过后学级钱现问题开关对经车东边来认识帮应该习练师费单节场员间长电话动写买卖实岁儿两报约择换续邮证网页钟几样给从处')
 const TRADITIONAL_ONLY = new Set('們這個麼說為時嗎課預帳號還讓請謝點發會沒過後學級錢現問題開關對經車東邊來認識幫應該習練師費單節場員間長電話動寫買賣實歲兒兩報約擇換續郵證網頁鐘幾樣給從處')
@@ -230,7 +242,7 @@ const LOCATION_INPUT = 'Optional pool id from POOLS (the value in brackets). Onl
 const TOOLS = [
   {
     name: 'get_my_points',
-    description: "Get the parent's points balance and lessons completed. (Late-cancellation allowances no longer exist; any such field in the result is obsolete and must not be mentioned.)",
+    description: "Get the parent's points balance and lessons completed. If the result has booking_paused, a payment came back and the family owes arrears_points: nothing can be booked until that is paid, so never tell them the balance is available to spend. (Late-cancellation allowances no longer exist; any such field in the result is obsolete and must not be mentioned.)",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -266,8 +278,11 @@ const TOOLS = [
     description: 'Create a secure Stripe Checkout link for the parent to add points to their account. The parent completes payment themselves on Stripe. Never claim a payment has been made.',
     input_schema: {
       type: 'object',
-      properties: { dollars: { type: 'integer', description: `Must be one of the amounts the website sells: ${TOPUP_PRESETS.join(', ')}. 1 dollar = 1 point. Any other figure is refused -- for a smaller amount the parent has to come to the front desk.` } },
-      required: ['dollars'],
+      properties: {
+        dollars: { type: 'integer', description: `Must be one of the amounts the website sells: ${TOPUP_PRESETS.join(', ')}. 1 dollar = 1 point. Any other figure is refused -- for a smaller amount the parent has to come to the front desk. Ignored when settle_arrears is true.` },
+        settle_arrears: { type: 'boolean', description: 'Only when get_my_points says booking_paused: a link for exactly what the family owes (at least the smallest top-up; anything above the debt stays as points). Leave dollars out.' },
+      },
+      required: [],
     },
   },
   {
@@ -379,12 +394,20 @@ export async function POST(req: NextRequest) {
     const cutoff = lastMsg?.sender_type === 'parent'
       ? await autoHandBackIfIdle(svc, thread_id, lastMsg.created_at)
       : null
-    if (!cutoff) return NextResponse.json({ ok: true, skipped: 'human_mode' })
+    // The desk's red dot for the family's message, set here now rather than
+    // by the widget from the browser (audit F39, 2026-10-15).
+    if (!cutoff) {
+      await svc.from('chat_threads').update({ unread_by_admin: true }).eq('id', thread_id)
+      return NextResponse.json({ ok: true, skipped: 'human_mode' })
+    }
     // As after a manual hand-back, the AI starts from the family's new
     // message; the desk's conversation stays out of its context.
     recent = recent.filter((m: any) => String(m.created_at) >= cutoff)
   }
   if (!lastMsg || lastMsg.sender_type !== 'parent') {
+    // Something else landed after the family's message (a payment notice):
+    // no answer from here, so the desk sees it (was the widget's write).
+    if (lastMsg) await svc.from('chat_threads').update({ unread_by_admin: true }).eq('id', thread_id)
     return NextResponse.json({ skipped: true })
   }
   const lang = replyLang(lastMsg.body, (parent as any).preferred_language)
@@ -510,6 +533,25 @@ export async function POST(req: NextRequest) {
     const { data: upcoming } = await svc.from('class_sessions')
       .select('id').in('id', ids).gte('session_date', getTodayLA()).limit(1)
     return !!upcoming?.length
+  }
+
+  // Backs claimsCompletedCancellation (the reply guard below) the same way.
+  // cancelSucceededThisTurn only knows this request, so on the turn after a
+  // real cancellation -- "So I got my points back?" "Yes, Kayden's Oct 16
+  // lesson was cancelled and the 65 points were returned" -- the true answer
+  // was replaced with "nothing has been changed" (found 2026-10-15). A lesson
+  // of this family cancelled in the last day -- here, on the dashboard or by
+  // the school -- is one the reply can truthfully be about. A lookup error
+  // reads as "none", so the guard still stops the claim.
+  async function cancellationOnFile(): Promise<boolean> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: rows, error } = await svc.from('bookings')
+      .select('id')
+      .eq('parent_id', parent!.id).eq('status', 'cancelled')
+      .gte('cancelled_at', since)
+      .limit(1)
+    if (error) console.error('[ai-reply guard] cancellation lookup failed', error)
+    return !!rows?.length
   }
 
   // ---------- helpers used by multiple tools ----------
@@ -729,7 +771,18 @@ export async function POST(req: NextRequest) {
   async function runTool(name: string, input: any): Promise<any> {
     if (name === 'get_my_points') {
       const w = await walletSummary(svc, parent!.id)
+      // Arrears (found 2026-10-15): after a bank return or a dispute the
+      // purchased side is negative, and the total can still read positive on
+      // bonus points (-40 + 85 = 45). Every booking is refused then
+      // (WalletInArrears), but the assistant only saw "45 points" and told
+      // the family so. It now sees the debt and that booking is paused.
+      const paused = w.arrears > 0
       return {
+        ...(paused ? {
+          booking_paused: true,
+          arrears_points: w.arrears,
+          note: `Booking is PAUSED: a payment did not clear (bank return or dispute), so the family owes ${w.arrears} points. No points can be spent and nothing can be booked until that is paid; balance_points is NOT spendable. Explain this kindly, point to the "Pay $... by card" button on the points card of their Dashboard, or offer create_topup_link with settle_arrears: true. If the parent says the payment was fine or disputes it, escalate_to_human.`,
+        } : {}),
         balance_points: w.balance,
         balance_dollars: w.balance,
         bonus_points: w.balanceGranted,
@@ -866,6 +919,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (name === 'create_topup_link') {
+      // Paying off arrears: the checkout route works out the amount from the
+      // wallet, as the dashboard's "Pay $X by card" does (found 2026-10-15:
+      // the chat could only offer a preset pack).
+      if (input.settle_arrears === true) {
+        const res = await fetch(`${origin}/api/stripe/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', cookie: cookieHeader },
+          body: JSON.stringify({ settleArrears: true }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (data?.error === 'NO_ARREARS') return { error: 'This family owes nothing; booking is not paused. Use dollars with one of the preset amounts instead.' }
+        if (!res.ok || !data?.url) {
+          escalate = true
+          return { error: 'Could not create a payment link. The conversation has been flagged for a team member.' }
+        }
+        return { url: data.url, settles_arrears: true, note: 'Paying this clears what the family owes; booking opens again as soon as the payment succeeds. Never say it has been paid.' }
+      }
       const dollars = Math.floor(Number(input.dollars))
       // The chat sells exactly what the website sells. It used to accept any
       // figure from $50 up, which quietly undercut the storefront: a parent who
@@ -1233,8 +1303,10 @@ export async function POST(req: NextRequest) {
     // Only a claim that a lesson WAS cancelled or refunded counts (owner,
     // 2026-10-08; lib/ai/reply-guards.ts): the bare words used to catch every
     // answer about the cancellation or refund policy.
-    // scripts/chat-guard-check.mjs holds the cases.
-    if (claimsCompletedCancellation(finalText) && !cancelSucceededThisTurn && !cancelAlreadyDoneThisTurn) {
+    // scripts/chat-guard-check.mjs holds the cases. A claim no tool backed this
+    // turn is checked against the bookings before it is stopped
+    // (cancellationOnFile), as the trial guard below does.
+    if (claimsCompletedCancellation(finalText) && !cancelSucceededThisTurn && !cancelAlreadyDoneThisTurn && !(await cancellationOnFile())) {
       console.error('[ai-reply guard] blocked hallucinated cancellation claim:', finalText.slice(0, 200))
       escalate = true
       finalText = CANNED.cancelGuard[lang]
@@ -1260,24 +1332,38 @@ export async function POST(req: NextRequest) {
 
     let replyBody = finalText
     let replyMeta: Record<string, unknown> | null = null
+    let moreOptions: string[] = []
     const optIdx = finalText.lastIndexOf('<<OPTIONS>>')
     if (optIdx !== -1) {
       replyBody = finalText.slice(0, optIdx).trim()
       try {
         const arr = JSON.parse(finalText.slice(optIdx + '<<OPTIONS>>'.length).trim())
         if (Array.isArray(arr)) {
-          const clean = arr
+          const valid = arr
             .filter((o: any) => o && typeof o.label === 'string' && o.label.length <= 60 &&
               (o.type === 'reply' || (o.type === 'link' && typeof o.url === 'string' &&
                 (o.url.startsWith('/') || o.url.startsWith('https://')))))
-            .slice(0, 12)
+          const clean = valid
+            .slice(0, MAX_OPTIONS)
             .map((o: any) => o.type === 'link'
               ? { label: o.label, type: 'link', url: o.url }
               : { label: o.label, type: 'reply' })
           if (clean.length) replyMeta = { options: clean }
+          // Past MAX_OPTIONS the rest used to vanish without a word, while
+          // the prompt has the body say "please pick one" and list nothing
+          // -- a second coach's whole day of assessment times never showed
+          // (found 2026-10-15). The prompt now narrows a big set first; if
+          // the model still sends too many, the reply choices left over are
+          // named in the body, so the parent can type one.
+          const rest = (valid as { type: string; label: string }[]).slice(MAX_OPTIONS).filter(o => o.type === 'reply').map(o => o.label)
+          if (rest.length) {
+            console.warn('[ai-reply] options over the limit:', valid.length)
+            moreOptions = rest
+          }
         }
       } catch {}
       if (!replyBody) replyBody = finalText
+      if (moreOptions.length) replyBody = `${replyBody}\n\n${CANNED.moreOptions[lang]} ${moreOptions.join(', ')}`
     }
 
     await postAiMessage(replyBody, escalate, replyMeta)

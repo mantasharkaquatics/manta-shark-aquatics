@@ -417,6 +417,7 @@
   "chat.guest.empty": "Hi! Ask us anything about lessons, levels or the Swim Assessment.",
   "chat.guest.fallback": "Sorry, I couldn't answer just now. Please try again in a moment, or create a free account and our team will reply here.",
   "chat.guest.limit": "That's as many messages as we can take before sign-up. Create a free account and our team will pick it up from here.",
+  "chat.guest.sendFailed": "Your message was not sent — our chat is busy right now. Please try again in a moment.",
   "chat.guest.signIn": "Sign in",
   "chat.guest.signUp": "Create a free account",
   "chat.handback": "Front desk session has ended. Our AI assistant will continue to help you here.",

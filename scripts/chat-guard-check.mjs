@@ -184,6 +184,10 @@ const CATCH = [
   '已经帮您取消掉了。',
   '取消成功，点数已经回到账户了。',
   '好的，Kayden 周四的课我已经取消好了。',
+  // Audit F36 (2026-10-15): a true answer on the turn AFTER a cancellation is
+  // still a claim to this detector; the route lets it through when the family
+  // really had a lesson cancelled in the last day (cancellationOnFile).
+  'Yes, Kayden\'s lesson on Oct 16 was cancelled and the 65 points were returned.',
 ]
 
 let fails = 0
@@ -249,7 +253,14 @@ const TRIAL_PASS = [
   '這個時段已經被預約了，請選其他時間。',
   '10/20 的評估時段已預約滿了。',
   'Mitzi 教練 10/20 有這些時段，請選一個：',
+  // Audit F34 (2026-10-15): how the flow works, to a family that has booked
+  // nothing -- a payment in a time clause makes it a rule.
+  '付款完成後就預約成功了。',
+  '付款完成後即預約成功。',
+  '完成付款以後就預約成功囉。',
   // Simplified Chinese
+  '付款完成后就预约成功了。',
+  '支付以后即预约成功。',
   '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，会尽快与您联系。',
   '要帮您预约这个时段吗？',
   '付款成功后，预约才算确认。',
@@ -292,6 +303,15 @@ const TRIAL_CATCH = [
   ['done', '已为 Emma 预约了评估。'],
   ['state', '好的，我帮您预约了 10/20 下午 3 点的游泳评估。'],
   ['state', '游泳评估已经预约好了。'],
+  // Audit F34 (2026-10-15): a payment in its OWN clause before the claim is
+  // not a rule -- still a claim.
+  ['done', '收到您的付款後，已為您預約成功。'],
+  ['done', '付款已完成，預約成功！'],
+  // Still claims here; on a later turn the route lets them through when the
+  // family really holds the assessment (trialBookingOnFile), which this
+  // script cannot see.
+  ['done', 'Emma 的評估已預約成功。'],
+  ['state', '您的時段已保留 15 分鐘，請盡快付款。'],
 ]
 
 for (const t of TRIAL_PASS) {

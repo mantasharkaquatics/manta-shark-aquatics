@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body || typeof body.key !== 'string' || !UUID_RE.test(body.key)) return badRequest()
 
-  const { data: guest } = await svc.from('chat_threads').select('id, parent_id')
+  const { data: guest } = await svc.from('chat_threads').select('id, parent_id, unread_by_admin, last_message_at, last_message_preview, mode, ai_context_from, handled_by')
     .eq('guest_key', body.key).maybeSingle()
   if (!guest || guest.parent_id) return NextResponse.json({ ok: true, moved: false })
 
@@ -77,7 +77,14 @@ export async function POST(req: NextRequest) {
   // family is signed in, and the widget shows the last message's buttons.
   await svc.from('chat_messages').update({ metadata: null }).eq('thread_id', guest.id).not('metadata', 'is', null)
 
-  const { data: mine } = await svc.from('chat_threads').select('id').eq('parent_id', parent.id).maybeSingle()
+  // The family's OLDEST thread, as the widget, the payment notices and
+  // lib/trial-booking pick it. Unordered, maybeSingle() errors on a family
+  // with two threads and reads as "none", so the guest thread became a third
+  // one that nothing shows (found 2026-10-15). A failed read is not "none".
+  const { data: mine, error: mineErr } = await svc.from('chat_threads')
+    .select('id, unread_by_admin, last_message_at, last_message_preview, mode')
+    .eq('parent_id', parent.id).order('created_at', { ascending: true }).limit(1).maybeSingle()
+  if (mineErr) { console.error('[chat/guest/claim] lookup', mineErr); return NextResponse.json({ error: 'failed' }, { status: 500 }) }
   // Read before anything moves: after the move the two threads' messages are mixed.
   const seenAt = await newestSeenGuestAt(svc, guest.id)
   if (!mine) {
@@ -91,6 +98,31 @@ export async function POST(req: NextRequest) {
   const mineRead = await readState(svc, mine.id)
   const { error: moveErr } = await svc.from('chat_messages').update({ thread_id: mine.id }).eq('thread_id', guest.id)
   if (moveErr) { console.error('[chat/guest/claim] move', moveErr); return NextResponse.json({ error: 'failed' }, { status: 500 }) }
+  // The guest thread's state comes along with its messages (found
+  // 2026-10-15). Only the messages moved, so a "please call me back" the desk
+  // had not read lost its red dot, the family thread did not rise to the top
+  // of Admin > Messages, and a desk that had taken the guest chat over lost
+  // it to the AI. Written before the guest thread is deleted, so a failure
+  // here loses nothing (the claim answers 500 and is tried again).
+  const patch: Record<string, unknown> = {}
+  if (guest.unread_by_admin && !mine.unread_by_admin) patch.unread_by_admin = true
+  if (guest.last_message_at && (!mine.last_message_at || Date.parse(guest.last_message_at) > Date.parse(mine.last_message_at))) {
+    patch.last_message_at = guest.last_message_at
+    patch.last_message_preview = guest.last_message_preview
+  }
+  if (guest.mode === 'human' && mine.mode !== 'human') {
+    patch.mode = 'human'
+    if (guest.ai_context_from) patch.ai_context_from = guest.ai_context_from
+    if (guest.handled_by) patch.handled_by = guest.handled_by
+    // When the desk took it over (lib/chat-handback); missing before
+    // docs/migration-chat-handback.sql, then left out.
+    const { data: since, error: sinceErr } = await svc.from('chat_threads').select('human_since').eq('id', guest.id).maybeSingle()
+    if (!sinceErr && since?.human_since) patch.human_since = since.human_since
+  }
+  if (Object.keys(patch).length) {
+    const { error: patchErr } = await svc.from('chat_threads').update(patch).eq('id', mine.id)
+    if (patchErr) { console.error('[chat/guest/claim] carry state', patchErr); return NextResponse.json({ error: 'failed' }, { status: 500 }) }
+  }
   await svc.from('chat_threads').delete().eq('id', guest.id)
   if (mineRead) await markGuestRead(svc, mine.id, seenAt, mineRead.capAt)
   return NextResponse.json({ ok: true, moved: true })

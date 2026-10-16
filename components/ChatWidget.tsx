@@ -27,9 +27,10 @@ function renderBody(text: string, linkLabel: string) {
 }
 
 // One widget for every page, mounted by the page layouts (components/GlobalChat).
-// Signed in, it is the family's own thread, read and written through Supabase
-// with realtime updates, as before. Signed out (parentId null), it is a guest
-// conversation held by /api/chat/guest: public answers only, with a nudge to
+// Signed in, it is the family's own thread, read through Supabase with
+// realtime updates and written through /api/chat/send and /api/chat/thread
+// (2026-10-15: never from the browser, which could write any field). Signed
+// out (parentId null), it is a guest conversation held by /api/chat/guest: public answers only, with a nudge to
 // create a free account for anything that needs one (owner, 2026-09-28). The
 // guest key lives in this browser; as soon as the visitor is signed in,
 // GlobalChat hands it to /api/chat/guest/claim so the conversation moves into
@@ -81,7 +82,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   const [messages, setMessages] = useState<any[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [sendFailed, setSendFailed] = useState(false)
+  // The i18n key of the "not sent" line, or null (the guest chat has its own).
+  const [sendFailed, setSendFailed] = useState<string | null>(null)
   const [unread, setUnread] = useState(0)
   // The realtime callback below is created once per thread, and the thread is
   // now found on page load with the panel shut, so it reads `open` from this
@@ -264,7 +266,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     const newest = messages.reduce<string | null>((a, m) => (!m._local && m.created_at && (!a || m.created_at > a) ? m.created_at : a), null)
     if (!newest || (markedRef.current && newest <= markedRef.current)) return
     markedRef.current = newest
-    supabase.from('chat_threads').update({ parent_last_read_at: newest }).eq('id', threadId).then(() => {}, () => {})
+    // Through the server, like every write this widget makes to the chat
+    // tables (audit F39, 2026-10-15; see app/api/chat/send).
+    threadAction({ action: 'read', thread_id: threadId, at: newest })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, visible, threadId, messages])
 
@@ -307,13 +311,22 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       setThreadId(data.id)
       setMode(data.mode)
     } else {
-      const { data: newThread } = await supabase
-        .from('chat_threads')
-        .insert({ parent_id: parentId })
-        .select('id')
-        .single()
-      if (newThread) setThreadId(newThread.id)
+      // Made by the server (app/api/chat/thread), which also settles two tabs
+      // opening the chat at once on one thread.
+      const made = await threadAction({ action: 'open' })
+      if (made?.id) {
+        setThreadId(made.id)
+        setMode(made.mode === 'human' ? 'human' : 'ai')
+      }
     }
+  }
+
+  /** A write to the family's own thread row (app/api/chat/thread). null on any failure. */
+  async function threadAction(payload: Record<string, unknown>): Promise<{ id?: string; mode?: string } | null> {
+    try {
+      const r = await fetch('/api/chat/thread', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      return r.ok ? await r.json().catch(() => null) : null
+    } catch { return null }
   }
 
   /** The family's thread (the oldest, as the payment notices pick it), and
@@ -351,10 +364,22 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guest, open, guestKey])
 
-  async function sendGuest(body: string) {
+  // typed: the text came from the box (not a quick-reply button), so a send
+  // that fails puts it back there.
+  async function sendGuest(body: string, typed: boolean) {
     const now = new Date().toISOString()
     setMessages(prev => [...prev, { id: 'local-' + now, _local: true, sender_type: 'parent', body, created_at: now }])
     setAwaitingAi(true)
+    // Not sent: the bubble goes, the text goes back in the box, and a line
+    // says so. Any status but the two handled ones used to leave the bubble
+    // looking delivered, with no reply ever coming and the text gone from the
+    // box -- a 503 when the rate counter or the new thread could not be
+    // written, or a crash or timeout (found 2026-10-15).
+    const notSent = (key: string) => {
+      setMessages(prev => prev.filter(m => !m._local))
+      if (typed) setInput(prev => prev ? prev : body)
+      setSendFailed(key)
+    }
     try {
       const r = await fetch('/api/chat/guest', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -362,11 +387,14 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       })
       const d = await r.json().catch(() => ({} as any))
       if (r.status === 429) { setLimited(true); setMessages(prev => prev.filter(m => !m._local)); return }
-      if (r.status === 409) { try { localStorage.removeItem(GUEST_KEY) } catch {}; setGuestKey(null); return }
+      // The conversation went to an account (signed in elsewhere): forget
+      // it, and the next send starts a new one.
+      if (r.status === 409) { try { localStorage.removeItem(GUEST_KEY) } catch {}; setGuestKey(null); notSent('chat.guest.sendFailed'); return }
+      if (!r.ok) { notSent('chat.guest.sendFailed'); return }
       if (d.key) { setGuestKey(d.key); try { localStorage.setItem(GUEST_KEY, d.key) } catch {} }
       if (Array.isArray(d.messages)) setMessages(d.messages)
     } catch {
-      setMessages(prev => prev.filter(m => !m._local))
+      notSent('chat.sendFailed')
     } finally {
       setAwaitingAi(false)
     }
@@ -399,14 +427,15 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     if (guest) {
       if (!body || sending || limited) return
       setSending(true)
+      setSendFailed(null)
       if (!text) setInput('')
-      await sendGuest(body)
+      await sendGuest(body, !text)
       setSending(false)
       return
     }
     if (!body || !threadId || sending) return
     setSending(true)
-    setSendFailed(false)
+    setSendFailed(null)
     if (!text) setInput('')
     // Checked (found 2026-10-15), as the desk's send has been since
     // 2026-10-08: supabase-js returns a refused or dropped insert as { error }
@@ -414,14 +443,25 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     // the typed message with no word -- while the thread preview showed it and
     // ai-reply ran against an older message. Now the text goes back in the box,
     // a line says it was not sent, and nothing else moves.
-    const { error: sendError } = await supabase.from('chat_messages').insert({ thread_id: threadId, sender_type: 'parent', body })
-    if (sendError) {
+    // Written by the server since 2026-10-15 (audit F39): from the browser the
+    // family could write any sender_type, and any field of the thread row.
+    let sent: { id: string } | null = null
+    try {
+      const r = await fetch('/api/chat/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: threadId, body }),
+      })
+      if (r.ok) sent = (await r.json().catch(() => null))?.message ?? null
+    } catch {}
+    if (!sent) {
       if (!text) setInput(prev => prev ? prev : body)
-      setSendFailed(true)
+      setSendFailed('chat.sendFailed')
       setSending(false)
       return
     }
-    await supabase.from('chat_threads').update({ last_message_at: new Date().toISOString(), last_message_preview: body }).eq('id', threadId)
+    // Shown at once; the realtime INSERT that follows is the same id.
+    const row = sent
+    setMessages(prev => prev.some(m => m.id === row.id) ? prev : [...prev, row])
     setSending(false)
     setAwaitingAi(true)
     if (awaitTimerRef.current) clearTimeout(awaitTimerRef.current)
@@ -438,16 +478,17 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       // behind the chat (the dashboard) reads the account again.
       if (d?.changed) { try { window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT)) } catch {} }
       if (d?.skipped) {
-        // Human service mode: AI stays silent, hide typing animation, notify admin of the new message
+        // Human service mode: AI stays silent, hide typing animation. The
+        // desk's unread flag is set by ai-reply itself now.
         if (d.skipped === 'human_mode') setMode('human')
         setAwaitingAi(false)
         if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
-        await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
       }
     } catch {
       setAwaitingAi(false)
       if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
-      await supabase.from('chat_threads').update({ unread_by_admin: true }).eq('id', threadId)
+      // ai-reply never answered: the desk is told (app/api/chat/thread).
+      await threadAction({ action: 'flag', thread_id: threadId })
     }
   }
 
@@ -617,7 +658,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               seen without scrolling the conversation. */}
           {sendFailed && (
             <div role="alert" style={{ fontSize: '12.5px', color: '#9b1c1c', background: '#fdecec', borderTop: '1px solid #f5c2c2', padding: '8px 16px' }}>
-              {t('chat.sendFailed')}
+              {t(sendFailed)}
             </div>
           )}
           {/* Input */}
