@@ -758,6 +758,7 @@
   "err.signedOut": "您已登出，請重新登入。",
   "err.slotFull": "這個時段已經額滿，請選別的時段。",
   "err.slotTaken": "這個時段剛剛被別人預約了，請選別的時段。",
+  "err.sessionFull": "這個時段剛剛額滿了，請選別的時段。",
   "err.smsInvalidNumber": "這個號碼無法接收簡訊，請確認後再試一次。",
   "err.smsNotConfigured": "簡訊服務目前無法使用，請直接與我們聯絡。",
   "err.smsOptedOut": "這個號碼已退訂我們的簡訊。請回覆 START 重新訂閱後再試一次。",

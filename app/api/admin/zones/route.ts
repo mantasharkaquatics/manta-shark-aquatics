@@ -198,25 +198,19 @@ export async function PUT(req: NextRequest) {
   const locErr = checkLocations(zones, locations)
   if (locErr) return NextResponse.json({ error: locErr }, { status: 400 })
 
-  /* An empty template is refused when it would leave the coach with no zone
-     rows at all (found 2026-10-15). Zero rows is how a coach is marked as
-     still on the legacy hours table (lib/zones.ts), so erasing every block
-     did not close the coach -- it put their old coach_availability hours back
-     on sale, for every course type, under a page that says unpainted time is
-     closed. Leave goes through Time off; date overrides still count as rows. */
-  if (zones.length === 0) {
-    const { count: dateRows, error: cntErr } = await svc
-      .from('coach_availability_zones')
-      .select('id', { count: 'exact', head: true })
-      .eq('coach_id', coach_id).eq('kind', 'date')
-    if (cntErr) return NextResponse.json({ error: cntErr.message }, { status: 500 })
-    if (!dateRows) {
-      return NextResponse.json({
-        error: 'An empty template would put this coach back on the legacy hours. Use Time off to close the coach instead.',
-        code: 'empty_template',
-      }, { status: 400 })
-    }
-  }
+  /* An empty template means the coach is closed for booking (owner,
+     2026-10-16, F60), on every date without a date override; lessons already
+     booked stay and are listed below as before. Saving any weekly template
+     also retires the coach's old coach_availability hours (is_active =
+     false): lib/zones counts a coach as legacy only while those hours are
+     active, so erasing every block can no longer put them back on sale for
+     every course type. Done first, so a failure here changes nothing, and a
+     failed insert further down leaves the coach closed rather than on the
+     old hours. Rows are kept, not deleted, for the record. */
+  const { error: retireErr } = await svc
+    .from('coach_availability').update({ is_active: false })
+    .eq('coach_id', coach_id).eq('is_active', true)
+  if (retireErr) return NextResponse.json({ error: retireErr.message }, { status: 500 })
 
   const { error: delErr } = await svc
     .from('coach_availability_zones').delete().eq('coach_id', coach_id).eq('kind', 'weekly')

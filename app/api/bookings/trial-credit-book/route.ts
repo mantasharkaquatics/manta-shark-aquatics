@@ -6,6 +6,7 @@ import { formatTime12h } from '@/lib/date'
 import { SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { sessionLocationLine } from '@/lib/locations'
+import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
 
 // Booking a Swim Assessment that was already paid for at the front desk.
 //
@@ -162,6 +163,8 @@ export async function POST(req: NextRequest) {
       })
     if (bookErr) {
       await refund()
+      // The database's last-seat guard (F81): someone took it first.
+      if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
       if (bookErr.message?.includes('coach_timeslot_conflict')) {
         return NextResponse.json({ error: 'This time slot is no longer available' }, { status: 409 })
       }

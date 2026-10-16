@@ -6,6 +6,7 @@ import { refundBookingPoints } from '@/lib/bookings/refund'
 import { issueVoucher, voucherExpiry } from '@/lib/vouchers'
 import { sendEmail } from '@/lib/email'
 import { allRows, allRowsIn } from '@/lib/db-paging'
+import { settleUnrestored } from '@/lib/bookings/unrestored'
 
 export const runtime = 'nodejs'
 
@@ -195,6 +196,8 @@ export async function POST(req: NextRequest) {
           .eq('id', x.id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
         if (rErr || !back || back.length === 0) restored = false
         else putBack.add(x.id)
+        // Its seat sold in the meantime (last-seat guard, F81): points back, desk told.
+        if (rErr) await settleUnrestored(svc, { rowIds: [x.id], error: rErr, where: 'fixed class ended, voucher not issued (admin/fixed-classes)' })
       }
       if (!restored) console.error(`⚠️ fixed class end: lesson ${r.session.session_date} (${lesson.map(x => x.id).join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
       failed.push(r.session.session_date)

@@ -1,6 +1,7 @@
 import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/lib/partnerships'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
+import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
@@ -459,7 +460,9 @@ export async function POST(req: NextRequest) {
                     voucher_id: hourVoucher?.id ?? null })
           .select('id').single()
         if (bErr || !bk) {
-          await rollback('a booking row could not be written')
+          await rollback(isSessionFull(bErr) ? 'the time filled up' : 'a booking row could not be written')
+          // The database's last-seat guard (F81): someone took it first.
+          if (isSessionFull(bErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
           const m = bErr?.message || ''
           const msg = m.includes('STUDENT_DOUBLE_BOOKED')
             ? `${st.full_name} already has a lesson at this time.`

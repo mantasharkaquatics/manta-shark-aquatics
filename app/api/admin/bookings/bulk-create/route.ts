@@ -13,6 +13,7 @@ import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewa
 import { allRows } from '@/lib/db-paging'
 import { sessionLocationLines } from '@/lib/locations'
 import { bandRange } from '@/lib/zone-colors'
+import { isSessionFull, sessionFullDeskBody } from '@/lib/bookings/session-full'
 
 // Recurring bulk booking for admin.
 // action=preview: generate weekly candidate dates with per-date conflict status.
@@ -530,7 +531,9 @@ export async function POST(req: NextRequest) {
                       status: 'confirmed', lesson_group_id: groupId })
             .select('id').single()
           if (be || !bk) {
-            await rollback('a booking row could not be written')
+            await rollback(isSessionFull(be) ? 'a class filled up' : 'a booking row could not be written')
+            // The database's last-seat guard (F81): everything above is undone.
+            if (isSessionFull(be)) return NextResponse.json({ ...sessionFullDeskBody(), date }, { status: 409 })
             const conflict = be?.message?.includes('coach_timeslot_conflict')
             return NextResponse.json({ error: conflict ? `The coach already has another class during the hour on ${date}` : `Failed to book ${date}: ${be?.message || 'unknown'}` }, { status: conflict ? 409 : 500 })
           }
@@ -596,7 +599,9 @@ export async function POST(req: NextRequest) {
                     points_charged: b.points, ...grantedFor(b.parent_id, b.points), status: 'confirmed', ...link })
           .select('id').single()
         if (bookErr || !created) {
-          await rollback('a booking row could not be written')
+          await rollback(isSessionFull(bookErr) ? 'a class filled up' : 'a booking row could not be written')
+          // The database's last-seat guard (F81): everything above is undone.
+          if (isSessionFull(bookErr)) return NextResponse.json({ ...sessionFullDeskBody(), date }, { status: 409 })
           const isConflict = bookErr?.message?.includes('coach_timeslot_conflict')
           return NextResponse.json(
             { error: isConflict ? `Date ${date} conflicts with another session for this coach` : `Failed to book ${date}: ${bookErr?.message || 'unknown'}` },

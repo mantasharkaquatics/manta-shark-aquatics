@@ -4,7 +4,7 @@ import { zoneFill, bandRange } from '@/lib/zone-colors'
 
 import { formatTime12h, daySlots, getTodayLA } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
-import { CANCEL_ERROR_KEYS } from '@/lib/admin/desk-errors'
+import { CANCEL_ERROR_KEYS, BOOKING_ERROR_KEYS } from '@/lib/admin/desk-errors'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -161,6 +161,14 @@ async function postWithHoldCheck(url: string, body: Record<string, unknown>, t: 
     t('admin.booking.hold.line', { date: day(h.date), family: h.family || t('admin.booking.hold.aFamily'), until: day(h.until) }))
   if (!(await askHoldOverride(t('admin.booking.hold.confirm', { list: lines.join('\n') })))) return { ...first, declined: true }
   return { ...(await send({ ...body, override_holds: true })), declined: false }
+}
+
+/* A booking write the desk sent came back refused: the staff screen's own
+   words for a code it knows (the last-seat guard, F81: session_full), else
+   the route's message, else the screen's fallback. */
+function bookingErrText(t: TFunction, data: { code?: unknown; error?: string } | null | undefined, fallbackKey: string): string {
+  const key = BOOKING_ERROR_KEYS[String(data?.code || '')]
+  return key ? t(key) : (data?.error || t(fallbackKey))
 }
 
 function toDateStr(d: Date): string {
@@ -661,7 +669,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
         }, t, locale)
       if (declined) setError(t('admin.booking.hold.notBooked'))
-      else if (!res.ok) { setError(data.error || t('admin.booking.err.createFailed')) }
+      else if (!res.ok) { setError(bookingErrText(t, data, 'admin.booking.err.createFailed')) }
       else {
         setSuccess(t('admin.booking.ok.createdN', { n: okDates.length }))
         await loadSessions()
@@ -866,7 +874,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           hour: hourMode && courseTypes.find(c => c.id === formCourse)?.slug === '1on1',
         }, t, locale)
       if (declined || !res.ok) {
-        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.createBooking')))
+        setError(declined ? t('admin.booking.hold.notBooked') : bookingErrText(t, data, 'admin.booking.err.createBooking'))
         setSaving(false)
         return
       }
@@ -899,7 +907,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           time: selectedSlot.time,
         }, t, locale)
       if (declined || !res.ok) {
-        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.payLink')))
+        setError(declined ? t('admin.booking.hold.notBooked') : bookingErrText(t, data, 'admin.booking.err.payLink'))
         setTrialSaving(false)
         return
       }
@@ -926,7 +934,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
           time: selectedSlot.time,
         }, t, locale)
       if (declined || !res.ok) {
-        setError(declined ? t('admin.booking.hold.notBooked') : (data.error || t('admin.booking.err.createBooking')))
+        setError(declined ? t('admin.booking.hold.notBooked') : bookingErrText(t, data, 'admin.booking.err.createBooking'))
         setSaving(false)
         return
       }
@@ -1916,7 +1924,7 @@ function DetailModal({ session, loc, coaches, students, onClose, supabase, onRef
       .catch(() => ({ res: null as Response | null, data: {} as any, declined: false }))
     setAdding(null)
     if (declined) { setAddError(t('admin.booking.hold.notBooked')); return }
-    if (!res || !res.ok) { setAddError(data.error || t('admin.booking.err.addFailed')); return }
+    if (!res || !res.ok) { setAddError(bookingErrText(t, data, 'admin.booking.err.addFailed')); return }
     setAddQuery('')
     await loadBookings()
     onRefresh()

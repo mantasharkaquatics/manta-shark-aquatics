@@ -364,12 +364,17 @@ export type CalWindow = {
 export async function loadWindow(svc: Svc, coachIds: string[], from: string, to: string): Promise<CalWindow> {
   const w: CalWindow = { zoned: new Set(), zones: new Map(), off: new Map(), sess: new Map() }
   if (coachIds.length === 0) return w
-  const [{ data: zrows }, { data: zany }, { data: offRows }, { data: sessRows }] = await Promise.all([
+  const [{ data: zrows }, { data: zany }, legacyRes, { data: offRows }, { data: sessRows }] = await Promise.all([
     svc.from('coach_availability_zones')
       .select('coach_id, zone_type, kind, weekday, override_date, start_time, end_time, group_level_min, group_level_max, location_id')
       .in('coach_id', coachIds)
       .or(`kind.eq.weekly,and(kind.eq.date,override_date.gte.${from},override_date.lte.${to})`),
     svc.from('coach_availability_zones').select('coach_id').in('coach_id', coachIds),
+    // Legacy = no zone rows AND active old hours (lib/zones isLegacyCoach). A
+    // coach with neither -- a weekly template saved empty (F60), or a coach
+    // never set up -- is on the zone model with no blocks: closed. Such a
+    // coach used to skip the zone check below and take any time at all.
+    svc.from('coach_availability').select('coach_id').in('coach_id', coachIds).eq('is_active', true),
     // Paged: months of every coach's sessions (and time off) pass 1,000 rows,
     // and a session past the cut read as an empty lane (found 2026-10-05).
     allRows(() => svc.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
@@ -379,6 +384,9 @@ export async function loadWindow(svc: Svc, coachIds: string[], from: string, to:
       .in('coach_id', coachIds).gte('session_date', from).lte('session_date', to).in('status', ['open', 'full']).order('id')),
   ])
   for (const r of zany || []) w.zoned.add(r.coach_id)
+  // A failed read of the old hours counts as none: closed, not open anywhere.
+  const legacyHours = new Set(legacyRes.error ? [] : (legacyRes.data || []).map((r: { coach_id: string }) => r.coach_id))
+  for (const id of coachIds) if (!legacyHours.has(id)) w.zoned.add(id)
   for (const r of zrows || []) w.zones.set(r.coach_id, [...(w.zones.get(r.coach_id) || []), r])
   for (const b of (offRows || []) as CoachBlock[]) { const k = `${b.coach_id}|${b.date}`; w.off.set(k, [...(w.off.get(k) || []), b]) }
   // A 1-on-2 invitation still waiting for an answer holds its session; its
@@ -426,8 +434,9 @@ export function evalSlot(w: CalWindow, q: SlotQuery): { status: CandStatus; spot
   if (q.date < today || (q.date === today && minutesUntil(q.date, startTime, today, nowMin) < LEAD_TIME_MINUTES))
     return { status: 'too_soon', spots: 0 }
   const zoneType = zoneTypeForSlug(q.ct.slug)
-  // A coach with no zone rows at all is on the old availability model, and the
-  // booking routes let those through without a zone check.
+  // A legacy coach (no zone rows, old hours still active: loadWindow) is on
+  // the old availability model, and the booking routes let those through
+  // without a zone check.
   if (w.zoned.has(q.coachId)) {
     const picked = zonesOn(w, q.coachId, q.date)
     // A closed day closes every pool; only then narrow to the one asked for.

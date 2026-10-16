@@ -14,6 +14,7 @@ import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { mailInviteFailed } from '@/lib/bookings/invite-failed-mail'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
+import { isSessionFull, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -354,13 +355,17 @@ export async function POST(req: NextRequest) {
   if (claimErr) {
     await refundSpent('the lesson could not be confirmed')
     const m = claimErr.message || ''
-    if (m.includes('STUDENT_DOUBLE_BOOKED') || m.includes('coach_timeslot_conflict')) {
+    // SESSION_FULL: the database's last-seat guard (F81) -- the seats this
+    // invitation held were sold before it was accepted. Same ending as a
+    // time taken by another lesson.
+    if (m.includes('STUDENT_DOUBLE_BOOKED') || m.includes('coach_timeslot_conflict') || isSessionFull(claimErr)) {
       await cancelGroup(m.includes('STUDENT_DOUBLE_BOOKED') ? 'partner_double_booked' : 'slot_taken',
         { reason: m.includes('STUDENT_DOUBLE_BOOKED') ? 'swimmer_busy' : 'slot_taken' })
       return NextResponse.json({
         error: m.includes('STUDENT_DOUBLE_BOOKED')
           ? 'One of the swimmers already has a lesson at that time, so this invitation cannot be confirmed and has been cancelled. No points were used.'
           : 'This time slot was taken by another customer and cannot be confirmed.',
+        ...(isSessionFull(claimErr) ? { code: SESSION_FULL_CODE } : {}),
       }, { status: 409 })
     }
     console.error('confirm-partner: claim failed:', m)

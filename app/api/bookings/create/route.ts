@@ -7,6 +7,8 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
+import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
+import { settleUnrestored } from '@/lib/bookings/unrestored'
 import { familyZones, getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/lib/partnerships'
@@ -407,10 +409,13 @@ export async function POST(req: NextRequest) {
   const claimedOldIds: string[] = []
   const restoreOld = async () => {
     if (claimedOldIds.length === 0) return
-    await svc.from('bookings')
-      .update({ status: 'confirmed', cancellation_reason: null, pending_new_session_id: null })
-      .in('id', claimedOldIds).eq('status', 'cancelled')
+    const ids = [...claimedOldIds]
     claimedOldIds.length = 0
+    const { error: backErr } = await svc.from('bookings')
+      .update({ status: 'confirmed', cancellation_reason: null, pending_new_session_id: null })
+      .in('id', ids).eq('status', 'cancelled')
+    // The old seat sold in the meantime (F81): its points go back, desk told.
+    if (backErr) await settleUnrestored(svc, { rowIds: ids, error: backErr, where: 'online lesson move (bookings/create)' })
   }
   if (oldBooking) {
     const oldIds = oldLessonRows.length > 0 ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]
@@ -499,8 +504,10 @@ export async function POST(req: NextRequest) {
     })
     .select('id').single()
   if (bookErr || !newBooking) {
-    await refundSpent('booking insert failed')
+    await refundSpent(isSessionFull(bookErr) ? 'the time filled up' : 'booking insert failed')
     await restoreOld()
+    // The database's last-seat guard (F81): someone took it first.
+    if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
     const m = bookErr?.message || ''
     const msg = m.includes('STUDENT_DOUBLE_BOOKED')
       ? 'This swimmer already has a lesson at this time. Please pick another time.'
@@ -534,6 +541,7 @@ export async function POST(req: NextRequest) {
         .eq('id', newBooking.id)
       await restoreOld()
 
+      if (isSessionFull(s2Err)) return NextResponse.json(sessionFullBody(), { status: 409 })
       const who = student2.full_name || 'The second swimmer'
       const msg2 = (s2Err.message || '').includes('STUDENT_DOUBLE_BOOKED')
         ? `${who} already has a lesson at this time. Neither booking was made - please pick another time.`

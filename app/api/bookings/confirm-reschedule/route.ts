@@ -9,6 +9,8 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
+import { isSessionFull, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
+import { settleUnrestored } from '@/lib/bookings/unrestored'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -188,6 +190,9 @@ export async function POST(req: NextRequest) {
       console.error(
         `\u26a0\ufe0f confirm-reschedule: could not restore bookings ${oldIds.join(', ')} after a failed ` +
         `reschedule. Those lessons are cancelled with nobody refunded -- fix by hand:`, error.message)
+      // The old seats sold in the meantime (last-seat guard, F81): those
+      // rows' points go back and the desk is told.
+      await settleUnrestored(supabase, { rowIds: oldIds, error, where: '1-on-2 reschedule accepted (bookings/confirm-reschedule)' })
     }
   }
 
@@ -235,6 +240,7 @@ export async function POST(req: NextRequest) {
     console.error('confirm-reschedule: first booking failed:', myErr?.message)
     return NextResponse.json({
       error: 'That time could not be booked, so both lessons have been left where they were. Please pick another time.',
+      ...(isSessionFull(myErr) ? { code: SESSION_FULL_CODE } : {}),
     }, { status: 409 })
   }
 
@@ -260,6 +266,7 @@ export async function POST(req: NextRequest) {
     console.error('confirm-reschedule: partner booking failed:', partnerErr?.message)
     return NextResponse.json({
       error: 'That time could not be booked for both swimmers, so both lessons have been left where they were. Please pick another time.',
+      ...(isSessionFull(partnerErr) ? { code: SESSION_FULL_CODE } : {}),
     }, { status: 409 })
   }
 

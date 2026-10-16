@@ -81,6 +81,9 @@ export default function ZonesEditorPage() {
   const [hasOverride, setHasOverride] = useState(false)
   const [reload, setReload] = useState(0)
   const [ovDates, setOvDates] = useState<{ date: string; closed: boolean }[]>([])
+  // A weekly template with no blocks closes the coach (owner, 2026-10-16,
+  // F60), so it is asked first: the payload waiting for that answer.
+  const [emptyAsk, setEmptyAsk] = useState<ZoneRow[] | null>(null)
 
   const ovDow = ovDate ? new Date(ovDate + 'T00:00:00').getDay() : 0
   const visDays = mode === 'date' && ovDate ? [ovDow] : [0, 1, 2, 3, 4, 5, 6]
@@ -210,29 +213,36 @@ export default function ZonesEditorPage() {
     return null
   }
 
+  async function saveWeekly(zones: ZoneRow[]) {
+    setSaving(true); setMsg(null)
+    const res = await fetch('/api/admin/zones', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coach_id: coachId, zones }),
+    }).catch(() => null)
+    const data = res ? await res.json().catch(() => ({})) : {}
+    setSaving(false)
+    if (!res?.ok) { setMsg({ ok: false, text: data.error || t('admin.zones.err.saveFailed') }); return }
+    setWeeklyRows(zones)
+    // Date overrides keep a coach on zones too, as the resolver counts them
+    // (found 2026-10-15: an empty weekly save showed the legacy banner). Any
+    // weekly save retires the old legacy hours (F60), so none are left.
+    setDirty(false); setHasZones(zones.length > 0 || ovDates.length > 0); setHasWeekly(zones.length > 0); setLegacy([])
+    const w = data.warnings || []
+    // Group classes left on their old level band (found 2026-10-15).
+    const bw: string[] = data.band_warnings || []
+    // Booked lessons left at the pool the block used to be at (F6).
+    const pw: string[] = data.pool_warnings || []
+    setMsg({ ok: true, warn: w.length + bw.length + pw.length > 0, text: (zones.length === 0 ? t('admin.zones.msg.savedEmpty') : t('admin.zones.msg.savedWeekly', { n: data.count })) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') + (pw.length ? t('admin.zones.msg.warnPool', { n: pw.length, list: pw.join('; ') }) : '') })
+  }
+
   async function save() {
     if (mode === 'weekly') {
       const zones = [...compress([0, 1, 2, 3, 4, 5, 6]), ...teamRows.map((z: any) => ({ zone_type: 'team', weekday: z.weekday as number, start_time: String(z.start_time).slice(0, 5), end_time: String(z.end_time).slice(0, 5), team_tier_id: z.team_tier_id || undefined, group_level_min: null, group_level_max: null, location_id: rowLoc(z) }))]
       const err = teamCheck(zones)
       if (err) { setMsg({ ok: false, text: err }); return }
-      setSaving(true); setMsg(null)
-      const res = await fetch('/api/admin/zones', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coach_id: coachId, zones }),
-      })
-      const data = await res.json()
-      setSaving(false)
-      if (!res.ok) { setMsg({ ok: false, text: data.code === 'empty_template' ? t('admin.zones.err.emptyTemplate') : data.error || t('admin.zones.err.saveFailed') }); return }
-      setWeeklyRows(zones)
-      // Date overrides keep a coach on zones too, as the resolver counts them
-      // (found 2026-10-15: an empty weekly save showed the legacy banner).
-      setDirty(false); setHasZones(zones.length > 0 || ovDates.length > 0)
-      const w = data.warnings || []
-      // Group classes left on their old level band (found 2026-10-15).
-      const bw: string[] = data.band_warnings || []
-      // Booked lessons left at the pool the block used to be at (F6).
-      const pw: string[] = data.pool_warnings || []
-      setMsg({ ok: true, warn: w.length + bw.length + pw.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') + (pw.length ? t('admin.zones.msg.warnPool', { n: pw.length, list: pw.join('; ') }) : '') })
+      // No blocks at all = the coach is closed for booking (F60): asked first.
+      if (zones.length === 0) { setEmptyAsk(zones); return }
+      await saveWeekly(zones)
       return
     }
     const painted = compress([ovDow])
@@ -317,6 +327,22 @@ export default function ZonesEditorPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
+      {emptyAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEmptyAsk(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="empty-template-confirm"
+            className="bg-[#1a2744] border border-[#1e3a6e] rounded-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 id="empty-template-confirm" className="text-white font-semibold text-lg mb-3">{t('admin.zones.emptyAsk.title')}</h3>
+            <p className="text-gray-300 text-sm mb-2">{t('admin.zones.emptyAsk.body')}</p>
+            {!hasZones && legacy.length > 0 && <p className="text-gray-300 text-sm mb-2">{t('admin.zones.emptyAsk.legacy')}</p>}
+            <p className="text-gray-400 text-xs mb-4">{t('admin.zones.emptyAsk.booked')}</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEmptyAsk(null)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">{t('common.cancel')}</button>
+              <button onClick={() => { const z = emptyAsk; setEmptyAsk(null); saveWeekly(z) }}
+                className="text-xs px-4 py-2 rounded bg-red-500/80 text-white font-semibold hover:bg-red-500">{t('admin.zones.emptyAsk.confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 4 }}>{t('admin.zones.title')}</h1>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>{t('admin.zones.subtitle')}</p>
 
@@ -345,9 +371,15 @@ export default function ZonesEditorPage() {
             {t('admin.zones.noWeeklyTemplate')}
           </span>
         )}
-        {coachId && mode === 'weekly' && !hasZones && (
+        {coachId && mode === 'weekly' && !hasZones && legacy.length === 0 && (
+          // No zone rows and no active old hours: closed, not legacy (lib/zones isLegacyCoach, F60).
           <span style={{ fontSize: 12, color: '#e8883a' }}>
-            {t('admin.zones.legacyHours')}{legacy.length > 0 && <> <button onClick={loadLegacyAsPrivate} style={{ color: '#c9a84c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>{t('admin.zones.copyLegacy')}</button></>}
+            {t('admin.zones.closedNoBlocks')}
+          </span>
+        )}
+        {coachId && mode === 'weekly' && !hasZones && legacy.length > 0 && (
+          <span style={{ fontSize: 12, color: '#e8883a' }}>
+            {t('admin.zones.legacyHours')}{' '}<button onClick={loadLegacyAsPrivate} style={{ color: '#c9a84c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>{t('admin.zones.copyLegacy')}</button>
           </span>
         )}
       </div>

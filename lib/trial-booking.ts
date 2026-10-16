@@ -5,6 +5,7 @@ import { formatTime12h, getTodayLA } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentSlotError } from '@/lib/assessment-slot'
+import { isSessionFull } from '@/lib/bookings/session-full'
 
 const piOf = (session: Stripe.Checkout.Session): string | null =>
   typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null
@@ -368,7 +369,8 @@ async function paidAfterRelease(
       if (reopened) await supabase.from('class_sessions').update({ status: 'cancelled' }).eq('id', cs.id).eq('enrolled_count', 0)
       // Someone else put it back first; they finish it.
       if (!backErr) return 'noop'
-      why = backErr.message
+      // The last-seat guard (F81): the time was sold while the hold was gone.
+      why = isSessionFull(backErr) ? 'the same time had been booked by someone else' : backErr.message
     }
   } else if (stillNeeds && !cs) {
     why = 'the held lesson could not be found'

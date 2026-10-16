@@ -12,6 +12,7 @@ import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { groupBandsFor, isLegacyCoach } from '@/lib/zones'
 import { activeLocations, getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
+import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -527,6 +528,8 @@ export async function POST(req: NextRequest) {
         .select('id')
       if (vErr || !rowsIn || rowsIn.length === 0) {
         await releaseVoucher(svc, voucher.id)
+        // The database's last-seat guard (F81): someone took it first.
+        if (isSessionFull(vErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
         return NextResponse.json({ error: `Failed to book the lesson: ${vErr?.message || 'unknown'}` }, { status: 500 })
       }
       await attachVoucher(svc, voucher.id, (rowsIn as { id: string }[])[0].id)
@@ -631,9 +634,12 @@ export async function POST(req: NextRequest) {
       })))
       .select('id, voucher_id')
     if (bookErr) {
-      await refundBatch('the lessons could not be booked')
+      await refundBatch(isSessionFull(bookErr) ? 'a class filled up' : 'the lessons could not be booked')
       await releaseCover()
       await dropFixed()
+      // The database's last-seat guard (F81): one of the classes filled up
+      // after the check above. The insert is one statement, so none went in.
+      if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
       return NextResponse.json({ error: `Failed to book the lessons: ${bookErr.message}` }, { status: 500 })
     }
     // Each voucher points at one of the rows it paid for (the first one).

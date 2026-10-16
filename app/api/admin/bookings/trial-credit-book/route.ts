@@ -6,6 +6,7 @@ import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionLocationLine } from '@/lib/locations'
+import { isSessionFull, sessionFullDeskBody } from '@/lib/bookings/session-full'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireAdmin()
@@ -192,6 +193,8 @@ export async function POST(req: NextRequest) {
     if (bookErr) {
       // A session this request opened is not left behind empty (found 2026-10-15).
       if (createdSessId) await svc.from('class_sessions').delete().eq('id', createdSessId).eq('enrolled_count', 0)
+      // The database's last-seat guard (F81). The credit is only marked used below, so nothing to give back.
+      if (isSessionFull(bookErr)) return NextResponse.json(sessionFullDeskBody(), { status: 409 })
       if (bookErr.message?.includes('coach_timeslot_conflict')) {
         return NextResponse.json({ error: 'The coach already has another lesson at this time' }, { status: 409 })
       }

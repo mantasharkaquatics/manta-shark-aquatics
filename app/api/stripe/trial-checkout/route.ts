@@ -10,6 +10,7 @@ import { releaseTrialHold, syncTrialBooking } from '@/lib/trial-booking'
 import { renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { sessionLocationLine } from '@/lib/locations'
+import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -214,6 +215,9 @@ export async function POST(req: NextRequest) {
       // 23505: another request for this swimmer placed its hold first, past
       // the read above (bookings_one_live_trial_per_student, once that index
       // is in; found 2026-10-15).
+      // The database's last-seat guard (F81); nothing was charged yet. The
+      // code lets the desk show its own words (this route serves both).
+      if (isSessionFull(bookErr)) return NextResponse.json(sessionFullBody(), { status: 409 })
       if (bookErr?.code === '23505')
         return NextResponse.json({ error: 'This swimmer has a Swim Assessment waiting for payment. Pay for it or cancel it on your dashboard.' }, { status: 400 })
       return NextResponse.json({ error: (bookErr?.message || '').includes('STUDENT_DOUBLE_BOOKED')

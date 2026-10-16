@@ -758,6 +758,7 @@
   "err.signedOut": "You've been signed out. Please sign in again.",
   "err.slotFull": "This time is full. Please pick another time.",
   "err.slotTaken": "Someone just booked this time. Please pick another time.",
+  "err.sessionFull": "This time is now full. Please pick another time.",
   "err.smsInvalidNumber": "That phone number could not receive a text. Please check it and try again.",
   "err.smsNotConfigured": "SMS is not configured. Please contact us directly.",
   "err.smsOptedOut": "This number has opted out of our texts. Reply START to re-subscribe, then try again.",

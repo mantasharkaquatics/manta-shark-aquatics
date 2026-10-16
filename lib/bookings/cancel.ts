@@ -4,6 +4,7 @@ import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherWindow, type Voucher } from '@/lib/vouchers'
 import { lessonLocationLine } from '@/lib/locations'
+import { settleUnrestored } from '@/lib/bookings/unrestored'
 
 export type CancelTarget = {
   parent_id: string
@@ -567,9 +568,12 @@ export async function cancelBookingWithPartner(
           fixedClassId: booking.fixed_class_id ?? null,
         })
     if (!r.voucher) {
-      await svc.from('bookings')
+      const { error: backErr } = await svc.from('bookings')
         .update({ status: booking.status, cancellation_reason: null, cancelled_by: null, cancelled_at: null })
         .in('id', cancelledBookingIds)
+      // The seat was sold in the moment it was free (last-seat guard, F81):
+      // the lesson cannot come back, so its points do and the desk is told.
+      if (backErr) await settleUnrestored(svc, { rowIds: cancelledBookingIds, error: backErr, where: 'parent cancellation, voucher not issued (lib/bookings/cancel)' })
       return r.duplicate && voucherReason === 'grace'
         ? { ok: false, status: 400, error: 'NO_GRACE_LEFT', cancelledBookingIds: [] }
         : { ok: false, status: 500, error: 'Could not cancel this lesson. Please try again.', cancelledBookingIds: [] }

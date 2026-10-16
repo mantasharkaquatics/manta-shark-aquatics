@@ -117,6 +117,9 @@ const MAP: readonly (readonly [string, string])[] = [
   ['The coach is not available at this time', 'err.coachUnavailable'],
   ['The coach already has another booking at the new time', 'err.rescheduleCoachBusy'],
   ['The coach already has another', 'err.coachBusy'],
+  // The database's last-seat guard (lib/bookings/session-full.ts, F81).
+  ['This time is now full', 'err.sessionFull'],
+  ['SESSION_FULL', 'err.sessionFull'],
   ['This time slot was taken by another customer', 'err.slotTaken'],
   ['This time slot is no longer available', 'err.slotTaken'],
   ['That time just filled up', 'err.slotTaken'],

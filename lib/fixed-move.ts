@@ -23,6 +23,8 @@ import {
   type FixedClass, type Lesson,
 } from '@/lib/fixed-classes'
 import { zoneTypeForSlug, groupBandsFor } from '@/lib/zones'
+import { isSessionFull } from '@/lib/bookings/session-full'
+import { settleUnrestored } from '@/lib/bookings/unrestored'
 
 type Svc = SupabaseClient
 
@@ -247,6 +249,8 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
     const { error } = await svc.from('bookings').update({ status: 'confirmed', cancellation_reason: null })
       .in('id', ids).eq('status', 'cancelled').eq('cancellation_reason', 'rescheduled')
     if (error) console.error(`⚠️ fixed-class move: could not restore ${ids.join(', ')} -- fix by hand:`, error.message)
+    // The old seats sold in the meantime (last-seat guard, F81): points back, desk told.
+    if (error) await settleUnrestored(svc, { rowIds: ids, error, where: 'fixed-class move (lib/fixed-move)' })
   }
   if (oldIds.length > 0) {
     const { data: claimed } = await svc.from('bookings')
@@ -323,7 +327,9 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
       if (createdSessions.length) await svc.from('class_sessions').delete().in('id', createdSessions)
       await putBack(oldIds)
       console.error('fixed-class move: rows not written:', error.message)
-      return { error: error.message.includes('STUDENT_DOUBLE_BOOKED') || error.message.includes('coach_timeslot_conflict') ? 'MOVE_CHANGED' : 'Could not move the lessons.', status: 409 }
+      // SESSION_FULL: the database's last-seat guard (F81) -- a class filled
+      // after the plan was made. The insert is one statement, so none went in.
+      return { error: error.message.includes('STUDENT_DOUBLE_BOOKED') || error.message.includes('coach_timeslot_conflict') || isSessionFull(error) ? 'MOVE_CHANGED' : 'Could not move the lessons.', status: 409 }
     }
   }
 
@@ -370,6 +376,8 @@ export async function commitMove(svc: Svc, ctx: MoveCtx, target: MoveTarget, pla
           cancelled_by: p.cancelled_by ?? null, cancelled_at: p.cancelled_at ?? null })
         .eq('id', id).eq('status', 'cancelled').eq('cancellation_reason', 'cancelled_by_parent').select('id')
       if (rErr || !back || back.length === 0) restored = false
+      // Its seat sold in the meantime (last-seat guard, F81): points back, desk told.
+      if (rErr) await settleUnrestored(svc, { rowIds: [id], error: rErr, where: 'fixed-class move, voucher not issued (lib/fixed-move)' })
     }
     if (!restored) console.error(`⚠️ fixed-class move: lesson ${i.from} (${ids.join(', ')}) cancelled with no voucher and not restored -- fix by hand`)
     notMoved.push(i.from)

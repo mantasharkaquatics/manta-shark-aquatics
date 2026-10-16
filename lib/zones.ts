@@ -4,7 +4,8 @@ import { allRows } from '@/lib/db-paging'
 
 // Coach availability zones (spec v1.0, docs/coach-availability-zones-spec.md).
 // Resolution: date rows replace the whole day; 'closed' date row = day off;
-// otherwise weekly template; coach with ZERO zone rows = legacy coach_availability.
+// otherwise weekly template; coach with ZERO zone rows AND active
+// coach_availability hours = legacy (see isLegacyCoach).
 
 export interface ZoneRow {
   zone_type: 'private' | 'group' | 'team' | 'closed'
@@ -31,17 +32,40 @@ export function zoneTypeForSlug(slug: string): 'private' | 'group' | 'team' | nu
   return null
 }
 
-/** Whether a coach still runs on the legacy coach_availability hours (no zone
- *  rows at all). Those hours start on the hour or half hour and are offered
- *  every 35 minutes from there, so they never sit on the zone grid; the grid
- *  check (lib/date.ts isGridStart) applies to zoned coaches only (found
- *  2026-10-15, when it refused every time of a not-yet-zoned coach). */
+/** Whether a coach still runs on the legacy coach_availability hours: no zone
+ *  rows at all AND at least one ACTIVE coach_availability row. Those hours
+ *  start on the hour or half hour and are offered every 35 minutes from
+ *  there, so they never sit on the zone grid; the grid check (lib/date.ts
+ *  isGridStart) applies to zoned coaches only (found 2026-10-15, when it
+ *  refused every time of a not-yet-zoned coach).
+ *
+ *  The active-hours half is what lets a weekly template saved EMPTY mean
+ *  "this coach is closed" (owner, 2026-10-16, F60). Zero zone rows used to
+ *  mean legacy on its own, so erasing every block put the coach's old hours
+ *  back on sale for every course type. Saving a weekly template now retires
+ *  those hours (is_active = false, /api/admin/zones PUT), and a coach with
+ *  neither zone rows nor active hours is a zoned coach with no blocks:
+ *  closed everywhere, with date overrides working as before. A brand-new
+ *  coach with no hours of either kind is closed the same way.
+ *  The bulk readers (bookings/openings, public/schedule, chat lister,
+ *  lib/fixed-classes loadWindow) apply the same rule from their own reads. */
+export async function hasLegacyHours(svc: SupabaseClient, coachId: string): Promise<boolean> {
+  // A failed read counts as no hours: the coach reads as closed, which is
+  // recoverable; old hours put back on sale are not.
+  const { count, error } = await svc
+    .from('coach_availability')
+    .select('id', { count: 'exact', head: true })
+    .eq('coach_id', coachId).eq('is_active', true)
+  return !error && !!count
+}
+
 export async function isLegacyCoach(svc: SupabaseClient, coachId: string): Promise<boolean> {
   const { count } = await svc
     .from('coach_availability_zones')
     .select('id', { count: 'exact', head: true })
     .eq('coach_id', coachId)
-  return !count
+  if (count) return false
+  return hasLegacyHours(svc, coachId)
 }
 
 export async function getEffectiveZones(
@@ -52,7 +76,8 @@ export async function getEffectiveZones(
   // every block, as before locations existed.
   locationId?: string | null,
 ): Promise<EffectiveZones> {
-  // Legacy check: a coach with no zone rows at all stays on coach_availability.
+  // Legacy check (isLegacyCoach): no zone rows at all, and old hours still
+  // active. No zone rows and no active hours = closed (F60).
   const { count } = await svc
     .from('coach_availability_zones')
     .select('id', { count: 'exact', head: true })
@@ -60,6 +85,7 @@ export async function getEffectiveZones(
   if (!count || count === 0) {
     // The old weekly table predates locations: those hours are the first pool's.
     if (locationId && locationId !== DEFAULT_LOCATION_ID) return { legacy: false, rows: [], overridden: false }
+    if (!(await hasLegacyHours(svc, coachId))) return { legacy: false, rows: [], overridden: false }
     return { legacy: true, rows: [], overridden: false }
   }
 

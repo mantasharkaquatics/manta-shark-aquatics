@@ -49,3 +49,10 @@ export const CANCEL_ERROR_KEYS: Record<string, string> = {
   stripe_close_failed: 'admin.booking.err.stripeCloseFailed',
   voucher_not_issued: 'admin.booking.err.voucherNotIssued',
 }
+
+/** Booking writes from the desk (bulk-create, trial-credit-book, the POS and
+ *  trial checkout): the database's last-seat guard (lib/bookings/session-full,
+ *  F81). Nothing was booked or charged when this comes back. */
+export const BOOKING_ERROR_KEYS: Record<string, string> = {
+  session_full: 'admin.booking.err.sessionFull',
+}

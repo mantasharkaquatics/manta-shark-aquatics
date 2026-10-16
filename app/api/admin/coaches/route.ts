@@ -18,14 +18,21 @@ export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const s = svc()
-  const [{ data, error }, { data: zrows }] = await Promise.all([
+  const [{ data, error }, { data: zrows }, { data: arows }] = await Promise.all([
     s.from('coaches')
       .select('id, first_name, last_name, email, is_active, created_at')
       .order('created_at'),
     s.from('coach_availability_zones').select('coach_id'),
+    s.from('coach_availability').select('coach_id').eq('is_active', true),
   ])
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Managed on Zones = not legacy (lib/zones isLegacyCoach): zone rows, or no
+  // active old hours. A coach whose template was saved empty (F60: closed,
+  // old hours retired) or a brand-new coach is set up on Zones; offering the
+  // old hours editor would put hours back on sale outside the zone model.
+  const legacyHours = new Set((arows || []).map((r: { coach_id: string }) => r.coach_id))
   const zoned = new Set((zrows || []).map((r: { coach_id: string }) => r.coach_id))
+  for (const c of (data || []) as { id: string }[]) if (!legacyHours.has(c.id)) zoned.add(c.id)
   return NextResponse.json({ coaches: (data || []).map((c: { id: string }) => ({ ...c, zoned: zoned.has(c.id) })) })
 }
 
