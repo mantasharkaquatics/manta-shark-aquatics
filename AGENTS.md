@@ -178,12 +178,19 @@ has the type and helpers.
   the same day. Coaches with no zone rows (legacy) count as Brea.
 - **Lessons get it by trigger.** `class_sessions.location_id` is filled by a
   database trigger from the coach's zone covering the lesson start. No route
-  sets it by hand; moving a lesson re-runs it.
+  sets it by hand; moving a lesson re-runs it. Repainting a coach's zones does
+  NOT: lessons already booked keep their pool, and the zone save lists them
+  (`pool_warnings`) for the desk.
 - **Everything shows only when more than one pool is active**
   (`showLocations(all)`). With one, every page, email and SMS reads exactly as
   it did before locations: no picker, no location line, no /locations pages,
   and `{place}` in titles is "Brea" (`lib/location-place.ts`). Build anything
-  new that way.
+  new that way. Two exceptions: a lesson at a pool that is NOT the open one
+  (a hidden pool) is still named, to its family and coach (`lessonPoolShown`);
+  and if the one open pool is not Brea, `{place}` and the footer name it.
+- **Hidden = families cannot book there.** Parent booking routes offer and
+  accept only blocks at open pools (`familyCanBookAt`, `familyZones` in
+  `lib/zones.ts`); staff routes are not limited.
 - Points, prices and programs are the same at every pool. The booking page
   keeps pools separate: pick the pool (`?location=`), then only its times.
 - Prerendered public pages read the pools through `lib/public-locations.ts`

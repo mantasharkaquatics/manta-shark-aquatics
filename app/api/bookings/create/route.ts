@@ -7,12 +7,12 @@ import { priceLesson } from '@/lib/points'
 import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
-import { getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
+import { familyZones, getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
-import { sessionLocationLine } from '@/lib/locations'
+import { getLocations, sessionLocationLine } from '@/lib/locations'
 import { bandRange } from '@/lib/zone-colors'
 
 export async function POST(req: NextRequest) {
@@ -71,7 +71,9 @@ export async function POST(req: NextRequest) {
   // fit entirely inside a zone matching the course type. A legacy coach (no
   // zone rows) is held to his coach_availability hours instead -- skipping
   // the check let a brand-new coach take any time at all (found 2026-10-15).
-  const effZones = await getEffectiveZones(svc, coach_id, session_date)
+  // Only blocks at pools open to families count (familyZones, found
+  // 2026-10-15, F168): a time at a hidden pool is the desk's to book.
+  const effZones = familyZones(await getEffectiveZones(svc, coach_id, session_date), await getLocations(svc))
   let groupBand: { min: number; max: number } | null = null
   if (effZones.legacy) {
     if (!(await legacyHoursFit(svc, coach_id, session_date, h * 60 + m, endTotal)))

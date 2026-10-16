@@ -29,7 +29,7 @@ const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT } from '@/lib/chat-open'
-import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
+import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, type Location } from '@/lib/locations'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -1341,13 +1341,18 @@ function ReferralCard({ focus }: { focus: boolean }) {
    stays false and every PoolLink renders nothing, so the page is exactly what
    it was with one pool. A link to the map, because the point is that nobody
    drives to the wrong pool. `plain` is for lines that sit inside a button,
-   where a link cannot go. */
+   where a link cannot go.
+   `list` is every pool, hidden ones too: with one pool open, a lesson at a
+   hidden one is still named (lessonPoolShown, found 2026-10-15, F66), and
+   `show` is then "some lesson may be named". */
 type PoolInfo = { list: Location[]; show: boolean }
 const PoolsCtx = createContext<PoolInfo>({ list: [], show: false })
+const poolShown = (p: PoolInfo, id?: string | null) => p.show && lessonPoolShown(p.list, id)
 function PoolLink({ id, prefix, plain, style }: { id?: string | null; prefix?: string; plain?: boolean; style?: React.CSSProperties }) {
-  const { list, show } = useContext(PoolsCtx)
+  const pools = useContext(PoolsCtx)
+  const { list } = pools
   const t = useT()
-  if (!show) return null
+  if (!poolShown(pools, id)) return null
   const loc = list.find(l => l.id === (id || DEFAULT_LOCATION_ID))
   if (!loc) return null
   const url = plain ? null : locationMapUrl(loc)
@@ -1513,7 +1518,10 @@ export default function DashboardPage() {
   useEffect(() => {
     let live = true
     fetch('/api/locations', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
-      .then(j => { if (live && j?.show) setPools({ list: j.locations || [], show: true }) })
+      .then(j => {
+        const hidden: Location[] = Array.isArray(j?.hidden) ? j.hidden : []
+        if (live && (j?.show || hidden.length > 0)) setPools({ list: [...(j.locations || []), ...hidden], show: true })
+      })
       .catch(() => {})
     return () => { live = false }
   }, [])
@@ -3595,7 +3603,7 @@ export default function DashboardPage() {
                           { label: t('booking.sum.date'), value: dateStr },
                           { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
                           { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
-                          ...(pools.show ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
+                          ...(poolShown(pools, b.location_id) ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
                           { label: t('dash.sheet.payment'), value: funding },
                         ].map(row => (
                           <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>

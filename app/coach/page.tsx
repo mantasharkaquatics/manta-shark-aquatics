@@ -5,6 +5,8 @@ import CoachDashboardClient from './CoachDashboardClient'
 import { isRealBooking } from './real-booking'
 import { serviceClient } from '@/lib/api-auth'
 import { sessionsInBlocks } from '@/lib/time-off'
+import { getLocations, lessonPoolShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { locationColor } from '@/lib/location-colors'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -57,7 +59,7 @@ export default async function CoachDashboardPage() {
   const { data: rawSessions, error: sessionsError } = await supabase
     .from('class_sessions')
     .select(`
-      id, session_date, start_time, end_time, status,
+      id, session_date, start_time, end_time, status, location_id,
       course_types(id, name, slug),
       bookings!class_session_id(
         id, status, lesson_group_id, is_trial,
@@ -76,8 +78,16 @@ export default async function CoachDashboardPage() {
   // unpaid or unaccepted-invite row is not a swimmer the coach should expect,
   // and dropping them BEFORE mergeHourHalves also stops a cancelled booking's
   // lesson_group_id from merging a session into an hour it no longer belongs to.
+  // The pool, as on /coach/schedule (found 2026-10-15, F65).
+  const pools = await getLocations(serviceClient())
+  const poolOf = (id: string | null) => {
+    if (!lessonPoolShown(pools, id)) return null
+    const loc = pools.find(l => l.id === (id || DEFAULT_LOCATION_ID))
+    return loc ? { name: loc.name, color: locationColor(loc.id, pools) } : null
+  }
   const todaySessions = (rawSessions || []).map((s: any) => ({
     ...s,
+    pool: poolOf(s.location_id),
     course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
     bookings: (s.bookings || []).filter(isRealBooking).map((b: any) => ({
       ...b,

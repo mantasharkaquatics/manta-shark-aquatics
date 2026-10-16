@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DEFAULT_LOCATION_ID, zoneAtLocation } from '@/lib/locations'
+import { DEFAULT_LOCATION_ID, familyCanBookAt, zoneAtLocation, type Location } from '@/lib/locations'
 import { allRows } from '@/lib/db-paging'
 
 // Coach availability zones (spec v1.0, docs/coach-availability-zones-spec.md).
@@ -84,6 +84,17 @@ export async function getEffectiveZones(
     .map(r => ({ zone_type: r.zone_type, start_time: r.start_time.slice(0, 5), end_time: r.end_time.slice(0, 5), group_level_min: r.group_level_min ?? null, group_level_max: r.group_level_max ?? null, team_tier_id: r.team_tier_id ?? null, location_id: r.location_id ?? DEFAULT_LOCATION_ID }))
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
   return { legacy: false, rows, overridden: dateRows.length > 0 }
+}
+
+/**
+ * A coach's day as a family may book it: only the blocks at pools open to
+ * families (lib/locations familyCanBookAt, found 2026-10-15, F168). A legacy
+ * coach's hours are the default pool's, so with that pool hidden they are no
+ * hours at all. For the parent booking routes; staff screens use the day as is.
+ */
+export function familyZones(eff: EffectiveZones, all: Location[]): EffectiveZones {
+  if (eff.legacy) return familyCanBookAt(DEFAULT_LOCATION_ID, all) ? eff : { legacy: false, rows: [], overridden: eff.overridden }
+  return { ...eff, rows: eff.rows.filter(r => familyCanBookAt(r.location_id, all)) }
 }
 
 /**

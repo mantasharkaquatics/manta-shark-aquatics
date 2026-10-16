@@ -4,8 +4,8 @@ import { randomUUID } from 'crypto'
 import { requireParent } from '@/lib/api-auth'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
-import { getEffectiveZones } from '@/lib/zones'
-import { getLocations, locationParam } from '@/lib/locations'
+import { familyZones, getEffectiveZones } from '@/lib/zones'
+import { activeLocations, getLocations, locationParam } from '@/lib/locations'
 import { getTodayLA, getNowMinutesLA, formatTime12h, minutesUntil, daySlots, isGridStart, LESSON_MINUTES } from '@/lib/date'
 import { LEAD_TIME_MINUTES, isWithin24Hours, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR, SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { priceLesson } from '@/lib/points'
@@ -37,13 +37,15 @@ const toT = (m: number) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + S
 type Iv = { s: number; e: number }
 
 // location: only the coaches' zones at that pool count (lib/locations.ts);
-// null = every pool, as before locations existed.
+// null = every pool open to families. A hidden pool's blocks never count, for
+// options, booking or rescheduling alike (familyZones, found 2026-10-15, F168).
 async function loadDay(svc: any, date: string, courseTypeId: string, parentId: string, location: string | null = null) {
-  const [{ data: coaches }, { data: sessions }] = await Promise.all([
+  const [{ data: coaches }, { data: sessions }, pools] = await Promise.all([
     svc.from('coaches').select('id, first_name, last_name').eq('is_active', true),
     svc.from('class_sessions')
       .select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status')
       .eq('session_date', date).in('status', ['open', 'full']),
+    getLocations(svc),
   ])
   const ids = (coaches || []).map((c: any) => c.id)
   const blocks = await getCoachBlocks(svc, ids, date)
@@ -51,7 +53,7 @@ async function loadDay(svc: any, date: string, courseTypeId: string, parentId: s
   // reach that far ahead, but it must not land in someone's held slot.
   const holds = await renewalHolds(svc, date, date, parentId)
   const zones = new Map<string, any>()
-  await Promise.all(ids.map(async (id: string) => { zones.set(id, await getEffectiveZones(svc, id, date, location)) }))
+  await Promise.all(ids.map(async (id: string) => { zones.set(id, familyZones(await getEffectiveZones(svc, id, date, location), pools)) }))
   // A session holding a live 1-on-2 invitation is taken, though nobody is
   // enrolled in it yet (lib/bookings/invite-holds.ts, found 2026-10-07).
   const held = await sessionsHeldByInvites(svc, (sessions || []).filter((s: any) => (s.enrolled_count || 0) <= 0).map((s: any) => s.id))
@@ -189,7 +191,7 @@ export async function POST(req: NextRequest) {
   // so the hour list only offers that pool's times. Booking and rescheduling
   // still check the zone as before; the database stores which pool it is.
   const location = action === 'options' && typeof body.location === 'string' && body.location
-    ? locationParam(body.location, await getLocations(svc)) : null
+    ? locationParam(body.location, activeLocations(await getLocations(svc))) : null
   const day = await loadDay(svc, session_date, ct.id, parent.id, location)
   const nameOf = (id: string) => { const c = day.coaches.find((x: any) => x.id === id); return c ? c.first_name : '' }
 

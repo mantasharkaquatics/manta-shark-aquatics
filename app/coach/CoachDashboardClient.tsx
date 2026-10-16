@@ -37,6 +37,8 @@ type Session = {
   status: string
   course_types: { id?: string; name: string; slug: string }
   bookings: Booking[]
+  /** Where the lesson is, when the portal names it (app/coach/page.tsx). */
+  pool?: { name: string; color: string } | null
 }
 
 type Skill = {
@@ -203,6 +205,10 @@ export default function CoachDashboardClient({
                         ? tDb(locale, 'course_types', session.course_types.id, session.course_types.name)
                         : session.course_types?.name}</p>
                       <p className="text-[#c9a84c] text-sm">{formatTime(session.start_time)} – {formatTime(session.end_time)}</p>
+                      {session.pool && (
+                        <span title={t('coach.pool', { name: session.pool.name })} aria-label={t('coach.pool', { name: session.pool.name })}
+                          className="inline-block mt-1 mr-1 text-[11px] rounded-full px-2.5 py-0.5 border" style={{ color: session.pool.color, borderColor: session.pool.color + '66' }}>📍 {session.pool.name}</span>
+                      )}
                       {offIds.includes(session.id) && (
                         <span className="inline-block mt-1 text-[11px] text-amber-300 bg-amber-900/30 border border-amber-500/40 rounded-full px-2.5 py-0.5">{t('coach.offPending')}</span>
                       )}

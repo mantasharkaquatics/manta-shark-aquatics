@@ -841,6 +841,7 @@
   "footer.legal": "法律條款",
   "footer.links": "網站連結",
   "footer.location": "加州 Brea",
+  "footer.locationOf": "加州 {name}",
   "footer.region": "南加州",
   "footer.tagline": "專業游泳教學，結合教育、心理學與兒童發展的專業背景。",
   "forgot.backToLogin": "回到登入",

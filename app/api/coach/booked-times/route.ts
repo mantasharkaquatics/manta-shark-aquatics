@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
-import { getEffectiveZones } from '@/lib/zones'
+import { familyZones, getEffectiveZones } from '@/lib/zones'
 import { renewalHolds, minToTime } from '@/lib/fixed-classes'
-import { getLocations, locationParam } from '@/lib/locations'
+import { activeLocations, getLocations, locationParam } from '@/lib/locations'
 
 // Who may read a coach's booked times (2026-10-04). This route used to answer
 // anyone, logged in or not, with every booked student's id and -- given any
@@ -84,9 +84,13 @@ export async function GET(req: NextRequest) {
   // zones come back. A legacy coach (no zone rows) counts as the first pool's,
   // so at any other pool getEffectiveZones answers not-legacy with no rows and
   // the old weekly windows below are not read. Absent = every pool.
+  // A family is shown only pools open to families (familyZones, found
+  // 2026-10-15, F168); an admin still sees a hidden pool's blocks.
   const rawLoc = searchParams.get('location')
-  const location = rawLoc ? locationParam(rawLoc, await getLocations(supabase)) : null
-  const zones = await getEffectiveZones(supabase, coach_id, session_date, location)
+  const pools = await getLocations(supabase)
+  const location = rawLoc ? locationParam(rawLoc, caller.staff ? pools : activeLocations(pools)) : null
+  const effZones = await getEffectiveZones(supabase, coach_id, session_date, location)
+  const zones = caller.staff ? effZones : familyZones(effZones, pools)
 
   // A coach with no zone rows is still on the old coach_availability table, and
   // that day has to be resolved HERE. The booking page used to read the table

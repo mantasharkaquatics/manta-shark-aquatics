@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, serviceClient } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
-import { getEffectiveZones } from '@/lib/zones'
+import { familyZones, getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
 import { renewalHolds, heldSeats, allRows, type Hold } from '@/lib/fixed-classes'
-import { getLocations, locationParam, zoneAtLocation } from '@/lib/locations'
+import { activeLocations, familyCanBookAt, getLocations, locationParam, zoneAtLocation, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 
 // Parent 1on4 class-based booking (cross-coach).
 // GET ?student_id&date=YYYY-MM-DD          → that day's matching-band classes across all coaches
 // GET ?student_id&year=YYYY&month=1..12    → dates in that month with at least one matching class (calendar dots)
 // GET ?student_id&weeks=1..6[&start=YYYY-MM-DD] → per-day class lists for the coming weeks (weekly schedule section)
-// Any shape: &location=<pool id> → only the classes at that pool (lib/locations.ts); absent = every pool.
+// Any shape: &location=<pool id> → only the classes at that pool (lib/locations.ts); absent = every pool
+// open to families. A hidden pool's classes are never listed (found 2026-10-15, F168).
 // Band matching: zone rows with null band admit all levels (legacy).
 
 const BANDS: [number, number][] = [[1, 2], [3, 4], [5, 6], [7, 9]]
@@ -32,16 +33,28 @@ function classOutOfBand(own: any, level: number) {
   return level < Number(own.level_min) || level > Number(own.level_max)
 }
 
-async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = [], location: string | null = null) {
+/* A class with swimmers in it that is stamped at another pool than the block
+   it sits in (found 2026-10-15, F6): the coach's block was moved to the other
+   pool after it was booked, and class_sessions.location_id is only set when a
+   lesson is created or moved. Joining it would put this family in a lesson
+   that every card, email and SMS places at the old pool, so it is not offered
+   until the desk moves it. The swimmer's own class stays listed as booked. */
+function classAtOtherPool(own: any, zone: { location_id?: string | null }) {
+  if (!own || (own.enrolled_count || 0) <= 0) return false
+  return (own.location_id || DEFAULT_LOCATION_ID) !== (zone.location_id || DEFAULT_LOCATION_ID)
+}
+
+async function dayClasses(s: any, date: string, level: number, student_id: string, ct: any, coaches: any[], coachName: Record<string, string>, holds: Hold[] = [], location: string | null = null, pools: Location[] = []) {
   const coachIds = (coaches || []).map((c: any) => c.id)
   const [effList, blocksAll, { data: allSess }] = await Promise.all([
-    // Only the zones at the pool asked for (a legacy coach counts as the first pool's).
-    Promise.all(coachIds.map((id: string) => getEffectiveZones(s, id, date, location))),
+    // Only the zones at the pool asked for (a legacy coach counts as the first
+    // pool's), and only at pools open to families (familyZones).
+    Promise.all(coachIds.map(async (id: string) => familyZones(await getEffectiveZones(s, id, date, location), pools))),
     getCoachBlocks(s, coachIds, date),
     // Cancelled sessions stay out: a slot whose lesson was cancelled gets a new
     // session when it is booked again, and find() below would otherwise pick
     // the dead one and report "4 seats left" for a class with a swimmer in it.
-    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max').eq('session_date', date).neq('status', 'cancelled'),
+    s.from('class_sessions').select('id, coach_id, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max, location_id').eq('session_date', date).neq('status', 'cancelled'),
   ])
   const sess = allSess || []
   // A busy session blocks every slot it overlaps, not just one starting at the same minute
@@ -84,7 +97,7 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
         const held = heldSeats(holds, cid, date, m, m + ct.duration_minutes, ct.id)
         if (held === Infinity) continue
         const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
-        if (!myTimes.has(t) && classOutOfBand(own, level)) continue
+        if (!myTimes.has(t) && (classOutOfBand(own, level) || classAtOtherPool(own, z))) continue
         const enrolled = (own ? own.enrolled_count : 0) + held
         classes.push({
           time: t, end_time: idxTime(m + ct.duration_minutes),
@@ -131,7 +144,8 @@ export async function GET(req: NextRequest) {
   const myBand = level == null ? null : (() => { const b = BANDS.find(([a, z]) => level >= a && level <= z); return b ? { min: b[0], max: b[1] } : null })()
   if (level == null) return NextResponse.json({ band: null, dates: [], classes: [] })
   const rawLoc = q.get('location')
-  const location = rawLoc ? locationParam(rawLoc, await getLocations(s)) : null
+  const pools = await getLocations(s)
+  const location = rawLoc ? locationParam(rawLoc, activeLocations(pools)) : null
 
   const [{ data: ct }, { data: coaches }] = await Promise.all([
     s.from('course_types').select('id, max_students, duration_minutes').eq('slug', '1on4').single(),
@@ -144,7 +158,7 @@ export async function GET(req: NextRequest) {
   // ── Day shape ──────────────────────────────────────────────────────
   if (date) {
     const holds = await renewalHolds(s, date, date, student.parent_id)
-    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName, holds, location)
+    const classes = await dayClasses(s, date, level, student_id, ct, coaches || [], coachName, holds, location, pools)
     return NextResponse.json({ band: myBand, classes })
   }
 
@@ -178,7 +192,7 @@ export async function GET(req: NextRequest) {
       // cut read as an empty lane or an empty class (found 2026-10-05).
       allRows(() => s.from('coach_time_off').select('id, coach_id, date, start_time, end_time, block_type')
         .in('coach_id', coachIds).gte('date', startStr).lte('date', endStr).order('id')),
-      allRows(() => s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max')
+      allRows(() => s.from('class_sessions').select('id, coach_id, session_date, start_time, end_time, course_type_id, enrolled_count, max_students, status, level_min, level_max, location_id')
         .gte('session_date', startStr).lte('session_date', endStr).neq('status', 'cancelled').order('id')),
       allRows(() => s.from('bookings').select('id, class_session_id').eq('student_id', student_id)
         .not('status', 'in', '("cancelled","pending_partner")').order('id')),
@@ -219,7 +233,7 @@ export async function GET(req: NextRequest) {
         if (picked.some(r => r.zone_type === 'closed')) continue
         const blocked = blockedIntervalsFor((offBy[ds] || []) as any, cid)
         for (const z of picked) {
-          if (z.zone_type !== 'group' || !bandMatches(z, level) || !zoneAtLocation(z, location)) continue
+          if (z.zone_type !== 'group' || !bandMatches(z, level) || !zoneAtLocation(z, location) || !familyCanBookAt(z.location_id, pools)) continue
           for (let m = toMin(String(z.start_time).slice(0, 5)); m + ct.duration_minutes <= toMin(String(z.end_time).slice(0, 5)); m += SLOT_STEP_MINUTES) {
             const t = idxTime(m)
             if (blocked.some((b: any) => b.start == null || b.end == null || (m < toMin(String(b.end).slice(0, 5)) && m + ct.duration_minutes > toMin(String(b.start).slice(0, 5))))) continue
@@ -229,7 +243,7 @@ export async function GET(req: NextRequest) {
             const held = heldSeats(holds, cid, ds, m, m + ct.duration_minutes, ct.id)
             if (held === Infinity) continue
             const own = sess.find((x: any) => x.coach_id === cid && String(x.start_time).slice(0, 5) === t && x.course_type_id === ct.id)
-            if (!myTimes.has(t) && classOutOfBand(own, level)) continue
+            if (!myTimes.has(t) && (classOutOfBand(own, level) || classAtOtherPool(own, z))) continue
             const enrolled = (own ? own.enrolled_count : 0) + held
             classes.push({
               time: t, end_time: idxTime(m + ct.duration_minutes),
@@ -271,7 +285,7 @@ export async function GET(req: NextRequest) {
         const dateRows = rows.filter(r => r.kind === 'date' && r.override_date === ds)
         const picked = dateRows.length > 0 ? dateRows : rows.filter(r => r.kind === 'weekly' && r.weekday === dow)
         if (picked.some(r => r.zone_type === 'closed')) continue
-        if (picked.some(r => r.zone_type === 'group' && bandMatches(r, level) && zoneAtLocation(r, location))) { hit = true; break }
+        if (picked.some(r => r.zone_type === 'group' && bandMatches(r, level) && zoneAtLocation(r, location) && familyCanBookAt(r.location_id, pools))) { hit = true; break }
       }
       if (hit) dates.push(ds)
     }

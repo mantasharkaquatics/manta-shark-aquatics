@@ -37,6 +37,26 @@ function checkLocations(zones: any[], all: Location[]): string | null {
 }
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
+type DayRow = { zone_type: string; start_time: string; end_time: string; group_level_min?: number | null; group_level_max?: number | null; location_id?: string | null }
+
+// The pool the class_sessions trigger (docs/migration-locations.sql,
+// class_session_location) gives a lesson starting at `st` on a day with these
+// blocks: the block covering the start, else the nearest one, else the
+// default pool. Kept to the same rule so the warning names the pool the
+// lesson WOULD get if it were booked now.
+function triggerPool(rows: DayRow[], st: number): string {
+  let best: { loc: string; rank: number; dist: number } | null = null
+  for (const z of rows) {
+    if (z.zone_type === 'closed') continue
+    const zs = toMin(String(z.start_time).slice(0, 5)), ze = toMin(String(z.end_time).slice(0, 5))
+    const rank = zs <= st && st < ze ? 0 : 1
+    const dist = Math.min(Math.abs(zs - st), Math.abs(ze - st))
+    if (!best || rank < best.rank || (rank === best.rank && dist < best.dist))
+      best = { loc: z.location_id || DEFAULT_LOCATION_ID, rank, dist }
+  }
+  return best ? best.loc : DEFAULT_LOCATION_ID
+}
+
 // Q3 (warn-and-save): list future enrolled sessions that no longer fit the new zones.
 // `band`: group classes that still fit a group zone, but whose level band (the
 // one stamped on the session when it opened) is not the zone's new band (found
@@ -44,17 +64,27 @@ const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h
 // L3-4 families were then let into the class with its Level 1 swimmers. The
 // classes are not moved (owner, 2026-10-15): the desk is told, and the booking
 // routes keep anyone outside a class's own band out of it.
+// `pool`: booked lessons whose block is now at another pool (found 2026-10-15,
+// F6). class_sessions.location_id is set by a trigger only when a lesson is
+// created or moved, so repainting a coach's Saturday from Brea to Monrovia
+// left every lesson already booked there at Brea -- the reminders, cards and
+// "I'm here" all said Brea -- and the save said nothing. The lessons are not
+// changed here (the app cannot re-run the trigger without a database change):
+// the desk is told which families to contact.
 async function bookingWarnings(
   svc: any,
   coachId: string,
-  evalDay: (dateStr: string) => { skip?: boolean; closed?: boolean; rows: { zone_type: string; start_time: string; end_time: string; group_level_min?: number | null; group_level_max?: number | null }[] },
-): Promise<{ outside: string[]; band: string[] }> {
+  evalDay: (dateStr: string) => { skip?: boolean; closed?: boolean; rows: DayRow[] },
+  locations: Location[] = [],
+): Promise<{ outside: string[]; band: string[]; pool: string[] }> {
   const { data: sessions } = await svc
     .from('class_sessions')
-    .select('session_date, start_time, end_time, enrolled_count, level_min, level_max, course_types(slug, name)')
+    .select('session_date, start_time, end_time, enrolled_count, level_min, level_max, location_id, course_types(slug, name)')
     .eq('coach_id', coachId).gte('session_date', getTodayLA()).gt('enrolled_count', 0)
   const outside: string[] = []
   const band: string[] = []
+  const pool: string[] = []
+  const poolName = (id: string) => locations.find(l => l.id === id)?.name || id
   for (const sess of sessions || []) {
     const day = evalDay(sess.session_date)
     if (!day || day.skip) continue
@@ -64,6 +94,12 @@ async function bookingWarnings(
     const en = toMin(String(sess.end_time).slice(0, 5))
     const zone = day.closed ? undefined : day.rows.find(z => z.zone_type === zt && toMin(String(z.start_time).slice(0, 5)) <= st && en <= toMin(String(z.end_time).slice(0, 5)))
     const label = `${sess.session_date} ${String(sess.start_time).slice(0, 5)} ${ct?.name || ''} (${sess.enrolled_count} booked)`
+    // With one pool in the table every lesson is at it; a closed day has no pool to move to.
+    if (locations.length > 1 && !day.closed) {
+      const was = sess.location_id || DEFAULT_LOCATION_ID
+      const now = triggerPool(day.rows, st)
+      if (now !== was) pool.push(`${label} ${poolName(was)} \u2192 ${poolName(now)}`)
+    }
     if (!zone) { outside.push(label); continue }
     if (zt === 'group' && sess.level_min != null && sess.level_max != null
         && zone.group_level_min != null && zone.group_level_max != null
@@ -71,7 +107,7 @@ async function bookingWarnings(
         && bandRange(sess.level_min, sess.level_max) !== bandRange(zone.group_level_min, zone.group_level_max))
       band.push(`${label} L${bandRange(sess.level_min, sess.level_max)} \u2192 L${bandRange(zone.group_level_min, zone.group_level_max)}`)
   }
-  return { outside, band }
+  return { outside, band, pool }
 }
 
 function validateZones(zones: any[], needWeekday: boolean): string | null {
@@ -182,13 +218,13 @@ export async function PUT(req: NextRequest) {
     .from('coach_availability_zones')
     .select('override_date').eq('coach_id', coach_id).eq('kind', 'date')
   const ovrSet = new Set((ovr || []).map((r: any) => r.override_date))
-  const { outside: warnings, band: band_warnings } = await bookingWarnings(svc, coach_id, (dateStr) => {
+  const { outside: warnings, band: band_warnings, pool: pool_warnings } = await bookingWarnings(svc, coach_id, (dateStr) => {
     if (ovrSet.has(dateStr)) return { skip: true, rows: [] }
     const dow = new Date(dateStr + 'T00:00:00').getDay()
-    return { rows: zones.filter((z: any) => z.weekday === dow) }
-  })
+    return { rows: zones.filter((z: any) => z.weekday === dow).map((z: any) => ({ ...z, location_id: zoneLocation(z, locations) })) }
+  }, locations)
   refreshPublicPools()
-  return NextResponse.json({ ok: true, count: zones.length, warnings, band_warnings })
+  return NextResponse.json({ ok: true, count: zones.length, warnings, band_warnings, pool_warnings })
 }
 
 export async function POST(req: NextRequest) {
@@ -207,7 +243,20 @@ export async function POST(req: NextRequest) {
     .eq('coach_id', coach_id).eq('kind', 'date').eq('override_date', date)
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
-  if (clear) { refreshPublicPools(); return NextResponse.json({ ok: true, mode: 'cleared' }) }
+  if (clear) {
+    // The day goes back to the weekly template, which may put the coach at the
+    // other pool than the override did (F6): say which booked lessons that leaves.
+    const dow = new Date(date + 'T00:00:00').getDay()
+    const [{ data: weekly }, locations] = await Promise.all([
+      svc.from('coach_availability_zones')
+        .select('zone_type, start_time, end_time, group_level_min, group_level_max, location_id')
+        .eq('coach_id', coach_id).eq('kind', 'weekly').eq('weekday', dow),
+      getLocations(svc),
+    ])
+    const { pool: pool_warnings } = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: (weekly || []) as DayRow[] } : { skip: true, rows: [] }, locations)
+    refreshPublicPools()
+    return NextResponse.json({ ok: true, mode: 'cleared', pool_warnings })
+  }
 
   if (closed) {
     const { error: insErr } = await svc.from('coach_availability_zones').insert({
@@ -238,7 +287,9 @@ export async function POST(req: NextRequest) {
     }))
   )
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-  const { outside: warnings, band: band_warnings } = await bookingWarnings(svc, coach_id, (d) => d === date ? { rows: zones } : { skip: true, rows: [] })
+  const { outside: warnings, band: band_warnings, pool: pool_warnings } = await bookingWarnings(svc, coach_id, (d) => d === date
+    ? { rows: zones.map((z: any) => ({ ...z, location_id: zoneLocation(z, locations) })) }
+    : { skip: true, rows: [] }, locations)
   refreshPublicPools()
-  return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings, band_warnings })
+  return NextResponse.json({ ok: true, mode: 'set', count: zones.length, warnings, band_warnings, pool_warnings })
 }

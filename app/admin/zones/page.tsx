@@ -228,7 +228,9 @@ export default function ZonesEditorPage() {
       const w = data.warnings || []
       // Group classes left on their old level band (found 2026-10-15).
       const bw: string[] = data.band_warnings || []
-      setMsg({ ok: true, warn: w.length + bw.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') })
+      // Booked lessons left at the pool the block used to be at (F6).
+      const pw: string[] = data.pool_warnings || []
+      setMsg({ ok: true, warn: w.length + bw.length + pw.length > 0, text: t('admin.zones.msg.savedWeekly', { n: data.count }) + (w.length ? t('admin.zones.msg.warnOutside', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') + (pw.length ? t('admin.zones.msg.warnPool', { n: pw.length, list: pw.join('; ') }) : '') })
       return
     }
     const painted = compress([ovDow])
@@ -249,7 +251,8 @@ export default function ZonesEditorPage() {
     setOvDates(prev => { const rest = prev.filter(o => o.date !== ovDate); return [...rest, { date: ovDate, closed: data.mode === 'closed' }].sort((a, b) => a.date.localeCompare(b.date)) })
     const w = data.warnings || []
     const bw: string[] = data.band_warnings || []
-    setMsg({ ok: true, warn: w.length + bw.length > 0, text: (data.mode === 'closed' ? t('admin.zones.msg.dateClosed', { date: ovDate }) : t('admin.zones.msg.overrideSaved', { date: ovDate })) + (w.length ? t('admin.zones.msg.warnAffected', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') })
+    const pw: string[] = data.pool_warnings || []
+    setMsg({ ok: true, warn: w.length + bw.length + pw.length > 0, text: (data.mode === 'closed' ? t('admin.zones.msg.dateClosed', { date: ovDate }) : t('admin.zones.msg.overrideSaved', { date: ovDate })) + (w.length ? t('admin.zones.msg.warnAffected', { n: w.length, list: w.join('; ') }) : '') + (bw.length ? t('admin.zones.msg.warnBand', { n: bw.length, list: bw.join('; ') }) : '') + (pw.length ? t('admin.zones.msg.warnPool', { n: pw.length, list: pw.join('; ') }) : '') })
   }
 
   function closeDay() {
@@ -265,9 +268,10 @@ export default function ZonesEditorPage() {
     })
     setSaving(false)
     if (!res.ok) { setMsg({ ok: false, text: t('admin.zones.err.clearFailed') }); return }
+    const pw: string[] = (await res.json().catch(() => ({})))?.pool_warnings || []
     setHasOverride(false); setReload(x => x + 1)
     setOvDates(prev => prev.filter(o => o.date !== ovDate))
-    setMsg({ ok: true, text: t('admin.zones.msg.overrideCleared', { date: ovDate }) })
+    setMsg({ ok: true, warn: pw.length > 0, text: t('admin.zones.msg.overrideCleared', { date: ovDate }) + (pw.length ? t('admin.zones.msg.warnPool', { n: pw.length, list: pw.join('; ') }) : '') })
   }
 
   // Team practices are 90 minutes and do not align to the 35-minute lesson

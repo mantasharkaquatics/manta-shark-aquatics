@@ -34,6 +34,8 @@ export default function AdminLocationsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
+  // Hiding a pool that still has booked lessons asks first (F66).
+  const [hideAsk, setHideAsk] = useState<{ id: string; name: string; count: number; lessons: string[] } | null>(null)
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/locations').catch(() => null)
@@ -52,6 +54,10 @@ export default function AdminLocationsPage() {
     setBusy(null)
     const d = r ? await r.json().catch(() => ({})) : {}
     if (!r || !r.ok) {
+      if (d.code === 'hasLessons') {
+        setHideAsk({ id, name: (list || []).find(l => l.id === id)?.name || id, count: Number(d.count) || 0, lessons: Array.isArray(d.lessons) ? d.lessons : [] })
+        return null
+      }
       const known = ['name', 'address', 'mapUrl', 'lastOpen', 'coords', 'radius', 'needsMigration']
       setAlertMsg(known.includes(d.code) ? t(`admin.locations.err.${d.code}`) : t('admin.locations.err.saveFailed'))
       return null
@@ -85,6 +91,23 @@ export default function AdminLocationsPage() {
   return (
     <div className="p-6 md:p-8 max-w-3xl">
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
+      {hideAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHideAsk(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="hide-pool-confirm"
+            className="bg-[#1a2744] border border-[#1e3a6e] rounded-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 id="hide-pool-confirm" className="text-white font-semibold text-lg mb-3">
+              {t('admin.locations.hideAsk.title', { name: hideAsk.name, n: hideAsk.count })}
+            </h3>
+            <p className="text-gray-300 text-xs mb-2">{hideAsk.lessons.join(' · ')}{hideAsk.count > hideAsk.lessons.length ? ' …' : ''}</p>
+            <p className="text-gray-400 text-xs mb-4">{t('admin.locations.hideAsk.body', { name: hideAsk.name })}</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setHideAsk(null)} className="text-xs px-4 py-2 rounded border border-[#1e3a6e] text-gray-300 hover:bg-white/5">{t('common.cancel')}</button>
+              <button onClick={() => { const id = hideAsk.id; setHideAsk(null); send(id, { is_active: false, confirm_lessons: true }) }}
+                className="text-xs px-4 py-2 rounded bg-red-500/80 text-white font-semibold hover:bg-red-500">{t('admin.locations.hideAsk.confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <h1 className="text-2xl font-bold text-white">{t('admin.nav.locations')}</h1>
       <p className="text-gray-400 text-sm mt-1">{t('admin.locations.intro')}</p>
       <p className={`text-sm mt-3 rounded-lg border px-3 py-2 ${openCount > 1 ? 'border-[#a3e635]/40 text-[#a3e635]' : 'border-[#1e3a6e] text-gray-300'}`}>

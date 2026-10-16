@@ -11,7 +11,7 @@ import { applyPoints, InsufficientPoints, splitGranted, WalletInArrears, walletS
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { groupBandsFor, isLegacyCoach } from '@/lib/zones'
-import { getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
+import { activeLocations, getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
 // bypasses cart; commit writes confirmed bookings directly (paid in points, no hold).
@@ -64,12 +64,13 @@ type Cand = WeekCand
 /**
  * The fixed-class grid for one coach, time and length (lib/fixed-classes).
  * Other families' renewal holds count as taken; this family's own do not, so
- * a renewal can always see its own slot.
+ * a renewal can always see its own slot. Only weeks at a pool open to
+ * families count, in preview and commit alike (found 2026-10-15, F168).
  */
 async function buildCandidates(svc: any, coachId: string, ct: any, studentIds: string[], level: number, startTime: string, startDate: string, minutes: number, seats: number, weeks: number = DEFAULT_WEEKS, parentId?: string, locationId: string | null = null): Promise<Cand[]> {
   const lastDate = addDays(startDate, 7 * (weeks - 1))
-  const holds = await renewalHolds(svc, startDate, lastDate, parentId ?? null)
-  return weeklyCandidates(svc, { coachId, ct, studentIds, level, startTime, startDate, minutes, seats, weeks, holds, locationId })
+  const [holds, pools] = await Promise.all([renewalHolds(svc, startDate, lastDate, parentId ?? null), getLocations(svc)])
+  return weeklyCandidates(svc, { coachId, ct, studentIds, level, startTime, startDate, minutes, seats, weeks, holds, locationId, pools })
 }
 
 /**
@@ -217,7 +218,7 @@ export async function POST(req: NextRequest) {
     // The pool the family is booking at: a week the coach teaches this slot
     // at the other pool is not part of this class.
     const location = typeof body.location === 'string' && body.location
-      ? locationParam(body.location, await getLocations(svc)) : null
+      ? locationParam(body.location, activeLocations(await getLocations(svc))) : null
     const candidates: (Cand & { coach_id?: string })[] =
       await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks, parent.id, location)
     for (const c of candidates) c.coach_id = coach_id

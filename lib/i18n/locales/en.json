@@ -841,6 +841,7 @@
   "footer.legal": "Legal",
   "footer.links": "Links",
   "footer.location": "Brea, California",
+  "footer.locationOf": "{name}, California",
   "footer.region": "Southern California",
   "footer.tagline": "Professional swim coaching with expertise in education, psychology, and child development.",
   "forgot.backToLogin": "Back to sign in",

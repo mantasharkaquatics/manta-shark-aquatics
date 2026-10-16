@@ -16,7 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
-import { zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { familyCanBookAt, zoneAtLocation, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 import { getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
@@ -366,6 +366,9 @@ export type SlotQuery = {
   /** Only a zone at this pool admits the lesson (a family booking at one
    *  location, lib/locations.ts). Omitted = any pool, as before. */
   locationId?: string | null
+  /** Every pool: given, only a zone at a pool open to families admits the
+   *  lesson (familyCanBookAt, found 2026-10-15, F168). Omitted = any pool. */
+  pools?: Location[]
 }
 
 /** Can these swimmers have this lesson with this coach on this date? */
@@ -384,12 +387,13 @@ export function evalSlot(w: CalWindow, q: SlotQuery): { status: CandStatus; spot
     // A closed day closes every pool; only then narrow to the one asked for.
     if (picked.some(r => r.zone_type === 'closed')) return { status: 'no_class', spots: 0 }
     const z = picked.find(r => r.zone_type === zoneType && zoneAtLocation(r, q.locationId)
+      && (!q.pools || familyCanBookAt(r.location_id, q.pools))
       && toMin(r.start_time) <= q.startMin && endMin <= toMin(r.end_time))
     if (!z) return { status: 'no_class', spots: 0 }
     // The level band belongs to group zones; a private zone has none.
     if (zoneType === 'group' && z.group_level_min != null && z.group_level_max != null
         && (q.level < z.group_level_min || q.level > z.group_level_max)) return { status: 'no_class', spots: 0 }
-  } else if (q.locationId && q.locationId !== DEFAULT_LOCATION_ID) {
+  } else if ((q.locationId && q.locationId !== DEFAULT_LOCATION_ID) || (q.pools && !familyCanBookAt(DEFAULT_LOCATION_ID, q.pools))) {
     // The old weekly table predates locations: a legacy coach teaches at the first pool only.
     return { status: 'no_class', spots: 0 }
   }
@@ -431,6 +435,7 @@ export async function weeklyCandidates(svc: Svc, o: {
   minutes: number; seats: number; weeks: number
   holds?: Hold[]; ignoreSeats?: Map<string, number>; ignoreBookingIds?: Set<string>
   locationId?: string | null
+  pools?: Location[]
 }): Promise<Cand[]> {
   const dates: string[] = []
   for (let i = 0, ds = o.startDate; i < o.weeks; i++, ds = addDaysStr(ds, 7)) dates.push(ds)
@@ -446,7 +451,7 @@ export async function weeklyCandidates(svc: Svc, o: {
     date,
     ...evalSlot(w, {
       coachId: o.coachId, date, startMin, minutes: o.minutes, ct: o.ct, level: o.level, seats: o.seats,
-      holds: o.holds, ignoreSeats: o.ignoreSeats, busy, today, nowMin, locationId: o.locationId,
+      holds: o.holds, ignoreSeats: o.ignoreSeats, busy, today, nowMin, locationId: o.locationId, pools: o.pools,
     }),
   }))
 }

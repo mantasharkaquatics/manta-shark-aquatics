@@ -3,6 +3,7 @@ import { revalidateTag } from 'next/cache'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getLocations, hasCheckInColumns } from '@/lib/locations'
+import { getTodayLA } from '@/lib/date'
 
 export const runtime = 'nodejs'
 
@@ -11,7 +12,7 @@ export const runtime = 'nodejs'
 // every change goes through here.
 //
 // GET  -> { locations } every pool, closed-to-families ones too
-// POST -> { id, name?, address?, map_url?, is_active?, lat?, lng?, checkin_radius_m? }
+// POST -> { id, name?, address?, map_url?, is_active?, confirm_lessons?, lat?, lng?, checkin_radius_m? }
 //         edits one pool (a refusal carries `code`, which the page turns into
 //         its own words). lat/lng are the "I'm here" check-in point
 //         (docs/migration-locations-checkin.sql): both or neither; both
@@ -85,6 +86,22 @@ export async function POST(req: NextRequest) {
     // Closing the last one is never what the desk means.
     if (!body.is_active && loc.is_active && all.filter(l => l.is_active).length <= 1)
       return NextResponse.json({ error: 'At least one location must stay open to families', code: 'lastOpen' }, { status: 400 })
+    // Hiding a pool that still has booked lessons (found 2026-10-15, F66): the
+    // lessons stay there, but nothing new can be booked there and the desk
+    // used to get no word of them. Refused once with the list (code
+    // hasLessons); the page asks and sends confirm_lessons to go ahead.
+    if (!body.is_active && loc.is_active && body.confirm_lessons !== true) {
+      const { data: booked, count } = await svc.from('class_sessions')
+        .select('session_date, start_time', { count: 'exact' })
+        .eq('location_id', loc.id).gte('session_date', getTodayLA())
+        .neq('status', 'cancelled').gt('enrolled_count', 0)
+        .order('session_date').order('start_time').limit(10)
+      if (count && count > 0)
+        return NextResponse.json({
+          error: 'This location still has booked lessons', code: 'hasLessons', count,
+          lessons: ((booked || []) as { session_date: string; start_time: string }[]).map(r => `${r.session_date} ${String(r.start_time).slice(0, 5)}`),
+        }, { status: 409 })
+    }
     patch.is_active = body.is_active
   }
   const wantsCheckIn = 'lat' in body || 'lng' in body || 'checkin_radius_m' in body

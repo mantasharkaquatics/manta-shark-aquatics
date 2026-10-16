@@ -6,7 +6,7 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { renewalHolds, allRows, allRowsIn } from '@/lib/fixed-classes'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { privateSlotOpen } from '@/lib/bookings/private-slot'
-import { getLocations, locationParam, zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { activeLocations, familyCanBookAt, getLocations, locationParam, zoneAtLocation, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // Every coach's open private-lesson times over the booking window, in one call.
 //
@@ -25,7 +25,8 @@ import { getLocations, locationParam, zoneAtLocation, DEFAULT_LOCATION_ID } from
 //
 // GET ?course_slug=1on1|1on2&student_id=...&student2_id=...&location=...
 //   location: only the times at that pool (lib/locations.ts). Absent = every
-//   pool, as before locations existed.
+//   pool open to families. A hidden pool is never offered here, asked for or
+//   not (found 2026-10-15, F168): its hours are the desk's.
 //   -> { coaches: [{ id, first_name }], preferred: coachId | null,
 //        days: { 'YYYY-MM-DD': { 'HH:MM': [coachId, ...] } } }
 
@@ -59,7 +60,8 @@ export async function GET(req: NextRequest) {
   const student_id = q.get('student_id')
   if (!student_id) return NextResponse.json({ error: 'Missing student' }, { status: 400 })
   const rawLoc = q.get('location')
-  const location = rawLoc ? locationParam(rawLoc, await getLocations(svc)) : null
+  const pools = await getLocations(svc)
+  const location = rawLoc ? locationParam(rawLoc, activeLocations(pools)) : null
 
   // Round trips are what this route costs, so everything that does not depend
   // on an earlier answer is asked at the same time: two rounds after sign-in.
@@ -209,10 +211,10 @@ export async function GET(req: NextRequest) {
         const picked = dateRows.length > 0 ? dateRows : all.filter(r => r.kind === 'weekly' && r.weekday === dow)
         // A closed day closes every pool, so it is checked before narrowing.
         if (picked.some(r => r.zone_type === 'closed')) continue
-        windows = picked.filter(r => r.zone_type === 'private' && zoneAtLocation(r, location))
+        windows = picked.filter(r => r.zone_type === 'private' && zoneAtLocation(r, location) && familyCanBookAt(r.location_id, pools))
       } else {
         // The old weekly table predates locations: those hours are the first pool's.
-        if (location && location !== DEFAULT_LOCATION_ID) continue
+        if ((location && location !== DEFAULT_LOCATION_ID) || !familyCanBookAt(DEFAULT_LOCATION_ID, pools)) continue
         windows = (legacyRows || []).filter((r: any) => r.coach_id === c.id && r.day_of_week === dow)
       }
       if (windows.length === 0) continue

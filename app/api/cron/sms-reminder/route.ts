@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { requireCron } from '@/lib/cron-auth'
-import { getLocations, showLocations, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { getLocations, lessonPoolShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -147,10 +147,10 @@ export async function GET(request: Request) {
     getLocations(supabase),
   ])
   // Which pool, once there is more than one open to families: " at Monrovia
-  // (123 Main St)". With one pool the text is exactly what it was.
-  const poolsShown = showLocations(pools)
+  // (123 Main St)". With one pool the text is exactly what it was -- except
+  // for a lesson at a hidden pool, which says so (lessonPoolShown, F66).
   const poolText = (locationId: string | null | undefined) => {
-    if (!poolsShown) return ''
+    if (!lessonPoolShown(pools, locationId)) return ''
     const loc = pools.find((l) => l.id === (locationId || DEFAULT_LOCATION_ID))
     if (!loc) return ''
     const addr = (loc.address || '').trim()

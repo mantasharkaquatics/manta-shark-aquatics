@@ -5,6 +5,10 @@ import { activeLocations, getLocations, showLocations, DEFAULT_LOCATION_ID } fro
 // GET -> the pools families can book, whether to show a location at all, and
 // (signed-in family) each swimmer's usual pool: the pool of their latest
 // lesson, booked or swum, so the booking page opens there.
+// `hidden`: the pools closed to booking, only so a lesson already at one can
+// still be named on the family's cards (lib/locations lessonPoolShown, found
+// 2026-10-15, F66). Never offered for booking. The table is readable by
+// anyone (RLS select), so this tells nobody anything new.
 export async function GET() {
   const svc = serviceClient()
   const all = await getLocations(svc)
@@ -47,7 +51,7 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    { locations, show, studentLocations },
+    { locations, show, studentLocations, hidden: all.filter(l => !l.is_active).map(({ id, name, address, map_url, sort_order, is_active }) => ({ id, name, address, map_url, sort_order, is_active })) },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

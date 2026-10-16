@@ -2,7 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { serviceClient } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
-import { LOCATION_COLUMNS, activeLocations, showLocations, type Location } from '@/lib/locations'
+import { LOCATION_COLUMNS, DEFAULT_LOCATION_ID, activeLocations, showLocations, type Location } from '@/lib/locations'
 
 /* The pool list for the public site's prerendered pages (server only).
 
@@ -41,6 +41,14 @@ export async function publicLocations(): Promise<Location[]> {
 export async function shownLocations(): Promise<Location[]> {
   const all = await publicLocations()
   return showLocations(all) ? activeLocations(all) : []
+}
+
+/** The pools the footer names: the open ones once there is a choice, the one
+ *  open pool when it is not Brea (Brea hidden, found 2026-10-15, F167), else
+ *  [] -- the footer then reads "Brea, California" as it always has. */
+export async function footerLocations(): Promise<Location[]> {
+  const open = activeLocations(await publicLocations())
+  return open.length > 1 || (open.length === 1 && open[0].id !== DEFAULT_LOCATION_ID) ? open : []
 }
 
 /* First names of the coaches who teach at a pool: anyone active with a

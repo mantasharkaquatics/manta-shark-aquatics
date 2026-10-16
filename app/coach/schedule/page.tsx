@@ -5,6 +5,8 @@ import CoachScheduleClient from './CoachScheduleClient'
 import { isRealBooking } from '../real-booking'
 import { serviceClient } from '@/lib/api-auth'
 import { sessionsInBlocks } from '@/lib/time-off'
+import { getLocations, lessonPoolShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { locationColor } from '@/lib/location-colors'
 
 // An hour lesson is two class_sessions but ONE lesson. Merge the halves that
 // share a lesson_group_id so a coach reads one card spanning the full hour,
@@ -64,7 +66,7 @@ export default async function CoachSchedulePage() {
   const { data: rawSessions, error: sessionsError } = await supabase
     .from('class_sessions')
     .select(`
-      id, session_date, start_time, end_time, status, enrolled_count, max_students,
+      id, session_date, start_time, end_time, status, enrolled_count, max_students, location_id,
       course_types(id, name, slug),
       bookings!class_session_id(id, status, is_trial, lesson_group_id, students(id, full_name, current_level))
     `)
@@ -84,8 +86,19 @@ export default async function CoachSchedulePage() {
   // unpaid or unaccepted-invite row is not a swimmer the coach should expect,
   // and dropping them BEFORE mergeHourHalves also stops a cancelled booking's
   // lesson_group_id from merging a session into an hour it no longer belongs to.
+  // The pool, as families see it (lib/locations lessonPoolShown): named once
+  // more than one pool is open, or for a lesson at a hidden one. Coaches may
+  // work both pools in a day, and the portal never said which (found
+  // 2026-10-15, F65). With one pool the cards read as before.
+  const pools = await getLocations(serviceClient())
+  const poolOf = (id: string | null) => {
+    if (!lessonPoolShown(pools, id)) return null
+    const loc = pools.find(l => l.id === (id || DEFAULT_LOCATION_ID))
+    return loc ? { name: loc.name, color: locationColor(loc.id, pools) } : null
+  }
   const sessions = (rawSessions || []).map((s: any) => ({
     ...s,
+    pool: poolOf(s.location_id),
     course_types: Array.isArray(s.course_types) ? s.course_types[0] : s.course_types,
     bookings: (s.bookings || []).filter(isRealBooking).map((b: any) => ({
       ...b,

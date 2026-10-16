@@ -49,6 +49,34 @@ export const activeLocations = (all: Location[]) => all.filter(l => l.is_active)
 /** More than one pool open to families: the picker and the location lines show. */
 export const showLocations = (all: Location[]) => activeLocations(all).length > 1
 
+/**
+ * Whether a lesson's pool is named to its family (and its coach): always once
+ * more than one pool is open; with one open, only for a lesson that is NOT at
+ * that pool. A lesson at a hidden pool -- the desk's, or one booked before the
+ * pool was hidden -- otherwise read exactly like a lesson at the open one, and
+ * the family drove there (found 2026-10-15, F66). With one pool in the table,
+ * or none (before the migration), never.
+ */
+export function lessonPoolShown(all: Location[], locationId: string | null | undefined): boolean {
+  if (showLocations(all)) return true
+  const open = activeLocations(all)
+  return open.length === 1 && (locationId || DEFAULT_LOCATION_ID) !== open[0].id
+}
+
+/**
+ * Whether families may book at this pool: it is open to them. A hidden pool's
+ * hours are the desk's (lib/venues.ts), so the parent booking routes neither
+ * offer nor take a time there; a hand-made request or a booking page left open
+ * from before the pool was hidden used to book one (found 2026-10-15, F168).
+ * Staff routes do not ask. Before the migration (no rows) everything is the
+ * default pool, which is open.
+ */
+export function familyCanBookAt(locationId: string | null | undefined, all: Location[]): boolean {
+  if (all.length === 0) return true
+  const id = locationId || DEFAULT_LOCATION_ID
+  return all.some(l => l.id === id && l.is_active)
+}
+
 /** "Monrovia" or "Monrovia · 123 Main St" -- for email rows and SMS. */
 export function locationLine(loc: Pick<Location, 'name' | 'address'> | null | undefined): string {
   if (!loc) return ''
@@ -66,7 +94,8 @@ export function locationMapUrl(loc: Pick<Location, 'name' | 'address' | 'map_url
 
 /**
  * The location line for a lesson's emails and SMS, or undefined while only one
- * pool is open to families (so nothing changes until a second one opens).
+ * pool is open to families and the lesson is at it (lessonPoolShown), so
+ * nothing changes until a second one opens.
  * Reads the pool list once per call; callers sending many emails pass `all`.
  */
 export async function lessonLocationLine(
@@ -75,7 +104,7 @@ export async function lessonLocationLine(
   all?: Location[],
 ): Promise<string | undefined> {
   const list = all ?? await getLocations(svc)
-  if (!showLocations(list)) return undefined
+  if (!lessonPoolShown(list, locationId)) return undefined
   const loc = list.find(l => l.id === (locationId || DEFAULT_LOCATION_ID))
   return loc ? locationLine(loc) : undefined
 }
@@ -84,9 +113,12 @@ export async function lessonLocationLine(
 export async function sessionLocationLine(svc: SupabaseClient, sessionId: string | null | undefined): Promise<string | undefined> {
   if (!sessionId) return undefined
   const list = await getLocations(svc)
-  if (!showLocations(list)) return undefined
+  // Nothing to read while no lesson can be at a pool other than the open one.
+  if (!showLocations(list) && !list.some(l => !l.is_active)) return undefined
   const { data } = await svc.from('class_sessions').select('location_id').eq('id', sessionId).maybeSingle()
-  const loc = list.find(l => l.id === ((data as any)?.location_id || DEFAULT_LOCATION_ID))
+  const locationId = (data as any)?.location_id || DEFAULT_LOCATION_ID
+  if (!lessonPoolShown(list, locationId)) return undefined
+  const loc = list.find(l => l.id === locationId)
   return loc ? locationLine(loc) : undefined
 }
 
@@ -109,18 +141,20 @@ export function locationParam(raw: string | null | undefined, all: Location[]): 
 
 /**
  * The location line of many lessons at once (class_sessions id -> line), for
- * emails that list a batch. Empty while only one pool is open to families, so
- * a caller that finds nothing in it sends the email exactly as before.
+ * emails that list a batch. Empty while only one pool is open to families and
+ * every lesson is at it (lessonPoolShown), so a caller that finds nothing in
+ * it sends the email exactly as before.
  */
 export async function sessionLocationLines(svc: SupabaseClient, sessionIds: (string | null | undefined)[]): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   const ids = [...new Set(sessionIds.filter((x): x is string => !!x))]
   if (ids.length === 0) return out
   const list = await getLocations(svc)
-  if (!showLocations(list)) return out
+  if (!showLocations(list) && !list.some(l => !l.is_active)) return out
   for (let i = 0; i < ids.length; i += 150) {
     const { data } = await svc.from('class_sessions').select('id, location_id').in('id', ids.slice(i, i + 150))
     for (const r of (data || []) as { id: string; location_id: string | null }[]) {
+      if (!lessonPoolShown(list, r.location_id)) continue
       const loc = list.find(l => l.id === (r.location_id || DEFAULT_LOCATION_ID))
       if (loc) out.set(r.id, locationLine(loc))
     }
