@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
 import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
+import { inviteCodeExpired, inviteCodeCutoffIso } from '@/lib/partnerships'
 
 /* Guessing codes (found 2026-10-15): any signed-in parent could try invite
    codes as fast as they liked, and a hit links them to a stranger family and
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const { data: partnership } = await supabase
     .from('parent_partnerships')
-    .select('id, initiator_parent_id, status')
+    .select('id, initiator_parent_id, status, created_at')
     .eq('invite_code', invite_code.toUpperCase())
     .eq('status', 'pending')
     .single()
@@ -56,6 +57,12 @@ export async function POST(req: NextRequest) {
   if (!partnership) return NextResponse.json({ error: 'Invite code is invalid or expired' }, { status: 404 })
   if (partnership.initiator_parent_id === parent.id)
     return NextResponse.json({ error: 'You cannot use your own invite code' }, { status: 400 })
+  // Older than INVITE_CODE_DAYS (owner 2026-10-16, audit F68). Its own answer,
+  // so the parent knows to ask for a new code rather than retype this one, and
+  // it says nothing about the family the code belongs to. Like a wrong code it
+  // keeps the attempt it took above: an old code is no free guess.
+  if (inviteCodeExpired(partnership.created_at))
+    return NextResponse.json({ error: 'This invite code has expired. Ask the other family to share a new one.', code: 'code_expired' }, { status: 410 })
 
   // Ensure no existing link
   const { data: existingPartnership } = await supabase
@@ -80,6 +87,8 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', partnership.id)
     .eq('status', 'pending')
+    // Still in date at the moment of the claim, not only at the read above.
+    .gt('created_at', inviteCodeCutoffIso())
     .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

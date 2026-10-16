@@ -165,6 +165,7 @@ const MAP: readonly (readonly [string, string])[] = [
   ['The payment link has expired', 'err.payLinkExpired'],
   ['Payment already completed', 'err.alreadyPaid'],
   ['Invite code is invalid or expired', 'err.inviteCodeInvalid'],
+  ['This invite code has expired', 'err.inviteCodeExpired'],
   ['You cannot use your own invite code', 'err.inviteCodeOwn'],
   ['Too many invite codes tried', 'err.inviteCodeTooMany'],
   ['Could not check the invite code', 'err.generic'],

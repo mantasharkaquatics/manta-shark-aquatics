@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n/provider'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { dateTag } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
@@ -23,6 +24,7 @@ type PartnerStudent = {
 
 export default function PartnershipsPage() {
   const t = useT()
+  const locale = useLocale()
   const tErr = (raw?: string | null): string => {
     const k = errorKey(raw)
     return k ? t(k) : (raw || t('link.err.join'))
@@ -31,6 +33,9 @@ export default function PartnershipsPage() {
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudent[]>([])
   const [parentId, setParentId] = useState<string | null>(null)
   const [myInviteCode, setMyInviteCode] = useState<string | null>(null)
+  // A code works for INVITE_CODE_DAYS (lib/partnerships.ts) from when it was
+  // made; the route sends the end date (owner 2026-10-16, audit F68).
+  const [myCodeExpires, setMyCodeExpires] = useState<string | null>(null)
   const [inputCode, setInputCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -62,6 +67,7 @@ export default function PartnershipsPage() {
     if (res.ok) {
       const data = await res.json()
       setMyInviteCode(data.invite_code)
+      setMyCodeExpires(typeof data.expires_at === 'string' ? data.expires_at : null)
     }
   }
 
@@ -76,7 +82,7 @@ export default function PartnershipsPage() {
         body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setJoinError(tErr(data.error)); return }
+      if (!res.ok) { setJoinError(data.code === 'code_expired' ? t('err.inviteCodeExpired') : tErr(data.error)); return }
       setJoinSuccess(true)
       setInputCode('')
       await load()
@@ -191,6 +197,11 @@ export default function PartnershipsPage() {
               </div>
             ) : (
               <button type="button" className="ac-btn gold block" onClick={getMyCode}>{t('link.generateCode')}</button>
+            )}
+            {myInviteCode && myCodeExpires && (
+              <p className="ac-note" style={{ marginTop: 10 }}>
+                {t('link.codeValidUntil', { date: new Date(myCodeExpires).toLocaleDateString(dateTag(locale), { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }) })}
+              </p>
             )}
           </section>
 

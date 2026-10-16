@@ -119,9 +119,22 @@ export async function POST(req: NextRequest) {
         console.error('team checkout: could not close older checkouts:', e?.message)
       }
 
+      // Card and Link only, no plain ACH (owner 2026-10-16, audit F26). The
+      // membership is recorded as active the moment checkout completes, and
+      // a plain ACH debit takes up to 4 business days to confirm -- and can
+      // still fail after the swimmer has started practising. Link's Instant
+      // Bank Payments confirm at once and support recurring charges; Stripe
+      // never shows them while 'us_bank_account' is in this list, so it must
+      // stay out. The points top-up below keeps bank debit: its delayed
+      // settlement is handled (bankDebitExposure and the webhook reversal).
+      // The webhook's generic us_bank_account handling stays for that, and
+      // for older team subscriptions that may still be billed by ACH.
       const session = await stripe.checkout.sessions.create({
         locale: 'en',
-        payment_method_types: ['card', 'us_bank_account'],
+        // Cast: @stripe/terminal-js brings stripe 8.x types whose global
+        // `declare module 'stripe'` merges an old PaymentMethodType list
+        // without 'link' over this SDK's (22.x lists it).
+        payment_method_types: ['card', 'link'] as Stripe.Checkout.SessionCreateParams.PaymentMethodType[],
         mode: 'subscription',
         customer_email: parent.email,
         line_items: [{

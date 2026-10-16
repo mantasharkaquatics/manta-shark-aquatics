@@ -29,7 +29,7 @@ export default function VouchersClient() {
   const [list, setList] = useState<V[] | null>(null)
   const [families, setFamilies] = useState<Family[]>([])
   const [today, setToday] = useState('')
-  const [show, setShow] = useState<'active' | 'expiring' | 'all'>('active')
+  const [show, setShow] = useState<'active' | 'expiring' | 'recent'>('active')
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
   const [voiding, setVoiding] = useState<V | null>(null)
   const [voidReason, setVoidReason] = useState('')
@@ -73,11 +73,14 @@ export default function VouchersClient() {
         <button onClick={() => setIssuing(true)} className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#c9a84c] text-[#111d38]">{t('admin.vouchers.issueButton')}</button>
       </div>
       <div className="flex gap-1.5 mb-4">
-        {([['active', t('admin.vouchers.tabActive', { n: active.length })], ['expiring', t('admin.vouchers.tabExpiring', { n: expiring.length })], ['all', t('admin.vouchers.tabAll', { n: list.length })]] as const).map(([k, label]) => (
+        {([['active', t('admin.vouchers.tabActive', { n: active.length })], ['expiring', t('admin.vouchers.tabExpiring', { n: expiring.length })], ['recent', t('admin.vouchers.tabRecent', { n: list.length })]] as const).map(([k, label]) => (
           <button key={k} onClick={() => setShow(k)}
             className={`px-3 py-1.5 rounded-lg border text-sm ${show === k ? 'border-[#c9a84c] bg-[#c9a84c]/15 text-[#c9a84c]' : 'border-[#1e3a6e] text-gray-400'}`}>{label}</button>
         ))}
       </div>
+      {/* Not "All" (owner 2026-10-16, audit F147): the route sends every
+          active voucher but only the newest 500 of the rest. */}
+      {show === 'recent' && <p className="text-gray-500 text-xs -mt-2 mb-4">{t('admin.vouchers.recentNote')}</p>}
       {shown.length === 0 && <p className="text-gray-500 text-sm">{t('admin.vouchers.nothingHere')}</p>}
       <div className="space-y-2">
         {shown.map(v => (

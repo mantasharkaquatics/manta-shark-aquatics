@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { randomInt } from 'crypto'
+import { inviteCodeExpired, inviteCodeExpiresAt } from '@/lib/partnerships'
 
 // crypto, not Math.random (found 2026-10-15): the code is what lets a family
 // link to this one, so it should not come from a guessable generator.
@@ -32,15 +33,25 @@ export async function POST(req: NextRequest) {
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
-  // Check for an existing pending invite code
-  const { data: existing } = await supabase
+  const answer = (row: { invite_code: string; created_at: string | null }) => NextResponse.json({
+    invite_code: row.invite_code,
+    expires_at: inviteCodeExpiresAt(row.created_at)?.toISOString() ?? null,
+  })
+
+  // Check for an existing pending invite code. The newest one, not
+  // maybeSingle: with two pending rows that read errored, came back empty and
+  // a third row was added on every visit.
+  const { data: pendingRows, error: readErr } = await supabase
     .from('parent_partnerships')
-    .select('invite_code')
+    .select('id, invite_code, created_at')
     .eq('initiator_parent_id', parent.id)
     .eq('status', 'pending')
-    .maybeSingle()
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (readErr) return NextResponse.json({ error: 'Could not load your invite code. Please try again.' }, { status: 500 })
+  const existing = pendingRows?.[0] ?? null
 
-  if (existing) return NextResponse.json({ invite_code: existing.invite_code })
+  if (existing && !inviteCodeExpired(existing.created_at)) return answer(existing)
 
   // Generate a unique invite code
   let code = generateCode()
@@ -53,6 +64,31 @@ export async function POST(req: NextRequest) {
     attempts++
   }
 
+  // A code past INVITE_CODE_DAYS (owner 2026-10-16, audit F68) is replaced in
+  // its own row: new code, created_at restarted. The pending row is only a
+  // holder for this family's current code (partner_parent_id is a placeholder
+  // until someone accepts), so nothing else refers to it, and keeping one row
+  // keeps the one-pending-code-per-family shape the read above relies on.
+  // The old code then matches no row, so accept calls it invalid. Only if the
+  // row still holds the old code: a second tab doing the same at once gets
+  // the code the first one made.
+  if (existing) {
+    const { data: renewed, error: renewErr } = await supabase
+      .from('parent_partnerships')
+      .update({ invite_code: code, created_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .eq('status', 'pending')
+      .eq('invite_code', existing.invite_code)
+      .select('invite_code, created_at')
+    if (renewErr) return NextResponse.json({ error: renewErr.message }, { status: 500 })
+    if (renewed && renewed.length > 0) return answer(renewed[0])
+    const { data: current } = await supabase
+      .from('parent_partnerships').select('invite_code, created_at, status')
+      .eq('id', existing.id).maybeSingle()
+    if (current && current.status === 'pending' && !inviteCodeExpired(current.created_at)) return answer(current)
+    return NextResponse.json({ error: 'Could not load your invite code. Please try again.' }, { status: 409 })
+  }
+
   const { data: partnership, error } = await supabase
     .from('parent_partnerships')
     .insert({
@@ -61,9 +97,9 @@ export async function POST(req: NextRequest) {
       invite_code: code,
       status: 'pending',
     })
-    .select()
+    .select('invite_code, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ invite_code: partnership.invite_code })
+  return answer(partnership)
 }

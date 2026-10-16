@@ -83,7 +83,7 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 
 === SWIM TEAM MEMBERSHIP ===
 - Swim Team is a monthly subscription per student, billed on the same day each month as the join date (e.g. joining on the 15th bills on the 15th of every month).
-- To cancel: on the parent dashboard, under "My plans", the child's Swim Team row has a "Manage" button. It opens the Swim Team card (practice times, receipts), whose "Manage" button opens the secure Stripe subscription portal, where the parent can cancel, update the payment card, or view invoices.
+- To cancel: on the parent dashboard, under "My plans", the child's Swim Team row has a "Manage" button. It opens the Swim Team card (practice times, receipts), whose "Manage" button opens the secure Stripe subscription portal, where the parent can cancel, update the card or other payment method, or view invoices.
 - If a monthly charge fails, that Swim Team row under "My plans" says so in red ("Payment failed - please update your card"); the parent updates the card through the same "Manage" button.
 - Cancellation takes effect at the END of the current billing period: no refunds and no partial-month proration; the student can keep attending practices until that end date, and the membership simply does not renew.
 - The AI never cancels a membership itself; it directs the parent to the Manage button (or the front desk for help).

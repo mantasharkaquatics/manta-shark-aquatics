@@ -19,6 +19,34 @@ export async function activePartnershipId(svc: SupabaseClient, a: string, b: str
 }
 
 /**
+ * How long a family-link invite code (MSA-XXXXXX) can be used, counted from
+ * parent_partnerships.created_at (owner 2026-10-16, audit F68). A code never
+ * used used to work forever, so one shared once -- in a group chat, a
+ * screenshot -- could link a stranger to this family months later.
+ * /api/partnerships/accept refuses an older pending code (code_expired);
+ * /api/partnerships/invite gives the family a fresh code in its place.
+ */
+export const INVITE_CODE_DAYS = 14
+const INVITE_CODE_MS = INVITE_CODE_DAYS * 24 * 60 * 60 * 1000
+
+/** When a code issued at createdAt stops working; null if the date is unreadable. */
+export function inviteCodeExpiresAt(createdAt: string | null | undefined): Date | null {
+  const t = createdAt ? new Date(createdAt).getTime() : NaN
+  return Number.isFinite(t) ? new Date(t + INVITE_CODE_MS) : null
+}
+
+/** A code with no readable issue date counts as expired: fail closed. */
+export function inviteCodeExpired(createdAt: string | null | undefined, now: Date = new Date()): boolean {
+  const end = inviteCodeExpiresAt(createdAt)
+  return !end || end.getTime() <= now.getTime()
+}
+
+/** The oldest created_at a usable code can have, for a database filter. */
+export function inviteCodeCutoffIso(now: Date = new Date()): string {
+  return new Date(now.getTime() - INVITE_CODE_MS).toISOString()
+}
+
+/**
  * How many open invitations a family may have at once (found 2026-10-15).
  * An invitation charges nothing until it is accepted, yet holds its coach and
  * time for 15 minutes (lib/bookings/invite-holds.ts), and nothing limited how
