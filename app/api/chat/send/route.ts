@@ -12,7 +12,7 @@ import { readJson, badRequest } from '@/lib/http'
 // ai_context_from, which staff and the AI trust. Now the message is written
 // here, with the service role, and only the fields a family's message has:
 // sender_type 'parent', the text, no metadata. The browser's write access
-// itself is taken away by the SQL in the audit report (F39); this route is
+// itself is taken away by docs/migration-revoke-chat-writes.sql (F39); this route is
 // what keeps the chat working once it is.
 //
 // POST { thread_id, body } -> { ok, message }
