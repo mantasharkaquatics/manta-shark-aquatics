@@ -49,17 +49,25 @@ export default async function AdminBookingPage() {
     return (p?.id || s.parent_id) as string | null
   }).filter(Boolean))] as string[]
   const parentBalances: Record<string, number> = {}
+  // What each family owes from a returned payment, from the same read
+  // (arrears() in lib/points-wallet: a negative purchased balance). The
+  // booking form says it up front and keeps confirm off (F114).
+  const parentArrears: Record<string, number> = {}
   if (parentIds.length) {
     const { data: wallets, error } = await allRowsIn(parentIds, chunk =>
       serviceClient().from('point_wallets').select('parent_id, balance_purchased, balance_granted').in('parent_id', chunk).order('parent_id'))
     if (error) console.error('admin/booking wallets: read failed:', error.message || error)
     else for (const id of parentIds) parentBalances[id] = 0
-    for (const w of wallets) parentBalances[w.parent_id] = (w.balance_purchased || 0) + (w.balance_granted || 0)
+    for (const w of wallets) {
+      parentBalances[w.parent_id] = (w.balance_purchased || 0) + (w.balance_granted || 0)
+      if ((w.balance_purchased || 0) < 0) parentArrears[w.parent_id] = -w.balance_purchased
+    }
   }
 
   return (
     <AdminBookingClient
       parentBalances={parentBalances}
+      parentArrears={parentArrears}
       coaches={coaches || []}
       students={students || []}
       courseTypes={courseTypes || []}

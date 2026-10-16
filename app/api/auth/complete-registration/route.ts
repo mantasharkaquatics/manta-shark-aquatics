@@ -8,6 +8,7 @@ import { getTodayLA } from '@/lib/date'
 import { isLocale } from '@/lib/i18n'
 import { sendEmail } from '@/lib/email'
 import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
+import { isAdultOn, setAccountHolder } from '@/lib/account-holder'
 
 export const runtime = 'nodejs'
 
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   const phone = rawPhone ? normalizePhone(rawPhone) : ''
   const today = getTodayLA()
   const students = (Array.isArray(body.students) ? body.students : [])
-    .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '' }))
+    .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '', me: s?.is_account_holder === true }))
     .filter((s: { full_name: string | null }) => s.full_name)
   if (!firstName || !lastName || !rawPhone || phone.replace(/\D/g, '').length < 10 || !address1 || !city || !state || !zip
     || body.terms_accepted !== true || body.waiver_accepted !== true
@@ -178,11 +179,22 @@ export async function POST(req: NextRequest) {
 
   // The account exists from here on: a swimmer that fails to save is
   // reported, not fatal -- the page opens My Account with the add form.
-  const { error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string }, i: number) => ({
+  const { data: made, error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string }, i: number) => ({
     parent_id: parent.id, full_name: s.full_name, date_of_birth: s.date_of_birth,
     current_level: null, is_active: true, sort_order: i + 1,
-  })))
+  }))).select('id, sort_order')
   if (stuErr) console.error('[complete-registration] students insert failed', stuErr)
+
+  // "This swimmer is me" (F15): the first ticked swimmer who is an adult, and
+  // only one. Written after the insert, on its own, so a database without the
+  // column yet (docs/migration-account-holder-swimmer.sql) still registers
+  // the family -- the box is then simply not stored.
+  const meAt = students.findIndex((s: { me: boolean; date_of_birth: string }) => s.me && isAdultOn(s.date_of_birth, today))
+  const meRow = !stuErr && meAt >= 0 ? (made || []).find((r: { sort_order: number }) => r.sort_order === meAt + 1) : null
+  if (meRow) {
+    const r = await setAccountHolder(svc, parent.id, meRow.id)
+    if (r === 'error') console.error('[complete-registration] account holder not stored', parent.id)
+  }
 
   // Best effort, as before: lib/referrals enforces the rules.
   const refCode = typeof body.referral_code === 'string' ? body.referral_code.trim() : ''

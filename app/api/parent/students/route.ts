@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
+import { isAdultOn, setAccountHolder } from '@/lib/account-holder'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +15,8 @@ export const runtime = 'nodejs'
  * service role, and the browser's INSERT/UPDATE/DELETE on students is revoked
  * (docs/migration-revoke-parent-writes.sql).
  *
- * The family supplies a name and a birthday, nothing else. Everything a level,
+ * The family supplies a name, a birthday and whether the swimmer is the
+ * account holder themselves (F15), nothing else. Everything a level,
  * a stage or the desk decides is set here and cannot be sent: a new swimmer has
  * no level until an assessment gives them one (lib/level-change.ts). */
 
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
 
-  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown } | null
+  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown; is_account_holder?: unknown } | null
   const fullName = typeof body?.full_name === 'string' ? body.full_name.trim().replace(/\s+/g, ' ') : ''
   const dob = typeof body?.date_of_birth === 'string' ? body.date_of_birth.trim() : ''
   if (!fullName || fullName.length > 120) return NextResponse.json({ error: 'Missing or invalid name', code: 'NAME' }, { status: 400 })
@@ -81,6 +83,15 @@ export async function POST(req: NextRequest) {
       await svc.from('students').delete().eq('id', row.id).eq('parent_id', parent.id)
       return NextResponse.json({ error: `A family can have up to ${MAX_STUDENTS} swimmers`, code: 'LIMIT' }, { status: 409 })
     }
+  }
+
+  // "This swimmer is me" (F15): only for an adult, and one per family -- the
+  // family's other swimmers are cleared first. On its own after the insert, so
+  // a database without the column yet (docs/migration-account-holder-swimmer.sql)
+  // still adds the swimmer; the box is then simply not stored.
+  if (body?.is_account_holder === true && isAdultOn(dob, getTodayLA())) {
+    const r = await setAccountHolder(svc, parent.id, row.id)
+    if (r === 'error') console.error('[parent/students] account holder not stored', row.id)
   }
 
   // Was a second browser write; done here with the insert it belongs to.

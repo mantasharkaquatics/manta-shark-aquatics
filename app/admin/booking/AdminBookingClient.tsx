@@ -77,6 +77,8 @@ interface Props {
   initialSessions: Session[]
   /** Each family's points balance by parent id, read once on the server. */
   parentBalances: Record<string, number>
+  /** What each family owes from a returned payment, by parent id (F114). */
+  parentArrears?: Record<string, number>
 }
 
 const WORK_START = 6
@@ -448,7 +450,7 @@ function StudentSearch({ students, value, onChange, parentBalances }: {
 // ══════════════════════════════════════════════════════════════════════
 // Main Component
 // ══════════════════════════════════════════════════════════════════════
-export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions, parentBalances }: Props) {
+export default function AdminBookingClient({ coaches, students, courseTypes, initialSessions, parentBalances, parentArrears = {} }: Props) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -795,6 +797,21 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // ahead and left the button on, and the booking then failed (found 2026-10-08).
   const unassessedPicked = !isTrial && [formStudent, courseTypes.find(c => c.id === formCourse)?.slug === '1on2' ? formStudent2 : '']
     .some(id => !!id && students.find(s => s.id === id)?.current_level == null)
+  // A family that owes money from a returned payment cannot be booked: the
+  // server refuses any spend from that wallet, even when its granted points
+  // make the balance look enough. Said before confirm, and confirm stays off
+  // (F114, owner 2026-10-16). The amount is the page's read, or the series
+  // preview's fresher one. An assessment is paid by card and is not held up.
+  const owingPicked = isTrial ? [] : [...new Set([formStudent, courseTypes.find(c => c.id === formCourse)?.slug === '1on2' ? formStudent2 : '']
+    .filter(Boolean).map(id => students.find(s => s.id === id)?.parent_id).filter(Boolean) as string[])]
+    .map((pid, i) => {
+      const st = students.find(s => s.parent_id === pid)
+      const p = st ? (Array.isArray(st.parents) ? st.parents[0] : st.parents) : null
+      const fromPreview = bookMode === 'recurring' && recurPreview?.points
+        ? Number(i === 0 ? recurPreview.points.parent1_arrears : recurPreview.points.parent2_arrears) || 0 : 0
+      return { pid, name: p ? `${p.first_name} ${p.last_name || ''}`.trim() : '', owed: Math.max(parentArrears[pid] || 0, fromPreview) }
+    })
+    .filter(x => x.owed > 0)
 
   useEffect(() => {
     if (!isTrial || !formStudent) {
@@ -1276,7 +1293,8 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                               const n2 = cr.parent2_name || t('admin.booking.recur.parentN', { n: 2 })
                               const p1 = t('admin.booking.recur.hasNeeds', { name: n1, have: (cr.parent1_balance ?? 0).toLocaleString(), need: (cr.parent1_needed ?? 0).toLocaleString() })
                               const p2 = cr.parent2_needed != null ? ' · ' + t('admin.booking.recur.hasNeeds', { name: n2, have: (cr.parent2_balance ?? 0).toLocaleString(), need: (cr.parent2_needed ?? 0).toLocaleString() }) : ''
-                              return (cr.sufficient ? '✓ ' : t('admin.booking.recur.notEnough') + ' · ') + p1 + p2
+                              const owes = (Number(cr.parent1_arrears) || 0) > 0 || (Number(cr.parent2_arrears) || 0) > 0
+                              return (cr.sufficient ? '✓ ' : (owes ? t('admin.booking.recur.owes') : t('admin.booking.recur.notEnough')) + ' · ') + p1 + p2
                             })()}
                           </div>
                         </div>
@@ -1286,6 +1304,11 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
                   {unassessedPicked && (
                     <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/30 rounded-lg px-3 py-2">{t('admin.booking.noAssessmentWarn')}</p>
                   )}
+                  {owingPicked.map(x => (
+                    <p key={x.pid} role="alert" className="text-red-300 text-xs bg-red-400/10 border border-red-400/30 rounded-lg px-3 py-2">
+                      {t('admin.booking.arrearsWarn', { name: x.name || '—', amount: x.owed.toLocaleString('en-US') })}
+                    </p>
+                  ))}
                   {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-lg px-3 py-2">{error}</p>}
                   {success && <p className="text-green-400 text-sm bg-green-400/10 rounded-lg px-3 py-2">{success}</p>}
                 </>
@@ -1298,7 +1321,7 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
               {!trialUrl && (
                 <button
                   onClick={bookMode === 'recurring' ? handleRecurCommit : (isTrial ? (trialCreditStatus === 'available' ? handleTrialCreditBook : handleTrialBook) : handleBook)}
-                  disabled={saving || trialSaving || unassessedPicked || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !((recurIncludeHeld && recurPreview.pointsWithHeld) || recurPreview.points)?.sufficient || recurLoading))}
+                  disabled={saving || trialSaving || unassessedPicked || owingPicked.length > 0 || (isTrial && trialCreditStatus === 'active') || (bookMode === 'recurring' && (!recurPreview || !((recurIncludeHeld && recurPreview.pointsWithHeld) || recurPreview.points)?.sufficient || recurLoading))}
                   className="flex-1 py-2.5 rounded-lg bg-[#c9a84c] text-[#0d1529] font-semibold hover:bg-[#d4b86a] transition-colors text-sm disabled:opacity-50">
                   {bookMode === 'recurring'
                     ? (saving ? t('admin.booking.creating') : recurPreview ? t('admin.booking.recur.confirmN', { n: recurPreview.candidates.filter(c => c.status === 'ok' || (recurIncludeHeld && c.status === 'renewal_hold')).length }) : t('admin.booking.recur.previewFirst'))

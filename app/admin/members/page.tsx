@@ -47,5 +47,20 @@ export default async function AdminMembersPage() {
     }
   } catch { /* no record shown */ }
 
-  return <AdminMembersClient parents={parents} deactivations={deactivations} />
+  // Which swimmer is the account holder ("this swimmer is me", F15). Read on
+  // its own and allowed to fail: before docs/migration-account-holder-swimmer.sql
+  // the column does not exist, and the desk then has no toggle to offer.
+  let holderReady = false
+  try {
+    const { data: holders, error } = await serviceClient().from('students')
+      .select('id').eq('is_account_holder', true)
+    if (!error) {
+      holderReady = true
+      const ids = new Set((holders || []).map((h: { id: string }) => h.id))
+      for (const p of parents as { students?: { id: string; is_account_holder?: boolean }[] }[])
+        for (const st of p.students || []) st.is_account_holder = ids.has(st.id)
+    }
+  } catch { /* no toggle shown */ }
+
+  return <AdminMembersClient parents={parents} deactivations={deactivations} holderReady={holderReady} />
 }

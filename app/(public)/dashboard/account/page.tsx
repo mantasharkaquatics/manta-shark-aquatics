@@ -8,14 +8,16 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 
 interface Parent {
   id: string; first_name: string; last_name: string; email: string; phone: string
   registered_at: string | null; newsletter_subscribed: boolean; preferred_language: string
 }
-interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean }
+interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean; is_account_holder?: boolean }
 
 const INTL_LOCALE: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' }
+const todayLA = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
 export default function AccountPage() {
   const t = useT()
@@ -30,6 +32,9 @@ export default function AccountPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDob, setNewDob] = useState('')
+  // "This swimmer is me" (F15): offered for an adult only; the server makes
+  // this swimmer the family's one account holder and clears the others.
+  const [newMe, setNewMe] = useState(false)
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -65,8 +70,13 @@ export default function AccountPage() {
       return
     }
     setParent(parentData)
-    const { data: studs } = await supabase.from('students').select('id, full_name, date_of_birth, added_by_parent').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order')
-    setStudents(studs || [])
+    // is_account_holder exists once docs/migration-account-holder-swimmer.sql
+    // has run; before that the list is read without it.
+    const readStuds = (cols: string) => supabase.from('students').select(cols).eq('parent_id', parentData.id).eq('is_active', true).order('sort_order')
+    const first = await readStuds('id, full_name, date_of_birth, added_by_parent, is_account_holder')
+    const { data: studs } = first.error && missingHolderColumn(first.error)
+      ? await readStuds('id, full_name, date_of_birth, added_by_parent') : first
+    setStudents((studs as unknown as Student[]) || [])
     setLoading(false)
   }
 
@@ -110,7 +120,7 @@ export default function AccountPage() {
     try {
       res = await fetch('/api/parent/students', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob }),
+        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob, is_account_holder: newMe && isAdultOn(newDob, todayLA()) }),
       })
       j = await res.json().catch(() => ({}))
     } catch { res = null }
@@ -131,6 +141,7 @@ export default function AccountPage() {
     }
     setNewName('')
     setNewDob('')
+    setNewMe(false)
     setShowAddForm(false)
     setConfirmingAdd(false)
     setAdding(false)
@@ -207,6 +218,8 @@ export default function AccountPage() {
                       <b>{s.full_name}</b>
                       <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
                       {s.added_by_parent && <div className="ac-tag">{t('account.addedByYou')}</div>}
+                      {/* Ticking the box on a new swimmer moves "you" to them. */}
+                      {s.is_account_holder && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
                     </div>
                     <span className="ac-muted">{t('account.readOnly')}</span>
                   </div>
@@ -234,13 +247,21 @@ export default function AccountPage() {
                   <label className="ac-flabel" htmlFor="ac-dob">{t('account.dob')} <span style={{ color: '#c0392b' }}>*</span></label>
                   <input id="ac-dob" className="ac-input" type="date" value={newDob}
                     max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
-                    onChange={e => setNewDob(e.target.value)} />
+                    onChange={e => { setNewDob(e.target.value); if (!isAdultOn(e.target.value, todayLA())) setNewMe(false) }} />
                 </div>
+                {/* Only for an adult: a child cannot be the account holder. */}
+                {isAdultOn(newDob, todayLA()) && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={newMe} onChange={e => setNewMe(e.target.checked)}
+                      style={{ marginTop: 2, width: 20, height: 20, flexShrink: 0, accentColor: '#2050a0' }} />
+                    <span style={{ fontSize: 14, color: '#16294a', lineHeight: 1.5 }}>{t('register.isMe')}</span>
+                  </label>
+                )}
                 {/* role="alert": a failure closes the confirm, so nothing else says it failed. */}
                 {addError && <div className="ac-err" role="alert" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
                 <div className="ac-pair">
                   <button type="button" className="ac-btn line"
-                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setAddError(null) }}>
+                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
                   <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob}>

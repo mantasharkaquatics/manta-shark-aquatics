@@ -16,6 +16,7 @@ import { formatTime12h } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
 import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import SettleArrearsButton from '@/components/SettleArrearsButton'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -163,6 +164,8 @@ export default function FixedClassPage() {
   const [weeks, setWeeks] = useState(WEEKS_STEP)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const [balance, setBalance] = useState(0)
+  // Owed from a returned payment (F114): nothing renews until it is paid.
+  const [owed, setOwed] = useState(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -185,7 +188,7 @@ export default function FixedClassPage() {
       const j = await res.json().catch(() => ({}))
       if (!res.ok) { setErr(tErr(j.error)); setBusy(false); return }
       const list: Cand[] = j.candidates || []
-      setCands(list); setWeeks(w); setBalance(j.balance ?? 0); setRenewOpenUI(true)
+      setCands(list); setWeeks(w); setBalance(j.balance ?? 0); setOwed(Number(j.arrears) || 0); setRenewOpenUI(true)
       if (keep) setTicked(keep)
       else {
         // The first ten open weeks the wallet covers, as the booking page does.
@@ -404,6 +407,12 @@ export default function FixedClassPage() {
                     </button>
                   ) : (
                     <>
+                      {owed > 0 && (
+                        <div role="alert" className="ac-err" style={{ marginTop: 0, marginBottom: 12 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 8 }}>{t('booking.arrears.preview', { amount: owed.toLocaleString('en-US') })}</div>
+                          <SettleArrearsButton owed={owed} className="ac-btn gold" />
+                        </div>
+                      )}
                       <div className="fc-chips">
                         {shown.map(c => {
                           if (c.status !== 'ok') return (
@@ -432,7 +441,7 @@ export default function FixedClassPage() {
                       </div>
                       <div className="ac-pair" style={{ marginTop: 12 }}>
                         <button className="ac-btn line" onClick={() => setRenewOpenUI(false)}>{t('common.cancel')}</button>
-                        <button className="ac-btn gold" disabled={busy || ticked.size < FIXED_CLASS_MIN_LESSONS} onClick={confirmRenew}>
+                        <button className="ac-btn gold" disabled={busy || owed > 0 || ticked.size < FIXED_CLASS_MIN_LESSONS} onClick={confirmRenew}>
                           {ticked.size < FIXED_CLASS_MIN_LESSONS
                             ? t('booking.recur.needMore', { n: FIXED_CLASS_MIN_LESSONS, m: FIXED_CLASS_MIN_LESSONS - ticked.size })
                             : t('fixedPage.renew.confirm', { n: ticked.size, points: total })}

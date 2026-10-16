@@ -12,6 +12,7 @@ import PasswordField from '@/components/ui/PasswordField'
 import { getTodayLA } from '@/lib/date'
 import { safeNext, withNext } from '@/lib/safe-next'
 import { REFERRAL_POINTS } from '@/lib/points'
+import { isAdultOn } from '@/lib/account-holder'
 
 // A friend's link is remembered for 30 days (owner, 2026-09-29): families
 // often open it, look around, and come back later from the home page. Kept in
@@ -203,7 +204,9 @@ export default function RegisterClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '' }])
+  // `me`: "this swimmer is me" (F15). Offered only for an adult swimmer
+  // (lib/account-holder.ts), and only one per family: ticking one unticks the rest.
+  const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '', me: false }])
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [waiverAccepted, setWaiverAccepted] = useState(false)
   const [mediaAccepted, setMediaAccepted] = useState(false)
@@ -317,13 +320,19 @@ export default function RegisterClient() {
   }
 
   function addStudent() {
-    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '' }])
+    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '', me: false }])
   }
 
   function updateStudent(i: number, field: string, value: string) {
     const updated = [...students]
     updated[i] = { ...updated[i], [field]: value }
+    // A birthday that makes the swimmer a child takes the box away, ticked or not.
+    if (field === 'dateOfBirth' && !isAdultOn(value, getTodayLA())) updated[i].me = false
     setStudents(updated)
+  }
+
+  function setMe(i: number, on: boolean) {
+    setStudents(students.map((s, j) => ({ ...s, me: j === i ? on : (on ? false : s.me) })))
   }
 
   async function sendEmailOtp() {
@@ -496,7 +505,8 @@ export default function RegisterClient() {
           terms_accepted: termsAccepted, waiver_accepted: waiverAccepted,
           media_release_accepted: mediaAccepted, newsletter_subscribed: newsletter,
           preferred_language: locale,
-          students: students.filter(s => s.fullName.trim()).map(s => ({ full_name: s.fullName.trim(), date_of_birth: s.dateOfBirth })),
+          students: students.filter(s => s.fullName.trim()).map(s => ({ full_name: s.fullName.trim(), date_of_birth: s.dateOfBirth,
+            is_account_holder: s.me && isAdultOn(s.dateOfBirth, getTodayLA()) })),
           // Best effort on the server: a code that fails must not block the
           // account. lib/referrals re-checks everything.
           referral_code: referralCode.trim() && referral?.valid ? referralCode.trim() : null,
@@ -786,6 +796,14 @@ export default function RegisterClient() {
                     <p id={`reg-dob-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600" aria-hidden="true">*</span></p>
                     <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} labelledBy={`reg-dob-${i}`} />
                   </div>
+                  {/* Only for an adult: a child cannot be the account holder. */}
+                  {isAdultOn(s.dateOfBirth, getTodayLA()) && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input type="checkbox" checked={s.me} onChange={e => setMe(i, e.target.checked)}
+                        className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#d5e0ef] bg-white accent-[#2050a0]" />
+                      <span className="text-sm text-[#16294a]">{t('register.isMe')}</span>
+                    </label>
+                  )}
                 </div>
               </div>
             ))}

@@ -230,6 +230,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
       balance: wallet.balance,
+      // Owed from a returned payment: the renewal picker says so up front and
+      // keeps its confirm off, as commit would refuse it (F114).
+      arrears: wallet.arrears,
     })
   }
 

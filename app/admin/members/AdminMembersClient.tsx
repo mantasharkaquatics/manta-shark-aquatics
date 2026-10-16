@@ -12,6 +12,7 @@ import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
 import type { TFunction, Locale } from '@/lib/i18n'
+import { isAdultOn } from '@/lib/account-holder'
 
 type Student = {
   id: string
@@ -24,6 +25,8 @@ type Student = {
   legal_full_name: string | null
   uci_number: string | null
   service_code: string | null
+  /** "This swimmer is the parent" (F15); absent before the column exists. */
+  is_account_holder?: boolean
 }
 
 type Parent = {
@@ -126,7 +129,7 @@ function isUnread(p: Parent): boolean {
   return new Date(p.last_activity_at).getTime() > new Date(p.activity_reviewed_at).getTime()
 }
 
-function MemberEditPanel({ parent }: { parent: any }) {
+function MemberEditPanel({ parent, holderReady }: { parent: any; holderReady: boolean }) {
   const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -249,6 +252,20 @@ function MemberEditPanel({ parent }: { parent: any }) {
     router.refresh()
   }
 
+  // "This swimmer is the parent" (F15): one active adult swimmer, or none.
+  // Saved at once, on its own; the server clears the family's others.
+  const [holder, setHolder] = useState<string | null>(() => ((parent.students || []) as Student[]).find(s => s.is_account_holder && s.is_active !== false)?.id ?? null)
+  const saveHolder = async (studentId: string | null) => {
+    setBusy(true); setErr(null)
+    const { ok, j } = await post({ action: 'set_account_holder', parent_id: parent.id, student_id: studentId })
+    setBusy(false)
+    if (!ok) { setErr(contactErr(j, 'admin.members.err.saveFailed')); return }
+    setHolder(studentId)
+    flash(t('admin.members.holderSaved'))
+    router.refresh()
+  }
+  const todayLA = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
   const inputCls = 'w-full bg-[#0d1729] border border-[#1e3a6e] rounded px-2 py-1.5 text-sm text-white'
   const goldBtn = 'bg-[#c9a84c] text-[#1a2744] font-bold text-xs px-3 py-1.5 rounded disabled:opacity-40'
   const ghostBtn = 'border border-[#1e3a6e] text-gray-300 font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-40'
@@ -337,6 +354,14 @@ function MemberEditPanel({ parent }: { parent: any }) {
               <input type="date" className={inputCls + ' max-w-[170px]'} value={editOf(s).dob}
                 max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                 onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...(p[s.id] ?? editOf(s)), dob: e.target.value } }))} />
+              {/* Adults only, as on the family's own form; by the saved birthday. */}
+              {holderReady && s.is_active !== false && (isAdultOn(s.date_of_birth, todayLA) || holder === s.id) && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+                  <input type="checkbox" checked={holder === s.id} disabled={busy}
+                    onChange={e => saveHolder(e.target.checked ? s.id : null)} className="accent-[#c9a84c]" />
+                  {t('admin.members.isHolder')}
+                </label>
+              )}
             </div>
           ))}
           <button className={goldBtn} disabled={busy} onClick={saveStudents}>{t('admin.members.saveStudents')}</button>
@@ -492,7 +517,7 @@ function CopyButton({ value }: { value: string }) {
 
 type Deactivation = { at: string | null; by: string | null }
 
-export default function AdminMembersClient({ parents: initialParents, deactivations = {} }: { parents: Parent[]; deactivations?: Record<string, Deactivation> }) {
+export default function AdminMembersClient({ parents: initialParents, deactivations = {}, holderReady = false }: { parents: Parent[]; deactivations?: Record<string, Deactivation>; holderReady?: boolean }) {
   const t = useT()
   const locale = useLocale()
   // Deactivate / reactivate a swimmer (owner, 2026-10-09): who and when, and
@@ -887,7 +912,7 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                       className="text-xs font-semibold rounded-lg px-3 py-1.5 bg-[#c9a84c] text-[#111d38] hover:opacity-90">
                       {t('admin.members.parentView')}
                     </a>
-                    <MemberEditPanel parent={parent} />
+                    <MemberEditPanel parent={parent} holderReady={holderReady} />
                   </div>
 
                   {/* Row 2: Registered, Terms Accepted, Photo Release, Newsletter */}
@@ -1174,6 +1199,8 @@ const CONTACT_ERROR_KEYS: Record<string, string> = {
   bad_birthday: 'admin.members.err.badBirthday',
   future_birthday: 'admin.members.err.badBirthday',
   not_found: 'admin.members.err.familyNotFound',
+  holder_not_adult: 'admin.members.err.holderNotAdult',
+  holder_column_missing: 'admin.members.err.holderColumnMissing',
 }
 
 const LEDGER_REASONS = new Set(['purchase', 'booking', 'booking_failed', 'cancel_refund', 'forgiveness', 'school_cancel', 'admin_grant', 'admin_deduct', 'cash_refund', 'refund_failed', 'payment_failed', 'chargeback', 'grant_expired', 'referral_bonus', 'assessment_credit', 'birthday_gift'])

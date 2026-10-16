@@ -1105,6 +1105,21 @@ export default function BookingPage() {
   // final confirm (found 2026-10-08). An assessment is paid by card, and a
   // reschedule moves a lesson already paid for, so neither is held up.
   const inArrears = (wallet?.arrears ?? 0) > 0
+  // The same block on the time and confirm steps (F114, owner 2026-10-16): a
+  // family can reach them without passing the course step's notice -- a
+  // make-up link, a basket restored after a top-up -- and granted points can
+  // make the price lines below read as "enough". Said up front, with the pay
+  // button, and the confirm button stays off.
+  const arrearsBlocks = inArrears && !isTrial && !isReschedule
+  const arrearsNotice = arrearsBlocks ? (
+    <div role="alert" style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
+      <div style={{ fontSize: '14px', fontWeight: 700, color: '#c0392b', marginBottom: '10px', lineHeight: 1.5 }}>
+        {t('booking.arrears.preview', { amount: (wallet?.arrears ?? 0).toLocaleString('en-US') })}
+      </div>
+      <SettleArrearsButton owed={wallet?.arrears ?? 0}
+        style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', minHeight: '44px' }} />
+    </div>
+  ) : null
   const canAffordCourse = !selectedCourse || isTrial || isReschedule || (!inArrears && (!!makeUp || hasCourseVoucher
     || balance >= cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)))
 
@@ -1918,6 +1933,7 @@ export default function BookingPage() {
   // already, so the family is sent to check before trying again, and the
   // wallet is re-read so the balance shows what happened.
   async function handleConfirm() {
+    if (arrearsBlocks) return
     try {
       await confirmBooking()
     } catch {
@@ -2606,6 +2622,7 @@ export default function BookingPage() {
         {step === 3 && (
           <div>
             {!groupFlow && <SectionTitle title={t('booking.s4.title')} />}
+            {arrearsNotice}
             {/* Drawn at once, with only 不限教練 until the coaches arrive: the row
                 used to appear a beat after the calendar and push it down under
                 the visitor's finger. */}
@@ -3662,6 +3679,7 @@ export default function BookingPage() {
           return (
           <div>
             <SectionTitle title={t('booking.s5.title')} />
+            {arrearsNotice}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', border: '1px solid #e3ebf6', marginBottom: '20px' }}>
               {(planOne ? [
                 { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
@@ -3811,7 +3829,7 @@ export default function BookingPage() {
                 </div>
               )}
             </div>
-            {!isTrial && !isReschedule && !makeUp && (recurPlan.length > 0 ? recurTotal > balance : bookingCost > balance) && (
+            {!isTrial && !isReschedule && !makeUp && !arrearsBlocks && (recurPlan.length > 0 ? recurTotal > balance : bookingCost > balance) && (
               <div style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '14px', color: '#c0392b' }}>
                 ⚠️ {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
@@ -3862,14 +3880,15 @@ export default function BookingPage() {
               }}>{t('booking.back')}</button>
               <button
                 onClick={handleConfirm}
-                disabled={submitting || (!isTrial && !isReschedule && (recurPlan.length > 0 ? recurTotal : bookingCost) > balance)}
+                disabled={submitting || arrearsBlocks || (!isTrial && !isReschedule && (recurPlan.length > 0 ? recurTotal : bookingCost) > balance)}
                 style={{
                   flex: 2, padding: '14px',
                   background: submitting ? '#eef2f8' : AMBER,
                   color: submitting ? '#56647d' : NAVY,
                   border: 'none', borderRadius: '10px',
                   fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer',
+                  textTransform: 'uppercase', cursor: submitting || arrearsBlocks ? 'not-allowed' : 'pointer',
+                  opacity: arrearsBlocks ? 0.5 : 1,
                 }}
               >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : planMany ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>
             </div>

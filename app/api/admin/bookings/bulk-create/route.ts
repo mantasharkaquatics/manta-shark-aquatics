@@ -187,7 +187,7 @@ async function quoteSeries(
     perDate.set(date, unit)
     total += unit * unitsPerDate
   }
-  return { perDate, total, balance: wallet.balance }
+  return { perDate, total, balance: wallet.balance, arrears: wallet.arrears }
 }
 
 export async function POST(req: NextRequest) {
@@ -297,7 +297,12 @@ export async function POST(req: NextRequest) {
       parent1_balance: quote1.balance, parent1_needed: quote1.total,
       parent2_name: student2 && !sameParent ? nameOf(student2.parent_id) : null,
       parent2_balance: quote2?.balance ?? null, parent2_needed: quote2?.total ?? null,
-      sufficient: quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
+      // Owed from a returned payment (F114): commit refuses any spend from
+      // such a wallet, whatever its granted points make the balance read, so
+      // the preview says so and is never "sufficient".
+      parent1_arrears: quote1.arrears, parent2_arrears: quote2?.arrears ?? 0,
+      sufficient: quote1.arrears === 0 && (!quote2 || quote2.arrears === 0)
+        && quote1.balance >= quote1.total && (!quote2 || quote2.balance >= quote2.total),
     }
     // The same figures with the renewal-held weeks in, for when the desk
     // chooses to book over the holds.
@@ -309,7 +314,8 @@ export async function POST(req: NextRequest) {
       const h2 = student2 && !sameParent ? await quoteSeries(svc, student2.parent_id, ct.slug || '', all, start_time, 1) : null
       pointsWithHeld = {
         ...points, parent1_needed: h1.total, parent2_needed: h2?.total ?? null,
-        sufficient: h1.balance >= h1.total && (!h2 || h2.balance >= h2.total),
+        sufficient: h1.arrears === 0 && (!h2 || h2.arrears === 0)
+          && h1.balance >= h1.total && (!h2 || h2.balance >= h2.total),
       }
     }
 

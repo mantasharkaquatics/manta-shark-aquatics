@@ -5,6 +5,7 @@ import { getT, toLocale, dateTag, type Locale } from '@/lib/i18n/all'
 import { sendRawEmail } from '@/lib/email'
 import { CONTACT_EMAIL, SCHOOL_MAILING_ADDRESS, SITE_URL } from '@/lib/site-config'
 import { unsubscribeToken, unsubscribePageUrl, unsubscribeHeaders } from '@/lib/unsubscribe'
+import { ADULT_AGE, nameLooksLikeHolder, missingHolderColumn } from '@/lib/account-holder'
 
 /* BIRTHDAY CARDS (owner, 2026-10-14).
 
@@ -34,7 +35,7 @@ type Svc = any
 
 export const BIRTHDAY_GIFT_POINTS = BASE_POINTS['1on4']
 export const BIRTHDAY_GIFT_MONTHS = 3
-export const ADULT_AGE = 18
+export { ADULT_AGE }
 const ACTIVE_WINDOW_DAYS = 60
 
 export type CardKind = 'active' | 'returning' | 'adult'
@@ -74,17 +75,13 @@ export function birthdayIn(year: number, dob: string): string {
 
 const firstWord = (name: string) => (name || '').trim().split(/\s+/)[0] || ''
 
-/** Is this swimmer the account holder? The swimmer has one free-text name and
- *  the parent a first and a last, so: the same first word ("Jane Doe" / Jane),
- *  or the whole name equal to first+last or last+first with the spaces taken
- *  out (found 2026-10-15: 王小明 / 名字 小明 + 姓氏 王 was written about in the
- *  third person). A nickname (Jen / Jennifer) still reads as someone else. */
-function isAccountHolder(fullName: string, first: string, last: string): boolean {
-  const fold = (x: string) => (x || '').replace(/\s+/g, '').toLowerCase()
-  const f = fold(first), l = fold(last), n = fold(fullName)
-  if (!f || !n) return false
-  if (firstWord(first).toLowerCase() === firstWord(fullName).toLowerCase()) return true
-  return !!l && (n === f + l || n === l + f)
+/** Is this adult swimmer the account holder? The family says so with the
+ *  "this swimmer is me" box (students.is_account_holder, F15). Accounts from
+ *  before the box, or a database without the column yet, fall back to the
+ *  name match in lib/account-holder.ts (first word, or first+last / last+first
+ *  with spaces, case and full-width forms taken out: 王小明 = 王 + 小明). */
+function isAccountHolder(s: { full_name: string; is_account_holder?: boolean | null }, first: string, last: string): boolean {
+  return s.is_account_holder === true || nameLooksLikeHolder(s.full_name, first, last)
 }
 
 function addDays(ymd: string, n: number): string {
@@ -100,12 +97,17 @@ function addDays(ymd: string, n: number): string {
  */
 export async function birthdaysBetween(svc: Svc, from: string, to: string, today: string): Promise<BirthdaySwimmer[]> {
   const year = Number(from.slice(0, 4))
-  const { data: students, error } = await allRows(() => svc.from('students')
-    .select('id, full_name, date_of_birth, parent_id').not('date_of_birth', 'is', null)
-    // Not a swimmer the desk deactivated (found 2026-10-15): a duplicate
-    // record was paid a second gift, and a removed child still got a card.
-    // The same filter the booking page and Admin > Booking use.
+  // Not a swimmer the desk deactivated (found 2026-10-15): a duplicate
+  // record was paid a second gift, and a removed child still got a card.
+  // The same filter the booking page and Admin > Booking use.
+  // is_account_holder is read when the column exists
+  // (docs/migration-account-holder-swimmer.sql); before that SQL runs the read
+  // is made again without it and the name match decides.
+  const readStudents = (cols: string) => allRows(() => svc.from('students')
+    .select(cols).not('date_of_birth', 'is', null)
     .eq('is_active', true).order('id'))
+  let { data: students, error } = await readStudents('id, full_name, date_of_birth, parent_id, is_account_holder')
+  if (error && missingHolderColumn(error)) ({ data: students, error } = await readStudents('id, full_name, date_of_birth, parent_id'))
   if (error) throw new Error('students: ' + (error.message || error))
   const due = (students || []).map((s: any) => ({ s, date: birthdayIn(year, String(s.date_of_birth)) }))
     .filter((x: any) => x.date >= from && x.date <= to && String(x.s.date_of_birth).slice(0, 4) < String(year))
@@ -151,7 +153,7 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
       kind: adult ? 'adult' : isActive ? 'active' : 'returning',
       active: isActive,
       history: isActive ? 'active' : ever.has(s.id) ? 'returning' : 'new',
-      self: adult && isAccountHolder(s.full_name, p.first_name, p.last_name),
+      self: adult && isAccountHolder(s, p.first_name, p.last_name),
       parentFirstName: p.first_name || '',
       email: p.email || null,
       lang: toLocale(p.preferred_language),
