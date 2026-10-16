@@ -510,19 +510,20 @@ export async function loadReviewQueues(
       })
     : Promise.resolve([] as SentBackItem[])
 
-  // Two-step query: pending recommendations
-  const { data: recs } = await svc
+  // Two-step query: pending recommendations. Paged, and the lookups chunked,
+  // like the rest of this file (found 2026-10-15).
+  const recs = await allRows(() => svc
     .from('level_recommendations')
     .select('id, recommended_level, notes, created_at, student_id, coach_id, previous_recommended_level')
     .eq('status', 'pending')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }).order('id'))
 
   let recommendations: any[] = []
   if (recs && recs.length > 0) {
     const studentIds = [...new Set(recs.map((r: any) => r.student_id))]
     const coachIds = [...new Set(recs.map((r: any) => r.coach_id))]
-    const { data: recStudents } = await svc.from('students').select('id, full_name, current_level').in('id', studentIds)
-    const { data: recCoaches } = await svc.from('coaches').select('id, first_name').in('id', coachIds)
+    const recStudents = await inChunks(studentIds, c => svc.from('students').select('id, full_name, current_level').in('id', c).order('id'))
+    const recCoaches = await inChunks(coachIds.filter(Boolean), c => svc.from('coaches').select('id, first_name').in('id', c).order('id'))
     const sMap: Record<string, any> = {}
     for (const s of recStudents || []) sMap[s.id] = s
     const cMap: Record<string, any> = {}
@@ -535,12 +536,13 @@ export async function loadReviewQueues(
     const today = getTodayLA()
     const laOffset = (new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', timeZoneName: 'longOffset' })
       .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || 'GMT-08:00').replace('GMT', '') || '-08:00'
-    const { data: allHistory } = await svc
+    // One student's rows all fall in one chunk, so each list keeps its order.
+    const allHistory = await inChunks(studentIds, c => svc
       .from('level_recommendations')
-      .select('student_id, coach_id, recommended_level, previous_recommended_level, status, created_at')
-      .in('student_id', studentIds)
+      .select('id, student_id, coach_id, recommended_level, previous_recommended_level, status, created_at')
+      .in('student_id', c)
       .gte('created_at', today + 'T00:00:00' + laOffset)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true }).order('id'))
 
     const historyByStudent: Record<string, any[]> = {}
     for (const h of allHistory || []) {
@@ -557,22 +559,25 @@ export async function loadReviewQueues(
     }))
   }
 
-  // Pending progress (today + all past unreviewed; nothing may slip through)
+  // Pending progress (today + all past unreviewed; nothing may slip through).
+  // Paged, and its lookups chunked (found 2026-10-15): one unpaged read
+  // stopped at the newest 1,000, so in a long backlog the oldest reports were
+  // missing from the page and the badge.
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
-  const { data: allPendingProgress } = await svc
+  const allPendingProgress = await allRows(() => svc
     .from('progress_history')
     .select('id, student_id, coach_id, snapshot, session_date, created_at, class_session_id, lesson_key')
     .eq('status', 'pending_review')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }).order('id'))
 
   let pendingProgressList: any[] = []
   let pastPendingProgressList: any[] = []
   if (allPendingProgress && allPendingProgress.length > 0) {
-    const ppStudentIds = [...new Set(allPendingProgress.map((p: any) => p.student_id))]
-    const ppCoachIds = [...new Set(allPendingProgress.map((p: any) => p.coach_id).filter(Boolean))]
-    const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))]
-    const { data: ppStudents } = await svc.from('students').select('id, full_name, current_level').in('id', ppStudentIds)
-    const { data: ppCoaches } = await svc.from('coaches').select('id, first_name').in('id', ppCoachIds)
+    const ppStudentIds = [...new Set(allPendingProgress.map((p: any) => p.student_id))] as string[]
+    const ppCoachIds = [...new Set(allPendingProgress.map((p: any) => p.coach_id).filter(Boolean))] as string[]
+    const ppSessionIds = [...new Set(allPendingProgress.map((p: any) => p.class_session_id).filter(Boolean))] as string[]
+    const ppStudents = await inChunks(ppStudentIds, c => svc.from('students').select('id, full_name, current_level').in('id', c).order('id'))
+    const ppCoaches = await inChunks(ppCoachIds, c => svc.from('coaches').select('id, first_name').in('id', c).order('id'))
     // Active skills only: a retired one showed on the card as "not taught"
     // (found 2026-10-08).
     const { data: ppSkills } = await svc.from('skills').select('id, name, stage, sort_order, level_id').eq('is_active', true).order('stage').order('sort_order')
@@ -582,10 +587,10 @@ export async function loadReviewQueues(
     for (const c of ppCoaches || []) ppCMap[c.id] = c
     const ppSessionMap: Record<string, any> = {}
     if (ppSessionIds.length > 0) {
-      const { data: ppSessions } = await svc
+      const ppSessions = await inChunks(ppSessionIds, c => svc
         .from('class_sessions')
         .select('id, start_time, end_time, course_types(id, name)')
-        .in('id', ppSessionIds)
+        .in('id', c).order('id'))
       for (const s of ppSessions || []) {
         const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
         ppSessionMap[s.id] = { start_time: s.start_time, end_time: s.end_time, course_name: ct?.name || '', course_type_id: ct?.id || null }
@@ -604,15 +609,15 @@ export async function loadReviewQueues(
     // Notes and their signed audio URLs are for the cards only -- a count
     // never renders them, and signing storage URLs is not free.
     const ppKeys = withDetails
-      ? [...new Set(enriched.map((p: any) => p.lesson_key).filter(Boolean))]
+      ? [...new Set(enriched.map((p: any) => p.lesson_key).filter(Boolean))] as string[]
       : []
     const noteByPair: Record<string, any> = {}
     if (ppKeys.length > 0) {
-      const { data: ppNotes } = await svc
+      const ppNotes = await inChunks(ppKeys, c => svc
         .from('lesson_notes')
         .select('id, student_id, lesson_key, transcript, note, language, audio_seconds, audio_path')
-        .in('lesson_key', ppKeys)
-        .neq('status', 'rejected')
+        .in('lesson_key', c)
+        .neq('status', 'rejected').order('id'))
       const notePaths = (ppNotes || []).map((n: any) => n.audio_path).filter(Boolean)
       const signedByPath: Record<string, string> = {}
       if (notePaths.length > 0) {

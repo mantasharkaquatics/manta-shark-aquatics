@@ -33,28 +33,30 @@ function toMinutes(t: string): number {
  *  2026-10-07). */
 async function todaysLessons(svc: SupabaseClient, studentId: string) {
   const todayStr = getTodayLA()
-  const { data: bookings } = await svc
+  // Today's lessons only, session embedded (found 2026-10-15). It read every
+  // lesson the swimmer ever had -- they stay 'confirmed' -- and put all their
+  // session ids in one .in(): after a few years that read failed or was cut
+  // at 1,000 rows, and a swimmer at the pool was told "no lessons today".
+  const { data: bookings, error } = await svc
     .from('bookings')
-    .select('id, class_session_id, status, lesson_group_id')
+    .select('id, class_session_id, status, lesson_group_id, class_sessions!bookings_class_session_id_fkey!inner(id, session_date, start_time, end_time)')
     .eq('student_id', studentId)
     .eq('status', 'confirmed')
-
-  const sessionIds = Array.from(new Set((bookings || []).map((b: any) => b.class_session_id).filter(Boolean)))
-  const { data: sessions } = sessionIds.length
-    ? await svc.from('class_sessions').select('id, session_date, start_time, end_time').in('id', sessionIds)
-    : { data: [] as any[] }
-  const sessionMap = new Map((sessions || []).map((s: any) => [s.id, s]))
+    .eq('class_sessions.session_date', todayStr)
 
   const todays = (bookings || [])
-    .map((b: any) => ({ ...b, cs: sessionMap.get(b.class_session_id) || null }))
+    .map(({ class_sessions: cs, ...b }: any) => ({ ...b, cs: (Array.isArray(cs) ? cs[0] : cs) || null }))
     .filter((b: any) => b.cs && b.cs.session_date === todayStr && b.cs.start_time && b.cs.end_time)
     .sort((a: any, b: any) => toMinutes(a.cs.start_time) - toMinutes(b.cs.start_time))
 
-  const { data: existing } = todays.length
+  const { data: existing, error: attErr } = todays.length
     ? await svc.from('attendance').select('booking_id').in('booking_id', todays.map((b: any) => b.id))
-    : { data: [] as any[] }
+    : { data: [] as any[], error: null }
   const attended = new Set((existing || []).map((r: any) => r.booking_id))
-  return { todays, attended }
+  // A failed read is not "no lesson" (the caller says so instead).
+  const readError: string | null = error?.message || attErr?.message || null
+  if (readError) console.error('check-in: today\'s lessons not read:', readError)
+  return { todays, attended, readError }
 }
 
 function openIndex(todays: any[], attended: Set<string>, nowMin: number) {
@@ -173,7 +175,8 @@ export async function checkInStudent(svc: SupabaseClient, studentId: string, met
 
   const todayStr = getTodayLA()
   const nowMin = getNowMinutesLA()
-  const { todays, attended } = await todaysLessons(svc, studentId)
+  const { todays, attended, readError } = await todaysLessons(svc, studentId)
+  if (readError) return { ok: false, status: 500, code: 'db', error: 'Could not read today\'s lessons. Please try again.' }
 
   if (todays.length === 0) {
     const team = await teamCheckIn(svc, student, method, todayStr, nowMin)

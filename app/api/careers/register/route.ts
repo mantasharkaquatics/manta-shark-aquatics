@@ -45,8 +45,9 @@ export async function POST(req: Request) {
     )
   }
 
-  const firstName = String(body.firstName ?? '').trim()
-  const lastName = String(body.lastName ?? '').trim()
+  // 100 characters, as update-contact (found 2026-10-15): the name had no cap.
+  const firstName = String(body.firstName ?? '').trim().slice(0, 100)
+  const lastName = String(body.lastName ?? '').trim().slice(0, 100)
   const email = normalizeEmail(String(body.email ?? ''))
   const phone = normalizePhone(String(body.phone ?? ''))
   const password = String(body.password ?? '')

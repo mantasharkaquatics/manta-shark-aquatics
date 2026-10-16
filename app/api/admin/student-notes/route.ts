@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
+import { allRows } from '@/lib/db-paging'
 
 // GET ?counts=1 (counts for all students) or ?student_id= (note list for one student)
 export async function GET(req: NextRequest) {
@@ -9,7 +10,10 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
 
   if (url.searchParams.get('counts') === '1') {
-    const { data } = await svc.from('student_notes').select('student_id')
+    // Paged (found 2026-10-15): one read stopped at 1,000 notes school-wide,
+    // so some swimmers' notes (allergies among them) showed no count.
+    const { data, error } = await allRows(() => svc.from('student_notes').select('id, student_id').order('id'))
+    if (error) return NextResponse.json({ error: error.message || 'Could not read notes' }, { status: 500 })
     const counts: Record<string, number> = {}
     for (const r of (data || []) as any[]) counts[r.student_id] = (counts[r.student_id] || 0) + 1
     return NextResponse.json({ counts })

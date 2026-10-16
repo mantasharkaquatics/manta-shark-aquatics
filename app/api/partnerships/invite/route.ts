@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { randomInt } from 'crypto'
 
+// crypto, not Math.random (found 2026-10-15): the code is what lets a family
+// link to this one, so it should not come from a guessable generator.
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = 'MSA-'
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < 6; i++) code += chars[randomInt(chars.length)]
   return code
 }
 

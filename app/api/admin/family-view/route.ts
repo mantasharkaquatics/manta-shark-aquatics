@@ -6,6 +6,7 @@ import { familyRunway } from '@/lib/low-balance'
 import { assessmentsForParent } from '@/lib/assessments'
 import { stageProgress, resolveStage } from '@/lib/levels'
 import { toLocale } from '@/lib/i18n'
+import { allRows } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
@@ -53,10 +54,13 @@ export async function GET(req: NextRequest) {
   const { data: skills } = lvlId.size
     ? await svc.from('skills').select('id, level_id, stage').in('level_id', [...lvlId.values()]).eq('is_active', true)
     : { data: [] as any[] }
+  // Paged, id as the last tiebreak, as the dashboard reads it (found
+  // 2026-10-15): past 1,000 snapshots the oldest were dropped and the desk saw
+  // a lower stage % than the family.
   const { data: hist } = students.length
-    ? await svc.from('progress_history').select('student_id, session_date, snapshot, created_at')
+    ? await allRows(() => svc.from('progress_history').select('id, student_id, session_date, snapshot, created_at')
       .in('student_id', students.map((s: any) => s.id)).eq('status', 'approved')
-      .order('session_date', { ascending: false }).order('created_at', { ascending: false })
+      .order('session_date', { ascending: false }).order('created_at', { ascending: false }).order('id'))
     : { data: [] as any[] }
   const reportOf = new Map<string, string>()
   for (const r of reports || []) if (!reportOf.has(r.student_id)) reportOf.set(r.student_id, r.month)
@@ -82,14 +86,16 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // Fixed classes and upcoming lessons share one bookings read.
-  const { data: bookings } = await svc.from('bookings')
-    .select('id, student_id, status, class_session_id, points_charged, fixed_class_id, voucher_id, lesson_group_id, is_trial')
+  // Fixed classes and upcoming lessons share one bookings read: from today
+  // on only, sessions embedded, paged (found 2026-10-15). It read every lesson
+  // the family ever had (they stay 'confirmed'), unpaged, then put all their
+  // session ids in one .in() -- a long-standing family's upcoming lessons
+  // could be cut off or, once that list was too long, all go missing.
+  const { data: bookings } = await allRows(() => svc.from('bookings')
+    .select('id, student_id, status, class_session_id, points_charged, fixed_class_id, voucher_id, lesson_group_id, is_trial, class_sessions!bookings_class_session_id_fkey!inner(id, session_date, start_time, end_time, coach_id, course_type_id)')
     .eq('parent_id', parentId).in('status', ['confirmed', 'pending_partner', 'pending_payment'])
-  const sessIds = [...new Set((bookings || []).map((b: any) => b.class_session_id))]
-  const { data: sess } = sessIds.length
-    ? await svc.from('class_sessions').select('id, session_date, start_time, end_time, coach_id, course_type_id').in('id', sessIds)
-    : { data: [] as any[] }
+    .gte('class_sessions.session_date', today).order('id'))
+  const sess = (bookings || []).map((b: any) => Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions).filter(Boolean)
   const coachIds = [...new Set([...(sess || []).map((x: any) => x.coach_id), ...(fcs || []).map((f: any) => f.coach_id)])]
   const [{ data: coaches }, { data: cts }] = await Promise.all([
     coachIds.length ? svc.from('coaches').select('id, first_name').in('id', coachIds) : Promise.resolve({ data: [] as any[] }),

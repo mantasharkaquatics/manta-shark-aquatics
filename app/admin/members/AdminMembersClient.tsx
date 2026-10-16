@@ -7,6 +7,7 @@ import AlertModal from '@/components/AlertModal'
 import RefundPanel from './RefundPanel'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayLA, formatTime12h, getNowMinutesLA } from '@/lib/date'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
@@ -521,7 +522,7 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
     }, 60 * 1000)
     return () => clearInterval(id)
   }, [supabase])
-  const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean }>>({})
+  const [studentBookings, setStudentBookings] = useState<Record<string, { upcoming: Booking[]; past: Booking[]; loaded: boolean; attError?: boolean }>>({})
   const [expandedBookings, setExpandedBookings] = useState<Record<string, 'upcoming' | 'past' | 'notes' | 'sdp' | null>>({})
   /* Which row is asking "mark absent?" / "mark checked in?", and which way.
      The confirm used to flip whatever the row was, whichever pill was pressed:
@@ -538,9 +539,13 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
   }, [])
 
   async function loadStudentBookings(studentId: string) {
-    if (studentBookings[studentId]?.loaded) return
+    // A list whose attendance could not be read is read again on the next open.
+    if (studentBookings[studentId]?.loaded && !studentBookings[studentId]?.attError) return
     const today = getTodayLA()
-    const { data: rawBookings } = await supabase
+    // Paged, and the sessions read in chunks (found 2026-10-15): a swimmer's
+    // whole history in one request stopped at 1,000 rows, and all its session
+    // ids in one .in() grew past what the API takes.
+    const { data: rawBookings } = await allRows(() => supabase
       .from('bookings')
       .select('id, status, student_id, class_session_id, lesson_group_id')
       .eq('student_id', studentId)
@@ -548,15 +553,17 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
       // accepted is not a lesson yet, but was listed (and markable) as one
       // (found 2026-10-04).
       .not('status', 'in', '(cancelled,in_cart,pending_payment,pending_partner)')
+      .order('id'))
     if (!rawBookings || rawBookings.length === 0) {
       setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming: [], past: [], loaded: true } }))
       return
     }
-    const sessionIds = rawBookings.map((b: any) => b.class_session_id).filter(Boolean)
-    const { data: sessions } = await supabase
+    const sessionIds = [...new Set(rawBookings.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+    const { data: sessions } = await allRowsIn(sessionIds, chunk => supabase
       .from('class_sessions')
       .select('id, session_date, start_time, end_time, course_types(id, name), coaches(first_name)')
-      .in('id', sessionIds)
+      .in('id', chunk)
+      .order('id'))
     const sessionMap: Record<string, any> = {}
     for (const s of sessions || []) {
       const ct = Array.isArray((s as any).course_types) ? (s as any).course_types[0] : (s as any).course_types
@@ -598,13 +605,23 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
     }
     const upcoming = merged.filter(b => !isPast(b)).sort((a, b) => a.session_date.localeCompare(b.session_date))
     let past = merged.filter(isPast).sort((a, b) => b.session_date.localeCompare(a.session_date))
+    // 100 ids per request, as the parent dashboard does (found 2026-10-15):
+    // every past lesson in one URL grew until the request failed, and a failed
+    // read showed every lesson as absent -- inviting the desk to "correct"
+    // attendance that was right. A failure now says so and hides the pills.
+    let attError = false
     if (past.length > 0) {
-      const res = await fetch('/api/admin/attendance?booking_ids=' + past.map(b => b.id).join(','))
-      const json = await res.json().catch(() => ({ checkedInBookingIds: [] }))
-      const checkedInSet = new Set((json.checkedInBookingIds || []) as string[])
+      const checkedInSet = new Set<string>()
+      for (let i = 0; i < past.length && !attError; i += 100) {
+        const ids = past.slice(i, i + 100).map(b => b.id).join(',')
+        const res = await fetch('/api/admin/attendance?booking_ids=' + ids).catch(() => null)
+        const json = res && res.ok ? await res.json().catch(() => null) : null
+        if (!json || !Array.isArray(json.checkedInBookingIds)) { attError = true; break }
+        for (const id of json.checkedInBookingIds as string[]) checkedInSet.add(id)
+      }
       past = past.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     }
-    setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming, past, loaded: true } }))
+    setStudentBookings(prev => ({ ...prev, [studentId]: { upcoming, past, loaded: true, attError } }))
   }
 
   function toggleStudentBookings(studentId: string, type: 'upcoming' | 'past') {
@@ -1028,6 +1045,9 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                                   <p className="text-gray-500 text-xs py-2">{t('admin.members.loading')}</p>
                                 ) : displayList && displayList.length > 0 ? (
                                   <div className="space-y-1.5">
+                                    {expandedType === 'past' && sb?.attError && (
+                                      <p role="alert" className="text-red-400 text-xs py-1">{t('admin.members.attendanceError')}</p>
+                                    )}
                                     {displayList.map(b => (
                                       <div key={b.id} className="flex items-center gap-3 text-xs">
                                         <span className="text-gray-400 flex-shrink-0">{new Date(b.session_date + 'T00:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -1035,7 +1055,7 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                                         <span className="text-gray-300">{b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name}</span>
                                         {b.is_hour && <span className="px-1.5 py-0.5 rounded border border-[#c9a84c]/50 text-[#c9a84c] text-[10px] font-semibold flex-shrink-0">{t('admin.members.min60')}</span>}
                                         <span className="text-gray-500">{t('admin.coachName', { name: b.coach_name })}</span>
-                                        {expandedType === 'past' && (
+                                        {expandedType === 'past' && !sb?.attError && (
                                           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
                                             {confirmingAttendance?.id === b.id ? (
                                               <>

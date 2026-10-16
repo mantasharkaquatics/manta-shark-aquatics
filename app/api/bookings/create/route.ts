@@ -9,7 +9,7 @@ import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { familyZones, getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from '@/lib/zones'
 import { sendEmail } from '@/lib/email'
-import { activePartnershipId } from '@/lib/partnerships'
+import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { getLocations, sessionLocationLine } from '@/lib/locations'
@@ -344,6 +344,8 @@ export async function POST(req: NextRequest) {
     const pid = await activePartnershipId(svc, parent.id, partner?.parent_id)
     if (!pid) return NextResponse.json({ error: 'Partnership not found' }, { status: 403 })
     partner.partnership_id = pid
+    if (await openInvitesAtLimit(svc, parent.id))
+      return NextResponse.json({ error: OPEN_INVITES_ERROR }, { status: 429 })
   }
 
   // ---- PRICE AND SETTLE (points) --------------------------------------

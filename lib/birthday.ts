@@ -1,6 +1,6 @@
-import { applyPoints } from '@/lib/points-wallet'
+import { applyPoints, DuplicateLedgerEntry } from '@/lib/points-wallet'
 import { BASE_POINTS } from '@/lib/points'
-import { allRows } from '@/lib/db-paging'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 import { getT, toLocale, dateTag, type Locale } from '@/lib/i18n/all'
 import { sendRawEmail } from '@/lib/email'
 import { CONTACT_EMAIL, SCHOOL_MAILING_ADDRESS, SITE_URL } from '@/lib/site-config'
@@ -26,7 +26,8 @@ import { unsubscribeToken, unsubscribePageUrl, unsubscribeHeaders } from '@/lib/
    - The gift: one 1-on-4 lesson's worth of granted points, good for three
      months. One card and one gift per swimmer per year: birthday_cards has
      (student_id, year) unique, and the gift is looked for in the ledger before
-     it is given, so a second run the same day changes nothing.
+     it is given, so a second run the same day changes nothing. A card whose
+     email failed is tried again by the next few days' runs (LOOKBACK_DAYS).
    - Born on 29 February: the card comes on 28 February in other years. */
 
 type Svc = any
@@ -110,32 +111,32 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
     .filter((x: any) => x.date >= from && x.date <= to && String(x.s.date_of_birth).slice(0, 4) < String(year))
   if (due.length === 0) return []
 
+  // Every read here throws on error (found 2026-10-15). A failed parents read
+  // used to leave every family with no email, so the whole day was counted
+  // "not subscribed", the run said 200 and nobody got a card that year.
   const parentIds = [...new Set(due.map((x: any) => x.s.parent_id).filter(Boolean))] as string[]
   const parents = new Map<string, any>()
-  for (let i = 0; i < parentIds.length; i += 300) {
-    const { data } = await svc.from('parents').select('id, first_name, last_name, email, preferred_language, newsletter_subscribed').in('id', parentIds.slice(i, i + 300))
-    for (const p of data || []) parents.set(p.id, p)
-  }
+  const { data: fams, error: famErr } = await allRowsIn(parentIds, chunk => svc.from('parents')
+    .select('id, first_name, last_name, email, preferred_language, newsletter_subscribed').in('id', chunk).order('id'))
+  if (famErr) throw new Error('parents: ' + (famErr.message || famErr))
+  for (const p of fams) parents.set(p.id, p)
 
-  // Lessons in the last 60 days or ahead, for the "active" test.
+  // Lessons in the last 60 days or ahead, for the "active" test. Paged, with
+  // the date embedded (found 2026-10-15): one unpaged read stopped at 1,000
+  // rows in no fixed order, so the admin month view could drop a swimmer's
+  // recent lessons and show them the "come back" card.
   const studentIds = due.map((x: any) => x.s.id)
   const active = new Set<string>()
   const ever = new Set<string>()
   const since = addDays(today, -ACTIVE_WINDOW_DAYS)
-  for (let i = 0; i < studentIds.length; i += 300) {
-    const { data: rows } = await svc.from('bookings').select('student_id, class_session_id')
-      .in('student_id', studentIds.slice(i, i + 300)).in('status', ['confirmed', 'completed'])
-    const sessionIds = [...new Set((rows || []).map((r: any) => r.class_session_id).filter(Boolean))] as string[]
-    const dateById = new Map<string, string>()
-    for (let j = 0; j < sessionIds.length; j += 300) {
-      const { data: ss } = await svc.from('class_sessions').select('id, session_date').in('id', sessionIds.slice(j, j + 300))
-      for (const x of ss || []) dateById.set(x.id, x.session_date)
-    }
-    for (const r of rows || []) {
-      const d = dateById.get(r.class_session_id)
-      if (d && d >= since) active.add(r.student_id)
-      if (d && d < today) ever.add(r.student_id)
-    }
+  const { data: rows, error: bookErr } = await allRowsIn(studentIds, chunk => svc.from('bookings')
+    .select('id, student_id, cs:class_sessions!bookings_class_session_id_fkey(session_date)')
+    .in('student_id', chunk).in('status', ['confirmed', 'completed']).order('id'))
+  if (bookErr) throw new Error('bookings: ' + (bookErr.message || bookErr))
+  for (const r of rows) {
+    const d: string | undefined = r.cs?.session_date
+    if (d && d >= since) active.add(r.student_id)
+    if (d && d < today) ever.add(r.student_id)
   }
 
   return due.map(({ s, date }: any): BirthdaySwimmer => {
@@ -288,19 +289,34 @@ export type RunResult = {
   failed: string[]
 }
 
-/** Today's cards. Safe to run again: each step is done once per swimmer per year. */
+/** How many days back a run also looks (found 2026-10-15): a card whose email
+ *  failed, or a day cron-job.org missed, used to be lost for the year because
+ *  each run read only today's birthdays. sendOne does each step once per
+ *  swimmer per year, so looking back sends what is still owed and nothing
+ *  twice. */
+export const LOOKBACK_DAYS = 3
+
+/** Today's cards, plus any of the last few days' still unsent. Safe to run
+ *  again: each step is done once per swimmer per year. */
 export async function sendBirthdayCards(svc: Svc, today: string, now: Date = new Date()): Promise<RunResult> {
   const out: RunResult = { date: today, sent: 0, alreadyDone: 0, notSubscribed: 0, failed: [] }
   if (!SCHOOL_MAILING_ADDRESS.trim()) return { ...out, skipped: 'no_mailing_address' }
   if (!unsubscribeToken('check')) return { ...out, skipped: 'no_unsubscribe_secret' }
 
   const year = Number(today.slice(0, 4))
-  const swimmers = await birthdaysBetween(svc, today, today, today)
+  // Not back past 1 January: birthdaysBetween reads within one year, and last
+  // year's cards are rows of last year.
+  const back = addDays(today, -LOOKBACK_DAYS)
+  const from = back.slice(0, 4) === today.slice(0, 4) ? back : `${today.slice(0, 4)}-01-01`
+  const swimmers = await birthdaysBetween(svc, from, today, today)
   for (const sw of swimmers) {
-    if (skipReason(sw)) { out.notSubscribed++; continue }
+    // The counts describe today; an earlier day's swimmer only counts when
+    // this run sends or fails their card.
+    const isToday = sw.date === today
+    if (skipReason(sw)) { if (isToday) out.notSubscribed++; continue }
     try {
       const r = await sendOne(svc, sw, year, now)
-      if (r === 'done') out.alreadyDone++
+      if (r === 'done') { if (isToday) out.alreadyDone++ }
       else if (r === 'sent') out.sent++
       else out.failed.push(`${sw.studentId}: email not sent`)
     } catch (e: any) {
@@ -337,13 +353,26 @@ async function sendOne(svc: Svc, sw: BirthdaySwimmer, year: number, now: Date): 
     if (had && had.length > 0) {
       ledgerId = had[0].id; expiresAt = had[0].granted_expires_at
     } else {
-      const res = await applyPoints(svc, {
-        parentId: sw.parentId, reason: 'birthday_gift', points: BIRTHDAY_GIFT_POINTS,
-        toGranted: true, grantedExpiresAt: threeMonthsFrom(now), actor: 'system',
-        note: `Birthday gift for ${sw.fullName}`,
-        pricing: { kind: 'birthday', studentId: sw.studentId, year },
-      })
-      ledgerId = res.ledgerId; expiresAt = res.grantedExpiresAt
+      try {
+        const res = await applyPoints(svc, {
+          parentId: sw.parentId, reason: 'birthday_gift', points: BIRTHDAY_GIFT_POINTS,
+          toGranted: true, grantedExpiresAt: threeMonthsFrom(now), actor: 'system',
+          note: `Birthday gift for ${sw.fullName}`,
+          pricing: { kind: 'birthday', studentId: sw.studentId, year },
+        })
+        ledgerId = res.ledgerId; expiresAt = res.grantedExpiresAt
+      } catch (e) {
+        // Two overlapping runs can both pass the lookup above (found
+        // 2026-10-15). A unique index on the ledger (one birthday_gift per
+        // swimmer per year) rejects the second grant, and applyPoints has
+        // already undone its wallet change: the gift is there, use it.
+        if (!(e instanceof DuplicateLedgerEntry)) throw e
+        const { data: won } = await svc.from('point_ledger').select('id, granted_expires_at')
+          .eq('parent_id', sw.parentId).eq('reason', 'birthday_gift')
+          .contains('pricing', { kind: 'birthday', studentId: sw.studentId, year }).limit(1)
+        if (!won || won.length === 0) throw e
+        ledgerId = won[0].id; expiresAt = won[0].granted_expires_at
+      }
     }
     await svc.from('birthday_cards').update({ ledger_id: ledgerId, points: BIRTHDAY_GIFT_POINTS }).eq('id', row.id)
   } else {

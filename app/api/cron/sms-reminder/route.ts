@@ -255,7 +255,9 @@ export async function GET(request: Request) {
       const result = await sendSms(parent.phone, message)
       if (result.ok && result.sid) {
         sent += 1
-        results.push({ booking_ids: claimedIds, status: result.status, to: parent.phone, stamped: true })
+        // Ids and status only, never the number (found 2026-10-15): this body
+        // is kept in cron-job.org's job history, a third party's log.
+        results.push({ booking_ids: claimedIds, status: result.status, stamped: true })
       } else {
         await release()
         results.push({
@@ -265,7 +267,9 @@ export async function GET(request: Request) {
       }
     } catch (err) {
       await release()
-      results.push({ booking_ids: claimedIds, error: String(err) })
+      // The full error to our own log only: a provider's message can quote the number.
+      console.error('sms-reminder: send failed for bookings', claimedIds.join(','), err)
+      results.push({ booking_ids: claimedIds, error: 'send failed (see server log)' })
     }
   }
 

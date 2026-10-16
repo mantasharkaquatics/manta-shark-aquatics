@@ -60,22 +60,20 @@ export async function GET(req: NextRequest) {
   const student_id = rawStudentId && (caller.staff || ownStudents?.has(rawStudentId)) ? rawStudentId : null
   let studentBusy: { start: string; end: string }[] = []
   if (student_id) {
-    const { data: myBookings } = await supabase
+    // That day's lessons only, session embedded (found 2026-10-15): every
+    // lesson the swimmer ever had went into one .in(), which a long history
+    // made too long to send, and the clash then silently stopped greying out.
+    const { data: mine, error: mineErr } = await supabase
       .from('bookings')
-      .select('class_session_id')
+      .select('class_sessions!bookings_class_session_id_fkey!inner(start_time, end_time, session_date)')
       .eq('student_id', student_id)
       .not('status', 'in', '("cancelled","pending_partner")')
-    const myIds = (myBookings || []).map((b: any) => b.class_session_id).filter(Boolean)
-    if (myIds.length > 0) {
-      const { data: mySessions } = await supabase
-        .from('class_sessions')
-        .select('start_time, end_time')
-        .in('id', myIds)
-        .eq('session_date', session_date)
-      studentBusy = (mySessions || [])
-        .filter((x: any) => x.start_time && x.end_time)
-        .map((x: any) => ({ start: x.start_time.slice(0, 5), end: x.end_time.slice(0, 5) }))
-    }
+      .eq('class_sessions.session_date', session_date)
+    if (mineErr) console.error('booked-times: student lessons not read:', mineErr.message)
+    studentBusy = (mine || [])
+      .map((b: any) => Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions)
+      .filter((x: any) => x?.start_time && x?.end_time)
+      .map((x: any) => ({ start: x.start_time.slice(0, 5), end: x.end_time.slice(0, 5) }))
   }
 
   const coachBlocks = await getCoachBlocks(supabase, [coach_id], session_date)

@@ -12,6 +12,11 @@ const RED = '#ef4444'
 // The newest messages of a conversation, oldest first, as the family's chat
 // widget reads them; "Load earlier" fetches the page before.
 const HISTORY_LIMIT = 200
+// Conversations per page of the list (found 2026-10-15): the list read every
+// thread at once, so past the API's 1,000 rows the quietest ones -- older
+// visitor chats, families who had not written in a while -- could not be
+// opened at all. "Load more" reads the next page.
+const THREAD_PAGE = 100
 
 export default function AdminMessagesClient({ adminId, adminName }: { adminId: string; adminName: string }) {
   const t = useT()
@@ -26,6 +31,8 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
   const [hasOlder, setHasOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [hasMoreThreads, setHasMoreThreads] = useState(false)
+  const [loadingThreads, setLoadingThreads] = useState(false)
 
   async function setThreadMode(mode: 'ai' | 'human') {
     if (!selectedThread || switchingMode) return
@@ -112,12 +119,32 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
     lastIdRef.current = last
   }, [messages])
 
+  const threadPage = (from: number) => supabase
+    .from('chat_threads')
+    .select('*, parents(first_name, last_name, email)')
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('id')
+    .range(from, from + THREAD_PAGE - 1)
+
   async function loadThreads() {
-    const { data } = await supabase
-      .from('chat_threads')
-      .select('*, parents(first_name, last_name, email)')
-      .order('last_message_at', { ascending: false, nullsFirst: false })
+    const { data } = await threadPage(0)
     setThreads(data || [])
+    setHasMoreThreads((data || []).length === THREAD_PAGE)
+  }
+
+  // The next page after what is on the list. A thread that moved up since
+  // (a new message) can come back again from the page below: kept once.
+  async function loadMoreThreads() {
+    if (loadingThreads) return
+    setLoadingThreads(true)
+    const { data, error } = await threadPage(threads.length)
+    setLoadingThreads(false)
+    if (error) return
+    setThreads(prev => {
+      const have = new Set(prev.map(th => th.id))
+      return [...prev, ...(data || []).filter(th => !have.has(th.id))]
+    })
+    setHasMoreThreads((data || []).length === THREAD_PAGE)
   }
 
   // The newest HISTORY_LIMIT, shown oldest first (found 2026-10-08). Read
@@ -261,6 +288,12 @@ export default function AdminMessagesClient({ adminId, adminName }: { adminId: s
               </div>
             </div>
           ))}
+          {hasMoreThreads && (
+            <button type="button" onClick={loadMoreThreads} disabled={loadingThreads}
+              style={{ margin: '12px auto 20px', fontSize: '12px', fontWeight: 700, color: GOLD, background: 'transparent', border: `1px solid ${GOLD}66`, borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', flexShrink: 0 }}>
+              {loadingThreads ? '...' : t('admin.messages.loadMoreThreads')}
+            </button>
+          )}
         </div>
 
         <div

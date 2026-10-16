@@ -14,6 +14,7 @@
 
 import { arrears, getWallet } from '@/lib/points-wallet'
 import { cancelLesson } from '@/lib/bookings/cancel'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 type Svc = any
 
@@ -79,28 +80,41 @@ export async function reclaimForArrears(
   }
   if (owedAtStart === 0) return empty
 
-  const { data: bookings } = await svc
+  // Paged and chunked, and a failed read throws (found 2026-10-15): these were
+  // single unpaged reads with every id in one .in() and no error check, so on
+  // a long-standing family a failed read found nothing to release and the
+  // family was told the whole amount was owed, with nothing logged. The
+  // webhook catches the throw and logs it.
+  const { data: bookings, error: bErr } = await allRows(() => svc
     .from('bookings')
     .select('id, student_id, class_session_id, lesson_group_id, points_charged, points_refunded, points_granted, status')
     .eq('parent_id', parentId)
     .eq('status', 'confirmed')
     .not('points_charged', 'is', null)
-  if (!bookings || bookings.length === 0) return empty
+    .order('id'))
+  if (bErr) throw new Error('reclaimForArrears: bookings not read: ' + (bErr.message || bErr))
+  if (bookings.length === 0) return empty
 
   // Two steps rather than a nested join: nested joins have been unreliable in
   // production here, and this one decides whether a lesson gets cancelled.
-  const sessionIds = [...new Set(bookings.map((b: any) => b.class_session_id).filter(Boolean))]
-  const { data: sessions } = await svc
+  const sessionIds = [...new Set(bookings.map((b: any) => b.class_session_id).filter(Boolean))] as string[]
+  const { data: sessions, error: sErr } = await allRowsIn(sessionIds, chunk => svc
     .from('class_sessions')
     .select('id, session_date, start_time, coach_id, course_type_id')
-    .in('id', sessionIds)
+    .in('id', chunk)
     .gt('session_date', todayLA())
+    .order('id'))
+  if (sErr) throw new Error('reclaimForArrears: sessions not read: ' + (sErr.message || sErr))
   const futureById = new Map((sessions || []).map((s: any) => [s.id, s]))
 
-  const { data: attended } = await svc
+  // Attendance only matters for the future lessons that could be released.
+  const futureBookingIds = bookings.filter(b => futureById.has(b.class_session_id)).map(b => b.id) as string[]
+  const { data: attended, error: aErr } = await allRowsIn(futureBookingIds, chunk => svc
     .from('attendance')
     .select('booking_id')
-    .in('booking_id', bookings.map((b: any) => b.id))
+    .in('booking_id', chunk)
+    .order('booking_id').order('student_id'))
+  if (aErr) throw new Error('reclaimForArrears: attendance not read: ' + (aErr.message || aErr))
   const checkedIn = new Set((attended || []).map((a: any) => a.booking_id))
 
   const ctIds = [...new Set((sessions || []).map((s: any) => s.course_type_id).filter(Boolean))]

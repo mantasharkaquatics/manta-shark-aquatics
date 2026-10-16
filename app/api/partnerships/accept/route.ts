@@ -3,11 +3,19 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
+import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
+
+/* Guessing codes (found 2026-10-15): any signed-in parent could try invite
+   codes as fast as they liked, and a hit links them to a stranger family and
+   shows them that family's children. Wrong guesses are now counted per family
+   and per network; a code that works gives its attempt back. */
+const MAX_FAILED_PER_PARENT_PER_HOUR = 10
+const MAX_FAILED_PER_IP_PER_HOUR = 20
 
 export async function POST(req: NextRequest) {
   const body = await readJson(req)
   if (!body) return badRequest()
-  const { invite_code } = body
+  const invite_code = typeof body.invite_code === 'string' ? body.invite_code.trim() : ''
   if (!invite_code) return NextResponse.json({ error: 'Missing invite_code' }, { status: 400 })
 
   const cookieStore = await cookies()
@@ -27,6 +35,16 @@ export async function POST(req: NextRequest) {
   const { data: parent } = await supabase
     .from('parents').select('id').eq('auth_user_id', user.id).single()
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
+
+  const slots = await takeSlots(supabase, [
+    { scope: 'partnership-accept-parent', key: keyHash('parent', parent.id), max: MAX_FAILED_PER_PARENT_PER_HOUR, windowMs: 60 * 60 * 1000 },
+    { scope: 'partnership-accept', key: ipHash(req), max: MAX_FAILED_PER_IP_PER_HOUR, windowMs: 60 * 60 * 1000 },
+  ])
+  if (slots.result === 'error')
+    return NextResponse.json({ error: 'Could not check the invite code. Please try again.' }, { status: 500 })
+  if (slots.result === 'limited')
+    return NextResponse.json({ error: 'Too many invite codes tried. Please try again in an hour.' }, { status: 429 })
+  const giveBack = async () => { for (const id of slots.ids) await releaseSlot(supabase, id) }
 
   const { data: partnership } = await supabase
     .from('parent_partnerships')
@@ -68,5 +86,6 @@ export async function POST(req: NextRequest) {
   // Someone else used the code first: to this parent it is no longer valid.
   if (!claimed || claimed.length === 0)
     return NextResponse.json({ error: 'Invite code is invalid or expired' }, { status: 409 })
+  await giveBack()
   return NextResponse.json({ success: true })
 }

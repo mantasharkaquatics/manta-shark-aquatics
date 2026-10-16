@@ -118,7 +118,11 @@ export async function POST(req: Request) {
       ? await sendEmail({
           type: 'applicant_verification_code',
           to: destination,
-          applicantName: applicant.legal_first_name,
+          // No name (found 2026-10-15): this address is not verified yet, so
+          // the name was typed by whoever entered it, and it went out in our
+          // email to an inbox that may not be theirs. Same rule as
+          // forgot-password; the template says "Hi there".
+          applicantName: undefined,
           code,
         })
         ? { ok: true as const }

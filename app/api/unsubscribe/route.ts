@@ -12,7 +12,18 @@ export const runtime = 'nodejs'
    - a mail app's own "Unsubscribe" button posts List-Unsubscribe=One-Click to
      the URL in the List-Unsubscribe header, with p and t in the query, and
      only needs a 200.
-   No login: the signed token is what proves the link came from our email. */
+   No login: the signed token is what proves the link came from our email.
+
+   A mail app that knows only the older List-Unsubscribe (RFC 2369) opens that
+   same URL with GET instead, and got a 405 (found 2026-10-15). GET sends it on
+   to the confirm page and changes nothing: mail scanners open links too, so
+   only the button there unsubscribes. */
+
+export async function GET(req: NextRequest) {
+  const p = req.nextUrl.searchParams.get('p') || ''
+  const t = req.nextUrl.searchParams.get('t') || ''
+  return NextResponse.redirect(new URL(`/unsubscribe?p=${encodeURIComponent(p)}&t=${encodeURIComponent(t)}`, req.url), 303)
+}
 
 export async function POST(req: NextRequest) {
   let p = req.nextUrl.searchParams.get('p') || ''

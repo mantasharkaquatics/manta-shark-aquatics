@@ -7,9 +7,10 @@ import { sendBirthdayCards } from '@/lib/birthday'
 export const runtime = 'nodejs'
 
 // Every day at 8:00 America/Los_Angeles (cron-job.org, Authorization: Bearer
-// CRON_SECRET): today's birthday cards (lib/birthday.ts). Safe to run again the
-// same day -- a card and its gift go out once per swimmer per year, and a run
-// that failed to email picks the email up again.
+// CRON_SECRET): today's birthday cards (lib/birthday.ts). Safe to run again --
+// a card and its gift go out once per swimmer per year. Each run also looks
+// back LOOKBACK_DAYS days, so a card whose email failed, or a day this job
+// missed, goes out on the next run.
 export async function GET(req: NextRequest) {
   const denied = requireCron(req)
   if (denied) return denied

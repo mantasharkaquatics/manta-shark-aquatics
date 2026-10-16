@@ -1,4 +1,4 @@
-import { activePartnershipId } from '@/lib/partnerships'
+import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/lib/partnerships'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireParent } from '@/lib/api-auth'
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
     const pid = await activePartnershipId(svc, parent.id, partner.parent_id)
     if (!pid) return NextResponse.json({ error: 'Partnership not found' }, { status: 403 })
     partner.partnership_id = pid
+    if (await openInvitesAtLimit(svc, parent.id))
+      return NextResponse.json({ error: OPEN_INVITES_ERROR }, { status: 429 })
     partnerStudent = ps
   }
   const students: any[] = student2 ? [student, student2] : [student]
