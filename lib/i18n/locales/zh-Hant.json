@@ -460,6 +460,7 @@
   "coach.login.locked": "這個網路的嘗試次數太多。請在 {time}後再試，或請櫃台解除 PIN 登入鎖定。",
   "coach.login.network": "連線出問題，請再試一次。",
   "coach.login.prompt": "輸入你的 8 位數 PIN",
+  "coach.login.signIn": "登入",
   "coach.login.time.hour": "1 小時",
   "coach.login.time.hours": "{n} 小時",
   "coach.login.time.minute": "1 分鐘",

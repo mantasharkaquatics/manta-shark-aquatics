@@ -111,10 +111,14 @@ export async function POST(req: NextRequest) {
       }
       if ('date_of_birth' in fields) {
         const d = fields.date_of_birth ? String(fields.date_of_birth).trim() : ''
-        if (d && !DATE_RE.test(d)) return NextResponse.json({ error: 'Birthday must be YYYY-MM-DD.', code: 'bad_birthday' }, { status: 400 })
-        if (d && d > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }))
+        // The column is NOT NULL (found 2026-10-15): a cleared birthday was
+        // written as null, refused by the database, and came back as a plain
+        // "save failed" that also lost the name change beside it.
+        if (!d) return NextResponse.json({ error: 'Birthday is required.', code: 'birthday_required' }, { status: 400 })
+        if (!DATE_RE.test(d)) return NextResponse.json({ error: 'Birthday must be YYYY-MM-DD.', code: 'bad_birthday' }, { status: 400 })
+        if (d > new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }))
           return NextResponse.json({ error: 'Birthday cannot be in the future.', code: 'future_birthday' }, { status: 400 })
-        patch.date_of_birth = d || null
+        patch.date_of_birth = d
       }
       if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
       const { error } = await svc.from('students').update(patch).eq('id', id)

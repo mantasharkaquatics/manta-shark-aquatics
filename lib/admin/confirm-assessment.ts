@@ -285,6 +285,14 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     reviewed_at: now,
   }).eq('id', recommendation_id)
   if (recErr) return fail(recErr.message, 500)
+  // No other recommendation for this swimmer stays pending (found
+  // 2026-10-15). A coach resending the assessment while this ran wrote a new
+  // one; left pending with no report, it sat in the level list, and approving
+  // it there moved the swimmer to that level at stage 1.
+  const { error: orphanErr } = await svc.from('level_recommendations')
+    .update({ status: 'rejected', reviewed_by: adminId, reviewed_at: now })
+    .eq('student_id', rec.student_id).eq('status', 'pending').neq('id', recommendation_id)
+  if (orphanErr) console.error('confirm-assessment: other pending recommendations not closed:', orphanErr.message)
 
   // 5. The report, last: this is what takes the card out of Reviews.
   const { error: histErr } = await svc.from('progress_history').update({

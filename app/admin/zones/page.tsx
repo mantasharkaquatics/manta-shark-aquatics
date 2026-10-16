@@ -222,9 +222,11 @@ export default function ZonesEditorPage() {
       })
       const data = await res.json()
       setSaving(false)
-      if (!res.ok) { setMsg({ ok: false, text: data.error || t('admin.zones.err.saveFailed') }); return }
+      if (!res.ok) { setMsg({ ok: false, text: data.code === 'empty_template' ? t('admin.zones.err.emptyTemplate') : data.error || t('admin.zones.err.saveFailed') }); return }
       setWeeklyRows(zones)
-      setDirty(false); setHasZones(zones.length > 0)
+      // Date overrides keep a coach on zones too, as the resolver counts them
+      // (found 2026-10-15: an empty weekly save showed the legacy banner).
+      setDirty(false); setHasZones(zones.length > 0 || ovDates.length > 0)
       const w = data.warnings || []
       // Group classes left on their old level band (found 2026-10-15).
       const bw: string[] = data.band_warnings || []

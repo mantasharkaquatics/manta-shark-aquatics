@@ -460,6 +460,7 @@
   "coach.login.locked": "Too many attempts from this network. Try again in {time}, or ask the front desk to unlock PIN sign-in.",
   "coach.login.network": "Connection error. Please try again.",
   "coach.login.prompt": "Enter your 8-digit PIN",
+  "coach.login.signIn": "Sign in",
   "coach.login.time.hour": "1 hour",
   "coach.login.time.hours": "{n} hours",
   "coach.login.time.minute": "1 minute",

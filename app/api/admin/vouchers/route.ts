@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
 import { addDaysStr, issueVoucher, VOUCHER_DAYS } from '@/lib/vouchers'
-import { allRows } from '@/lib/db-paging'
+import { allRows, allRowsIn } from '@/lib/db-paging'
 
 export const runtime = 'nodejs'
 
@@ -14,18 +14,30 @@ export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { svc } = auth
-  const { data: vs, error } = await svc.from('make_up_vouchers')
-    .select('id, parent_id, student_id, student2_id, course_slug, minutes, reason, status, expires_on, usable_from, extended_at, source_booking_id, used_booking_id, used_at, void_reason, note, created_at')
-    .order('created_at', { ascending: false }).limit(500)
+  /* Every active voucher, plus the newest 500 of the rest (found 2026-10-15).
+     One read of the newest 500 by created_at decided which vouchers the desk
+     could see, so an old voucher still in force -- a leave voucher for a
+     far-off lesson, a desk one with a late expiry -- dropped out of Active
+     and could not be voided while the family could still use it. */
+  const COLS = 'id, parent_id, student_id, student2_id, course_slug, minutes, reason, status, expires_on, usable_from, extended_at, source_booking_id, used_booking_id, used_at, void_reason, note, created_at'
+  const [activeRes, pastRes] = await Promise.all([
+    allRows(() => svc.from('make_up_vouchers').select(COLS).eq('status', 'active')
+      .order('created_at', { ascending: false }).order('id')),
+    svc.from('make_up_vouchers').select(COLS).neq('status', 'active')
+      .order('created_at', { ascending: false }).limit(500),
+  ])
+  const error = activeRes.error || pastRes.error
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  const rows = vs || []
-  const parentIds = [...new Set(rows.map((v: any) => v.parent_id))]
-  const studentIds = [...new Set(rows.flatMap((v: any) => [v.student_id, v.student2_id]).filter(Boolean))]
-  const bookingIds = [...new Set(rows.flatMap((v: any) => [v.source_booking_id, v.used_booking_id]).filter(Boolean))]
+  const rows = [...activeRes.data, ...(pastRes.data || [])]
+    .sort((x: any, y: any) => String(y.created_at).localeCompare(String(x.created_at)))
+  const parentIds = [...new Set(rows.map((v: any) => v.parent_id))] as string[]
+  const studentIds = [...new Set(rows.flatMap((v: any) => [v.student_id, v.student2_id]).filter(Boolean))] as string[]
+  const bookingIds = [...new Set(rows.flatMap((v: any) => [v.source_booking_id, v.used_booking_id]).filter(Boolean))] as string[]
+  // In chunks: with every active voucher the id lists have no fixed size.
   const [{ data: ps }, { data: ss }, { data: bs }, { data: families }] = await Promise.all([
-    parentIds.length ? svc.from('parents').select('id, first_name, last_name').in('id', parentIds) : Promise.resolve({ data: [] as any[] }),
-    studentIds.length ? svc.from('students').select('id, full_name').in('id', studentIds) : Promise.resolve({ data: [] as any[] }),
-    bookingIds.length ? svc.from('bookings').select('id, class_session_id').in('id', bookingIds) : Promise.resolve({ data: [] as any[] }),
+    allRowsIn(parentIds, ids => svc.from('parents').select('id, first_name, last_name').in('id', ids).order('id')),
+    allRowsIn(studentIds, ids => svc.from('students').select('id, full_name').in('id', ids).order('id')),
+    allRowsIn(bookingIds, ids => svc.from('bookings').select('id, class_session_id').in('id', ids).order('id')),
     // For the issue form: every family and their swimmers. Paged: one read
     // stopped at the API's 1,000-row cap, and families late in name order
     // could not be given a voucher (found 2026-10-08). id breaks name ties so
@@ -33,10 +45,8 @@ export async function GET() {
     allRows(() => svc.from('parents').select('id, first_name, last_name, students(id, full_name, current_level, is_active)').order('last_name').order('id'))
       .then(r => { if (r.error) console.error('vouchers families: read failed:', r.error.message || r.error); return r }),
   ])
-  const sessIds = [...new Set((bs || []).map((b: any) => b.class_session_id))]
-  const { data: sess } = sessIds.length
-    ? await svc.from('class_sessions').select('id, session_date, start_time').in('id', sessIds)
-    : { data: [] as any[] }
+  const sessIds = [...new Set((bs || []).map((b: any) => b.class_session_id))] as string[]
+  const { data: sess } = await allRowsIn(sessIds, ids => svc.from('class_sessions').select('id, session_date, start_time').in('id', ids).order('id'))
   const pName = new Map((ps || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
   const sName = new Map((ss || []).map((s: any) => [s.id, s.full_name]))
   const sessOf = new Map((sess || []).map((s: any) => [s.id, s]))

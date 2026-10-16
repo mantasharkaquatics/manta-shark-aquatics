@@ -63,6 +63,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
   // Notify / cancel used to swallow a failed response and just reload the list,
   // so the desk never saw why nothing happened (found 2026-10-04).
   const [actionError, setActionError] = useState<Record<string, string>>({})
+  const [deleteError, setDeleteError] = useState<Record<string, string>>({})
   const [confirmAction, setConfirmAction] = useState<{ kind: 'cancel' | 'delete'; id: string; count?: number } | null>(null)
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(dateTag(locale, 'en-US'), { weekday: 'short', month: 'long', day: 'numeric' })
@@ -167,15 +168,25 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
     setSubmitting(false)
   }
 
+  // A failed remove says so on the card (found 2026-10-15). It used to put
+  // the button back with no word, and a dropped connection left it stuck on
+  // "Removing…" until a reload.
   const handleDelete = async (id: string) => {
     setDeleting(id)
-    const res = await fetch('/api/admin/time-off', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    if (res.ok) setList(prev => prev.filter(row => row.id !== id))
-    setDeleting(null)
+    setDeleteError(prev => { const n = { ...prev }; delete n[id]; return n })
+    try {
+      const res = await fetch('/api/admin/time-off', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) setList(prev => prev.filter(row => row.id !== id))
+      else setDeleteError(prev => ({ ...prev, [id]: t('admin.timeOff.err.deleteFailed') }))
+    } catch {
+      setDeleteError(prev => ({ ...prev, [id]: t('admin.timeOff.err.deleteFailed') }))
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const inputCls = "w-full bg-[#0d1529] border border-[#1e3a6e] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#c9a84c] transition-colors"
@@ -255,6 +266,7 @@ export default function AdminTimeOffClient({ coaches, initialList, pastList, imp
             )}
           </div>
         </div>
+        {deleteError[item.id] && <p role="alert" className="px-5 pb-4 -mt-2 text-red-400 text-sm">{deleteError[item.id]}</p>}
         {isOpen && (
           <div className="border-t border-[#1e3a6e] p-5 space-y-3">
             {imp?.loading ? (

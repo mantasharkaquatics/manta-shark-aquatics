@@ -8,6 +8,7 @@ import { levelNameKey } from '@/lib/levels'
 import { STAGES } from '@/lib/levels'
 import { MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 import { isRealBooking } from './real-booking'
+import { getNowMinutesLA } from '@/lib/date'
 
 
 type Student = {
@@ -153,14 +154,18 @@ export default function CoachDashboardClient({
     setLoadingSkills(false)
   }
 
-  const hour = new Date().getHours()
+  // The LA hour, not the device's (found 2026-10-15): this renders first on
+  // the server, whose clock is UTC, so new Date().getHours() said "afternoon"
+  // there and "morning" on the iPad, and React threw the tree away to redo it.
+  const hour = Math.floor(getNowMinutesLA() / 60)
   const greetKey = hour < 12 ? 'coach.today.greetMorning'
     : hour < 17 ? 'coach.today.greetAfternoon' : 'coach.today.greetEvening'
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']">
+        {/* An hour boundary can still fall between server and iPad render. */}
+        <h1 className="text-2xl font-bold text-white font-['Playfair_Display']" suppressHydrationWarning>
           {t(greetKey, { name: coach.first_name })}
         </h1>
         <p className="text-gray-400 mt-1">

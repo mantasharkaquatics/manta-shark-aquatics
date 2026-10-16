@@ -45,6 +45,7 @@ const SEND_ERROR_KEYS: Record<string, string> = {
   'This report has already been approved.': 'coach.progress.err.approved',
   'This report was approved while you were sending it. Ask an admin to correct it.': 'coach.progress.err.approvedMeanwhile',
   'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.': 'coach.progress.err.scoresApprovedMeanwhile',
+  'An admin is confirming this report right now. Wait a minute, then check whether it still needs sending.': 'coach.progress.err.beingConfirmed',
 }
 
 // Vercel refuses a function request body over 4.5MB; the recording and the
@@ -160,6 +161,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     // A sent-back lesson from an earlier day sorts before today's.
     .sort((a, b) => String(a.sessionDate).localeCompare(String(b.sessionDate)) || a.start_time.localeCompare(b.start_time))
     .map(e => ({ ...e, sessionTime: `${formatTime12h(e.start_time)} - ${formatTime12h(e.end_time)}` }))
+  // Today's cards, without the sent-back ones from earlier days.
+  const todayEntries = sessionEntries.filter(e => e.sessionDate === today)
 
   /* Lessons, not swimmers, for the heading (found 2026-10-05). It counted the
      cards -- one per checked-in swimmer -- so a 1-on-4 read "4 lesson(s)
@@ -309,7 +312,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
           <p className="text-gray-400 text-sm mt-1">
             {/* Was the raw '2026-10-04' (found 2026-10-04); dates follow the
                 coach's language like the rest of the portal. */}
-            {new Date(today + 'T12:00:00').toLocaleDateString(dateTag(locale), { weekday: 'long', month: 'long', day: 'numeric' })} · {sessionEntries.length === 0 && scheduledToday > 0
+            {new Date(today + 'T12:00:00').toLocaleDateString(dateTag(locale), { weekday: 'long', month: 'long', day: 'numeric' })} · {todayEntries.length === 0 && scheduledToday > 0
               ? t('coach.progress.countScheduled', { n: scheduledToday })
               : t('coach.progress.countToday', { n: lessonCount })}
           </p>
@@ -320,8 +323,13 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       {/* This page only lists students with an attendance row, because an absent
           student needs no progress written. That made a day with lessons but no
           check-ins yet look identical to a day off -- so say which one it is. */}
-      {sessionEntries.length === 0 ? (
-        <div className="bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center">
+      {/* Judged on today's cards only (found 2026-10-15): one report sent back
+          from an earlier day made the list non-empty, so the heading read
+          "0 lessons today" and this hint vanished on a morning with five
+          lessons and nobody checked in yet. It now sits above any sent-back
+          cards. */}
+      {todayEntries.length === 0 && (
+        <div className={`bg-[#111d38] rounded-xl border border-[#1e3a6e] p-8 text-center${sessionEntries.length > 0 ? ' mb-3' : ''}`}>
           {scheduledToday > 0 ? (
             <>
               <p className="text-gray-300">{t('coach.progress.noCheckins')}</p>
@@ -334,7 +342,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
             <p className="text-gray-400">{t('coach.progress.noLessons')}</p>
           )}
         </div>
-      ) : (
+      )}
+      {sessionEntries.length > 0 && (
         <div className="space-y-3">
           {sessionEntries.map(s => {
             const lvl = s.current_level || ''

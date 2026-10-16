@@ -17,6 +17,13 @@ const NOT_REAL = `(${NOT_REAL_BOOKING_STATUSES.join(',')})`
 const APPROVED_MEANWHILE = 'This report was approved while you were sending it. Ask an admin to correct it.'
 // The note went through but the scores had been approved in between.
 const SCORES_APPROVED_MEANWHILE = 'The scores were approved while you were sending this report. Your note was saved for review; the scores were not changed.'
+/** An admin is confirming this report right now (found 2026-10-15). The
+ *  confirm holds a 90-second lease on the pending progress row
+ *  (lib/admin/confirm-assessment.ts, reviewed_at); a resend landing inside it
+ *  used to write a new level recommendation beside the one being confirmed,
+ *  which stayed pending with no report and could later move the swimmer. */
+const BEING_CONFIRMED = 'An admin is confirming this report right now. Wait a minute, then check whether it still needs sending.'
+const CONFIRM_LEASE_MS = 90_000
 
 import { FINAL_TAG_INSTRUCTION, finalText } from '@/lib/ai/final-text'
 
@@ -298,6 +305,22 @@ export async function POST(req: NextRequest) {
     console.error('lesson-note: polish failed, keeping raw transcript', err)
   }
 
+  // ---- 3a. Not while an admin is confirming it ----
+  // Step 0 ran before the slow transcription; look again now, just before
+  // anything is written. A pending row whose reviewed_at is recent is held by
+  // a confirm in progress (a sent-back row also has reviewed_at, but it is
+  // 'rejected', not pending).
+  if (existingHistory) {
+    const { data: fresh } = await svc.from('progress_history')
+      .select('status, reviewed_at').eq('id', existingHistory.id).maybeSingle()
+    const leased = fresh?.status === 'pending_review' && !!fresh.reviewed_at
+      && Date.now() - Date.parse(fresh.reviewed_at) < CONFIRM_LEASE_MS
+    if (fresh?.status === 'approved' || leased) {
+      await svc.storage.from('lesson-audio').remove([audioPath]).catch(() => {})
+      return NextResponse.json({ error: leased ? BEING_CONFIRMED : APPROVED_MEANWHILE }, { status: 409 })
+    }
+  }
+
   // ---- 3b. An assessment's level, pending beside the report ----
   // BEFORE the report is written. If a later step fails the coach is not
   // locked out (there is no report yet) and resending supersedes this one;
@@ -383,8 +406,12 @@ export async function POST(req: NextRequest) {
     status: 'pending_review',
   }
 
+  // Not over a row a confirm holds either (see 3a): the confirm would then
+  // approve these scores as the ones it was showing.
+  const leaseCutoff = new Date(Date.now() - CONFIRM_LEASE_MS).toISOString()
   const { data: historyWritten, error: historyError } = existingHistory
-    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id).neq('status', 'approved').select('id')
+    ? await svc.from('progress_history').update(historyRow).eq('id', existingHistory.id).neq('status', 'approved')
+      .or(`status.neq.pending_review,reviewed_at.is.null,reviewed_at.lt."${leaseCutoff}"`).select('id')
     : await svc.from('progress_history').insert(historyRow).select('id')
 
   if (historyError) {
@@ -392,6 +419,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not save the progress record' }, { status: 500 })
   }
   if (!historyWritten || historyWritten.length === 0) {
+    const { data: now2 } = await svc.from('progress_history').select('status').eq('id', existingHistory?.id ?? '').maybeSingle()
+    if (now2?.status === 'pending_review') return NextResponse.json({ error: BEING_CONFIRMED }, { status: 409 })
     // The scores were approved in between, after the note was rewritten: the
     // new note now waits in Reviews beside the approved scores. Keep the
     // recording (the note row points at it) and tell the coach.

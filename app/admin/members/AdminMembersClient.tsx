@@ -151,6 +151,12 @@ function MemberEditPanel({ parent }: { parent: any }) {
     for (const s of parent.students || []) o[s.id] = { name: s.full_name || '', dob: (s.date_of_birth || '').slice(0, 10) }
     return o
   })
+  // A swimmer added after this panel mounted has no entry above (found
+  // 2026-10-15): its boxes showed blank, and editing only its birthday stored
+  // { dob } with no name, so saving threw on name.trim() and did nothing.
+  // Unedited rows read the swimmer's own values instead.
+  const editOf = (s: Pick<Student, 'id' | 'full_name' | 'date_of_birth'>): { name: string; dob: string } =>
+    studentEdits[s.id] ?? { name: s.full_name || '', dob: (s.date_of_birth || '').slice(0, 10) }
 
   const post = async (body: any) => {
     const res = await fetch('/api/admin/members/contact-change', {
@@ -225,13 +231,13 @@ function MemberEditPanel({ parent }: { parent: any }) {
   const saveStudents = async () => {
     const changed = (parent.students || []).filter((s: any) => {
       const e = studentEdits[s.id]
-      return e && (e.name.trim() !== (s.full_name || '') || (e.dob || '') !== (s.date_of_birth || '').slice(0, 10))
+      return e && ((e.name ?? '').trim() !== (s.full_name || '') || (e.dob || '') !== (s.date_of_birth || '').slice(0, 10))
     })
     if (changed.length === 0) { flash(t('admin.members.noStudentChanges')); return }
     setBusy(true); setErr(null)
     const failed: string[] = []
     for (const s of changed) {
-      const e = studentEdits[s.id]
+      const e = editOf(s)
       const { ok, j } = await post({ action: 'direct_update', target: 'student', id: s.id, fields: { full_name: e.name, date_of_birth: e.dob } })
       if (!ok) { failed.push(`${e.name.trim() || s.full_name}: ${contactErr(j, 'admin.members.err.saveFailed')}`); continue }
       s.full_name = e.name.trim(); s.date_of_birth = e.dob || null
@@ -325,11 +331,11 @@ function MemberEditPanel({ parent }: { parent: any }) {
           <p className={label}>{t('admin.members.swimmers')}</p>
           {(parent.students || []).map((s: any) => (
             <div key={s.id} className="flex flex-wrap gap-2 items-center">
-              <input className={inputCls + ' max-w-[220px]'} value={studentEdits[s.id]?.name || ''}
-                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], name: e.target.value } }))} />
-              <input type="date" className={inputCls + ' max-w-[170px]'} value={studentEdits[s.id]?.dob || ''}
+              <input className={inputCls + ' max-w-[220px]'} value={editOf(s).name}
+                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...(p[s.id] ?? editOf(s)), name: e.target.value } }))} />
+              <input type="date" className={inputCls + ' max-w-[170px]'} value={editOf(s).dob}
                 max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
-                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...p[s.id], dob: e.target.value } }))} />
+                onChange={e => setStudentEdits(p => ({ ...p, [s.id]: { ...(p[s.id] ?? editOf(s)), dob: e.target.value } }))} />
             </div>
           ))}
           <button className={goldBtn} disabled={busy} onClick={saveStudents}>{t('admin.members.saveStudents')}</button>
@@ -730,11 +736,16 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
 
   async function toggleNewsletter(parentId: string, current: boolean) {
     const newVal = !current
-    await fetch('/api/admin/parents/newsletter', {
+    // The switch moves only once the server has saved it (found 2026-10-15).
+    // It used to flip whatever the answer was, so a failed unsubscribe looked
+    // done while the family kept getting the birthday marketing mail -- this
+    // switch is their consent (lib/birthday.ts).
+    const res = await fetch('/api/admin/parents/newsletter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent_id: parentId, newsletter_subscribed: newVal }),
-    })
+    }).catch(() => null)
+    if (!res?.ok) { setAlertMsg(t('admin.members.err.newsletter')); return }
     setParents(prev => prev.map(p => p.id === parentId ? { ...p, newsletter_subscribed: newVal } : p))
   }
 

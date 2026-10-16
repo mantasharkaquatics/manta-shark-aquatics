@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
             if (!got || got.length === 0)
               return NextResponse.json({
                 error: 'This payment has already been recorded, but its bonus points may not have gone in. Do not take payment again — add them with the button below.',
+                code: 'bonus_missing',
                 purchaseId: pid,
                 retryCredit: { purchaseId: pid, bonusPoints: bonusPoints, bonusNote: bonusNote },
               }, { status: 409 })
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
       if (had && had.length)
         return NextResponse.json({
           error: 'This payment has already been recorded, but its points may not have gone in. Do not take payment again — add them with the button below.',
+          code: 'points_missing',
           purchaseId: had[0].id,
           retryCredit: { purchaseId: had[0].id, bonusPoints, bonusNote },
         }, { status: 409 })
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
       if (recent && recent.length)
         return NextResponse.json({
           error: 'An identical payment for this family was recorded moments ago. If that was this sale, it is already done — check their points before taking payment again.',
+          code: 'duplicate_recent',
         }, { status: 409 })
     }
 
@@ -131,6 +134,7 @@ export async function POST(req: NextRequest) {
       // Nothing was written, so sending the same sale again is safe.
       return NextResponse.json({
         error: 'The payment was taken but the sale was not recorded. Do not take payment again — record it again with the button below.',
+        code: 'not_recorded',
         retryable: true,
       }, { status: 500 })
     }
@@ -141,6 +145,11 @@ export async function POST(req: NextRequest) {
     const retryCredit = { purchaseId: purchase.id, bonusPoints, bonusNote }
     let balance = 0
     let creditError: string | null = null
+    // A code and the numbers beside the English (found 2026-10-15), so the
+    // desk screen says it in the admin's language: these are the "do not take
+    // payment again" messages, the last ones to leave in English.
+    let creditCode: 'no_points' | 'bonus_not_added' | 'rate_points_not_added' | null = null
+    let creditPoints: { paid: number; extra: number } | null = null
     try {
       const res = await applyPoints(supabase, {
         parentId, reason: 'purchase', points: paidPoints,
@@ -154,6 +163,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       console.error('SDP points credit failed:', e)
       creditError = 'The payment was recorded but no points went in. Do not take payment again — add them with the button below.'
+      creditCode = 'no_points'
     }
     if (!creditError && bonusPoints > 0) {
       try {
@@ -167,6 +177,7 @@ export async function POST(req: NextRequest) {
       } catch (e: any) {
         console.error('SDP programme-rate grant failed:', e)
         creditError = `The payment was recorded and the ${paidPoints.toLocaleString('en-US')} purchased points are in, but the ${bonusPoints.toLocaleString('en-US')} programme-rate points were not added. Do not take payment again — add them with the button below.`
+        creditCode = 'rate_points_not_added'; creditPoints = { paid: paidPoints, extra: bonusPoints }
       }
     }
 
@@ -223,7 +234,7 @@ export async function POST(req: NextRequest) {
 
     if (creditError) {
       return NextResponse.json({
-        error: creditError, purchaseId: purchase.id, invoiceId: invoice?.id, retryCredit,
+        error: creditError, code: creditCode, points: creditPoints, purchaseId: purchase.id, invoiceId: invoice?.id, retryCredit,
       }, { status: 500 })
     }
 

@@ -308,3 +308,12 @@
 .skip-link:focus { transform: none; outline: 2px solid #2050a0; outline-offset: 2px; }
 /* The <main> a skip link lands on takes focus only so the next Tab starts there. */
 #main-content:focus { outline: none; }
+
+/* Student note actions (components/StudentNotesPanel.tsx, on the booking and
+   Members pages): pin, edit and delete show on hover where there is hover, and
+   always on touch screens, where they used to be invisible though tappable
+   (found 2026-10-15). Keyboard focus and an open "Delete?" prompt show them too. */
+@media (hover: hover) {
+  .note-actions { opacity: 0; transition: opacity 150ms; }
+  .group:hover .note-actions, .note-actions:focus-within, .note-actions[data-open] { opacity: 1; }
+}

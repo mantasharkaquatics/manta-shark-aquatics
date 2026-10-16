@@ -19,7 +19,7 @@ type View = {
 }
 
 const INTL: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' }
-const REASON: Record<string, string> = { leave: 'admin.members.fv.reason.leave', grace: 'admin.members.fv.reason.grace', admin: 'admin.members.fv.reason.admin', end_of_term: 'admin.members.fv.reason.end_of_term' }
+const REASON: Record<string, string> = { leave: 'admin.members.fv.reason.leave', grace: 'admin.members.fv.reason.grace', admin: 'admin.members.fv.reason.admin', end_of_term: 'admin.members.fv.reason.end_of_term', moved: 'admin.members.fv.reason.moved' } // moved: found 2026-10-15, showed raw 'moved'
 
 /**
  * A family as they see their own home page: the swimmers' cards, points,

@@ -17,12 +17,14 @@ const DUPLICATE_WINDOW_MS = 90_000
 const IN_FLIGHT_MS = 90_000
 const STILL_RECORDING = {
   error: 'This payment is still being recorded. Do not take payment again — wait a minute, then record it again with the button below.',
+  code: 'still_recording',
   retryable: true,
 }
 
 // Nothing was written, so sending the same sale again is safe.
 const NOT_RECORDED = {
   error: 'The payment was taken but the sale was not recorded. Do not take payment again — record it again with the button below.',
+  code: 'not_recorded',
   retryable: true,
 }
 
@@ -104,6 +106,10 @@ export async function POST(req: NextRequest) {
           error: canOverride
             ? `The card was charged, but this sale needs confirming first: ${sale.error} Do not charge again. Record it with the button below to confirm the override.`
             : `The card was charged, but this sale cannot be recorded: ${sale.error} Do not charge again. Refund the payment from the Stripe dashboard.`,
+          // The reason stays the check's own English; the instruction around
+          // it is the screen's (found 2026-10-15).
+          code: canOverride ? 'charged_needs_override' : 'charged_refused',
+          reason: sale.error,
           ...(sale.extra || {}),
           retryable: canOverride,
           retryWithOverride: canOverride,
@@ -123,6 +129,7 @@ export async function POST(req: NextRequest) {
       if (recent && recent.length)
         return NextResponse.json({
           error: 'An identical team payment for this swimmer was recorded moments ago. If that was this sale, it is already done — check the membership before taking payment again.',
+          code: 'duplicate_recent_team',
         }, { status: 409 })
     }
     const overrideNote = reasons.length > 0

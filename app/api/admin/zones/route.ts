@@ -198,6 +198,26 @@ export async function PUT(req: NextRequest) {
   const locErr = checkLocations(zones, locations)
   if (locErr) return NextResponse.json({ error: locErr }, { status: 400 })
 
+  /* An empty template is refused when it would leave the coach with no zone
+     rows at all (found 2026-10-15). Zero rows is how a coach is marked as
+     still on the legacy hours table (lib/zones.ts), so erasing every block
+     did not close the coach -- it put their old coach_availability hours back
+     on sale, for every course type, under a page that says unpainted time is
+     closed. Leave goes through Time off; date overrides still count as rows. */
+  if (zones.length === 0) {
+    const { count: dateRows, error: cntErr } = await svc
+      .from('coach_availability_zones')
+      .select('id', { count: 'exact', head: true })
+      .eq('coach_id', coach_id).eq('kind', 'date')
+    if (cntErr) return NextResponse.json({ error: cntErr.message }, { status: 500 })
+    if (!dateRows) {
+      return NextResponse.json({
+        error: 'An empty template would put this coach back on the legacy hours. Use Time off to close the coach instead.',
+        code: 'empty_template',
+      }, { status: 400 })
+    }
+  }
+
   const { error: delErr } = await svc
     .from('coach_availability_zones').delete().eq('coach_id', coach_id).eq('kind', 'weekly')
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })

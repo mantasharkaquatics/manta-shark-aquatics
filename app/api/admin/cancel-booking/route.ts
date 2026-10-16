@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
 
   const cols = 'id, status, class_session_id, points_charged, points_refunded, points_granted, points_granted_expires_at, parent_id, student_id, lesson_group_id, is_trial, fixed_class_id, voucher_id, stripe_session_id'
   const { data: primary } = await svc.from('bookings').select(cols).eq('id', bookingId).single()
-  if (!primary) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
-  if (primary.status === 'cancelled') return NextResponse.json({ error: 'This booking is already cancelled.' }, { status: 409 })
+  if (!primary) return NextResponse.json({ error: 'Booking not found', code: 'not_found' }, { status: 404 })
+  if (primary.status === 'cancelled') return NextResponse.json({ error: 'This booking is already cancelled.', code: 'already_cancelled' }, { status: 409 })
   const { data: s1 } = await svc.from('class_sessions').select('course_types(slug)').eq('id', primary.class_session_id).single()
   const ct1: any = Array.isArray((s1 as any)?.course_types) ? (s1 as any).course_types[0] : (s1 as any)?.course_types
   const slug: string = ct1?.slug || ''
@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
     // A Swim Assessment is not a lesson the family can make up: turning it into
     // a voucher handed out a free lesson (found 2026-10-04).
     if (primary.is_trial)
-      return NextResponse.json({ error: 'A Swim Assessment cannot be turned into a make-up voucher. Refund it or keep the points instead.' }, { status: 400 })
+      return NextResponse.json({ error: 'A Swim Assessment cannot be turned into a make-up voucher. Refund it or keep the points instead.', code: 'trial_no_voucher' }, { status: 400 })
     if (!['1on1', '1on2', '1on4'].includes(slug))
-      return NextResponse.json({ error: 'A make-up voucher from here is for 1-on-1, 1-on-2 and 1-on-4 lessons. Refund it or keep the points instead.' }, { status: 400 })
+      return NextResponse.json({ error: 'A make-up voucher from here is for 1-on-1, 1-on-2 and 1-on-4 lessons. Refund it or keep the points instead.', code: 'course_no_voucher' }, { status: 400 })
   }
 
   let rows: any[] = [primary]
@@ -122,19 +122,19 @@ export async function POST(req: NextRequest) {
   const ended = (sessions || []).some((s: any) => s.session_date < today || (s.session_date === today && s.end_time &&
     (() => { const [h, m] = String(s.end_time).slice(0, 5).split(':').map(Number); return h * 60 + m <= nowMin })()))
   if (ended)
-    return NextResponse.json({ error: 'This lesson has already taken place and cannot be cancelled. To compensate the family, grant points from the Members page.' }, { status: 409 })
+    return NextResponse.json({ error: 'This lesson has already taken place and cannot be cancelled. To compensate the family, grant points from the Members page.', code: 'lesson_past' }, { status: 409 })
   const { data: attended } = await svc.from('attendance').select('booking_id').in('booking_id', rows.map(r => r.id))
   if ((attended || []).length > 0)
-    return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled.' }, { status: 409 })
+    return NextResponse.json({ error: 'This swimmer has already checked in, so the lesson counts as delivered and cannot be cancelled.', code: 'checked_in' }, { status: 409 })
 
   // One 1-on-2 voucher carries both children of ONE family. Checked before
   // anything is cancelled, so a refusal leaves the lesson as it was.
   const pairKids = [...new Set(rows.map(r => r.student_id).filter(Boolean))] as string[]
   if (mode === 'voucher' && isPair) {
     if (new Set(rows.map(r => r.parent_id)).size > 1)
-      return NextResponse.json({ error: 'This 1-on-2 is shared by two families, so it cannot become one make-up voucher. Refund it instead (both families get their points back), or keep the points.' }, { status: 400 })
+      return NextResponse.json({ error: 'This 1-on-2 is shared by two families, so it cannot become one make-up voucher. Refund it instead (both families get their points back), or keep the points.', code: 'pair_two_families' }, { status: 400 })
     if (pairKids.length < 2)
-      return NextResponse.json({ error: 'Only one swimmer is booked in this 1-on-2, and a 1-on-2 make-up voucher needs two. Refund it or keep the points instead.' }, { status: 400 })
+      return NextResponse.json({ error: 'Only one swimmer is booked in this 1-on-2, and a 1-on-2 make-up voucher needs two. Refund it or keep the points instead.', code: 'pair_one_swimmer' }, { status: 400 })
   }
 
   // An assessment awaiting payment: close the checkout first (see
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     if (r.status !== 'pending_payment' || !r.is_trial) continue
     const res = await closeTrialCheckout(svc, stripe, r.stripe_session_id)
     if (res === 'unknown')
-      return NextResponse.json({ error: 'Could not close the Swim Assessment payment page in Stripe, so nothing was cancelled. Try again in a minute.' }, { status: 502 })
+      return NextResponse.json({ error: 'Could not close the Swim Assessment payment page in Stripe, so nothing was cancelled. Try again in a minute.', code: 'stripe_close_failed' }, { status: 502 })
     if (res === 'paid') r.status = 'confirmed'
   }
   const wasPaidAssessment = rows.some(r => r.is_trial && r.status === 'confirmed')
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (cancelled.length === 0)
-    return NextResponse.json({ error: 'This booking changed while you were looking at it. Refresh and try again.' }, { status: 409 })
+    return NextResponse.json({ error: 'This booking changed while you were looking at it. Refresh and try again.', code: 'changed' }, { status: 409 })
 
   // A Swim Assessment whose payment was refunded in full or charged back is
   // not owed once it is off the calendar: no "your payment is kept" email,
@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
     })
     if (!r.voucher) {
       console.error('admin cancel: voucher not issued', r)
-      return NextResponse.json({ error: 'The lesson was cancelled but the make-up voucher could not be issued. Issue one from the Make-up vouchers page.' }, { status: 500 })
+      return NextResponse.json({ error: 'The lesson was cancelled but the make-up voucher could not be issued. Issue one from the Make-up vouchers page.', code: 'voucher_not_issued' }, { status: 500 })
     }
     voucherExpires = r.voucher.expires_on
   }

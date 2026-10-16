@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUser } from '@/lib/api-auth'
+// The school's contact address (found 2026-10-15): receipts printed an old
+// Gmail address, outside the info@ group every email replies to.
+import { CONTACT_EMAIL } from '@/lib/site-config'
 
 // Every value below comes from the database, and several are typed by people
 // (names, item names, notes). Interpolated raw, a name like <img onerror=...>
@@ -103,7 +106,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="brand-sub">Swim School</div>
       <div class="brand-info">
         382 N Lemon Ave STE 821, Walnut, CA 91789<br>
-        (909) 323-9573 &middot; mantasharkaquatics@gmail.com
+        (909) 323-9573 &middot; ${esc(CONTACT_EMAIL)}
       </div>
     </div>
     <div class="invoice-meta">

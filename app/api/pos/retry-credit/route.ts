@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
     console.error('POS retry-credit error:', err)
     return NextResponse.json({
       error: 'The points still did not go in. Nothing was charged again — wait a minute and press the button again.',
+      code: 'retry_failed',
     }, { status: 500 })
   }
 }

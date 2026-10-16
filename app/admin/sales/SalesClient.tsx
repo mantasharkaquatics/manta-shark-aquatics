@@ -157,7 +157,16 @@ export default function SalesClient({ invoices, parentMap }: { invoices: any[], 
         inv.issued_at ? `${fDate(inv.issued_at, 'en')} ${fTime(inv.issued_at)}` : '—',
       ])
     }
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    // Each cell escaped (found 2026-10-15). Names are stored as typed, so a
+    // `"` in one closed its field early and shifted the rest of the row, and a
+    // name starting with = + - or @ opened as a formula in Excel or Sheets.
+    // Inner quotes are doubled and such a value gets a leading apostrophe.
+    const cell = (v: unknown) => {
+      let s = String(v ?? '')
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+      return '"' + s.replace(/"/g, '""') + '"'
+    }
+    const csv = rows.map(r => r.map(cell).join(',')).join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url

@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
   if (!student_id) return NextResponse.json({ error: 'Missing student_id' }, { status: 400 })
 
   const r = await checkInStudent(auth.svc, student_id, check_in_method === 'qr_code' ? 'qr' : 'manual')
-  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
+  // The code too (found 2026-10-15): the desk screen words it in the admin's
+  // language; `error` is English.
+  if (!r.ok) return NextResponse.json({ error: r.error, code: r.code }, { status: r.status })
 
   const { ok: _ok, ...rest } = r
   return NextResponse.json({ success: true, ...rest })

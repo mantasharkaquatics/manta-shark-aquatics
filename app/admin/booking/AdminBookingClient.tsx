@@ -4,6 +4,7 @@ import { zoneFill, bandRange } from '@/lib/zone-colors'
 
 import { formatTime12h, daySlots, getTodayLA } from '@/lib/date'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
+import { CANCEL_ERROR_KEYS } from '@/lib/admin/desk-errors'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -1958,7 +1959,9 @@ function DetailModal({ session, loc, coaches, students, onClose, supabase, onRef
         body: JSON.stringify({ booking_id: bookingId, mode }),
       })
       const data = await res.json().catch(() => ({} as any))
-      if (!res.ok) { setOneMsg(data.error || t('admin.booking.err.cancelOneFailed')); return }
+      // In the admin's language (found 2026-10-15); an unknown code keeps the
+      // route's English, which says what went wrong.
+      if (!res.ok) { const key = CANCEL_ERROR_KEYS[String(data.code || '')]; setOneMsg(key ? t(key) : data.error || t('admin.booking.err.cancelOneFailed')); return }
       setOneCancel(null)
       setOneMsg(mode === 'refund'
         ? t('admin.booking.one.doneRefund', { n: data.pointsRefunded || 0 })
@@ -2121,11 +2124,13 @@ function DetailModal({ session, loc, coaches, students, onClose, supabase, onRef
               {addQuery.trim().length >= 1 && (
                 <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
                   {(() => {
-                    const bookedNames = new Set(bookings.map((b: any) => { const st = Array.isArray(b.students) ? b.students[0] : b.students; return st?.full_name }))
+                    // By id, not name (found 2026-10-15): another family's
+                    // swimmer with the same full name could not be added.
+                    const bookedIds = new Set(bookings.map((b: any) => { const st = Array.isArray(b.students) ? b.students[0] : b.students; return b.student_id || st?.id }).filter(Boolean))
                     const q = addQuery.toLowerCase()
                     const matches = students.filter((s: any) => {
                       const par = Array.isArray(s.parents) ? s.parents[0] : s.parents
-                      return !bookedNames.has(s.full_name) && (s.full_name.toLowerCase().includes(q) || ((par?.first_name + ' ' + par?.last_name).toLowerCase().includes(q)))
+                      return !bookedIds.has(s.id) && (s.full_name.toLowerCase().includes(q) || ((par?.first_name + ' ' + par?.last_name).toLowerCase().includes(q)))
                     }).slice(0, 6)
                     if (matches.length === 0) return <p className="text-xs text-white/30 italic">{t('admin.booking.noMatch')}</p>
                     return matches.map((s: any) => {

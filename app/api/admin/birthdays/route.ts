@@ -60,8 +60,14 @@ export async function POST(req: NextRequest) {
   const today = getTodayLA()
   const { data: st } = await auth.svc.from('students').select('date_of_birth').eq('id', studentId).maybeSingle()
   if (!st?.date_of_birth) return NextResponse.json({ error: 'Swimmer not found' }, { status: 404 })
-  // The swimmer as they will be on their next birthday this year.
-  const day = birthdayIn(Number(today.slice(0, 4)), String(st.date_of_birth))
+  // The swimmer as they are on the birthday the list showed (found
+  // 2026-10-15). It always used this year, so a card tested from January of
+  // next year said 7 where the list said "turns 8", and a baby born this year
+  // -- in next year's list as "turns 1" -- was not found at all. The row's
+  // date gives the year; without one it is this year, as before.
+  const shown = typeof body?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? Number(body.date.slice(0, 4)) : NaN
+  const year = Number.isInteger(shown) && shown >= 1900 && shown <= 2200 ? shown : Number(today.slice(0, 4))
+  const day = birthdayIn(year, String(st.date_of_birth))
   const list = await birthdaysBetween(auth.svc, day, day, today)
   const sw = list.find(s => s.studentId === studentId)
   if (!sw) return NextResponse.json({ error: 'Swimmer not found' }, { status: 404 })

@@ -21,6 +21,10 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
   const [editDraft, setEditDraft] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // A failed add, edit, pin or delete used to look like a click that did
+  // nothing (found 2026-10-15). One line under the composer says so.
+  const [err, setErr] = useState('')
+  const failed = () => setErr(t('admin.notes.err.saveFailed'))
 
   const load = useCallback(async () => {
     try {
@@ -40,39 +44,39 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
   async function addNote() {
     const content = draft.trim()
     if (!content || busy) return
-    setBusy(true)
+    setBusy(true); setErr('')
     try {
       const res = await fetch('/api/admin/student-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: studentId, content }) })
-      if (res.ok) { setDraft(''); setComposing(false); await load() }
-    } finally { setBusy(false) }
+      if (res.ok) { setDraft(''); setComposing(false); await load() } else failed()
+    } catch { failed() } finally { setBusy(false) }
   }
 
   async function saveNote(noteId: string) {
     const content = editDraft.trim()
     if (!content || busy) return
-    setBusy(true)
+    setBusy(true); setErr('')
     try {
       const res = await fetch('/api/admin/student-notes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId, content }) })
-      if (res.ok) { setEditingId(null); await load() }
-    } finally { setBusy(false) }
+      if (res.ok) { setEditingId(null); await load() } else failed()
+    } catch { failed() } finally { setBusy(false) }
   }
 
   async function togglePin(noteId: string, pinned: boolean) {
     if (busy) return
-    setBusy(true)
+    setBusy(true); setErr('')
     try {
       const res = await fetch('/api/admin/student-notes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId, pinned: !pinned }) })
-      if (res.ok) await load()
-    } finally { setBusy(false) }
+      if (res.ok) await load(); else failed()
+    } catch { failed() } finally { setBusy(false) }
   }
 
   async function deleteNote(noteId: string) {
     if (busy) return
-    setBusy(true)
+    setBusy(true); setErr('')
     try {
       const res = await fetch('/api/admin/student-notes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: noteId }) })
-      if (res.ok) { setDeletingId(null); await load() }
-    } finally { setBusy(false) }
+      if (res.ok) { setDeletingId(null); await load() } else failed()
+    } catch { failed() } finally { setBusy(false) }
   }
 
   const count = notes?.length ?? 0
@@ -89,7 +93,8 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
         <div className={collapsible ? 'mt-2' : ''}>
           {composing ? (
             <div className="mb-2 bg-[#0d1529] border border-[#c9a84c]/40 rounded-lg p-3">
-              <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} autoFocus
+              {/* The route takes 2000 characters at most. */}
+              <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} autoFocus maxLength={2000}
                 onBlur={() => { if (!draft.trim()) { setComposing(false); setDraft('') } }}
                 placeholder={t('admin.notes.placeholder')}
                 className="w-full bg-transparent text-sm text-white placeholder-gray-600 resize-none focus:outline-none" />
@@ -104,6 +109,7 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
             <button onClick={() => { setComposing(true); setDraft('') }}
               className="mb-2 text-sm text-[#c9a84c] hover:text-[#b8963e] font-semibold transition-colors">{t('admin.notes.add')}</button>
           )}
+          {err && <p role="alert" className="text-red-300 text-xs mb-2">{err}</p>}
           {notes === null ? (
             <p className="text-gray-500 text-xs py-1">{t('admin.notes.loading')}</p>
           ) : notes.length === 0 ? (
@@ -115,7 +121,7 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
                   <div className="flex-1 min-w-0">
                     {editingId === n.id ? (
                       <div className="bg-[#111d38] border border-[#c9a84c]/40 rounded-lg p-3">
-                        <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={2} autoFocus
+                        <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={2} autoFocus maxLength={2000}
                           className="w-full bg-transparent text-sm text-white resize-none focus:outline-none" />
                         <div className="flex items-center gap-3 mt-2">
                           <button onClick={() => saveNote(n.id)} disabled={busy || !editDraft.trim()}
@@ -132,7 +138,11 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
                     )}
                   </div>
                   {editingId !== n.id && (
-                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    /* Hidden until hover only where there is hover (found
+                       2026-10-15): on an iPad these buttons, and the delete
+                       prompt inside them, were never visible. .note-actions
+                       in app/globals.css; data-open keeps the prompt shown. */
+                    <div className="note-actions flex items-center gap-1 flex-shrink-0" data-open={deletingId === n.id ? '' : undefined}>
                       {deletingId === n.id ? (
                         <>
                           <span className="text-gray-400 text-xs">{t('admin.notes.deleteQ')}</span>

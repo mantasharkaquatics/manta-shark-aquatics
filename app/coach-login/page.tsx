@@ -87,7 +87,7 @@ export default function CoachLoginPage() {
 
   async function submitPin(digits: string[]) {
     const code = digits.join('')
-    if (code.length !== 8 || locked) return
+    if (code.length !== 8 || locked || loading) return
     setLoading(true)
     setError('')
     try {
@@ -140,17 +140,43 @@ export default function CoachLoginPage() {
     }
   }
 
+  /* Sends as soon as every box holds a digit, whichever box was typed last
+     (found 2026-10-15). It used to send only on a change in box 8, so a coach
+     who went back to fix digit 3 ended with eight full boxes and nothing
+     happening -- the boxes are password fields, so they could not even see
+     why. A pasted or autofilled PIN is spread across the boxes from the one it
+     landed in (maxLength={1} had cut it to its first digit). */
+  function fillFrom(i: number, digits: string) {
+    const next = [...pin]
+    let at = i
+    for (const d of digits) { if (at > 7) break; next[at++] = d }
+    setPin(next)
+    if (next.every(Boolean)) { submitPin(next); return }
+    inputs.current[Math.min(at, 7)]?.focus()
+  }
+
   function handleChange(i: number, val: string) {
+    if (val.length > 1) {
+      const digits = val.replace(/\D/g, '').slice(0, 8)
+      if (digits) fillFrom(i, digits)
+      return
+    }
     if (!/^[0-9]?$/.test(val)) return
     const next = [...pin]; next[i] = val; setPin(next)
+    if (val && next.every(Boolean)) { submitPin(next); return }
     if (val && i < 7) {
       inputs.current[i + 1]?.focus()
     }
-    if (val && i === 7) {
-      const full = [...pin]; full[7] = val
-      submitPin(full)
-    }
   }
+
+  function handlePaste(i: number, e: React.ClipboardEvent<HTMLInputElement>) {
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 8)
+    if (!digits) return
+    e.preventDefault()
+    fillFrom(i, digits)
+  }
+
+  const complete = pin.every(Boolean)
 
   return (
     <div className="min-h-screen bg-[#0d1529] flex flex-col items-center justify-center px-4 sm:px-6">
@@ -179,6 +205,7 @@ export default function CoachLoginPage() {
               value={digit}
               onChange={e => handleChange(i, e.target.value)}
               onKeyDown={e => handleKey(i, e)}
+              onPaste={e => handlePaste(i, e)}
               autoFocus={i === 0}
               disabled={locked}
               className="flex-1 min-w-0 max-w-10 h-12 text-center text-xl font-bold bg-[#111d38] border border-[#1e3a6e] rounded-lg text-white focus:outline-none focus:border-[#c9a84c] transition-colors disabled:opacity-40"
@@ -198,6 +225,20 @@ export default function CoachLoginPage() {
               className="min-h-11 px-5 rounded-lg border border-[#c9a84c]/60 text-[#c9a84c] text-sm font-semibold hover:bg-[#c9a84c]/10"
             >
               {t('coach.login.tryAgain')}
+            </button>
+          </div>
+        )}
+        {/* A visible way to send (found 2026-10-15): there was none, so a PIN
+            that did not send by itself left the iPad looking frozen. */}
+        {!locked && (
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={() => submitPin(pin)}
+              disabled={!complete || loading}
+              className="min-h-11 px-6 rounded-lg bg-[#c9a84c] text-[#0d1529] text-sm font-semibold disabled:opacity-40"
+            >
+              {t('coach.login.signIn')}
             </button>
           </div>
         )}

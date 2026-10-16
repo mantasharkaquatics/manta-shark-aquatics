@@ -43,7 +43,7 @@ export default function BirthdaysClient() {
 
   async function test(it: Item) {
     setBusy(it.studentId); setNotice(null); setErr(null)
-    const res = await fetch('/api/admin/birthdays', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: it.studentId }) }).catch(() => null)
+    const res = await fetch('/api/admin/birthdays', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: it.studentId, date: it.date }) }).catch(() => null)
     const j = res ? await res.json().catch(() => ({})) : {}
     setBusy(null)
     if (res?.ok) setNotice(t('admin.bday.testSent', { email: j.to || '' }))

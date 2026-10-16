@@ -5,7 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { getEffectiveZones, zoneTypeForSlug, groupBandsFor } from '@/lib/zones'
 import { priceLesson } from '@/lib/points'
-import { applyPoints, InsufficientPoints, walletSummary } from '@/lib/points-wallet'
+import { applyPoints, InsufficientPoints, WalletInArrears, walletSummary } from '@/lib/points-wallet'
 import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { activePartnershipId } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
@@ -464,6 +464,11 @@ export async function POST(req: NextRequest) {
         grantLeft.set(c.parentId, { left: paid.grantedTaken, expires: paid.grantedExpiresAt })
       } catch (e: any) {
         await rollback('the other side of the booking could not pay')
+        // A family owing money from a returned payment is refused every spend;
+        // this used to fall through to the generic 500, so the desk never
+        // learned why (found 2026-10-15). Same code as /api/admin/points.
+        if (e instanceof WalletInArrears)
+          return NextResponse.json({ error: `${c.label} owes ${e.owed} points from a returned payment; nothing can be booked until it is settled.`, code: 'in_arrears', owed: e.owed }, { status: 409 })
         if (e instanceof InsufficientPoints)
           return NextResponse.json({ error: `${c.label} needs ${e.needed} points and has ${e.available}.` }, { status: 409 })
         console.error('points charge failed:', e)

@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'This payment has already been recorded.', alreadyRecorded: true }, { status: 409 })
         return NextResponse.json({
           error: 'The payment was recorded but the assessment credit was not created. Do not take payment again — ask the owner to add the credit.',
+          code: 'trial_credit_missing',
           purchaseId: seen[0].id,
         }, { status: 409 })
       }
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
         ])
         if ((credits || []).length === 0 && (live || []).length === 0) {
           if (Date.now() - Date.parse(st.trial_used_at) < ORPHAN_AFTER_MS)
-            return NextResponse.json({ error: 'This sale may still be being recorded. Wait a minute, then record it again. Do not take payment again.', retryable: true }, { status: 409 })
+            return NextResponse.json({ error: 'This sale may still be being recorded. Wait a minute, then record it again. Do not take payment again.', code: 'still_recording', retryable: true }, { status: 409 })
           await supabase.from('students').update({ trial_used_at: null }).eq('id', studentId).eq('trial_used_at', st.trial_used_at)
         }
       }
@@ -101,7 +102,12 @@ export async function POST(req: NextRequest) {
     // checks the terminal PaymentIntent was made under (lib/pos/sale-checks),
     // including that the swimmer belongs to this family.
     const sale = await checkTrialSale(supabase, { parentId, studentId })
-    if (!sale.ok) return NextResponse.json({ error: paymentIntentId ? chargedRefusal(sale.error) : sale.error }, { status: sale.status })
+    // With a code for the desk screen (found 2026-10-15); the reason stays
+    // the check's own English.
+    const refusal = (why: string) => paymentIntentId
+      ? { error: chargedRefusal(why), code: 'charged_refused', reason: why.replace(/\.?$/, '.') }
+      : { error: why }
+    if (!sale.ok) return NextResponse.json(refusal(sale.error), { status: sale.status })
 
     const notRecorded = 'The payment was taken but the Swim Assessment was not recorded. Do not take payment again — record it again with the button below.'
 
@@ -113,7 +119,7 @@ export async function POST(req: NextRequest) {
       .eq('id', studentId).is('trial_used_at', null).select('id')
     if (claimErr) {
       console.error('POS trial claim error:', claimErr)
-      return NextResponse.json({ error: notRecorded, retryable: true }, { status: 500 })
+      return NextResponse.json({ error: notRecorded, code: 'trial_not_recorded', retryable: true }, { status: 500 })
     }
     if (!claimed || claimed.length === 0) {
       // Two "record again" presses at once: the other one may have just
@@ -121,10 +127,10 @@ export async function POST(req: NextRequest) {
       if (paymentIntentId) {
         const { data: done } = await supabase.from('purchases').select('id').eq('stripe_payment_intent_id', paymentIntentId).limit(1)
         if (done && done.length)
-          return NextResponse.json({ error: 'This payment is still being recorded. Do not take payment again — wait a minute, then record it again with the button below.', retryable: true }, { status: 409 })
+          return NextResponse.json({ error: 'This payment is still being recorded. Do not take payment again — wait a minute, then record it again with the button below.', code: 'still_recording', retryable: true }, { status: 409 })
       }
       const used = 'This student has already used their Swim Assessment.'
-      return NextResponse.json({ error: paymentIntentId ? chargedRefusal(used) : used }, { status: 409 })
+      return NextResponse.json(paymentIntentId ? refusal(used) : { error: used, code: 'trial_used' }, { status: 409 })
     }
     // Gives the claim back -- only if it is still this request's.
     const releaseClaim = () => supabase.from('students').update({ trial_used_at: null })
@@ -145,7 +151,7 @@ export async function POST(req: NextRequest) {
     if (purchaseErr || !purchase) {
       console.error('POS trial purchase error:', purchaseErr)
       await releaseClaim()
-      return NextResponse.json({ error: notRecorded, retryable: true }, { status: 500 })
+      return NextResponse.json({ error: notRecorded, code: 'trial_not_recorded', retryable: true }, { status: 500 })
     }
 
     // Create the assessment credit — visible on parent dashboard, consumed when booked
@@ -173,11 +179,12 @@ export async function POST(req: NextRequest) {
         // is what has to be added by hand.
         return NextResponse.json({
           error: 'The payment was recorded but the assessment credit was not created. Do not take payment again — ask the owner to add the credit.',
+          code: 'trial_credit_missing',
           purchaseId: purchase.id,
         }, { status: 500 })
       }
       await releaseClaim()
-      return NextResponse.json({ error: notRecorded, retryable: true }, { status: 500 })
+      return NextResponse.json({ error: notRecorded, code: 'trial_not_recorded', retryable: true }, { status: 500 })
     }
 
     // Create invoice

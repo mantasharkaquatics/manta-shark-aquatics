@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag, tDb, type Locale } from '@/lib/i18n'
 import { useLocationFilterState, LocationSwitch, LocationTag } from '../components/LocationFilter'
+import { CHECKIN_ERROR_KEYS } from '@/lib/admin/desk-errors'
 
 
 interface Student {
@@ -126,7 +127,12 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       })
       const data = await res.json()
       if (!res.ok) {
-        setResult({ success: false, message: data.error || t('admin.checkin.err.failed') })
+        // In the admin's language (found 2026-10-15): this showed the route's
+        // English sentence. A swimmer not in this page's list (a QR code for
+        // one it did not load) keeps that sentence, which carries the name.
+        const key = CHECKIN_ERROR_KEYS[String(data.code || '')]
+        const name = students.find(s => s.id === studentId)?.full_name
+        setResult({ success: false, message: key && (name || data.code === 'not_found') ? t(key, { name: name ?? '' }) : data.error || t('admin.checkin.err.failed') })
       } else {
         const times = (data.lesson_times || []).join(', ')
         const vars = { name: data.student_name ?? '', n: data.checked_in_count ?? '', times }

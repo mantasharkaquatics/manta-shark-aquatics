@@ -7,10 +7,17 @@ import { tierFor, tierBandLabel, TEAM_SQUAD_CAP, type TierBand } from '@/lib/tea
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { MAX_SDP_SESSIONS, MAX_SDP_UNIT_CENTS, SDP_COURSE_SLUGS, TRIAL_PRICE_CENTS } from '@/lib/pos/sale-checks'
+import { POS_ERROR_KEYS } from '@/lib/admin/desk-errors'
 
 const NAVY = '#1a2744'
 const GOLD = '#c9a84c'
 const TRIAL_CENTS = TRIAL_PRICE_CENTS
+// The smallest thing the website sells, as a starting point. Not an index
+// into TOPUP_PRESETS -- that array's order is derived and can change. One
+// constant for the first sale and "New transaction" (found 2026-10-15: the
+// reset used TOPUP_PRESETS[1], so every sale after the first started at $500
+// instead of $400).
+const DEFAULT_TOPUP = String(Math.min(...TOPUP_PRESETS))
 
 type Parent = { id: string; first_name: string; last_name: string; email: string }
 type Student = { id: string; full_name: string; trial_used_at: string | null; current_level: number | null; current_stage: number | null }
@@ -52,9 +59,7 @@ export default function POSClient() {
   // choosing to give. Bonus points are granted, not purchased -- they spend the
   // same but cannot be cashed out, so a promotion can never be refunded for
   // more money than came in.
-  // The smallest thing the website sells, as a starting point. Not an index
-  // into TOPUP_PRESETS -- that array's order is derived and can change.
-  const [topupDollars, setTopupDollars] = useState<string>(String(Math.min(...TOPUP_PRESETS)))
+  const [topupDollars, setTopupDollars] = useState<string>(DEFAULT_TOPUP)
   const [bonusPoints, setBonusPoints] = useState<string>('')
   const [isTrial, setIsTrial] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
@@ -200,9 +205,14 @@ export default function POSClient() {
       })
   }, [selectedParent, isSdp])
 
-  const topup = Math.max(0, Math.floor(Number(topupDollars) || 0))
+  // Whole dollars, as for SDP below (found 2026-10-15): 75.5 used to be
+  // floored to 75 without a word, so $75 was recorded against $75.50 in the
+  // drawer. A part-dollar amount now holds the sale and says why.
+  const topupRaw = Number(topupDollars) || 0
+  const topupWhole = Number.isInteger(topupRaw)
+  const topup = Math.max(0, Math.floor(topupRaw))
   const bonus = Math.max(0, Math.floor(Number(bonusPoints) || 0))
-  const topupValid = topup >= MIN_TOPUP_DOLLARS && topup <= MAX_TOPUP_DOLLARS && bonus <= topup
+  const topupValid = topupWhole && topup >= MIN_TOPUP_DOLLARS && topup <= MAX_TOPUP_DOLLARS && bonus <= topup
   const selectedStudent = students.find(s => s.id === selectedStudentId)
   const sdpQty = Math.max(0, Math.round(Number(sdpSessions) || 0))
   const sdpUnitCents = Math.max(0, Math.round((Number(sdpUnitPrice) || 0) * 100))
@@ -326,6 +336,16 @@ export default function POSClient() {
   // which turned Charge back on and invited a second charge on a new payment
   // (found 2026-10-07). Recording again is safe: every complete-* route
   // refuses a payment intent it has already recorded.
+  // A route's answer in the admin's language (found 2026-10-15). The "do not
+  // take payment again" messages reached a Chinese screen in English. An
+  // unknown code keeps the route's English, which says what went wrong.
+  const posError = (data: { code?: unknown; error?: string; reason?: unknown; points?: { paid?: number; extra?: number } | null }): string => {
+    const key = POS_ERROR_KEYS[String(data?.code || '')]
+    if (!key) return data?.error || ''
+    const n = (v: unknown) => Number(v || 0).toLocaleString()
+    return t(key, { paid: n(data.points?.paid), extra: n(data.points?.extra), reason: String(data.reason || '') })
+  }
+
   const record = async (url: string, body: unknown) => {
     const card = !!(body as { paymentIntentId?: string }).paymentIntentId
     let res: Response
@@ -353,7 +373,7 @@ export default function POSClient() {
       // with the override never touches the card.
       else if (data.retryWithOverride) setRecovery({ kind: 'record', url, body: { ...(body as object), override: true } })
       else if (data.retryable) setRecovery({ kind: 'record', url, body })
-      throw new Error(data.error || (card ? t('admin.pos.err.recordLost') : t('admin.pos.err.failed')))
+      throw new Error(posError(data) || (card ? t('admin.pos.err.recordLost') : t('admin.pos.err.failed')))
     }
     setRecovery(null)
     setStep('success')
@@ -449,7 +469,7 @@ export default function POSClient() {
           body: JSON.stringify(recovery.body),
         })
         const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || t('admin.pos.err.failed'))
+        if (!res.ok) throw new Error(posError(data) || t('admin.pos.err.failed'))
         setRecovery(null)
         setStep('success')
       }
@@ -458,7 +478,7 @@ export default function POSClient() {
     } finally { setProcessing(false) }
   }
   const reset = () => {
-    setStep('select'); setSelectedParent(null); setTopupDollars(String(TOPUP_PRESETS[1])); setBonusPoints(''); setIsTrial(false)
+    setStep('select'); setSelectedParent(null); setTopupDollars(DEFAULT_TOPUP); setBonusPoints(''); setIsTrial(false)
     setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
     setStudents([]); setSelectedStudentId(null); setPayMethod(readerDown ? 'cash' : 'card'); setIsTeam(false); setTeamMonths('1')
     setSearch(''); setSearchResults([]); setError(null); setRecovery(null); setProcessing(false); setShowCashConfirm(false)
@@ -764,7 +784,7 @@ export default function POSClient() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <p style={{ color: '#9ca3af', fontSize: 11, margin: '0 0 4px' }}>{t('admin.pos.amountPaid')}</p>
-                  <input type="number" min={MIN_TOPUP_DOLLARS} max={MAX_TOPUP_DOLLARS} value={topupDollars}
+                  <input type="number" min={MIN_TOPUP_DOLLARS} max={MAX_TOPUP_DOLLARS} step="1" value={topupDollars}
                     onChange={e => setTopupDollars(e.target.value)} style={sel0} />
                 </div>
                 <div>
@@ -776,6 +796,7 @@ export default function POSClient() {
               <p style={{ color: topupValid ? '#6b7280' : '#fbbf24', fontSize: 11, margin: '8px 0 0' }}>
                 {topupValid
                   ? t('admin.pos.walletReceives', { n: (topup + bonus).toLocaleString() }) + (bonus > 0 ? t('admin.pos.bonusNote', { n: bonus.toLocaleString() }) : t('admin.pos.refundable'))
+                  : !topupWhole ? t('admin.pos.topupWholeDollars')
                   : t('admin.pos.amountRange', { min: `$${MIN_TOPUP_DOLLARS}`, max: `$${MAX_TOPUP_DOLLARS.toLocaleString()}` })}
               </p>
             </div>
