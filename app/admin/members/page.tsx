@@ -47,18 +47,19 @@ export default async function AdminMembersPage() {
     }
   } catch { /* no record shown */ }
 
-  // Which swimmer is the account holder ("this swimmer is me", F15). Read on
-  // its own and allowed to fail: before docs/migration-account-holder-swimmer.sql
+  // Who has been marked as the account holder or not ("this swimmer is me",
+  // F15): true / false as stored, absent when nobody has said. Read on its
+  // own and allowed to fail: before docs/migration-account-holder-swimmer.sql
   // the column does not exist, and the desk then has no toggle to offer.
   let holderReady = false
   try {
-    const { data: holders, error } = await serviceClient().from('students')
-      .select('id').eq('is_account_holder', true)
+    const { data: marked, error } = await serviceClient().from('students')
+      .select('id, is_account_holder').not('is_account_holder', 'is', null)
     if (!error) {
       holderReady = true
-      const ids = new Set((holders || []).map((h: { id: string }) => h.id))
+      const val = new Map((marked || []).map((h: { id: string; is_account_holder: boolean }) => [h.id, h.is_account_holder]))
       for (const p of parents as { students?: { id: string; is_account_holder?: boolean }[] }[])
-        for (const st of p.students || []) st.is_account_holder = ids.has(st.id)
+        for (const st of p.students || []) if (val.has(st.id)) st.is_account_holder = val.get(st.id)
     }
   } catch { /* no toggle shown */ }
 

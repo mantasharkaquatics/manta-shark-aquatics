@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
-import { isAdultOn, setAccountHolder } from '@/lib/account-holder'
+import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
 
 export const runtime = 'nodejs'
 
@@ -85,14 +85,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // "This swimmer is me" (F15): only for an adult, and one per family -- the
-  // family's other swimmers are cleared first. On its own after the insert, so
-  // a database without the column yet (docs/migration-account-holder-swimmer.sql)
-  // still adds the swimmer; the box is then simply not stored.
-  if (body?.is_account_holder === true && isAdultOn(dob, getTodayLA())) {
-    const r = await setAccountHolder(svc, parent.id, row.id)
-    if (r === 'error') console.error('[parent/students] account holder not stored', row.id)
-  }
+  // "This swimmer is me" (F15): true only for an adult with the box ticked
+  // (the family's other swimmers are then cleared), otherwise false -- never
+  // left to the name guess. On its own after the insert, so a database
+  // without the column yet (docs/migration-account-holder-swimmer.sql) still
+  // adds the swimmer; the answer is then simply not stored.
+  const me = body?.is_account_holder === true && isAdultOn(dob, getTodayLA())
+  const holder = await recordNewSwimmers(svc, parent.id, [row.id], me ? row.id : null)
+  if (holder === 'error') console.error('[parent/students] account holder not stored', row.id)
 
   // Was a second browser write; done here with the insert it belongs to.
   await svc.from('parents').update({ last_activity_at: new Date().toISOString() }).eq('id', parent.id)

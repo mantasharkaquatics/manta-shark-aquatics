@@ -3,7 +3,7 @@ import { createHash, randomInt } from 'crypto'
 import { requireAdmin } from '@/lib/api-auth'
 import { sendEmail } from '@/lib/email'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
-import { isAdultOn, setAccountHolder } from '@/lib/account-holder'
+import { isAdultOn, setAccountHolder, setNotAccountHolder } from '@/lib/account-holder'
 
 export const runtime = 'nodejs'
 
@@ -130,22 +130,24 @@ export async function POST(req: NextRequest) {
   }
 
   // ---------- set_account_holder: "this swimmer is the parent" (F15) ----------
-  // The desk's copy of the family's own box. One active adult swimmer per
-  // family, or none (student_id null); setting one clears the others.
+  // The desk's copy of the family's own box, for one swimmer. value true makes
+  // them the family's one account holder (the others that were true become
+  // false); value false says they are NOT -- which also overrides a name match
+  // (lib/account-holder.ts accountHolderOf), so unticking always means "not you".
   if (action === 'set_account_holder') {
     const parentId = typeof body.parent_id === 'string' ? body.parent_id : ''
-    const studentId = typeof body.student_id === 'string' && body.student_id ? body.student_id : null
-    if (!parentId) return NextResponse.json({ error: 'Missing parent', code: 'bad_request' }, { status: 400 })
-    if (studentId) {
-      const { data: st } = await svc.from('students').select('id, parent_id, is_active, date_of_birth').eq('id', studentId).maybeSingle()
-      if (!st || st.parent_id !== parentId || !st.is_active) return NextResponse.json({ error: 'Swimmer not found in this family', code: 'student_not_found' }, { status: 404 })
+    const studentId = typeof body.student_id === 'string' ? body.student_id : ''
+    if (!parentId || !studentId || typeof body.value !== 'boolean') return NextResponse.json({ error: 'Missing fields', code: 'bad_request' }, { status: 400 })
+    const { data: st } = await svc.from('students').select('id, parent_id, is_active, date_of_birth').eq('id', studentId).maybeSingle()
+    if (!st || st.parent_id !== parentId || !st.is_active) return NextResponse.json({ error: 'Swimmer not found in this family', code: 'student_not_found' }, { status: 404 })
+    if (body.value) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
       if (!isAdultOn(st.date_of_birth, today)) return NextResponse.json({ error: 'Only an adult swimmer (18+) can be the account holder.', code: 'holder_not_adult' }, { status: 400 })
     }
-    const r = await setAccountHolder(svc, parentId, studentId)
+    const r = body.value ? await setAccountHolder(svc, parentId, studentId) : await setNotAccountHolder(svc, parentId, studentId)
     if (r === 'no_column') return NextResponse.json({ error: 'Run docs/migration-account-holder-swimmer.sql first.', code: 'holder_column_missing' }, { status: 409 })
     if (r === 'error') return NextResponse.json({ error: 'Could not save.', code: 'save_failed' }, { status: 500 })
-    return NextResponse.json({ ok: true, student_id: studentId })
+    return NextResponse.json({ ok: true, student_id: studentId, value: body.value })
   }
 
   // ---------- request_code ----------

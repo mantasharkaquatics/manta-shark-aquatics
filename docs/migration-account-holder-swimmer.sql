@@ -12,18 +12,27 @@
 -- The family now says so: one box per swimmer, at most one per family, only
 -- for an adult (18+). Owner, 2026-10-16.
 --
--- students.is_account_holder -- true on the one swimmer who is the parent
--- account's own person. Written only by server routes with the service role:
---   /api/auth/complete-registration, /api/parent/students,
---   /api/admin/members/contact-change (action set_account_holder).
--- Setting it on one swimmer clears it on the family's others first; the
--- partial unique index below backs that up for active swimmers.
+-- students.is_account_holder -- three values, and the third matters:
+--   true  = this swimmer is the parent account's own person (at most one
+--           active swimmer per family);
+--   false = said not to be (box left unticked on a new swimmer, a minor, or
+--           the desk unticked it) -- never "you" on the card;
+--   null  = nobody has said (every swimmer that exists today). Only these
+--           fall back to the name match, and only when the family has exactly
+--           one adult swimmer and nobody in it is marked true.
+-- Nullable with NO default on purpose: a default of false would turn every
+-- existing swimmer into "said not to be".
+-- Written only by server routes with the service role:
+--   /api/auth/complete-registration, /api/parent/students (true or false for
+--   every new swimmer), /api/admin/members/contact-change (set_account_holder).
+-- Setting true on one swimmer sets the family's others that were true to
+-- false first; the partial unique index below backs that up.
 
 alter table public.students
-  add column if not exists is_account_holder boolean not null default false;
+  add column if not exists is_account_holder boolean;
 
 -- At most one ACTIVE swimmer per family is the account holder. A deactivated
--- swimmer keeps its value and does not count.
+-- swimmer keeps its value and does not count; null and false do not count.
 create unique index if not exists students_one_account_holder
   on public.students (parent_id)
   where is_account_holder and is_active;
@@ -36,7 +45,7 @@ revoke insert (is_account_holder), update (is_account_holder) on table public.st
 -- PostgREST must see the new column before the site can read or write it.
 notify pgrst, 'reload schema';
 
--- 檢查 1：應該有 1 列：is_account_holder / boolean / NO / false
+-- 檢查 1：應該有 1 列：is_account_holder / boolean / YES / （空白，沒有預設值）
 select column_name, data_type, is_nullable, column_default
 from information_schema.columns
 where table_schema = 'public' and table_name = 'students' and column_name = 'is_account_holder';
@@ -52,3 +61,9 @@ from public.students
 where is_account_holder and is_active
 group by parent_id
 having count(*) > 1;
+
+-- 檢查 4：剛執行完時，現有學員應該全部是「未設定」：marked_true 0、marked_false 0
+select count(*) filter (where is_account_holder) as marked_true,
+       count(*) filter (where is_account_holder = false) as marked_false,
+       count(*) filter (where is_account_holder is null) as not_set
+from public.students;

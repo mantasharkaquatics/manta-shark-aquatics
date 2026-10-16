@@ -8,7 +8,7 @@ import { getTodayLA } from '@/lib/date'
 import { isLocale } from '@/lib/i18n'
 import { sendEmail } from '@/lib/email'
 import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
-import { isAdultOn, setAccountHolder } from '@/lib/account-holder'
+import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
 
 export const runtime = 'nodejs'
 
@@ -186,13 +186,14 @@ export async function POST(req: NextRequest) {
   if (stuErr) console.error('[complete-registration] students insert failed', stuErr)
 
   // "This swimmer is me" (F15): the first ticked swimmer who is an adult, and
-  // only one. Written after the insert, on its own, so a database without the
-  // column yet (docs/migration-account-holder-swimmer.sql) still registers
-  // the family -- the box is then simply not stored.
-  const meAt = students.findIndex((s: { me: boolean; date_of_birth: string }) => s.me && isAdultOn(s.date_of_birth, today))
-  const meRow = !stuErr && meAt >= 0 ? (made || []).find((r: { sort_order: number }) => r.sort_order === meAt + 1) : null
-  if (meRow) {
-    const r = await setAccountHolder(svc, parent.id, meRow.id)
+  // only one; every other new swimmer is written as NOT the account holder,
+  // so none is left to the name guess. Written after the insert, on its own,
+  // so a database without the column yet (docs/migration-account-holder-swimmer.sql)
+  // still registers the family -- the answers are then simply not stored.
+  if (!stuErr && made && made.length > 0) {
+    const meAt = students.findIndex((s: { me: boolean; date_of_birth: string }) => s.me && isAdultOn(s.date_of_birth, today))
+    const meRow = meAt >= 0 ? made.find((r: { sort_order: number }) => r.sort_order === meAt + 1) : null
+    const r = await recordNewSwimmers(svc, parent.id, made.map((x: { id: string }) => x.id), meRow?.id ?? null)
     if (r === 'error') console.error('[complete-registration] account holder not stored', parent.id)
   }
 

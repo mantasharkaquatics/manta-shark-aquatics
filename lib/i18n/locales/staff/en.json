@@ -1608,6 +1608,7 @@
   "admin.members.saveStudents": "Save swimmers",
   "admin.members.isHolder": "Account holder (this swimmer is the parent)",
   "admin.members.holderSaved": "Account holder saved.",
+  "admin.members.holderByName": "(by name match; untick if not)",
   "admin.members.studentsSaved": "Saved {n} swimmer(s).",
   "admin.members.noStudentChanges": "Nothing changed.",
   "admin.bday.kind.new": "New swimmer"

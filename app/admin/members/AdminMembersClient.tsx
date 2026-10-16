@@ -12,7 +12,7 @@ import { LEVEL_NAMES, LEVEL_BADGE_CLASSES as LEVEL_COLORS } from '@/lib/levels'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag } from '@/lib/i18n'
 import type { TFunction, Locale } from '@/lib/i18n'
-import { isAdultOn } from '@/lib/account-holder'
+import { isAdultOn, accountHolderOf } from '@/lib/account-holder'
 
 type Student = {
   id: string
@@ -25,7 +25,8 @@ type Student = {
   legal_full_name: string | null
   uci_number: string | null
   service_code: string | null
-  /** "This swimmer is the parent" (F15); absent before the column exists. */
+  /** "This swimmer is the parent" (F15): true / false as stored; absent when
+   *  nobody has said, or before the column exists. */
   is_account_holder?: boolean
 }
 
@@ -252,19 +253,36 @@ function MemberEditPanel({ parent, holderReady }: { parent: any; holderReady: bo
     router.refresh()
   }
 
-  // "This swimmer is the parent" (F15): one active adult swimmer, or none.
-  // Saved at once, on its own; the server clears the family's others.
-  const [holder, setHolder] = useState<string | null>(() => ((parent.students || []) as Student[]).find(s => s.is_account_holder && s.is_active !== false)?.id ?? null)
-  const saveHolder = async (studentId: string | null) => {
+  // "This swimmer is the parent" (F15). The box shows what the birthday card
+  // will do (lib/account-holder.ts accountHolderOf): ticked for the swimmer
+  // marked true, or for the one the name match picks when nobody is marked.
+  // Ticking marks them true (the family's other true becomes false);
+  // unticking marks them false, which also overrides a name match. Saved at
+  // once, on its own.
+  const [marks, setMarks] = useState<Record<string, boolean>>(() => {
+    const o: Record<string, boolean> = {}
+    for (const s of (parent.students || []) as Student[]) if (typeof s.is_account_holder === 'boolean') o[s.id] = s.is_account_holder
+    return o
+  })
+  const todayLA = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+  const activeFamily = ((parent.students || []) as Student[]).filter(s => s.is_active !== false)
+    .map(s => ({ id: s.id, full_name: s.full_name, date_of_birth: s.date_of_birth, is_account_holder: marks[s.id] ?? null }))
+  const holder = accountHolderOf(activeFamily, parent.first_name, parent.last_name, todayLA)
+  const holderByName = !!holder && marks[holder] !== true
+  const saveHolder = async (studentId: string, value: boolean) => {
     setBusy(true); setErr(null)
-    const { ok, j } = await post({ action: 'set_account_holder', parent_id: parent.id, student_id: studentId })
+    const { ok, j } = await post({ action: 'set_account_holder', parent_id: parent.id, student_id: studentId, value })
     setBusy(false)
     if (!ok) { setErr(contactErr(j, 'admin.members.err.saveFailed')); return }
-    setHolder(studentId)
+    setMarks(prev => {
+      const n = { ...prev }
+      if (value) for (const id of Object.keys(n)) if (n[id] === true) n[id] = false
+      n[studentId] = value
+      return n
+    })
     flash(t('admin.members.holderSaved'))
     router.refresh()
   }
-  const todayLA = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 
   const inputCls = 'w-full bg-[#0d1729] border border-[#1e3a6e] rounded px-2 py-1.5 text-sm text-white'
   const goldBtn = 'bg-[#c9a84c] text-[#1a2744] font-bold text-xs px-3 py-1.5 rounded disabled:opacity-40'
@@ -358,8 +376,9 @@ function MemberEditPanel({ parent, holderReady }: { parent: any; holderReady: bo
               {holderReady && s.is_active !== false && (isAdultOn(s.date_of_birth, todayLA) || holder === s.id) && (
                 <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
                   <input type="checkbox" checked={holder === s.id} disabled={busy}
-                    onChange={e => saveHolder(e.target.checked ? s.id : null)} className="accent-[#c9a84c]" />
+                    onChange={e => saveHolder(s.id, e.target.checked)} className="accent-[#c9a84c]" />
                   {t('admin.members.isHolder')}
+                  {holder === s.id && holderByName && <span className="text-gray-500">{t('admin.members.holderByName')}</span>}
                 </label>
               )}
             </div>

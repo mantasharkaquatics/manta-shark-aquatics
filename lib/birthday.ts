@@ -5,7 +5,7 @@ import { getT, toLocale, dateTag, type Locale } from '@/lib/i18n/all'
 import { sendRawEmail } from '@/lib/email'
 import { CONTACT_EMAIL, SCHOOL_MAILING_ADDRESS, SITE_URL } from '@/lib/site-config'
 import { unsubscribeToken, unsubscribePageUrl, unsubscribeHeaders } from '@/lib/unsubscribe'
-import { ADULT_AGE, nameLooksLikeHolder, missingHolderColumn } from '@/lib/account-holder'
+import { ADULT_AGE, accountHolderOf, missingHolderColumn, type HolderRow } from '@/lib/account-holder'
 
 /* BIRTHDAY CARDS (owner, 2026-10-14).
 
@@ -75,15 +75,6 @@ export function birthdayIn(year: number, dob: string): string {
 
 const firstWord = (name: string) => (name || '').trim().split(/\s+/)[0] || ''
 
-/** Is this adult swimmer the account holder? The family says so with the
- *  "this swimmer is me" box (students.is_account_holder, F15). Accounts from
- *  before the box, or a database without the column yet, fall back to the
- *  name match in lib/account-holder.ts (first word, or first+last / last+first
- *  with spaces, case and full-width forms taken out: 王小明 = 王 + 小明). */
-function isAccountHolder(s: { full_name: string; is_account_holder?: boolean | null }, first: string, last: string): boolean {
-  return s.is_account_holder === true || nameLooksLikeHolder(s.full_name, first, last)
-}
-
 function addDays(ymd: string, n: number): string {
   const d = new Date(ymd + 'T12:00:00Z')
   d.setUTCDate(d.getUTCDate() + n)
@@ -109,6 +100,13 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
   let { data: students, error } = await readStudents('id, full_name, date_of_birth, parent_id, is_account_holder')
   if (error && missingHolderColumn(error)) ({ data: students, error } = await readStudents('id, full_name, date_of_birth, parent_id'))
   if (error) throw new Error('students: ' + (error.message || error))
+  // Every active swimmer by family: who the account holder is depends on the
+  // family's other swimmers too (lib/account-holder.ts accountHolderOf).
+  const familyOf = new Map<string, HolderRow[]>()
+  for (const st of (students || []) as (HolderRow & { parent_id: string })[]) {
+    if (!st.parent_id) continue
+    familyOf.set(st.parent_id, [...(familyOf.get(st.parent_id) || []), st])
+  }
   const due = (students || []).map((s: any) => ({ s, date: birthdayIn(year, String(s.date_of_birth)) }))
     .filter((x: any) => x.date >= from && x.date <= to && String(x.s.date_of_birth).slice(0, 4) < String(year))
   if (due.length === 0) return []
@@ -153,7 +151,10 @@ export async function birthdaysBetween(svc: Svc, from: string, to: string, today
       kind: adult ? 'adult' : isActive ? 'active' : 'returning',
       active: isActive,
       history: isActive ? 'active' : ever.has(s.id) ? 'returning' : 'new',
-      self: adult && isAccountHolder(s, p.first_name, p.last_name),
+      // Is this adult the account holder: marked true, or -- only when nobody
+      // in the family is marked, this one is unmarked and the only adult --
+      // the whole-name match. As of the birthday itself.
+      self: adult && accountHolderOf(familyOf.get(s.parent_id) || [], p.first_name, p.last_name, date) === s.id,
       parentFirstName: p.first_name || '',
       email: p.email || null,
       lang: toLocale(p.preferred_language),

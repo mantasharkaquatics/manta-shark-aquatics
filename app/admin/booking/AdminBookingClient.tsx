@@ -650,7 +650,18 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
       const data = await res.json()
       if (key !== recurKeyRef.current) { /* the choice changed while this was loading */ }
       else if (!res.ok) { setError(data.error || t('admin.booking.err.previewFailed')); setRecurPreview(null) }
-      else setRecurPreview(data)
+      else {
+        setRecurPreview(data)
+        // The preview read both wallets just now; keep its figures for when
+        // the desk switches back to a single lesson.
+        const p1 = students.find(s => s.id === formStudent)?.parent_id
+        const p2 = formStudent2 ? students.find(s => s.id === formStudent2)?.parent_id : undefined
+        setFreshArrears(prev => ({
+          ...prev,
+          ...(p1 ? { [p1]: Number(data.points?.parent1_arrears) || 0 } : {}),
+          ...(p2 && p2 !== p1 && data.points?.parent2_name != null ? { [p2]: Number(data.points?.parent2_arrears) || 0 } : {}),
+        }))
+      }
     } catch { setError(t('admin.booking.err.previewRetry')) }
     setRecurLoading(false)
   }
@@ -804,16 +815,36 @@ export default function AdminBookingClient({ coaches, students, courseTypes, ini
   // A family that owes money from a returned payment cannot be booked: the
   // server refuses any spend from that wallet, even when its granted points
   // make the balance look enough. Said before confirm, and confirm stays off
-  // (F114, owner 2026-10-16). The amount is the page's read, or the series
-  // preview's fresher one. An assessment is paid by card and is not held up.
-  const owingPicked = isTrial ? [] : [...new Set([formStudent, courseTypes.find(c => c.id === formCourse)?.slug === '1on2' ? formStudent2 : '']
+  // (F114, owner 2026-10-16). An assessment is paid by card and is not held up.
+  // The amount: the series preview's when there is one, else the family's
+  // wallet as read when the swimmer was picked, else the page's own read --
+  // so a family that has just paid at the desk stops showing as owing
+  // without a reload (review, 2026-10-16).
+  const is1on2Form = courseTypes.find(c => c.id === formCourse)?.slug === '1on2'
+  const pickedParents = [...new Set([formStudent, is1on2Form ? formStudent2 : '']
     .filter(Boolean).map(id => students.find(s => s.id === id)?.parent_id).filter(Boolean) as string[])]
+  const pickedKey = modal === 'book' ? pickedParents.join(',') : ''
+  const [freshArrears, setFreshArrears] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!pickedKey) return
+    let live = true
+    for (const pid of pickedKey.split(',')) {
+      fetch(`/api/admin/points?only=arrears&parent_id=${encodeURIComponent(pid)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => { if (live && j && typeof j.arrears === 'number') setFreshArrears(prev => ({ ...prev, [pid]: j.arrears })) })
+        .catch(() => {})
+    }
+    return () => { live = false }
+  }, [pickedKey])
+  const previewPoints = bookMode === 'recurring' ? recurPreview?.points : null
+  const owingPicked = isTrial ? [] : pickedParents
     .map((pid, i) => {
       const st = students.find(s => s.parent_id === pid)
       const p = st ? (Array.isArray(st.parents) ? st.parents[0] : st.parents) : null
-      const fromPreview = bookMode === 'recurring' && recurPreview?.points
-        ? Number(i === 0 ? recurPreview.points.parent1_arrears : recurPreview.points.parent2_arrears) || 0 : 0
-      return { pid, name: p ? `${p.first_name} ${p.last_name || ''}`.trim() : '', owed: Math.max(parentArrears[pid] || 0, fromPreview) }
+      const owed = previewPoints
+        ? Number(i === 0 ? previewPoints.parent1_arrears : previewPoints.parent2_arrears) || 0
+        : (freshArrears[pid] ?? parentArrears[pid] ?? 0)
+      return { pid, name: p ? `${p.first_name} ${p.last_name || ''}`.trim() : '', owed }
     })
     .filter(x => x.owed > 0)
 

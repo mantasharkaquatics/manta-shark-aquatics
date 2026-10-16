@@ -1608,6 +1608,7 @@
   "admin.members.saveStudents": "儲存學生資料",
   "admin.members.isHolder": "帳號本人（這位學員就是家長本人）",
   "admin.members.holderSaved": "已儲存帳號本人。",
+  "admin.members.holderByName": "（依姓名判斷；不是的話請取消勾選）",
   "admin.members.studentsSaved": "已儲存 {n} 位學生。",
   "admin.members.noStudentChanges": "沒有變更。",
   "admin.bday.kind.new": "新學員"

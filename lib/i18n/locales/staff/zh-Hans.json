@@ -1608,6 +1608,7 @@
   "admin.members.saveStudents": "储存学生资料",
   "admin.members.isHolder": "账号本人（这位学员就是家长本人）",
   "admin.members.holderSaved": "已储存账号本人。",
+  "admin.members.holderByName": "（依姓名判断；不是的话请取消勾选）",
   "admin.members.studentsSaved": "已储存 {n} 位学生。",
   "admin.members.noStudentChanges": "没有变更。",
   "admin.bday.kind.new": "新学员"

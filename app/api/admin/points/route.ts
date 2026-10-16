@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
-import { applyPoints, walletSummary, WalletInArrears } from '@/lib/points-wallet'
+import { applyPoints, walletSummary, WalletInArrears, getWallet, arrears } from '@/lib/points-wallet'
 import { MAX_TOPUP_DOLLARS } from '@/lib/points'
 
 /** A database row as the API returns it (untyped client). */
@@ -27,6 +27,13 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const parentId = req.nextUrl.searchParams.get('parent_id')
   if (!parentId) return NextResponse.json({ error: 'parent_id required' }, { status: 400 })
+
+  // ?only=arrears : what the family owes right now, one wallet row. The desk
+  // booking form asks it when a swimmer is picked (F114), so a family that
+  // has just paid at the desk is not still shown as owing.
+  if (req.nextUrl.searchParams.get('only') === 'arrears') {
+    return NextResponse.json({ arrears: arrears(await getWallet(auth.svc, parentId)) })
+  }
 
   // ?before=<created_at> pages back through the statement, LEDGER_PAGE lines
   // at a time, as the parent's own wallet does. It used to stop at the newest
