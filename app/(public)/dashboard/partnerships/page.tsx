@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag } from '@/lib/i18n'
+import { formatDateLA, formatTimeLA } from '@/lib/date'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
@@ -198,9 +199,14 @@ export default function PartnershipsPage() {
             ) : (
               <button type="button" className="ac-btn gold block" onClick={getMyCode}>{t('link.generateCode')}</button>
             )}
-            {myInviteCode && myCodeExpires && (
+            {/* Date AND time (audit F68 review): the code stops at the minute
+                it was made, 14 days on, not at the end of that day. */}
+            {myInviteCode && myCodeExpires && !isNaN(new Date(myCodeExpires).getTime()) && (
               <p className="ac-note" style={{ marginTop: 10 }}>
-                {t('link.codeValidUntil', { date: new Date(myCodeExpires).toLocaleDateString(dateTag(locale), { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }) })}
+                {t('link.codeValidUntil', {
+                  date: new Date(formatDateLA(new Date(myCodeExpires)) + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+                  time: formatTimeLA(new Date(myCodeExpires)),
+                })}
               </p>
             )}
           </section>

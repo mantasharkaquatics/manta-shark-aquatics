@@ -52,7 +52,7 @@ export async function buildKnowledgeBlock(svc: any): Promise<string> {
     'Price per swimmer per 30 minutes:',
     ...Object.entries(BASE_POINTS).map(([slug, pts]) => `  ${slug}: ${pts} points ($${pts})`),
     'A 60-minute lesson costs exactly twice a 30-minute one. A 1-on-2 with two children from the same family pays for two swimmers.',
-    'Swim Team is a monthly membership paid online by card or through Link (Stripe\'s saved-payment option, which can also pay instantly from a bank account); plain ACH bank debit is not offered for it. It is never paid for with points.',
+    'Swim Team is a monthly membership paid by card. At checkout some families may also see an option to pay from their bank account through Link (Stripe decides who is offered it, so never promise it). Plain ACH bank debit is not offered for Swim Team. It is never paid for with points.',
     'There is no VIP, loyalty or member discount: every family pays the same price.',
     `Referral: when a new family registers with an existing family's referral code and takes its first lesson paid with purchased points, both families receive ${REFERRAL_POINTS} bonus points (not refundable, valid one year). The code must be entered at registration.`,
     OFF_PEAK_ENABLED

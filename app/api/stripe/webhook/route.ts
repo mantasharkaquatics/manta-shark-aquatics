@@ -54,119 +54,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (meta.type === 'team_subscription') {
-      const newSub = String(session.subscription || '')
-      // One live subscription per swimmer (owner, 2026-10-06). The checks in
-      // /api/stripe/checkout run when a checkout is opened; two checkouts
-      // opened side by side (two tabs, Back and Join again) could both be
-      // paid, and each became its own monthly subscription. Whatever reaches
-      // here second is cancelled and refunded, and the school is told.
-      if (meta.prepaid_membership_id) {
-        // Prepaid → subscription conversion: take over the existing prepaid
-        // row -- only while it has no subscription of its own yet.
-        // The tier is the one being paid for: a lapsed prepaid (converted too,
-        // 2026-10-13) may be from before the swimmer moved up a team.
-        const { data: upd, error: convErr } = await supabase.from('team_memberships')
-          .update({
-            stripe_subscription_id: newSub,
-            status: 'active',
-            expires_at: null,
-            ...(meta.team_tier_id ? { team_tier_id: meta.team_tier_id } : {}),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', meta.prepaid_membership_id)
-          .is('stripe_subscription_id', null)
-          .select('id')
-        if (convErr) {
-          console.error('Prepaid conversion update failed:', convErr.message)
-          return NextResponse.json({ error: 'conversion failed' }, { status: 500 })
-        }
-        if (!upd || upd.length === 0) {
-          const { data: row } = await supabase.from('team_memberships')
-            .select('stripe_subscription_id').eq('id', meta.prepaid_membership_id).maybeSingle()
-          if (row?.stripe_subscription_id && row.stripe_subscription_id !== newSub) {
-            await cancelDuplicateTeamSubscription(session, row.stripe_subscription_id)
-          } else {
-            console.log(`Prepaid membership ${meta.prepaid_membership_id} already carries ${newSub}`)
-          }
-        } else {
-          console.log(`✅ Prepaid membership ${meta.prepaid_membership_id} converted to subscription ${newSub}`)
-        }
-      } else {
-        const { data: live } = await supabase.from('team_memberships')
-          .select('stripe_subscription_id')
-          .eq('student_id', meta.student_id)
-          .not('stripe_subscription_id', 'is', null)
-          .in('status', ['active', 'past_due'])
-        const other = (live || []).find(r => r.stripe_subscription_id !== newSub)
-        if (other) {
-          await cancelDuplicateTeamSubscription(session, String(other.stripe_subscription_id))
-          return NextResponse.json({ received: true })
-        }
-        if ((live || []).some(r => r.stripe_subscription_id === newSub)) {
-          console.log(`Team membership for ${newSub} already recorded`)
-          return NextResponse.json({ received: true })
-        }
-        const { error: tmErr } = await supabase.from('team_memberships').insert({
-          student_id: meta.student_id,
-          team_tier_id: meta.team_tier_id,
-          stripe_subscription_id: newSub,
-          status: 'active',
-        })
-        if (tmErr) {
-          // 23505: a concurrent delivery got there first (the unique index in
-          // docs/migration-team-one-subscription.sql). Same subscription is a
-          // retry; a different one is a duplicate.
-          if (tmErr.code === '23505') {
-            const { data: winner } = await supabase.from('team_memberships')
-              .select('stripe_subscription_id').eq('student_id', meta.student_id)
-              .not('stripe_subscription_id', 'is', null).in('status', ['active', 'past_due']).limit(1)
-            const w = winner && winner[0]?.stripe_subscription_id
-            if (w && w !== newSub) await cancelDuplicateTeamSubscription(session, String(w))
-            if (w) return NextResponse.json({ received: true })
-            /* No subscription holds the swimmer's one 'active' row
-               (idx_tm_active_student): a prepaid does -- lapsed, from a
-               checkout opened before 2026-10-13 that did not convert it. Take
-               it over, as the conversion above would have. Returning here
-               without a row was the bug: paid, no membership recorded. */
-            /* Only a LAPSED one (found 2026-10-15). A checkout opened before the
-               desk sold prepaid months the same day, then paid, took over the
-               in-date prepaid too: its months were wiped and billing started
-               at once, so the family paid twice. An in-date prepaid keeps the
-               slot, and this subscription is the duplicate: cancelled and
-               refunded like any other (owner, 2026-10-06). */
-            const nowIso = new Date().toISOString()
-            const { data: took, error: takeErr } = await supabase.from('team_memberships')
-              .update({ stripe_subscription_id: newSub, status: 'active', expires_at: null, team_tier_id: meta.team_tier_id, updated_at: nowIso })
-              .eq('student_id', meta.student_id).eq('status', 'active').is('stripe_subscription_id', null)
-              .or(`expires_at.is.null,expires_at.lte."${nowIso}"`)
-              .select('id')
-            if (!takeErr && took && took.length > 0) {
-              console.log(`✅ Prepaid membership ${took[0].id} taken over by subscription ${newSub}`)
-              return NextResponse.json({ received: true })
-            }
-            if (!takeErr) {
-              const { data: inDate } = await supabase.from('team_memberships')
-                .select('id, expires_at').eq('student_id', meta.student_id).eq('status', 'active')
-                .is('stripe_subscription_id', null).gt('expires_at', nowIso).limit(1)
-              const p = inDate && inDate[0]
-              if (p) {
-                await cancelDuplicateTeamSubscription(session, `a prepaid membership ${p.id}, paid at the desk through ${String(p.expires_at).slice(0, 10)}`)
-                return NextResponse.json({ received: true })
-              }
-            }
-            console.error(`Team membership for ${newSub} not recorded:`, takeErr?.message || 'no row to take over')
-            await alertAdmin('Swim team subscription not recorded', [
-              `A swim team subscription (${newSub}) was paid for swimmer ${meta.student_id}, but no membership row could be recorded for it.`,
-              'Check the swimmer\'s team membership by hand and link this subscription.',
-            ])
-            return NextResponse.json({ received: true })
-          }
-          console.error('Team membership insert failed:', tmErr.message)
-          return NextResponse.json({ error: 'membership insert failed' }, { status: 500 })
-        }
-        console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+      // Only once the first payment is in (audit F26 review, 2026-10-16), as
+      // the Swim Assessment above. A card or Link payment completes 'paid'; a
+      // prepaid conversion with a trial completes 'no_payment_required'. A
+      // delayed bank debit -- no longer offered for Swim Team, but a checkout
+      // opened before that change can still be paid with one -- completes
+      // 'unpaid', and the membership is recorded at
+      // checkout.session.async_payment_succeeded below instead.
+      if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+        console.log(`Team checkout ${session.id} completed ${session.payment_status} (bank debit); membership waits for settlement`)
+        return NextResponse.json({ received: true })
       }
-      return NextResponse.json({ received: true })
+      return recordTeamMembership(session)
     }
 
     // ---- POINTS TOP-UP -------------------------------------------------
@@ -351,8 +250,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- A BANK DEBIT FOR A CHECKOUT THAT ALREADY COMPLETED --------------
-  // Added 2026-10-05. Only the Swim Assessment waits for these: it is
-  // confirmed when the money settles and released if it never does. A points
+  // Added 2026-10-05. The Swim Assessment waits for these: it is confirmed
+  // when the money settles and released if it never does. So does a Swim
+  // Team checkout paid by bank debit (2026-10-16, see below). A points
   // top-up is credited at completion and taken back by
   // payment_intent.payment_failed, so nothing happens for one here.
   if (event.type === 'checkout.session.async_payment_succeeded' || event.type === 'checkout.session.async_payment_failed') {
@@ -365,6 +265,14 @@ export async function POST(req: NextRequest) {
         console.error(`${event.type} ${session.id}:`, e?.message || e)
         return NextResponse.json({ error: 'Trial booking update failed' }, { status: 500 })
       }
+    }
+    // A Swim Team checkout that completed unpaid (a bank debit) is recorded
+    // here, once the money has arrived (audit F26 review, 2026-10-16). One
+    // whose debit failed never got a row, so there is nothing to undo; Stripe
+    // leaves its subscription unpaid and the family is not a member.
+    if (session.metadata?.type === 'team_subscription') {
+      if (event.type === 'checkout.session.async_payment_succeeded') return recordTeamMembership(session)
+      console.log(`Team checkout ${session.id}: bank debit failed; no membership recorded`)
     }
     return NextResponse.json({ received: true })
   }
@@ -930,6 +838,131 @@ function invoiceSubscriptionId(inv: any): string | null {
   if (typeof inv?.subscription === 'string') return inv.subscription
   const nested = inv?.parent?.subscription_details?.subscription
   return inv?.subscription?.id || (typeof nested === 'string' ? nested : nested?.id) || null
+}
+
+/**
+ * Records the Swim Team membership a paid checkout bought: a new row, or the
+ * takeover of a prepaid one (metadata.prepaid_membership_id). Called from
+ * checkout.session.completed when the checkout is paid, and from
+ * checkout.session.async_payment_succeeded when a bank debit settles later.
+ * Safe to run twice for one checkout: a second run finds the row already
+ * carrying this subscription.
+ */
+async function recordTeamMembership(session: Stripe.Checkout.Session): Promise<NextResponse> {
+  const meta = session.metadata!
+  const newSub = String(session.subscription || '')
+  // One live subscription per swimmer (owner, 2026-10-06). The checks in
+  // /api/stripe/checkout run when a checkout is opened; two checkouts
+  // opened side by side (two tabs, Back and Join again) could both be
+  // paid, and each became its own monthly subscription. Whatever reaches
+  // here second is cancelled and refunded, and the school is told.
+  if (meta.prepaid_membership_id) {
+    // Prepaid → subscription conversion: take over the existing prepaid
+    // row -- only while it has no subscription of its own yet.
+    // The tier is the one being paid for: a lapsed prepaid (converted too,
+    // 2026-10-13) may be from before the swimmer moved up a team.
+    const { data: upd, error: convErr } = await supabase.from('team_memberships')
+      .update({
+        stripe_subscription_id: newSub,
+        status: 'active',
+        expires_at: null,
+        ...(meta.team_tier_id ? { team_tier_id: meta.team_tier_id } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', meta.prepaid_membership_id)
+      .is('stripe_subscription_id', null)
+      .select('id')
+    if (convErr) {
+      console.error('Prepaid conversion update failed:', convErr.message)
+      return NextResponse.json({ error: 'conversion failed' }, { status: 500 })
+    }
+    if (!upd || upd.length === 0) {
+      const { data: row } = await supabase.from('team_memberships')
+        .select('stripe_subscription_id').eq('id', meta.prepaid_membership_id).maybeSingle()
+      if (row?.stripe_subscription_id && row.stripe_subscription_id !== newSub) {
+        await cancelDuplicateTeamSubscription(session, row.stripe_subscription_id)
+      } else {
+        console.log(`Prepaid membership ${meta.prepaid_membership_id} already carries ${newSub}`)
+      }
+    } else {
+      console.log(`✅ Prepaid membership ${meta.prepaid_membership_id} converted to subscription ${newSub}`)
+    }
+  } else {
+    const { data: live } = await supabase.from('team_memberships')
+      .select('stripe_subscription_id')
+      .eq('student_id', meta.student_id)
+      .not('stripe_subscription_id', 'is', null)
+      .in('status', ['active', 'past_due'])
+    const other = (live || []).find(r => r.stripe_subscription_id !== newSub)
+    if (other) {
+      await cancelDuplicateTeamSubscription(session, String(other.stripe_subscription_id))
+      return NextResponse.json({ received: true })
+    }
+    if ((live || []).some(r => r.stripe_subscription_id === newSub)) {
+      console.log(`Team membership for ${newSub} already recorded`)
+      return NextResponse.json({ received: true })
+    }
+    const { error: tmErr } = await supabase.from('team_memberships').insert({
+      student_id: meta.student_id,
+      team_tier_id: meta.team_tier_id,
+      stripe_subscription_id: newSub,
+      status: 'active',
+    })
+    if (tmErr) {
+      // 23505: a concurrent delivery got there first (the unique index in
+      // docs/migration-team-one-subscription.sql). Same subscription is a
+      // retry; a different one is a duplicate.
+      if (tmErr.code === '23505') {
+        const { data: winner } = await supabase.from('team_memberships')
+          .select('stripe_subscription_id').eq('student_id', meta.student_id)
+          .not('stripe_subscription_id', 'is', null).in('status', ['active', 'past_due']).limit(1)
+        const w = winner && winner[0]?.stripe_subscription_id
+        if (w && w !== newSub) await cancelDuplicateTeamSubscription(session, String(w))
+        if (w) return NextResponse.json({ received: true })
+        /* No subscription holds the swimmer's one 'active' row
+           (idx_tm_active_student): a prepaid does -- lapsed, from a
+           checkout opened before 2026-10-13 that did not convert it. Take
+           it over, as the conversion above would have. Returning here
+           without a row was the bug: paid, no membership recorded. */
+        /* Only a LAPSED one (found 2026-10-15). A checkout opened before the
+           desk sold prepaid months the same day, then paid, took over the
+           in-date prepaid too: its months were wiped and billing started
+           at once, so the family paid twice. An in-date prepaid keeps the
+           slot, and this subscription is the duplicate: cancelled and
+           refunded like any other (owner, 2026-10-06). */
+        const nowIso = new Date().toISOString()
+        const { data: took, error: takeErr } = await supabase.from('team_memberships')
+          .update({ stripe_subscription_id: newSub, status: 'active', expires_at: null, team_tier_id: meta.team_tier_id, updated_at: nowIso })
+          .eq('student_id', meta.student_id).eq('status', 'active').is('stripe_subscription_id', null)
+          .or(`expires_at.is.null,expires_at.lte."${nowIso}"`)
+          .select('id')
+        if (!takeErr && took && took.length > 0) {
+          console.log(`✅ Prepaid membership ${took[0].id} taken over by subscription ${newSub}`)
+          return NextResponse.json({ received: true })
+        }
+        if (!takeErr) {
+          const { data: inDate } = await supabase.from('team_memberships')
+            .select('id, expires_at').eq('student_id', meta.student_id).eq('status', 'active')
+            .is('stripe_subscription_id', null).gt('expires_at', nowIso).limit(1)
+          const p = inDate && inDate[0]
+          if (p) {
+            await cancelDuplicateTeamSubscription(session, `a prepaid membership ${p.id}, paid at the desk through ${String(p.expires_at).slice(0, 10)}`)
+            return NextResponse.json({ received: true })
+          }
+        }
+        console.error(`Team membership for ${newSub} not recorded:`, takeErr?.message || 'no row to take over')
+        await alertAdmin('Swim team subscription not recorded', [
+          `A swim team subscription (${newSub}) was paid for swimmer ${meta.student_id}, but no membership row could be recorded for it.`,
+          'Check the swimmer\'s team membership by hand and link this subscription.',
+        ])
+        return NextResponse.json({ received: true })
+      }
+      console.error('Team membership insert failed:', tmErr.message)
+      return NextResponse.json({ error: 'membership insert failed' }, { status: 500 })
+    }
+    console.log(`✅ Team membership created: student ${meta.student_id} tier ${meta.team_tier_id}`)
+  }
+  return NextResponse.json({ received: true })
 }
 
 /* A second Swim Team subscription for a swimmer who already has one: cancel

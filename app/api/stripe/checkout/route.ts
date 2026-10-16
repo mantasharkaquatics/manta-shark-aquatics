@@ -129,12 +129,12 @@ export async function POST(req: NextRequest) {
       // settlement is handled (bankDebitExposure and the webhook reversal).
       // The webhook's generic us_bank_account handling stays for that, and
       // for older team subscriptions that may still be billed by ACH.
-      const session = await stripe.checkout.sessions.create({
+      // Cast: @stripe/terminal-js brings stripe 8.x types whose global
+      // `declare module 'stripe'` merges an old PaymentMethodType list
+      // without 'link' over this SDK's (22.x lists it).
+      const teamCheckout = (methods: string[]) => stripe.checkout.sessions.create({
         locale: 'en',
-        // Cast: @stripe/terminal-js brings stripe 8.x types whose global
-        // `declare module 'stripe'` merges an old PaymentMethodType list
-        // without 'link' over this SDK's (22.x lists it).
-        payment_method_types: ['card', 'link'] as Stripe.Checkout.SessionCreateParams.PaymentMethodType[],
+        payment_method_types: methods as Stripe.Checkout.SessionCreateParams.PaymentMethodType[],
         mode: 'subscription',
         customer_email: parent.email,
         line_items: [{
@@ -151,6 +151,20 @@ export async function POST(req: NextRequest) {
         success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&team=1`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
       })
+      let session: Stripe.Checkout.Session
+      try {
+        session = await teamCheckout(['card', 'link'])
+      } catch (e) {
+        // If Link is switched off for the account, Stripe refuses the whole
+        // checkout, and every Swim Team sign-up would fail with it. Only that
+        // refusal falls back to card alone, once; anything else still fails.
+        const se = (e || {}) as { type?: string; rawType?: string; param?: string; message?: string }
+        const aboutLink = (se.type === 'StripeInvalidRequestError' || se.rawType === 'invalid_request_error')
+          && (se.param === 'payment_method_types' || /payment_method_types|\blink\b/i.test(String(se.message || '')))
+        if (!aboutLink) throw e
+        console.error(`team checkout: Stripe refused Link (${se.message}); opening a card-only checkout instead`)
+        session = await teamCheckout(['card'])
+      }
       return NextResponse.json({ url: session.url })
     }
 

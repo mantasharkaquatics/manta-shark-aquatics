@@ -87,6 +87,9 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', partnership.id)
     .eq('status', 'pending')
+    // Still the code that was entered: the owner may have been given a fresh
+    // one for this row (/api/partnerships/invite) since the read above.
+    .eq('invite_code', invite_code.toUpperCase())
     // Still in date at the moment of the claim, not only at the read above.
     .gt('created_at', inviteCodeCutoffIso())
     .select('id')

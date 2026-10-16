@@ -67,6 +67,16 @@ export function formatTime12h(t: string | null | undefined): string {
   return h12 + ':' + m + ' ' + ampm
 }
 
+// The clock time of an instant in America/Los_Angeles, 12-hour like every
+// time on the site (e.g. "1:05 AM"). For an instant (a timestamp), where
+// formatTime12h takes a wall-clock "HH:MM" string.
+export function formatTimeLA(date: Date): string {
+  const parts = LA_HM_FMT.formatToParts(date)
+  const h = parts.find(p => p.type === 'hour')?.value || '00'
+  const m = parts.find(p => p.type === 'minute')?.value || '00'
+  return formatTime12h(h + ':' + m)
+}
+
 // LA's offset from UTC, in minutes (-480 for PST, -420 for PDT), at instant `ms`.
 function laOffsetMinutes(ms: number): number {
   const p: Record<string, number> = {}

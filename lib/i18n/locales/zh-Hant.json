@@ -1047,7 +1047,7 @@
   "levels.hero.title1": "Manta Shark",
   "levels.hero.title2": "分級制度",
   "levels.levelN": "等級 {n}",
-  "link.codeValidUntil": "有效期限至 {date}",
+  "link.codeValidUntil": "有效期限至 {date} {time}",
   "link.confirmUnlink": "確定解除",
   "link.copied": "已複製",
   "link.copy": "複製",

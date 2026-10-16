@@ -1047,7 +1047,7 @@
   "levels.hero.title1": "Manta Shark",
   "levels.hero.title2": "Levels",
   "levels.levelN": "Level {n}",
-  "link.codeValidUntil": "Valid until {date}",
+  "link.codeValidUntil": "Valid until {date}, {time}",
   "link.confirmUnlink": "Yes, Unlink",
   "link.copied": "Copied",
   "link.copy": "Copy",
