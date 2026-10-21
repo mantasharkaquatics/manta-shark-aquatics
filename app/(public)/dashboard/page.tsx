@@ -1189,7 +1189,7 @@ function PointsCard({ w, onBuy, zelle }: { w: WalletSummary | null; onBuy: () =>
       {/* Zelle, folded under Buy (owner, 2026-10-21): only for a family with an
           assessed swimmer, as on the Points page. No amount step here -- the
           family types the amount into Zelle themselves. */}
-      {zelle && <ZellePay style={{ marginTop: 0, marginBottom: 14, borderTop: 'none', paddingTop: 0, fontSize: 13 }} />}
+      {zelle && <ZellePay style={{ marginTop: 0, marginBottom: 14 }} />}
 
       <>
           <button onClick={toggleHistory} aria-expanded={showHistory}
