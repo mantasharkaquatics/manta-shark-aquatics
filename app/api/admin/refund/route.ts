@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
         parentName: parentRow.first_name || 'there',
         amount: result.deliveredCents / 100,
         handBackAmount: result.handBackCents / 100,
+        zelleBackAmount: result.zelleBackCents / 100,
       })
     }
   } catch (e) {
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     refunded: result.deliveredCents / 100,
     handBack: result.handBackCents / 100,
+    zelleBack: result.zelleBackCents / 100,
     failed: result.failedCents / 100,
     legs: result.legs.map(l => ({
       purchase_id: l.purchaseId,

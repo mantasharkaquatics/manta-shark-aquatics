@@ -122,6 +122,9 @@ export interface EmailPayload {
   reversalKind?: 'payment_failed' | 'chargeback'
   // refund_issued: the part still to be handed over in person, if any.
   handBackAmount?: number
+  // refund_issued: the part of handBackAmount that was paid by Zelle and goes
+  // back by Zelle once a manager has checked it (owner, 2026-10-21).
+  zelleBackAmount?: number
   // referral_reward: which side of the referral this family is, the other
   // family's last name, and the date the reward stops working.
   referralRole?: 'referrer' | 'referred'
@@ -434,15 +437,20 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // and what still needs a person.
     const total = Number(amount ?? 0)
     const hand = Number(payload.handBackAmount ?? 0)
+    const zelle = Math.min(hand, Number(payload.zelleBackAmount ?? 0))
+    const cash = hand - zelle
     const card = total - hand
     const cardLine = card > 0
       ? `<p><strong>$${card.toFixed(2)}</strong> is on its way back to the card or account you paid with. Banks usually show it within 5\u201310 business days.</p>`
       : ''
-    const handLine = hand > 0
-      ? `<p><strong>$${hand.toFixed(2)}</strong> was paid at the front desk, so it comes back the same way: in cash at the front desk, next time you\u2019re in.</p>`
+    const handLine = cash > 0
+      ? `<p><strong>$${cash.toFixed(2)}</strong> was paid at the front desk, so it comes back the same way: in cash at the front desk, next time you\u2019re in.</p>`
+      : ''
+    const zelleLine = zelle > 0
+      ? `<p><strong>$${zelle.toFixed(2)}</strong> was paid by Zelle, so it comes back by Zelle: our manager will confirm it and then send it back to you.</p>`
       : ''
     subject = `Your $${total.toFixed(2)} refund from Manta Shark Aquatics`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${esc(parentName)},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points history on your dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${esc(parentName)},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}${zelleLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points history on your dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`
 
   } else if (type === 'referral_reward') {
     const pts = Number(amount ?? 0)

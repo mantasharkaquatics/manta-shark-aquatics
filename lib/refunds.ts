@@ -257,6 +257,10 @@ export type RefundResult = {
   failedCents: number
   /** Cents a person still has to hand over. Not a failure -- just not automatic. */
   handBackCents: number
+  /** The part of handBackCents the family paid by Zelle: a manager checks it
+   *  and sends it back by Zelle, by hand (owner, 2026-10-21). The rest is
+   *  desk cash. */
+  zelleBackCents: number
 }
 
 /**
@@ -375,6 +379,7 @@ export async function executeRefund(
     deliveredCents,
     failedCents,
     handBackCents: legs.filter(l => l.outcome === 'hand_back').reduce((a, l) => a + l.cents, 0),
+    zelleBackCents: legs.filter(l => l.outcome === 'hand_back' && l.paymentMethod === 'zelle').reduce((a, l) => a + l.cents, 0),
   }
 }
 

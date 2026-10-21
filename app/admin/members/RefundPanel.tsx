@@ -36,7 +36,7 @@ type Plan = {
   enabled: boolean
 }
 
-type Result = { refunded: number; handBack: number; failed: number }
+type Result = { refunded: number; handBack: number; zelleBack: number; failed: number }
 
 const money = (cents: number) => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -101,7 +101,7 @@ export default function RefundPanel({ parentId, onDone }: { parentId: string; on
     setBusy(false)
     if (!res) { setErr(t('admin.refund.err.unsure')); onDone(); return }
     if (!res.ok || !d?.ok) { setErr(errorText(String(d?.error || ''), d?.message, false)); return }
-    setResult({ refunded: d.refunded, handBack: d.handBack, failed: d.failed })
+    setResult({ refunded: d.refunded, handBack: d.handBack, zelleBack: Number(d.zelleBack) || 0, failed: d.failed })
     setPlan(null); setAmount(''); setNote('')
     onDone()
   }
@@ -144,7 +144,8 @@ export default function RefundPanel({ parentId, onDone }: { parentId: string; on
           {result && (
             <p role="status" className="text-emerald-300 text-xs">
               {t('admin.refund.done', { amount: money(Math.round(result.refunded * 100)) })}
-              {result.handBack > 0 && ' ' + t('admin.refund.doneCash', { amount: money(Math.round(result.handBack * 100)) })}
+              {result.handBack - result.zelleBack > 0 && ' ' + t('admin.refund.doneCash', { amount: money(Math.round((result.handBack - result.zelleBack) * 100)) })}
+              {result.zelleBack > 0 && ' ' + t('admin.refund.doneZelle', { amount: money(Math.round(result.zelleBack * 100)) })}
               {result.failed > 0 && ' ' + t('admin.refund.doneFailed', { amount: money(Math.round(result.failed * 100)) })}
             </p>
           )}

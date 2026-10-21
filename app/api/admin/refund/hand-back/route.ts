@@ -12,6 +12,10 @@ export const runtime = 'nodejs'
    desk when the family comes in -- and the row keeps who did it and when.
    Only the owner can make the refund itself (/api/admin/refund).
 
+   Zelle (owner, 2026-10-21): money a family paid by Zelle lands here too, and
+   goes back by Zelle once a manager has checked it. Each item says which
+   (`method`), taken from the purchase it refunds.
+
    GET              the amounts still to hand back, oldest first
    POST { id }      mark one handed back */
 
@@ -22,13 +26,14 @@ type Row = {
   amount_cents: number
   note: string | null
   created_by: string | null
+  purchase_id: string | null
 }
 
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await auth.svc.from('refund_legs')
-    .select('id, created_at, parent_id, amount_cents, note, created_by')
+    .select('id, created_at, parent_id, amount_cents, note, created_by, purchase_id')
     .eq('kind', 'hand_back').eq('status', 'to_hand_back')
     .order('created_at', { ascending: true })
     .limit(200)
@@ -45,8 +50,15 @@ export async function GET() {
     const { data: parents } = await auth.svc.from('parents').select('id, first_name, last_name').in('id', parentIds)
     for (const p of parents || []) names.set(p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim())
   }
+  const purchaseIds = [...new Set(rows.map(r => r.purchase_id).filter(Boolean))] as string[]
+  const zelle = new Set<string>()
+  if (purchaseIds.length > 0) {
+    const { data: purchases } = await auth.svc.from('purchases').select('id, payment_method').in('id', purchaseIds)
+    for (const p of purchases || []) if (p.payment_method === 'zelle') zelle.add(p.id)
+  }
   return NextResponse.json({
     items: rows.map(r => ({
+      method: r.purchase_id && zelle.has(r.purchase_id) ? 'zelle' : 'cash',
       id: r.id,
       createdAt: r.created_at,
       parentId: r.parent_id,
