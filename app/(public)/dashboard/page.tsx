@@ -1,4 +1,5 @@
 'use client'
+import ZellePay from '@/components/ZellePay'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { createContext, useCallback, useContext, useEffect, useState, useRef, useSyncExternalStore } from 'react'
@@ -992,7 +993,7 @@ type LedgerRow = {
 }
 
 /** The wallet, as one card. */
-function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }) {
+function PointsCard({ w, onBuy, zelle }: { w: WalletSummary | null; onBuy: () => void; zelle?: boolean }) {
   const t = useT()
   const locale = useLocale()
   const [showHistory, setShowHistory] = useState(false)
@@ -1185,6 +1186,10 @@ function PointsCard({ w, onBuy }: { w: WalletSummary | null; onBuy: () => void }
         style={{ display: 'block', width: '100%', textAlign: 'center', padding: '9px 0', marginBottom: '12px', background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>
         {t('points.card.buy')}
       </button>
+      {/* Zelle, folded under Buy (owner, 2026-10-21): only for a family with an
+          assessed swimmer, as on the Points page. No amount step here -- the
+          family types the amount into Zelle themselves. */}
+      {zelle && <ZellePay style={{ marginTop: 0, marginBottom: 14, borderTop: 'none', paddingTop: 0, fontSize: 13 }} />}
 
       <>
           <button onClick={toggleHistory} aria-expanded={showHistory}
@@ -2987,7 +2992,7 @@ export default function DashboardPage() {
               <button className="msa-sheet-x" onClick={() => { setPointsOpen(false); setReferralFocus(false) }} aria-label={t('common.close')}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} />
+              <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} zelle={students.some(s => s.current_level != null)} />
               <ReferralCard focus={referralFocus} />
               {teamMemberships.length > 0 && <TeamCard memberships={teamMemberships} />}
             </div>
