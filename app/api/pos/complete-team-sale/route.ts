@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { insertInvoice } from '@/lib/invoices/create'
 import { checkTeamSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
+import { withZelle, type ZelleCtx } from '@/lib/zelle-server'
 
 // POS prepaid team membership sale: buy N months upfront (cash or terminal one-off).
 // Rules (owner 2026-07-22): one track per student (block if active subscription);
@@ -44,9 +45,15 @@ function addMonthsClamped(from: Date, months: number): Date {
 }
 
 export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  // Zelle (owner, 2026-10-21): see lib/zelle-server.ts withZelle.
+  return withZelle(body, 'team', z => sale(body, z))
+}
+
+async function sale(body: any, z: ZelleCtx) {
   try {
-    const { parentId, studentId, tierId, months, paymentMethod, paymentIntentId, override } = await req.json()
-    if (paymentMethod !== 'cash' && paymentMethod !== 'stripe_terminal') {
+    const { parentId, studentId, tierId, months, paymentMethod, paymentIntentId, override } = body
+    if (paymentMethod !== 'cash' && paymentMethod !== 'stripe_terminal' && paymentMethod !== 'zelle') {
       return NextResponse.json({ error: 'Invalid payment method' }, { status: 400 })
     }
 
@@ -178,6 +185,11 @@ export async function POST(req: NextRequest) {
     // running, extended the membership a second time for one payment (found
     // 2026-10-07). Now: no invoice, nothing extended (safe to send again); two
     // requests at once, the earlier invoice wins and the other stands down.
+    // A Zelle sale takes its amount from the chosen receipt before anything is
+    // written; the "nothing written" exits below give it back.
+    const zelleRefused = await z.claim(supabase, Math.round(amount * 100), parentId, admin.id)
+    if (zelleRefused) return zelleRefused
+
     let invoice: { id: string; invoice_number: string } | null = null
     if (paymentIntentId) {
       try {
@@ -230,6 +242,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    z.wrote({ teamMembershipId: membershipId })
+
     // A cash sale's invoice comes after: the membership is written, and from
     // here the sale has happened. An invoice failure is logged and reported,
     // never turned into "the sale failed", which is what used to send the
@@ -241,6 +255,7 @@ export async function POST(req: NextRequest) {
         console.error('[complete-team-sale] membership recorded but the invoice failed', { membershipId }, e)
       }
     }
+    if (invoice) z.wrote({ invoiceId: invoice.id })
 
     return NextResponse.json({
       membership_id: membershipId,

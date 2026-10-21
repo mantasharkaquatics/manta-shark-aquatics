@@ -9,6 +9,9 @@ export type FamilyStatus = {
   /** A signed-in family with at least one active swimmer, every one of them
    *  with a level: the assessment is behind them. False while unknown. */
   allAssessed: boolean
+  /** At least one active swimmer has a level: what opens buying points
+   *  (owner, 2026-10-13), and so what shows the Zelle details (2026-10-21). */
+  anyAssessed: boolean
 }
 
 /**
@@ -21,7 +24,7 @@ export type FamilyStatus = {
  * parents/students read only happens for a signed-in visitor.
  */
 export function useFamilyStatus(): FamilyStatus {
-  const [status, setStatus] = useState<FamilyStatus>({ signedIn: null, allAssessed: false })
+  const [status, setStatus] = useState<FamilyStatus>({ signedIn: null, allAssessed: false, anyAssessed: false })
   useEffect(() => {
     let live = true
     ;(async () => {
@@ -29,16 +32,17 @@ export function useFamilyStatus(): FamilyStatus {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         if (!live) return
-        if (!session) { setStatus({ signedIn: false, allAssessed: false }); return }
-        setStatus({ signedIn: true, allAssessed: false })
+        if (!session) { setStatus({ signedIn: false, allAssessed: false, anyAssessed: false }); return }
+        setStatus({ signedIn: true, allAssessed: false, anyAssessed: false })
         const { data: p } = await supabase.from('parents').select('id').eq('auth_user_id', session.user.id).maybeSingle()
         if (!p) return
         const { data: kids } = await supabase.from('students').select('current_level').eq('parent_id', p.id).eq('is_active', true)
-        if (live && kids && kids.length > 0 && kids.every((k: { current_level: number | null }) => k.current_level != null)) {
-          setStatus({ signedIn: true, allAssessed: true })
+        const levelled = (kids || []).filter((k: { current_level: number | null }) => k.current_level != null).length
+        if (live && kids && levelled > 0) {
+          setStatus({ signedIn: true, allAssessed: levelled === kids.length, anyAssessed: true })
         }
       } catch {
-        if (live) setStatus(s => s.signedIn === null ? { signedIn: false, allAssessed: false } : s)
+        if (live) setStatus(s => s.signedIn === null ? { signedIn: false, allAssessed: false, anyAssessed: false } : s)
       }
     })()
     return () => { live = false }

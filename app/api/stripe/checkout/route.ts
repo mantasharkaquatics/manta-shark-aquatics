@@ -119,22 +119,17 @@ export async function POST(req: NextRequest) {
         console.error('team checkout: could not close older checkouts:', e?.message)
       }
 
-      // Card and Link only, no plain ACH (owner 2026-10-16, audit F26). The
-      // membership is recorded as active the moment checkout completes, and
-      // a plain ACH debit takes up to 4 business days to confirm -- and can
-      // still fail after the swimmer has started practising. Link's Instant
-      // Bank Payments confirm at once and support recurring charges; Stripe
-      // never shows them while 'us_bank_account' is in this list, so it must
-      // stay out. The points top-up below keeps bank debit: its delayed
-      // settlement is handled (bankDebitExposure and the webhook reversal).
-      // The webhook's generic us_bank_account handling stays for that, and
-      // for older team subscriptions that may still be billed by ACH.
-      // Cast: @stripe/terminal-js brings stripe 8.x types whose global
-      // `declare module 'stripe'` merges an old PaymentMethodType list
-      // without 'link' over this SDK's (22.x lists it).
-      const teamCheckout = (methods: string[]) => stripe.checkout.sessions.create({
+      // Card only (owner 2026-10-21). Link was added on 2026-10-16 (audit
+      // F26) and removed again: its fee is almost a card's, a family has no
+      // reason to pick it, and the owner did not want it offered. No plain
+      // ACH either: the membership is recorded as active the moment checkout
+      // completes, and an ACH debit takes up to 4 business days to confirm --
+      // and can still fail after the swimmer has started practising. The
+      // webhook's generic us_bank_account handling stays for the points
+      // top-up and for older team subscriptions that may still be billed by ACH.
+      const session = await stripe.checkout.sessions.create({
         locale: 'en',
-        payment_method_types: methods as Stripe.Checkout.SessionCreateParams.PaymentMethodType[],
+        payment_method_types: ['card'],
         mode: 'subscription',
         customer_email: parent.email,
         line_items: [{
@@ -151,20 +146,6 @@ export async function POST(req: NextRequest) {
         success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&team=1`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
       })
-      let session: Stripe.Checkout.Session
-      try {
-        session = await teamCheckout(['card', 'link'])
-      } catch (e) {
-        // If Link is switched off for the account, Stripe refuses the whole
-        // checkout, and every Swim Team sign-up would fail with it. Only that
-        // refusal falls back to card alone, once; anything else still fails.
-        const se = (e || {}) as { type?: string; rawType?: string; param?: string; message?: string }
-        const aboutLink = (se.type === 'StripeInvalidRequestError' || se.rawType === 'invalid_request_error')
-          && (se.param === 'payment_method_types' || /payment_method_types|\blink\b/i.test(String(se.message || '')))
-        if (!aboutLink) throw e
-        console.error(`team checkout: Stripe refused Link (${se.message}); opening a card-only checkout instead`)
-        session = await teamCheckout(['card'])
-      }
       return NextResponse.json({ url: session.url })
     }
 

@@ -43,6 +43,21 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
     return () => { alive = false; window.removeEventListener('admin:suggestions-changed', load) }
   }, [pathname])
 
+  // Zelle payments the bank received that no desk sale has used yet (owner,
+  // 2026-10-21: a number on the menu, nothing else). Re-read on each page
+  // change, and when the Zelle page or POS changes one.
+  const [openZelle, setOpenZelle] = useState(0)
+  useEffect(() => {
+    let alive = true
+    const load = () => fetch('/api/admin/zelle/count')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d && typeof d.count === 'number') setOpenZelle(d.count) })
+      .catch(() => {})
+    load()
+    window.addEventListener('admin:zelle-changed', load)
+    return () => { alive = false; window.removeEventListener('admin:zelle-changed', load) }
+  }, [pathname])
+
   return (
     <>
       <div className="flex-1 space-y-6">
@@ -81,6 +96,11 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
                     {item.href === '/admin/messages' && unreadChats > 0 && (
                       <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
                         {unreadChats > 99 ? '99+' : unreadChats}
+                      </span>
+                    )}
+                    {item.href === '/admin/zelle' && openZelle > 0 && (
+                      <span className="ml-auto shrink-0 text-[10px] font-bold leading-none px-1.5 py-1 rounded-full bg-red-500 text-white tabular-nums">
+                        {openZelle > 99 ? '99+' : openZelle}
                       </span>
                     )}
                     {item.href === '/admin/suggestions' && newSuggestions > 0 && (

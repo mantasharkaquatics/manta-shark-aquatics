@@ -198,3 +198,24 @@ has the type and helpers.
   The /zh-Hant and /zh-Hans pool pages exist only for ids present at build
   (`app/[locale]` has `dynamicParams = false`), so a brand-new pool row needs a
   deploy before its Chinese pages resolve.
+
+# Zelle is cash sent remotely
+
+Owner, 2026-10-21. Nothing credits a family from a Zelle by itself.
+`lib/zelle-server.ts` reads Bank of America's "<name> sent you $x" emails from
+the company mailbox (Gmail, read-only, connected once by the owner on
+/admin/zelle) every 5 minutes (`/api/cron/zelle-sync`) and keeps one
+`zelle_receipts` row per email. POS has a third payment button, Zelle, and a
+Zelle sale must name one of those rows (`zelleReceiptId`).
+
+- Every `/api/pos/complete-*` route is wrapped in `withZelle()`. A route calls
+  `z.claim()` after its checks and before its first write, and `z.wrote()`
+  right after the first thing it writes. The wrapper gives the amount back when
+  the sale ends having written nothing. A new desk sale route must do the same,
+  or a Zelle can be spent twice or never.
+- `zelle_allocate()` locks the receipt row, so two desks can never use more
+  than the bank received. One receipt may pay for several sales.
+- Only an email whose first Authentication-Results header (Google's) says DKIM
+  passed for bankofamerica.com, sent from ealerts.bankofamerica.com, is
+  `verified`; anything else is shown with a warning and POS refuses it.
+- The three tables and the function are server-only (RLS on, no policies).

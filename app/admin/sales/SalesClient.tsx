@@ -11,6 +11,7 @@ const PAYMENT_METHODS = [
   { value: 'stripe', labelKey: 'admin.sales.pm.stripe' },
   { value: 'Credit Card (Terminal)', labelKey: 'admin.sales.pm.terminal' },
   { value: 'cash', labelKey: 'admin.sales.pm.cash' },
+  { value: 'Zelle', labelKey: 'admin.sales.pm.zelle' },
 ]
 
 // Terminal card sales were written under three labels: 'Credit Card (Terminal)'
@@ -39,6 +40,7 @@ const PM_RAW_KEYS: Record<string, string> = {
   stripe_terminal: 'admin.sales.pmRaw.stripeTerminal',
   card: 'admin.sales.pmRaw.card',
   cash: 'admin.sales.pmRaw.cash',
+  Zelle: 'admin.sales.pm.zelle',
 }
 
 // A payment that did not stay (charged back, returned by the bank, refunded):

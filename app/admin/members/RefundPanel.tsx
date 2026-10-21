@@ -63,7 +63,9 @@ export default function RefundPanel({ parentId, onDone }: { parentId: string; on
   if (!owner) return null
 
   const where = (l: Leg) => {
-    if (!l.paymentIntentId) return t('admin.refund.to.cash')
+    // A desk Zelle sale has no payment intent either; it goes back by Zelle,
+    // by hand, like desk cash goes back by hand.
+    if (!l.paymentIntentId) return l.paidWith === 'zelle' ? t('admin.refund.to.zelle') : t('admin.refund.to.cash')
     if (l.paidWith === 'us_bank_account') return t('admin.refund.to.bank')
     if (l.paidWith === 'card_present' || l.paidWith === 'stripe_terminal') return t('admin.refund.to.terminal')
     return t('admin.refund.to.card')

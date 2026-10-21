@@ -19,6 +19,7 @@ import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { useFamilyStatus } from '@/lib/use-family-status'
+import { ZELLE_EMAIL, ZELLE_NAME, ZELLE_QR_SRC } from '@/lib/zelle'
 
 // The pricing page under the points system. Every number here is read from
 // lib/points.ts -- the same module the booking route charges from -- so the
@@ -186,7 +187,48 @@ function TeamButton({ signedIn }: { signedIn: boolean | null }) {
  * dollars and the points are shown side by side at every step -- a parent
  * should never have to work out what a number on this page is worth.
  */
-function TopUp({ signedIn }: { signedIn: boolean | null }) {
+/**
+ * Paying by Zelle instead (owner, 2026-10-21). Zelle is cash sent remotely:
+ * nothing here is automatic, the front desk adds the points by hand once the
+ * bank has the money (app/admin/zelle). Shown only to a family with an
+ * assessed swimmer -- the same families the card checkout sells points to.
+ */
+function ZellePay({ price }: { price: string }) {
+  const t = useT()
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(ZELLE_EMAIL); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch {}
+  }
+  return (
+    <details className="p-zelle" style={{ marginTop: 18, borderTop: '1px solid rgba(15,30,60,0.12)', paddingTop: 14 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>{t('points.zelle.title')}</summary>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start', marginTop: 12 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={ZELLE_QR_SRC} alt={t('points.zelle.qrAlt', { name: ZELLE_NAME })} width={150} height={199}
+          style={{ width: 150, height: 'auto', borderRadius: 8, border: '1px solid rgba(15,30,60,0.12)', background: '#fff' }} />
+        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+          <p className="p-fine" style={{ margin: '0 0 4px' }}>{t('points.zelle.to')}</p>
+          <p style={{ margin: 0, fontWeight: 700 }}>{ZELLE_NAME}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, margin: '2px 0 12px' }}>
+            <span style={{ wordBreak: 'break-all' }}>{ZELLE_EMAIL}</span>
+            <button type="button" onClick={copy} className="b-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+              {copied ? t('points.zelle.copied') : t('points.zelle.copy')}
+            </button>
+          </div>
+          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+            <li>{t('points.zelle.step1')}</li>
+            <li>{t('points.zelle.step2', { price })}</li>
+            <li>{t('points.zelle.step3')}</li>
+            <li>{t('points.zelle.step4')}</li>
+          </ol>
+          <p className="p-fine" style={{ margin: '10px 0 0' }}>{t('points.zelle.note')}</p>
+        </div>
+      </div>
+    </details>
+  )
+}
+
+function TopUp({ signedIn, anyAssessed }: { signedIn: boolean | null; anyAssessed: boolean }) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -334,6 +376,8 @@ function TopUp({ signedIn }: { signedIn: boolean | null }) {
       {error && <div className="p-err" role="alert">{error}</div>}
 
       <p className="p-fine" style={{ marginTop: 16 }}>{t('points.buy.fine')}</p>
+
+      {signedIn === true && anyAssessed && <ZellePay price={valid ? money(chosen) : '—'} />}
     </div>
   )
 }
@@ -383,7 +427,7 @@ export default function PlansContent() {
   // 2026-10-05). Hide that card and point the closing call to booking. Read
   // after paint and only for display; anyone signed out, or with a swimmer
   // still to assess, keeps the assessment-first page.
-  const { signedIn, allAssessed } = useFamilyStatus()
+  const { signedIn, allAssessed, anyAssessed } = useFamilyStatus()
   const teamFeeVaries = teamFees.some(n => n !== teamFee)
 
   const lessonRows = [
@@ -437,7 +481,7 @@ export default function PlansContent() {
             </div>
 
             <div className="p-grid">
-              <TopUp signedIn={signedIn} />
+              <TopUp signedIn={signedIn} anyAssessed={anyAssessed} />
 
               <div className="p-card p-price">
                 <p className="b-eyebrow">{t('points.price.eyebrow')}</p>

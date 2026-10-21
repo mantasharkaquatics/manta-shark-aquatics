@@ -3,6 +3,7 @@
 // file, npm run build, git push.
 import { OFF_PEAK_ENABLED, BASE_POINTS, REFERRAL_POINTS, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { TRIAL_HOLD_MINUTES, TRIAL_PRICE_CENTS } from '@/lib/plans'
+import { ZELLE_EMAIL } from '@/lib/zelle'
 
 export const POLICIES = `
 === BUSINESS HOURS ===
@@ -94,7 +95,8 @@ ${OFF_PEAK_ENABLED ? '- Off-peak discount: 5% off lessons that START inside the 
 - A student can be on only ONE track at a time: either the monthly subscription or prepaid. A prepaid member who wants to switch to the subscription can ask the front desk; billing then starts at the prepaid expiry date so no paid time is lost.
 
 === PAYMENTS ===
-- Accepted: online (through Stripe) by card, Apple Pay or bank transfer; at the front desk by card or cash. Nothing else (no cheques). The amounts a family can add at one time are shown on the Points page and at the desk - do not quote a minimum or maximum.
+- Accepted: online (through Stripe) by card, Apple Pay or bank transfer; at the front desk by card or cash; and Zelle for adding points. Nothing else (no cheques).
+- ZELLE (owner 2026-10-21): treated like cash, just sent remotely. Only for adding points, and only once a swimmer in the family has finished the Swim Assessment (the Points page shows the Zelle details to those families). Send to ${ZELLE_EMAIL} (MANTA SHARK AQUATICS) and write the swimmer's name in the memo. The points are NOT added automatically: the front desk adds them by hand once the money shows in the bank, within one business day. Never tell a family their Zelle has arrived or been added - you cannot see it; if they ask, hand off to the front desk. Zelle is not used for the online Swim Team subscription or for booking the assessment online. The amounts a family can add at one time are shown on the Points page and at the desk - do not quote a minimum or maximum.
 - Pricing is uniform: no cash discount, no negotiated discounts, and no better rate for adding more points at once. ${OFF_PEAK_ENABLED ? 'The only discount is the off-peak hours.' : 'There are no discounts.'}
 - Occasional promotions are announced by email newsletter; parents can subscribe to receive them. The AI never invents or promises promotions or discounts.
 

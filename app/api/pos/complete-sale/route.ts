@@ -7,6 +7,7 @@ import { centsToPoints } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
 import { insertInvoice } from '@/lib/invoices/create'
 import { checkPointsSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
+import { withZelle, type ZelleCtx } from '@/lib/zelle-server'
 
 // Selling points at the front desk. The same thing the parent buys online, put
 // through by an admin who takes the card or the cash.
@@ -24,8 +25,15 @@ import { checkPointsSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 const DUPLICATE_WINDOW_MS = 90_000
 
 export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  // Zelle (owner, 2026-10-21): paid like cash, but out of a Zelle payment the
+  // bank has received -- see lib/zelle-server.ts withZelle.
+  return withZelle(body, 'points', z => sale(body, z))
+}
+
+async function sale(body: any, z: ZelleCtx) {
   try {
-    const { parentId, amountCents, bonusPoints, paymentMethod, paymentIntentId, note } = await req.json()
+    const { parentId, amountCents, bonusPoints, paymentMethod, paymentIntentId, note } = body
 
     const cookieStore = await cookies()
     const supabaseAuth = createServerClient(
@@ -110,6 +118,11 @@ export async function POST(req: NextRequest) {
         }, { status: 409 })
     }
 
+    // A Zelle sale takes its amount from the chosen receipt here, after every
+    // check and before the first write.
+    const zelleRefused = await z.claim(supabase, amount, parentId, admin.id)
+    if (zelleRefused) return zelleRefused
+
     const purchaseRow: Record<string, unknown> = {
       parent_id: parentId,
       lesson_package_id: null,
@@ -133,6 +146,8 @@ export async function POST(req: NextRequest) {
         retryable: true,
       }, { status: 500 })
     }
+
+    z.wrote({ purchaseId: purchase.id })
 
     // The purchase and the bonus are two movements and can fail separately,
     // so each reports for itself. One try block used to cover both, and a
@@ -217,6 +232,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       console.error(`\u26a0\ufe0f POS sale for parent ${parentId} has no invoice:`, e?.message)
     }
+    if (invoice) z.wrote({ invoiceId: invoice.id })
 
     if (invoice && parent) {
       try {

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { insertInvoice } from '@/lib/invoices/create'
 import { checkTrialSale, invoicePaymentLabel, TRIAL_PRICE_CENTS } from '@/lib/pos/sale-checks'
+import { withZelle, type ZelleCtx } from '@/lib/zelle-server'
 
 // How old a claimed-but-unsold assessment must be before a card sale's
 // "record it again" takes it over (see below).
@@ -23,8 +24,14 @@ const ORPHAN_AFTER_MS = 90_000
 // credit, and could not book the assessment online either (found 2026-10-05).
 
 export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  // Zelle (owner, 2026-10-21): see lib/zelle-server.ts withZelle.
+  return withZelle(body, 'trial', z => sale(body, z))
+}
+
+async function sale(body: any, z: ZelleCtx) {
   try {
-    const { parentId, studentId, paymentMethod, paymentIntentId } = await req.json()
+    const { parentId, studentId, paymentMethod, paymentIntentId } = body
 
     const cookieStore = await cookies()
     const supabaseAuth = createServerClient(
@@ -111,6 +118,11 @@ export async function POST(req: NextRequest) {
 
     const notRecorded = 'The payment was taken but the Swim Assessment was not recorded. Do not take payment again — record it again with the button below.'
 
+    // A Zelle sale takes its $85 from the chosen receipt before anything is
+    // written; every "nothing written" exit below gives it back.
+    const zelleRefused = await z.claim(supabase, TRIAL_PRICE_CENTS, parentId, admin.id)
+    if (zelleRefused) return zelleRefused
+
     // Claim the assessment. The condition is what stops a second sale racing
     // this one; the check above only read it.
     const claimedAt = new Date().toISOString()
@@ -154,6 +166,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: notRecorded, code: 'trial_not_recorded', retryable: true }, { status: 500 })
     }
 
+    z.wrote({ purchaseId: purchase.id })
+
     // Create the assessment credit — visible on parent dashboard, consumed when booked
     const { data: ct1on1 } = await supabase.from('course_types').select('id').eq('slug', '1on1').single()
     const expiresAt = new Date()
@@ -183,6 +197,7 @@ export async function POST(req: NextRequest) {
           purchaseId: purchase.id,
         }, { status: 500 })
       }
+      z.unwrote()
       await releaseClaim()
       return NextResponse.json({ error: notRecorded, code: 'trial_not_recorded', retryable: true }, { status: 500 })
     }
@@ -201,6 +216,7 @@ export async function POST(req: NextRequest) {
         stripe_payment_intent_id: paymentIntentId || null,
         issued_at: new Date().toISOString(),
       })
+      if (inv) z.wrote({ invoiceId: inv.id })
       if (parentData && inv) {
         await sendEmail({
             type: 'invoice',

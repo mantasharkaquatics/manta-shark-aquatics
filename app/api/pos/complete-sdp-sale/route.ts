@@ -7,6 +7,7 @@ import { centsToPoints } from '@/lib/points'
 import { applyPoints } from '@/lib/points-wallet'
 import { insertInvoice } from '@/lib/invoices/create'
 import { checkSdpSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
+import { withZelle, type ZelleCtx } from '@/lib/zelle-server'
 
 // A negotiated programme sale: a set number of lessons for one named swimmer at
 // a price agreed off the price list (school districts, scholarships, a family
@@ -28,8 +29,14 @@ import { checkSdpSale, invoicePaymentLabel } from '@/lib/pos/sale-checks'
 const DUPLICATE_WINDOW_MS = 90_000
 
 export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  // Zelle (owner, 2026-10-21): see lib/zelle-server.ts withZelle.
+  return withZelle(body, 'sdp', z => sale(body, z))
+}
+
+async function sale(body: any, z: ZelleCtx) {
   try {
-    const { parentId, studentId, courseTypeId, description, sessions, unitPriceCents, paymentMethod, paymentIntentId } = await req.json()
+    const { parentId, studentId, courseTypeId, description, sessions, unitPriceCents, paymentMethod, paymentIntentId } = body
 
     const cookieStore = await cookies()
     const supabaseAuth = createServerClient(
@@ -116,6 +123,9 @@ export async function POST(req: NextRequest) {
         }, { status: 409 })
     }
 
+    const zelleRefused = await z.claim(supabase, amountCents, parentId, admin.id)
+    if (zelleRefused) return zelleRefused
+
     const insertData: Record<string, unknown> = {
       parent_id: parentId,
       lesson_package_id: null,
@@ -138,6 +148,8 @@ export async function POST(req: NextRequest) {
         retryable: true,
       }, { status: 500 })
     }
+
+    z.wrote({ purchaseId: purchase.id })
 
     // Two movements, each reporting for itself, both carrying the purchase id
     // so /api/pos/retry-credit can finish whichever did not land -- as
@@ -214,6 +226,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       console.error(`\u26a0\ufe0f POS SDP sale for parent ${parentId} has no invoice:`, e?.message)
     }
+    if (invoice) z.wrote({ invoiceId: invoice.id })
 
     if (invoice && parent) {
       try {

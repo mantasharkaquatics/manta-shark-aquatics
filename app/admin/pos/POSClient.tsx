@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 import { MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
 import { tierFor, tierBandLabel, TEAM_SQUAD_CAP, type TierBand } from '@/lib/team-tiers'
 import { useT, useLocale } from '@/lib/i18n/provider'
-import { tDb } from '@/lib/i18n'
+import { tDb, dateTag } from '@/lib/i18n'
 import { MAX_SDP_SESSIONS, MAX_SDP_UNIT_CENTS, SDP_COURSE_SLUGS, TRIAL_PRICE_CENTS } from '@/lib/pos/sale-checks'
 import { POS_ERROR_KEYS } from '@/lib/admin/desk-errors'
 
@@ -23,7 +24,9 @@ type Parent = { id: string; first_name: string; last_name: string; email: string
 type Student = { id: string; full_name: string; trial_used_at: string | null; current_level: number | null; current_stage: number | null }
 type PosTier = TierBand & { id: string; name: string; monthly_price_cents: number; spots_left: number }
 type Coach = { id: string; first_name: string; last_name: string }
-type PayMethod = 'card' | 'cash'
+type PayMethod = 'card' | 'cash' | 'zelle'
+/** A Zelle payment the bank has received (GET /api/admin/zelle?open=1). */
+type ZelleReceipt = { id: string; payer_name: string; amount_cents: number; remaining_cents: number; memo: string | null; received_at: string }
 type Step = 'select' | 'success'
 /** A sale that took the money but did not finish recording. 'credit' adds the
  *  points a recorded purchase is missing (/api/pos/retry-credit); 'record'
@@ -65,6 +68,12 @@ export default function POSClient() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [payMethod, setPayMethod] = useState<PayMethod>('card')
+  // Zelle is cash sent remotely (owner, 2026-10-21): a Zelle sale has to say
+  // which payment the bank received it in, and may use part of one.
+  const [zelleList, setZelleList] = useState<ZelleReceipt[] | null>(null)
+  const [zelleLoading, setZelleLoading] = useState(false)
+  const [zelleNote, setZelleNote] = useState<string | null>(null)
+  const [zelleReceiptId, setZelleReceiptId] = useState<string | null>(null)
   const [isSdp, setIsSdp] = useState(false)
   const [sdpStudents, setSdpStudents] = useState<{ id: string; full_name: string; uci_number: string }[]>([])
   const [sdpStudentId, setSdpStudentId] = useState<string | null>(null)
@@ -96,7 +105,30 @@ export default function POSClient() {
   // With no reader, card cannot be taken at all; start on cash so the desk
   // is not left looking at a Charge button that never turns on.
   const readerDown = readerStatus === 'none' || readerStatus === 'error'
-  const readerUnavailable = (st: 'none' | 'error') => { setReaderStatus(st); setPayMethod('cash') }
+  const readerUnavailable = (st: 'none' | 'error') => { setReaderStatus(st); setPayMethod(m => (m === 'zelle' ? m : 'cash')) }
+
+  // sync=1 reads the mailbox first, so a payment the family sent a minute ago
+  // is there without waiting for the 5-minute job.
+  const loadZelle = async (sync: boolean) => {
+    setZelleLoading(true)
+    setZelleNote(null)
+    try {
+      const res = await fetch('/api/admin/zelle?open=1' + (sync ? '&sync=1' : ''))
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 503) { setZelleList([]); setZelleNote(t('admin.pos.zelle.notInstalled')); return }
+      if (!res.ok) throw new Error()
+      const list: ZelleReceipt[] = data.receipts || []
+      setZelleList(list)
+      if (!data.gmail?.connected) setZelleNote(t('admin.pos.zelle.notConnected'))
+      setZelleReceiptId(cur => (cur && list.some(r => r.id === cur) ? cur : null))
+    } catch {
+      setZelleNote(t('admin.pos.zelle.loadFailed'))
+    } finally { setZelleLoading(false) }
+  }
+  useEffect(() => {
+    if (payMethod === 'zelle') loadZelle(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payMethod])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -242,16 +274,32 @@ export default function POSClient() {
     : saleKind === 'trial' ? t('common.assessment') + ' · ' + (selectedStudent?.full_name || '')
     : pointsLine
 
+  // The Zelle payment picked for this sale, and whether it still covers it.
+  // The server checks the same thing again under a lock (zelle_allocate).
+  const zelleReceipt = zelleList?.find(r => r.id === zelleReceiptId) || null
+  const zelleCovers = !!zelleReceipt && zelleReceipt.remaining_cents >= chargeAmount
+  const payReady = payMethod === 'cash' || (payMethod === 'zelle' ? zelleCovers : readerStatus === 'connected')
+  // Payments most likely to be this family's first: the exact amount, then
+  // the family's last name, then the newest.
+  const parentLast = (selectedParent?.last_name || '').trim().toLowerCase()
+  const zelleSameName = (r: ZelleReceipt) => !!parentLast && r.payer_name.toLowerCase().split(/\s+/).includes(parentLast)
+  const zelleSorted = (zelleList || []).slice().sort((a, b) =>
+    Number(b.remaining_cents === chargeAmount) - Number(a.remaining_cents === chargeAmount)
+    || Number(zelleSameName(b)) - Number(zelleSameName(a))
+    || Date.parse(b.received_at) - Date.parse(a.received_at))
+  const money = (cents: number) => '$' + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })
+  const pmLabel = payMethod === 'cash' ? t('admin.pos.pm.cash') : payMethod === 'zelle' ? t('admin.pos.pm.zelle') : t('admin.pos.pm.card')
+
   // While a charged sale is waiting to be finished, the Charge button stays
   // off: pressing it would take the money a second time.
-  const canCharge = !processing && !recovery && (
+  const canCharge = !processing && !recovery && payReady && (
     isTeam
-      ? !!selectedParent && !!selectedStudentId && !!teamTierId && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!selectedStudentId && !!teamTierId
       : isSdp
-      ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpValid && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!sdpStudentId && !!sdpCourseTypeId && sdpValid
       : isTrial
-      ? !!selectedParent && !!selectedStudentId && (payMethod === 'cash' || readerStatus === 'connected')
-      : !!selectedParent && topupValid && (payMethod === 'cash' || readerStatus === 'connected')
+      ? !!selectedParent && !!selectedStudentId
+      : !!selectedParent && topupValid
   )
 
   /* The online route derives the squad from the swimmer's level and stage and
@@ -296,7 +344,7 @@ export default function POSClient() {
       return
     }
     teamOverrideRef.current = overrideAcked
-    if (payMethod === 'cash') {
+    if (payMethod === 'cash' || payMethod === 'zelle') {
       setCashConfirmOpen(true)
       return
     }
@@ -387,6 +435,12 @@ export default function POSClient() {
     await record(url, body)
   }
 
+  // What every complete-* route is told about the payment. A Zelle sale names
+  // the payment it is paid from; the route takes the amount out of it.
+  const payFields = payMethod === 'card' ? { paymentMethod: 'stripe_terminal' }
+    : payMethod === 'zelle' ? { paymentMethod: 'zelle', zelleReceiptId }
+    : { paymentMethod: 'cash' }
+
   const doCharge = async () => {
     if (!selectedParent) return
     setError(null)
@@ -408,7 +462,7 @@ export default function POSClient() {
         // confirming), so the recovery button cannot extend a membership twice.
         await recordSale('/api/pos/complete-team-sale', {
           ...sale,
-          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...payFields,
           ...(paymentIntentId ? { paymentIntentId } : {}),
         })
       } else if (isSdp) {
@@ -422,7 +476,7 @@ export default function POSClient() {
           : undefined
         await recordSale('/api/pos/complete-sdp-sale', {
           ...sale,
-          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...payFields,
           ...(paymentIntentId ? { paymentIntentId } : {}),
         })
       } else if (isTrial) {
@@ -433,7 +487,7 @@ export default function POSClient() {
           : undefined
         await recordSale('/api/pos/complete-trial-sale', {
           ...sale,
-          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...payFields,
           ...(paymentIntentId ? { paymentIntentId } : {}),
         })
       } else {
@@ -444,13 +498,17 @@ export default function POSClient() {
           : undefined
         await recordSale('/api/pos/complete-sale', {
           ...sale,
-          paymentMethod: payMethod === 'card' ? 'stripe_terminal' : 'cash',
+          ...payFields,
           ...(paymentIntentId ? { paymentIntentId } : {}),
         })
       }
+      // The sidebar's open-Zelle number (app/admin/AdminNav.tsx).
+      if (payMethod === 'zelle') { try { window.dispatchEvent(new Event('admin:zelle-changed')) } catch {} }
     } catch (err: any) {
       if (err instanceof OverrideNeeded) return
       setError(err.message || t('admin.pos.err.paymentFailed'))
+      // What is left on each Zelle payment may have changed (another desk).
+      if (payMethod === 'zelle') loadZelle(false)
     } finally { setProcessing(false) }
   }
 
@@ -481,6 +539,7 @@ export default function POSClient() {
     setStep('select'); setSelectedParent(null); setTopupDollars(DEFAULT_TOPUP); setBonusPoints(''); setIsTrial(false)
     setIsSdp(false); setSdpStudents([]); setSdpStudentId(null); setSdpDesc(''); setSdpSessions('10'); setSdpUnitPrice('65'); setSdpCourseTypeId(null)
     setStudents([]); setSelectedStudentId(null); setPayMethod(readerDown ? 'cash' : 'card'); setIsTeam(false); setTeamMonths('1')
+    setZelleReceiptId(null); setZelleList(null); setZelleNote(null)
     setSearch(''); setSearchResults([]); setError(null); setRecovery(null); setProcessing(false); setShowCashConfirm(false)
 
   }
@@ -495,14 +554,24 @@ export default function POSClient() {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ backgroundColor: '#111d38', border: '1px solid #1e3a6e', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>💵</div>
-          <h2 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{t('admin.pos.cash.confirmTitle')}</h2>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>{payMethod === 'zelle' ? '🏦' : '💵'}</div>
+          <h2 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{payMethod === 'zelle' ? t('admin.pos.zelle.confirmTitle') : t('admin.pos.cash.confirmTitle')}</h2>
           <p style={{ color: '#9ca3af', fontSize: 15, marginBottom: 4 }}>{customerName}</p>
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 4 }}>{amount}</p>
           <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 28 }}>
             {saleLine}
           </p>
-          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{t('admin.pos.cash.confirmHint')}</p>
+          {payMethod === 'zelle' && zelleReceipt ? (
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, textAlign: 'left' }}>
+              <p style={{ color: '#d1d5db', fontSize: 13, margin: 0 }}>{t('admin.pos.zelle.confirmHint', { amount, payer: zelleReceipt.payer_name })}</p>
+              {zelleReceipt.memo && <p style={{ color: '#9ca3af', fontSize: 12, margin: '6px 0 0' }}>“{zelleReceipt.memo}”</p>}
+              {zelleReceipt.remaining_cents > chargeAmount && (
+                <p style={{ color: '#9ca3af', fontSize: 12, margin: '6px 0 0' }}>{t('admin.pos.zelle.leftAfter', { amount: money(zelleReceipt.remaining_cents - chargeAmount) })}</p>
+              )}
+            </div>
+          ) : (
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{t('admin.pos.cash.confirmHint')}</p>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <button
               onClick={() => setCashConfirmOpen(false)}
@@ -536,7 +605,7 @@ export default function POSClient() {
             <p style={{ color: '#9ca3af', fontSize: 16, marginBottom: 8 }}>{saleLine}</p>
           )}
           <p style={{ color: GOLD, fontSize: 32, fontWeight: 700, marginBottom: 8 }}>${(chargeAmount / 100).toLocaleString()}</p>
-          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{payMethod === 'cash' ? t('admin.pos.pm.cash') : t('admin.pos.pm.card')}</p>
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 32 }}>{pmLabel}{payMethod === 'zelle' && zelleReceipt ? ` · ${zelleReceipt.payer_name}` : ''}</p>
           <button onClick={reset} style={{ backgroundColor: GOLD, color: NAVY, padding: '14px 40px', borderRadius: 10, fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none' }}>{t('admin.pos.success.newTransaction')}</button>
         </div>
       </div>
@@ -853,14 +922,54 @@ export default function POSClient() {
             </span>
           </div>
           <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>{t('admin.pos.paymentMethod')}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-            {(['card', 'cash'] as const).map(m => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: payMethod === 'zelle' ? 12 : 20 }}>
+            {(['card', 'cash', 'zelle'] as const).map(m => (
               <button key={m} onClick={() => setPayMethod(m)}
-                style={{ padding: '10px', borderRadius: 8, border: `1px solid ${payMethod === m ? GOLD : '#1e3a6e'}`, backgroundColor: payMethod === m ? GOLD : '#0d1829', color: payMethod === m ? NAVY : 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-                {m === 'card' ? t('admin.pos.pm.card') : t('admin.pos.pm.cash')}
+                style={{ padding: '10px 4px', borderRadius: 8, border: `1px solid ${payMethod === m ? GOLD : '#1e3a6e'}`, backgroundColor: payMethod === m ? GOLD : '#0d1829', color: payMethod === m ? NAVY : 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                {m === 'card' ? t('admin.pos.pm.card') : m === 'cash' ? t('admin.pos.pm.cash') : t('admin.pos.pm.zelle')}
               </button>
             ))}
           </div>
+          {payMethod === 'zelle' && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                <p style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, margin: 0 }}>{t('admin.pos.zelle.title')}</p>
+                <button onClick={() => loadZelle(true)} disabled={zelleLoading}
+                  style={{ background: 'none', border: 'none', color: GOLD, fontSize: 12, fontWeight: 600, cursor: zelleLoading ? 'default' : 'pointer', padding: 0 }}>
+                  {zelleLoading ? t('admin.pos.zelle.loading') : t('admin.pos.zelle.refresh')}
+                </button>
+              </div>
+              {zelleNote && <p style={{ color: '#fbbf24', fontSize: 12, margin: '0 0 8px' }}>{zelleNote}</p>}
+              {zelleList && zelleList.length === 0 && !zelleLoading && !zelleNote && (
+                <p style={{ color: '#9ca3af', fontSize: 12, margin: 0 }}>{t('admin.pos.zelle.none')}</p>
+              )}
+              <div role="radiogroup" aria-label={t('admin.pos.zelle.title')} style={{ display: 'grid', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+                {zelleSorted.map(r => {
+                  const sel = r.id === zelleReceiptId
+                  const short = r.remaining_cents < chargeAmount
+                  return (
+                    <button key={r.id} role="radio" aria-checked={sel} onClick={() => setZelleReceiptId(sel ? null : r.id)}
+                      style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${sel ? GOLD : '#1e3a6e'}`, backgroundColor: sel ? 'rgba(201,168,76,0.12)' : '#0d1829', opacity: short && !sel ? 0.55 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ color: 'white', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.payer_name}</span>
+                        <span style={{ color: sel ? GOLD : 'white', fontSize: 13, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{money(r.remaining_cents)}</span>
+                      </div>
+                      <div style={{ color: '#9ca3af', fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.memo ? `“${r.memo}”` : t('admin.pos.zelle.noMemo')}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, fontSize: 11 }}>
+                        <span style={{ color: '#6b7280' }}>{new Date(r.received_at).toLocaleString(dateTag(locale), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })}</span>
+                        {r.remaining_cents < r.amount_cents && <span style={{ color: '#6b7280' }}>{t('admin.pos.zelle.of', { amount: money(r.amount_cents) })}</span>}
+                        {zelleSameName(r) && <span style={{ color: '#10b981' }}>{t('admin.pos.zelle.match')}</span>}
+                        {short && <span style={{ color: '#f87171' }}>{t('admin.pos.zelle.short')}</span>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <Link href="/admin/zelle" style={{ display: 'inline-block', marginTop: 8, color: '#9ca3af', fontSize: 11 }}>{t('admin.pos.zelle.pageLink')}</Link>
+            </div>
+          )}
           {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           {recovery && (
             <div style={{ marginBottom: 12 }}>
@@ -876,7 +985,7 @@ export default function POSClient() {
           )}
           <button onClick={() => handleCharge()} disabled={!canCharge}
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
-            {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : payMethod === 'card' && readerDown ? t('admin.pos.cta.useCash') : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
+            {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : payMethod === 'card' && readerDown ? t('admin.pos.cta.useCash') : payMethod === 'zelle' && !zelleCovers ? t('admin.pos.cta.pickZelle') : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
           </button>
           {readerDown && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{readerStatus === 'error' ? t('admin.pos.readerError') : t('admin.pos.noReader')}</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.readerReady')}</p>}

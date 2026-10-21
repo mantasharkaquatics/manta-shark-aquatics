@@ -44,8 +44,13 @@ export const SDP_COURSE_SLUGS = Object.keys(BASE_POINTS)
  *  used to write 'card' and team sales the raw 'stripe_terminal', so the Sales
  *  report's terminal filter missed both (found 2026-10-05). */
 export const TERMINAL_INVOICE_LABEL = 'Credit Card (Terminal)'
+/** What a desk Zelle sale writes (owner, 2026-10-21: Zelle is cash, sent
+ *  remotely). The purchase row keeps the lower-case 'zelle'. */
+export const ZELLE_INVOICE_LABEL = 'Zelle'
 export const invoicePaymentLabel = (paymentMethod: string) =>
-  paymentMethod === 'stripe_terminal' ? TERMINAL_INVOICE_LABEL : paymentMethod
+  paymentMethod === 'stripe_terminal' ? TERMINAL_INVOICE_LABEL
+  : paymentMethod === 'zelle' ? ZELLE_INVOICE_LABEL
+  : paymentMethod
 
 // --- Points top-up ------------------------------------------------------------
 

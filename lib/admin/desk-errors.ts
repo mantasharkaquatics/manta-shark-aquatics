@@ -33,6 +33,14 @@ export const POS_ERROR_KEYS: Record<string, string> = {
   trial_credit_missing: 'admin.pos.err.trialCreditMissing',
   trial_used: 'admin.pos.err.trialUsed',
   retry_failed: 'admin.pos.err.retryFailed',
+  // Zelle (lib/zelle-server.ts withZelle). zelle_not_enough's {reason} is
+  // what is left on the receipt, e.g. "$15.00".
+  zelle_missing: 'admin.pos.err.zelleMissing',
+  zelle_not_found: 'admin.pos.err.zelleNotFound',
+  zelle_unverified: 'admin.pos.err.zelleUnverified',
+  zelle_dismissed: 'admin.pos.err.zelleDismissed',
+  zelle_not_enough: 'admin.pos.err.zelleNotEnough',
+  zelle_failed: 'admin.pos.err.zelleFailed',
 }
 
 /** /api/admin/cancel-booking. */
