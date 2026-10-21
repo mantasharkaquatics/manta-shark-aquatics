@@ -1248,7 +1248,7 @@
   "points.buy.err.generic": "付款页面打不开，请再试一次。",
   "points.buy.eyebrow": "购买课程",
   "points.buy.fine": "由 Stripe 处理付款。付款完成后点数立刻入账，永不过期。",
-  "points.zelle.title": "或用 Zelle 付款（免手续费）",
+  "points.zelle.title": "或用 Zelle 付款",
   "points.zelle.qrAlt": "{name} 的 Zelle 二维码",
   "points.zelle.to": "收款人",
   "points.zelle.copy": "复制",

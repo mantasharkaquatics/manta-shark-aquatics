@@ -1248,7 +1248,7 @@
   "points.buy.err.generic": "付款頁面開不起來，請再試一次。",
   "points.buy.eyebrow": "購買課程",
   "points.buy.fine": "由 Stripe 處理付款。付款完成後點數立刻入帳，永不過期。",
-  "points.zelle.title": "或用 Zelle 付款（免手續費）",
+  "points.zelle.title": "或用 Zelle 付款",
   "points.zelle.qrAlt": "{name} 的 Zelle QR code",
   "points.zelle.to": "收款人",
   "points.zelle.copy": "複製",

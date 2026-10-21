@@ -1248,7 +1248,7 @@
   "points.buy.err.generic": "We couldn't open the payment page. Please try again.",
   "points.buy.eyebrow": "Buy Lessons",
   "points.buy.fine": "Payment is handled by Stripe. Points arrive the moment it clears and never expire.",
-  "points.zelle.title": "Or pay by Zelle — no card fee",
+  "points.zelle.title": "Or pay by Zelle",
   "points.zelle.qrAlt": "Zelle QR code for {name}",
   "points.zelle.to": "Send to",
   "points.zelle.copy": "Copy",
