@@ -215,7 +215,8 @@ function ZellePay({ price }: { price: string }) {
               {copied ? t('points.zelle.copied') : t('points.zelle.copy')}
             </button>
           </div>
-          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+          {/* The site's reset removes list markers; these steps are a real order. */}
+          <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: 'decimal' }}>
             <li>{t('points.zelle.step1')}</li>
             <li>{t('points.zelle.step2', { price })}</li>
             <li>{t('points.zelle.step3')}</li>

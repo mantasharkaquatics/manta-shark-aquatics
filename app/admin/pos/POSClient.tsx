@@ -987,7 +987,7 @@ export default function POSClient() {
             style={{ width: '100%', padding: 14, borderRadius: 10, fontWeight: 700, fontSize: 16, border: 'none', cursor: canCharge ? 'pointer' : 'not-allowed', backgroundColor: canCharge ? GOLD : '#374151', color: canCharge ? NAVY : '#6b7280', transition: 'all 0.15s' }}>
             {processing ? t('admin.pos.processing') : canCharge ? t('admin.pos.charge', { amount: `$${(chargeAmount / 100).toLocaleString()}` }) : payMethod === 'card' && readerDown ? t('admin.pos.cta.useCash') : payMethod === 'zelle' && !zelleCovers ? t('admin.pos.cta.pickZelle') : isTeam ? t('admin.pos.cta.team') : isSdp ? t('admin.pos.cta.sdp') : isTrial ? t('admin.pos.cta.student') : !selectedParent ? t('admin.pos.cta.customer') : t('admin.pos.cta.amount')}
           </button>
-          {readerDown && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{readerStatus === 'error' ? t('admin.pos.readerError') : t('admin.pos.noReader')}</p>}
+          {readerDown && payMethod !== 'zelle' && <p style={{ color: '#fbbf24', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{readerStatus === 'error' ? t('admin.pos.readerError') : t('admin.pos.noReader')}</p>}
           {payMethod === 'card' && readerStatus === 'connected' && <p style={{ color: '#10b981', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('admin.pos.readerReady')}</p>}
         </div>
       </div>
