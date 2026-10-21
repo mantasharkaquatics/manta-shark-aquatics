@@ -3343,7 +3343,7 @@ export default function BookingPage() {
                                             <span style={{ display: 'block', fontSize: '13px', lineHeight: 1.25, fontWeight: 700, color: inBasket ? GOLD : proposed ? `${GOLD}cc` : clickable ? '#16294a' : '#56647d' }}>
                                               <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{inBasket ? '✓ ' : ''}{formatTime(sl.time)}</span>
                                               <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap', color: sl.already_booked ? '#56647d' : sl.full ? '#56647d' : inBasket ? GOLD : !affordable ? '#9aa6ba' : myBandColor }}>
-                                                {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? (!makeUpDateOk(ds) ? t('booking.makeUp.outside') : t('booking.group.tooDear')) : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
+                                                {sl.already_booked ? '✓' : sl.full ? t('booking.full') : !affordable ? (!makeUpDateOk(ds) ? t('booking.makeUp.outside') : arrearsBlocks ? t('booking.arrears.slot') : t('booking.group.tooDear')) : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                               </span>
                                               {w24 && clickable ? <span style={{ display: 'block', fontSize: '11px', marginTop: '1px', color: GOLD }}>24h</span> : null}
                                             </span>
@@ -3382,7 +3382,7 @@ export default function BookingPage() {
                                           <span>
                                             <span style={{ display: 'block', fontSize: '17px', fontWeight: 700, color: inBasket ? GOLD : clickable ? '#16294a' : '#56647d' }}>{formatTime(sl.time)}</span>
                                             <span style={{ display: 'block', fontSize: '13px', marginTop: '3px', color: clickable ? '#56647d' : '#9aa6ba' }}>
-                                              {sl.already_booked ? t('booking.booked') : sl.full ? t('booking.full') : !affordable ? (!makeUpDateOk(openDay!) ? t('booking.makeUp.outside') : t('booking.group.tooDear')) : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
+                                              {sl.already_booked ? t('booking.booked') : sl.full ? t('booking.full') : !affordable ? (!makeUpDateOk(openDay!) ? t('booking.makeUp.outside') : arrearsBlocks ? t('booking.arrears.slot') : t('booking.group.tooDear')) : t('booking.spotsLeft', { n: sl.max - sl.enrolled })}
                                               {w24 && clickable ? ' · 24h' : ''}
                                             </span>
                                           </span>

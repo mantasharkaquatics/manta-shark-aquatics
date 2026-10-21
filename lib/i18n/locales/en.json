@@ -364,6 +364,7 @@
   "booking.short.body": "This costs {need} points and you have {have}.",
   "booking.short.cta": "Add points",
   "booking.arrears.preview": "Your account has an unpaid balance of ${amount}. Please pay it before booking.",
+  "booking.arrears.slot": "Paused",
   "booking.short.title": "Not enough points",
   "booking.short.twoSeats": "Two swimmers from your account cost {need} points and you have {have}.",
   "booking.spotsLeft": "{n} left",

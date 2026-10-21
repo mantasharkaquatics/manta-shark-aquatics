@@ -364,6 +364,7 @@
   "booking.short.body": "這需要 {need} 點，您目前有 {have} 點。",
   "booking.short.cta": "儲值點數",
   "booking.arrears.preview": "您的帳戶有一筆未付款項 ${amount}，請先付清再預約。",
+  "booking.arrears.slot": "暫停預約",
   "booking.short.title": "點數不足",
   "booking.short.twoSeats": "您帳戶中的兩位學員共需 {need} 點，您目前有 {have} 點。",
   "booking.spotsLeft": "剩 {n} 位",
