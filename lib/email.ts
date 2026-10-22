@@ -1,14 +1,13 @@
 import { Resend } from 'resend'
-import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from './plans'
 // From i18n/all, not i18n: index.ts holds only English now, so the voucher,
 // fixed-class and assessment emails went out in English (found 2026-10-05).
 // This file is server-only, so the extra dictionaries never reach the browser.
 import { getT, toLocale } from './i18n/all'
 import { stageNameKey } from './levels'
-import { formatTime12h } from './date'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 import { CONTACT_EMAIL, EMAIL_FROM } from './site-config'
-import { getLocations, locationLine, locationMapUrl, type Location } from './locations'
+import { getLocations, locationLine, type Location } from './locations'
+import { FAMILY_TYPES, familyEmail, familyLang, placeHtml } from './email-family'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -192,13 +191,6 @@ export interface EmailPayload {
   weeksLeft?: number
 }
 
-// Shared by the two school-side cancellation emails. Values arrive escaped.
-// `note` replaces the closing line; the default is the kept-payment one.
-function assessmentCancelledHtml(parentName: string, studentName: string, formattedDate: string, time: string, location = '', note = 'Your payment is kept on your account, so there is nothing to pay again. We will contact you shortly to arrange a new time.') {
-  const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
-  return `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Swim Assessment Cancelled</h2><p>Hi ${parentName},</p><p>We're sorry — we had to cancel the Swim Assessment below.</p><table style="width: 100%; border-collapse: collapse;">${row('Student', studentName)}${row('Date', formattedDate)}${row('Time', time)}${location ? row('Location', location) : ''}</table><p style="color: #c9a84c; font-weight: 600;">${note}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-}
-
 /** The pool a lesson email's `location` line names (lib/locations
  *  locationLine), read back so the email can add its map link, phone and
  *  arrival notes (owner, 2026-10-22). null when it cannot be matched. */
@@ -211,44 +203,22 @@ async function poolOfLine(line: string | undefined): Promise<Location | null> {
   } catch { return null }
 }
 
-/** The Location cell: the line, then a Map link, the pool's phone and its
- *  arrival notes when the desk has set them. Values are escaped here. */
-function placeHtml(line: string, pool: Location | null): string {
-  let h = esc(line)
-  if (!pool) return h
-  const url = locationMapUrl(pool)
-  const hasAddr = !!(pool.address || '').trim() && (pool.address || '').trim().toLowerCase() !== pool.name.trim().toLowerCase()
-  if (url && (hasAddr || pool.map_url)) h += ` &middot; <a href="${esc(url)}" style="color: #1a5fb4;">Map</a>`
-  const ph = String(pool.phone || '').replace(/\D/g, '')
-  if (ph.length === 10) h += `<br><span style="font-weight: 400; color: #444;">Pool phone: <a href="tel:+1${ph}" style="color: #1a5fb4;">(${ph.slice(0, 3)}) ${ph.slice(3, 6)}-${ph.slice(6)}</a></span>`
-  const notes = String(pool.directions || '').trim()
-  if (notes) h += `<br><span style="font-weight: 400; color: #444;">${esc(notes)}</span>`
-  return h
-}
-
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
-  const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind, code, changeField, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
+  const { type, to, parentName, studentName, coachName, date, time, amount, code, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
   let subject = ''
   let html = ''
   // A plain-text copy, for the few emails that set one (an account notice
   // with one is less often filed under Promotions).
   let text = ''
-  // The pool, right under the Time row of every lesson email. Empty while
-  // only one pool is open, so those emails read exactly as before.
+  // The lesson's pool (its map link, phone and arrival notes come from it).
   const pool = await poolOfLine(payload.location)
-  const locRow = payload.location ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${placeHtml(payload.location, pool)}</td></tr>` : ''
 
-  const formattedDate = date ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date + 'T00:00:00Z' : date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
-
-  if (type === 'booking_confirmed') {
-    subject = `Booking Confirmed – ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">✅ Booking Confirmed!</h2><p>Hi ${esc(parentName)},</p><p>Your lesson has been booked successfully. Here are the details:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr>${partnerName ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Partner</td><td style="padding: 8px 0; font-weight: 600;">${esc(partnerName)}</td></tr>` : ''}<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'contact_change_code') {
-    subject = `Your Manta Shark Aquatics verification code`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verification code</h2><p>Hi ${esc(parentName)},</p><p>You asked us to update the phone number on your account. Share this code with our staff to confirm:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(code)}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not request this change, do not share the code — reply to this email and let us know.</p></div></div>`
-
+  if (FAMILY_TYPES.has(type)) {
+    // The family's emails, in the family's language (lib/email-family.ts).
+    const L = await familyLang(payload)
+    const r = await familyEmail(payload, L, { pool, poolOfLine })
+    if (r) { subject = r.subject; html = r.html }
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${esc(applicantName || 'there')},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(code)}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
@@ -276,218 +246,6 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   } else if (type === 'applicant_application_received') {
     subject = `New application: ${applicantName} for ${roleLabel}`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">New application</h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Name</td><td style="padding: 8px 0; font-weight: 600;">${esc(applicantName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Position</td><td style="padding: 8px 0; font-weight: 600;">${esc(roleLabel)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Email</td><td style="padding: 8px 0; font-weight: 600;">${esc(applicantEmail)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Phone</td><td style="padding: 8px 0; font-weight: 600;">${esc(applicantPhone)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">City</td><td style="padding: 8px 0; font-weight: 600;">${esc(applicantCity || 'Not given')}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Resume</td><td style="padding: 8px 0; font-weight: 600;">${hasResume ? 'Attached' : 'None'}</td></tr></table><div style="text-align: center; margin-top: 24px;"><a href="${esc(appUrl)}/admin/applications" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review application</a></div></div></div>`
-
-  } else if (type === 'contact_change_notice') {
-    const what = changeField === 'email' ? 'email address' : 'phone number'
-    subject = `Your Manta Shark Aquatics ${what} was changed`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Account ${what} updated</h2><p>Hi ${esc(parentName)},</p><p>The ${what} on your account is now <strong>${esc(newValue)}</strong>.</p><p style="color:#666; font-size: 13px;">If you did not request this change, contact us immediately by replying to this email or calling the front desk.</p></div></div>`
-
-  } else if (type === 'trial_payment_link') {
-    const trialPrice = `$${Number(amount ?? TRIAL_PRICE_CENTS / 100)}`
-    subject = `Complete Your Swim Assessment Booking – ${trialPrice}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🏊 Swim Assessment Reserved</h2><p>Hi ${esc(parentName)},</p><p>We've reserved a Swim Assessment time for ${esc(studentName)}. Please complete payment within ${TRIAL_HOLD_MINUTES} minutes${payload.deadline ? ` (by ${esc(payload.deadline)} Pacific time)` : ''} to confirm your spot — after that the time is released for other families and this link stops working:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Price</td><td style="padding: 8px 0; font-weight: 600;">${trialPrice}</td></tr></table><div style="text-align: center; margin-top: 24px;"><a href="${esc(paymentUrl)}" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Complete Payment</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'booking_rescheduled') {
-    subject = `Lesson Rescheduled – ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 Lesson Rescheduled</h2><p>Hi ${esc(parentName)},</p><p>Your lesson has been rescheduled. Here are your new details:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">New Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">New Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'booking_cancelled' && refundKind === 'assessment') {
-    // A paid Swim Assessment the school cancelled (owner, 2026-10-06): the
-    // payment stays on file and the desk arranges the new time. The generic
-    // email told the family to rebook online, which the site does not allow
-    // for a paid assessment.
-    subject = `Swim Assessment Cancelled – ${formattedDate}`
-    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time), esc(payload.location || ''))
-
-  } else if (type === 'booking_cancelled' && refundKind === 'assessment_refunded') {
-    // A Swim Assessment whose $85 had already been refunded or charged back
-    // (2026-10-12). It went out as the generic notice: "Lesson Cancelled –
-    // 1-on-1" (assessments hang off the 1-on-1 course) and "rebook any time on
-    // your dashboard", which a swimmer with no level cannot do. Nothing is
-    // owed, so the family pays again if they still want one.
-    subject = `Swim Assessment Cancelled – ${formattedDate}`
-    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time), esc(payload.location || ''),
-      'Your payment for this assessment has been refunded, so nothing is owed. If you would still like a Swim Assessment, you can book and pay for a new time on our website: <a href="https://www.mantasharkaquatics.net/booking" style="color: #1a2744;">mantasharkaquatics.net/booking</a>.')
-
-  } else if (type === 'booking_cancelled') {
-    subject = `Lesson Cancelled – ${courseName} on ${formattedDate}`
-    const rk = refundKind || 'credit'
-    const voucherBy = payload.expiresOn
-      ? new Date(payload.expiresOn + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
-      : ''
-    // The other family in a shared 1-on-2 cancelled it (found 2026-10-08):
-    // the plain notice read as if the school, or the system, had cancelled.
-    const pc = payload.partnerCancelled
-    const cancelLine = pc
-      ? `The other family in this 1-on-2 lesson${partnerName ? ` (with ${esc(partnerName)})` : ''} cancelled it, so the whole lesson has been cancelled. You did not need to do anything.`
-      : rk === 'none'
-      ? 'Your lesson has been cancelled.'
-      : rk === 'voucher' && payload.voucherBack
-      ? 'Your make-up lesson has been cancelled and the make-up voucher has been returned to your account.'
-      : rk === 'voucher'
-      ? 'Your lesson has been cancelled and turned into a make-up voucher.'
-      : 'Your lesson has been cancelled and the points have been returned to your account.'
-    const readyLine = pc
-      ? `${rk === 'points' ? `Your ${amount ? `${Number(amount)} ` : ''}points are back in your wallet in full. ` : ''}You're welcome to book a 1-on-1 at the same time, or another time, on your dashboard.`
-      : rk === 'none'
-      ? "You're welcome to rebook any available time on your dashboard."
-      : rk === 'voucher'
-      ? (payload.usableFrom && voucherBy
-        ? `Book your make-up lesson from your dashboard for a date between ${new Date(payload.usableFrom + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })} and ${voucherBy} (14 days either side of the missed lesson). You can book it now. It costs no points.`
-        : `Book your make-up lesson from your dashboard${voucherBy ? ` by ${voucherBy}` : ''}. It costs no points.`)
-      : 'Your points are back in your wallet.'
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Lesson Cancelled</h2><p>Hi ${esc(parentName)},</p><p>${cancelLine}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="color: #c9a84c; font-weight: 600;">${readyLine}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_absent_lesson_continues') {
-    // Two families shared a 1-on-2 and the other one cancelled inside 24 hours
-    // (owner, 2026-10-07): this family's lesson goes ahead, one-to-one, at no
-    // extra cost.
-    subject = `Your Lesson Goes Ahead \u2013 ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Your Lesson Goes Ahead</h2><p>Hi ${esc(parentName)},</p><p>The other swimmer in this 1-on-2 lesson can no longer attend. <strong>Your lesson goes ahead as booked</strong>: same time, same coach, and the coach will teach ${esc(studentName || 'your swimmer')} one-to-one. There is <strong>nothing extra to pay</strong>.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="color: #666;">Nothing changes on your side and there is nothing you need to do. The usual 24-hour cancellation rules still apply to your booking.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-  } else if (type === 'block_cancellation_notice' && refundKind === 'assessment') {
-    subject = `Swim Assessment Cancelled – ${formattedDate}`
-    html = assessmentCancelledHtml(esc(parentName), esc(studentName), formattedDate, esc(time), esc(payload.location || ''))
-  } else if (type === 'block_cancellation_notice') {
-    subject = `Lesson Cancelled \u2013 ${courseName} on ${formattedDate}`
-    const refundLine = refundKind === 'none' ? ''
-      : refundKind === 'voucher' ? ' Your make-up voucher will be returned to your account so you can book another time.'
-      : ' The points will be automatically returned to your account.'
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Lesson Cancellation Notice</h2><p>Hi ${esc(parentName)},</p><p>We're sorry \u2014 Coach ${esc(coachName)} is unavailable at the time below, so the following lesson has been cancelled.${refundLine}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="margin-top: 16px;">You're welcome to rebook any available time on your dashboard. We apologize for the inconvenience.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-  } else if (type === 'reminder_24h') {
-    subject = `Reminder: ${courseName} Tomorrow at ${time}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🏊 Lesson Tomorrow!</h2><p>Hi ${esc(parentName)},</p><p>Just a reminder that ${esc(studentName)} has a lesson tomorrow!</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p>Please arrive 5 minutes early. See you in the pool! 🦈</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_booking_invite') {
-    // No figure here on purpose. The dashboard shows the invited family the
-    // exact cost, from the live price list, before they confirm. The dashboard shows them theirs before
-    // they confirm.
-    subject = `Invitation: ${inviterName} invited ${studentName} to a 1-on-2 lesson`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🔔 Partner Lesson Invitation</h2><p>Hi ${esc(parentName)},</p><p><strong>${esc(inviterName)}</strong> has invited <strong>${esc(studentName)}</strong> to join the lesson below. Please sign in to your dashboard within 15 minutes to confirm:</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #7b61c4; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review Invitation</a></div><p style="color: #999; font-size: 12px; margin-top: 16px;">Confirming will use points from your wallet — your dashboard shows exactly how many before you confirm. The invitation expires automatically if not confirmed in time.</p><p style="color: #999; font-size: 12px; margin-top: 8px;">A 1-on-2 shared by two families is one lesson. Cancelled more than 24 hours ahead, the whole lesson is cancelled and both families get their points back; within 24 hours it cannot be cancelled online. If one family cancels within 24 hours, that family's points are not returned and the other family's lesson goes ahead as booked, taught one-to-one at no extra cost.</p></div></div>`
-
-  } else if (type === 'partner_booking_confirmed') {
-    subject = `✅ ${studentName} Confirmed – ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">✅ Booking Confirmed</h2><p>Hi ${esc(parentName)},</p><p><strong>${esc(studentName)}</strong> has confirmed. Your 1-on-2 lesson is officially booked!</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table></div></div>`
-
-  } else if (type === 'partner_booking_rejected') {
-    // Accurate to what /api/bookings/reject-partner does (found 2026-10-05):
-    // declining cancels the inviter's pending row too (all four rows of an
-    // hour), and nothing was charged -- both families pay only on confirm.
-    // The old text said the inviter's own booking was still active.
-    subject = `❌ ${studentName} Declined – ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">❌ Invitation Declined</h2><p>Hi ${esc(parentName)},</p><p><strong>${esc(studentName)}</strong> has declined your 1-on-2 invitation, so the lesson below was not booked.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="color: #666;">No points were taken from your account. You're welcome to book another time from your dashboard.</p></div></div>`
-
-  } else if (type === 'partner_invite_expired') {
-    subject = `Invitation Expired \u2013 ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">\u23f3 Invitation Expired</h2><p>Hi ${esc(parentName)},</p><p>The partner lesson invitation below was not confirmed in time, so the reserved time has been released. <strong>No points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="margin-top: 16px;">You're welcome to book again at any available time on your dashboard.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_invite_withdrawn') {
-    // The inviting family withdrew a 1-on-2 invitation this family had not
-    // accepted yet (found 2026-10-06: they were sent "Lesson Cancelled" for a
-    // lesson they never had).
-    subject = `Invitation Withdrawn \u2013 ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Withdrawn</h2><p>Hi ${esc(parentName)},</p><p>${esc(inviterName || 'The other family')} withdrew the 1-on-2 invitation below. Nothing was booked for ${esc(studentName || 'your swimmer')}, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="margin-top: 16px;">You're welcome to book any available time on your dashboard.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_invite_unlinked') {
-    // A live 1-on-2 invitation cancelled because one of the two families
-    // removed the link between their accounts (found 2026-10-07: it vanished
-    // from both dashboards with no word). Sent to both families, so it says
-    // what happened without saying who did it.
-    subject = `Invitation Cancelled \u2013 ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Cancelled</h2><p>Hi ${esc(parentName)},</p><p>The 1-on-2 invitation below was cancelled because the link between your account and ${esc(partnerName || 'the other family')}'s account was removed. Nothing was booked for ${esc(studentName || 'your swimmer')}, the time has been released, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="margin-top: 16px;">You're welcome to book any available time on your dashboard.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_invite_failed') {
-    // The invited family pressed Accept and the lesson could not be booked
-    // (found 2026-10-08). Only the family who pressed it saw why; the
-    // inviter's invitation vanished in silence, or -- short of points --
-    // lingered until "was not confirmed in time" blamed the other family.
-    const r = payload.inviteFailReason
-    const mine = payload.isInviter
-    const why = r === 'slot_taken'
-      ? 'the coach was booked for another lesson at that time while the invitation was waiting'
-      : r === 'slot_full'
-      ? 'the time filled up while the invitation was waiting'
-      : r === 'swimmer_busy'
-      ? `${esc(payload.busyNames || 'one of the swimmers')} already has another lesson at that time`
-      : r === 'inviter_points'
-      ? (mine ? 'your account could not be charged for your half of the lesson (not enough points, or a payment is outstanding)' : 'the family who invited you could not be charged for their half of the lesson')
-      : r === 'too_late'
-      ? 'it was accepted less than 30 minutes before the lesson, which is too close to the start to book it'
-      : 'the coach is no longer available at that time'
-    const lead = mine
-      ? `${partnerName ? `The family of ${esc(partnerName)}` : 'The other family'} accepted your 1-on-2 invitation, but the lesson could not be booked because ${why}.`
-      : `The 1-on-2 invitation from ${esc(inviterName || 'the other family')} could not be booked because ${why}.`
-    subject = `Invitation Cancelled – ${courseName} on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Invitation Cancelled</h2><p>Hi ${esc(parentName)},</p><p>${lead} The invitation has been cancelled, nothing was booked for ${esc(studentName || 'your swimmer')}, and <strong>no points were used.</strong></p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Date</td><td style="padding: 8px 0; font-weight: 600;">${formattedDate}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>${locRow}</table><p style="margin-top: 16px;">${r === 'inviter_points' && mine ? 'Please top up your points, then send a new invitation from your dashboard.' : "You're welcome to book another time on your dashboard."}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'partner_reschedule_requested') {
-    // Everything the other family needs to decide, and by when (found
-    // 2026-10-07). It used to say only "your partner has requested to
-    // reschedule": no new time, no coach, no children, and no word that the
-    // request lapses after 15 minutes -- by the time many families opened it
-    // there was nothing left to answer.
-    const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
-    const fmt = (d?: string) => d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T00:00:00Z' : d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
-    const newWhen = `${fmt(payload.newDate)}${payload.newTime ? ', ' + esc(payload.newTime) : ''}`
-    const nowWhen = `${formattedDate}${time ? ', ' + esc(time) : ''}`
-    subject = `Reschedule Request – ${courseName} on ${fmt(payload.newDate) || formattedDate} (reply within 15 minutes)`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">📅 Reschedule Request</h2><p>Hi ${esc(parentName)},</p><p>The family of <strong>${esc(payload.requesterStudentName || 'your 1-on-2 partner')}</strong> has asked to move your shared 1-on-2 lesson to a new time.</p><table style="width: 100%; border-collapse: collapse;">${row('Your swimmer', esc(payload.partnerStudentName))}${row('Partner', esc(payload.requesterStudentName))}${row('Course', esc(courseName))}${row('Coach at new time', esc(coachName))}${row('Current time', nowWhen)}${row('Proposed new time', newWhen)}${payload.location ? row('Location at new time', esc(payload.location)) : ''}</table><p style="color: #c9a84c; font-weight: 600;">Please confirm or decline on your dashboard within 15 minutes${payload.deadline ? ` (by ${esc(payload.deadline)} Pacific time)` : ''}. If there is no answer by then, the request lapses and the lesson stays at its current time.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #1a2744; color: white; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Review Request</a></div><p style="color: #999; font-size: 12px; margin-top: 16px;">Moving the lesson does not change the points either family paid.</p></div></div>`
-
-  } else if (type === 'partner_reschedule_not_moved') {
-    // The other half of the conversation above (found 2026-10-07): a request
-    // that was declined, withdrawn, lapsed or could not be booked used to end
-    // in silence, and the family who asked never learned the outcome.
-    const row = (label: string, value: string) => `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">${label}</td><td style="padding: 8px 0; font-weight: 600;">${value}</td></tr>`
-    const fmt = (d?: string) => d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? d + 'T00:00:00Z' : d).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
-    const proposed = `${fmt(payload.newDate)}${payload.newTime ? ', ' + esc(payload.newTime) : ''}`
-    const why = payload.rescheduleOutcome === 'declined'
-      ? 'The request to move this 1-on-2 lesson was declined.'
-      : payload.rescheduleOutcome === 'withdrawn'
-      ? 'The request to move this 1-on-2 lesson was withdrawn by the family who made it.'
-      : payload.rescheduleOutcome === 'expired'
-      ? 'The request to move this 1-on-2 lesson was not confirmed within 15 minutes, so it has lapsed.'
-      : payload.rescheduleOutcome === 'too_late'
-      ? 'The request to move this 1-on-2 lesson was accepted less than 30 minutes before the proposed new time, which is too close to the lesson to move it, so it has lapsed.'
-      : payload.rescheduleOutcome === 'coach_unavailable'
-      ? 'The coach is no longer available at the proposed new time, so this 1-on-2 lesson could not be moved.'
-      : 'The proposed new time was no longer available, so this 1-on-2 lesson could not be moved.'
-    subject = `Lesson Not Moved – ${courseName} stays on ${formattedDate}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Lesson Not Moved</h2><p>Hi ${esc(parentName)},</p><p>${why}${proposed ? ` (proposed: ${proposed})` : ''}</p><p><strong>Your lesson stays at its original time:</strong></p><table style="width: 100%; border-collapse: collapse;">${row('Student', esc(studentName))}${partnerName ? row('Partner', esc(partnerName)) : ''}${row('Course', esc(courseName))}${row('Coach', esc(coachName))}${row('Date', formattedDate)}${row('Time', esc(time))}${locRow}</table><p style="color: #666;">No points were used or changed.</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
-  } else if (type === 'invoice') {
-    // The desk sales pass the receipt's own link, and it is shown (found
-    // 2026-10-07: it was passed and never rendered, and the dashboard could
-    // not reach a desk sale's receipt). The PDF route sends a signed-out
-    // reader to sign in and back.
-    subject = `🧾 Invoice ${invoiceNumber} – Manta Shark Aquatics`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">🧾 Invoice ${esc(invoiceNumber)}</h2><p>Hi ${esc(parentName)},</p><p>Thank you for your payment! Your invoice is ready.${invoiceUrl ? ' Download it with the button below (sign in first if asked), or find it any time in the points history on your dashboard.' : ' Log in to your dashboard to view and download it anytime.'}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Invoice Number</td><td style="padding: 8px 0; font-weight: 600;">${esc(invoiceNumber)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Amount Paid</td><td style="padding: 8px 0; font-weight: 600; color: #c9a84c;">$${Number(amount).toFixed(2)}</td></tr></table><div style="margin-top: 20px; text-align: center;">${invoiceUrl ? `<a href="${esc(invoiceUrl)}" style="background: #c9a84c; color: #1a2744; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block; margin: 0 4px 8px;">Download Receipt</a>` : ''}<a href="https://www.mantasharkaquatics.net/dashboard" style="background: #1a2744; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block; margin: 0 4px 8px;">Go to My Dashboard</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-  } else if (type === 'refund_issued') {
-    // No apology and no upsell. They asked for their money back and they are
-    // getting it; the only thing this has to do is say how much, when it lands,
-    // and what still needs a person.
-    const total = Number(amount ?? 0)
-    const hand = Number(payload.handBackAmount ?? 0)
-    const zelle = Math.min(hand, Number(payload.zelleBackAmount ?? 0))
-    const cash = hand - zelle
-    const card = total - hand
-    const cardLine = card > 0
-      ? `<p><strong>$${card.toFixed(2)}</strong> is on its way back to the card or account you paid with. Banks usually show it within 5\u201310 business days.</p>`
-      : ''
-    const handLine = cash > 0
-      ? `<p><strong>$${cash.toFixed(2)}</strong> was paid at the front desk, so it comes back the same way: in cash at the front desk, next time you\u2019re in.</p>`
-      : ''
-    const zelleLine = zelle > 0
-      ? `<p><strong>$${zelle.toFixed(2)}</strong> was paid by Zelle, so it comes back by Zelle: our manager will confirm it and then send it back to you.</p>`
-      : ''
-    subject = `Your $${total.toFixed(2)} refund from Manta Shark Aquatics`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Refund issued</h2><p>Hi ${esc(parentName)},</p><p>We\u2019ve refunded <strong>$${total.toFixed(2)}</strong> and taken the matching points out of your account.</p>${cardLine}${handLine}${zelleLine}<p style="color:#666; font-size: 13px; margin-top: 16px;">Your points history on your dashboard shows this alongside everything else on your account. If anything doesn\u2019t look right, reply to this email and we\u2019ll sort it out.</p></div></div>`
-
-  } else if (type === 'referral_reward') {
-    const pts = Number(amount ?? 0)
-    const why = payload.referralRole === 'referrer'
-      ? `The ${esc(payload.otherFamily)} family, who joined with your referral code, has taken their first paid lesson. Thank you for introducing them!`
-      : `Welcome aboard! You joined with the ${esc(payload.otherFamily)} family's referral code, and you've now taken your first paid lesson.`
-    subject = `You've received ${pts} bonus points`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">${pts} bonus points for you</h2><p>Hi ${esc(parentName)},</p><p>${why}</p><p><strong>${pts} bonus points</strong> have been added to your account${payload.expiresOn ? ` and can be used until <strong>${esc(payload.expiresOn)}</strong>` : ''}. Bonus points are used before your purchased points and cannot be exchanged for cash.</p><div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Book a Lesson</a></div></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 
   } else if (type === 'assessment_report') {
     // In the family's language, like the report itself. The email only says
@@ -653,18 +411,6 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     subject = 'Your Manta Shark Aquatics sign-in email was changed'
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Sign-in email changed</h2><p>The email you use to sign in to Manta Shark Aquatics was changed from <strong>${esc(to)}</strong> to <strong>${esc(newValue)}</strong> by ${esc(payload.changedBy || 'a manager')}.</p><p>From now on, use the new address to sign in. Your password and PIN have not changed.</p><p style="color:#666; font-size: 13px;">If you did not expect this change, reply to this email or tell a manager right away.</p></div></div>`
 
-  } else if (type === 'fixed_class_ended') {
-    // The front desk ended a fixed class part-way. reason is what the remaining
-    // lessons became: refund (amount = points), voucher (amount = vouchers), keep.
-    const n = Number(payload.lessonsReleased ?? 0)
-    const what = payload.reason === 'refund'
-      ? `${Number(amount ?? 0)} points have been returned to your account.`
-      : payload.reason === 'voucher'
-      ? `They have been turned into ${Number(amount ?? 0)} make-up voucher${Number(amount ?? 0) === 1 ? '' : 's'}, which you can use from your dashboard.`
-      : ''
-    subject = `Fixed class ended – ${courseName}`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Fixed class ended</h2><p>Hi ${esc(parentName)},</p><p>As we agreed, ${esc(studentName)}'s fixed ${esc(courseName)} class has ended. The ${n} remaining lesson${n === 1 ? ' has' : 's have'} been cancelled. ${what}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
   } else if (type === 'fixed_class_renewal' || type === 'fixed_class_moved') {
     // Both in the family's language. date = the class's last lesson (renewal),
     // expiresOn = the day the held slot opens to other families.
@@ -680,7 +426,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // The pool, under the body: these two go out in the family's language and
     // have no label rows, so a pin and the pool's own name and address say it
     // without a word to translate.
-    const poolP = payload.location ? `<p style="color: #16294a; line-height: 1.6;">&#128205; ${placeHtml(payload.location, pool)}</p>` : ''
+    const poolP = payload.location ? `<p style="color: #16294a; line-height: 1.6;">&#128205; ${placeHtml(t, payload.location, pool)}</p>` : ''
     if (type === 'fixed_class_renewal') {
       // Plain text: the escaped names showed "O&#39;Brien" in the subject line
       // (found 2026-10-07). The escaped vars stay for the HTML body.
@@ -699,73 +445,6 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         + (n > 0 ? `<p style="background: #fdf3e1; border: 1px solid #f3dcae; border-radius: 10px; padding: 12px 14px; color: #7a4b00; line-height: 1.6;">${t('fixed.email.move.vouchers', { n })}</p>` : ''),
         'https://www.mantasharkaquatics.net/dashboard', t('fixed.email.move.button'))
     }
-
-  } else if (type === 'payment_reversed') {
-    // Written to be read by someone who did nothing wrong. The overwhelmingly
-    // likely story is a closed account or a typo'd routing number, not a
-    // person trying it on -- so it says what happened, what it costs them, and
-    // exactly which button fixes it, and it does not accuse anyone.
-    const owed = Number(payload.pointsOwed ?? 0)
-    const released = Number(payload.lessonsReleased ?? 0)
-    const dollars = Number(amount ?? 0)
-    const cause = payload.reversalKind === 'chargeback'
-      ? 'Your bank has reversed this payment at your request.'
-      : "Your bank wasn't able to complete this payment, so the funds never reached us."
-    // The released lessons are listed here because this is the only notice
-    // the family gets: no booking_cancelled email goes out for them. It used
-    // to promise "a cancellation notice for each one" that never came, and
-    // name none of them (found 2026-10-07).
-    const releasedList = (payload.releasedLessons || []).map(l => {
-      const d = new Date(l.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
-      const who = (l.studentNames || []).filter(Boolean).join(' & ')
-      return `<tr><td style="padding: 6px 16px 6px 0; font-weight: 600; white-space: nowrap; vertical-align: top;">${esc(d)} &middot; ${esc(formatTime12h(l.time))}</td><td style="padding: 6px 0; color: #666;">${esc(who)}</td></tr>`
-    }).join('')
-    const releasedLine = released > 0
-      ? `<p>To keep this from growing, we've cancelled ${released} lesson${released === 1 ? '' : 's'} you hadn't taken yet and put those points back.${releasedList ? ' These lessons will not take place:' : ''}</p>`
-        + (releasedList ? `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">${releasedList}</table>` : '')
-      : ''
-    const owedLine = owed > 0
-      ? `<p>That leaves <strong>${owed.toLocaleString('en-US')} points</strong> to settle for lessons already taken. Booking is paused until the balance is settled.</p>`
-      : '<p>Your balance is settled — nothing further is owed, and you can book again straight away.</p>'
-    // The button opens the points sheet (?points=1), where the amount owed and
-    // its pay button are; the plain dashboard showed only a red pill (found
-    // 2026-10-15).
-    subject = `Action needed: your $${dollars.toFixed(2)} payment didn't go through`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Payment didn't go through</h2><p>Hi ${esc(parentName)},</p><p>${cause} We'd already added the points to your wallet, so we've had to take them back out.</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Amount</td><td style="padding: 8px 0; font-weight: 600;">$${dollars.toFixed(2)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Points removed</td><td style="padding: 8px 0; font-weight: 600;">${dollars.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td></tr></table>${releasedLine}${owedLine}<div style="text-align: center; margin-top: 24px;"><a href="https://www.mantasharkaquatics.net/dashboard?points=1" style="display: inline-block; background: #c9a84c; color: #1a2744; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none;">Pay by card</a></div><p style="color: #666; font-size: 13px; margin-top: 16px;">Paying what you owe by card (at least $50; anything extra stays as points) clears this immediately. If you think this is a mistake, reply to this email and we'll sort it out with you.</p></div></div>`
-
-  } else if (type === 'booking_series_confirmed') {
-    const dl = (payload.dates as string[] | undefined) || []
-    const tl = (payload.times as string[] | undefined) || []
-    const fmtD = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
-    // The pool: one row when every lesson is at the same one (or `location`
-    // was given), on each date when the series spans both pools.
-    const ll = payload.locations || []
-    const llSet = new Set(ll.map(x => x || ''))
-    const perDateLoc = ll.length > 0 && llSet.size > 1
-    const seriesLoc = perDateLoc ? '' : (payload.location || ll[0] || '')
-    const seriesPool = seriesLoc === payload.location ? pool : await poolOfLine(seriesLoc)
-    const seriesLocRow = seriesLoc ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${placeHtml(seriesLoc, seriesPool)}</td></tr>` : ''
-    const dateRows = dl.map((d, i) => `<tr><td style="padding: 6px 0; color: #666;">Lesson ${i + 1}</td><td style="padding: 6px 0; font-weight: 600;">${fmtD(d)}${tl[i] ? ` &middot; ${esc(tl[i])}` : ''}${perDateLoc && ll[i] ? ` &middot; ${esc(ll[i])}` : ''}</td></tr>`).join('')
-    // A fixed class says so, with the leave rule that comes with it; a basket
-    // of separate lessons is not "recurring" (found 2026-10-06: both got
-    // "Recurring Lessons Confirmed").
-    const fixed = payload.seriesKind === 'fixed'
-    // One lesson reads as one: "1 1-on-1 Private Lessons" / "Your 1 lessons"
-    // went out for a single booking (found 2026-10-07).
-    const one = dl.length === 1
-    subject = fixed
-      ? `Fixed Class Confirmed \u2013 ${dl.length} ${courseName} Lessons`
-      : one
-        ? `Booking Confirmed \u2013 ${courseName} Lesson on ${fmtD(dl[0])}`
-        : `Booking Confirmed \u2013 ${dl.length} ${courseName} Lessons`
-    const seriesTitle = fixed ? '\u2705 Fixed Class Confirmed!' : one ? '\u2705 Lesson Confirmed!' : '\u2705 Lessons Confirmed!'
-    const seriesIntro = fixed
-      ? `${esc(studentName)}'s fixed class is booked: the same weekday, time and coach every week. Need to miss a week? Take leave from your dashboard at least 24 hours ahead and you get a make-up voucher. Here are the details:`
-      : one
-        ? 'Your lesson has been booked successfully. Here are the details:'
-        : `Your ${dl.length} lessons have been booked successfully. Here are the details:`
-    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">${seriesTitle}</h2><p>Hi ${esc(parentName)},</p><p>${seriesIntro}</p><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Student</td><td style="padding: 8px 0; font-weight: 600;">${esc(studentName)}</td></tr>${partnerName ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Partner</td><td style="padding: 8px 0; font-weight: 600;">${esc(partnerName)}</td></tr>` : ''}<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Course</td><td style="padding: 8px 0; font-weight: 600;">${esc(courseName)}</td></tr><tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Coach</td><td style="padding: 8px 0; font-weight: 600;">${esc(coachName)}</td></tr>${time ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Time</td><td style="padding: 8px 0; font-weight: 600;">${esc(time)}</td></tr>` : ''}${seriesLocRow}</table><h3 style="color: #1a2744; margin: 20px 0 8px;">${one ? 'Lesson Date' : `Lesson Dates (${dl.length})`}</h3><table style="width: 100%; border-collapse: collapse;">${dateRows}</table></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
-
   }
 
   if (!subject || !html) {
