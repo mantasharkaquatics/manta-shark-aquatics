@@ -221,6 +221,10 @@ export async function POST(req: NextRequest) {
       .update({ reminder_sent_at: null })
       .in('class_session_id', moveSessionIds).neq('status', 'cancelled')
     if (remErr) console.error('move-session: could not clear reminder_sent_at:', remErr.message)
+    // And the reminder email's stamp (docs/migration-reminder-email.sql; an
+    // error before that migration only means there is no stamp to clear).
+    await svc.from('bookings').update({ reminder_email_sent_at: null })
+      .in('class_session_id', moveSessionIds).neq('status', 'cancelled')
   }
 
   // Put the cancelled rows back on a session of their own at the old coach,

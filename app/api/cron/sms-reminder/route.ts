@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { requireCron } from '@/lib/cron-auth'
-import { getLocations, lessonPlaceShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { getLocations, lessonPlaceShown, lessonLocationLine, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { sendEmail } from '@/lib/email'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -23,6 +25,8 @@ function laWallParts(d: Date) {
 function wallMs(dateStr: string, timeStr: string): number {
   return Date.parse(`${dateStr}T${timeStr}Z`)
 }
+
+type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null; is_trial?: boolean | null; reminder_sent_at?: string | null; reminder_email_sent_at?: string | null }
 
 export async function GET(request: Request) {
   const denied = requireCron(request)
@@ -46,7 +50,7 @@ export async function GET(request: Request) {
   // Step 1: sessions whose LA wall-clock start falls inside the window
   const { data: sessions, error: sessErr } = await supabase
     .from('class_sessions')
-    .select('id, session_date, start_time, course_type_id, coach_id, location_id')
+    .select('id, session_date, start_time, end_time, course_type_id, coach_id, location_id')
     .in('session_date', candidateDates)
 
   if (sessErr) {
@@ -64,23 +68,31 @@ export async function GET(request: Request) {
   }
   const sessionMap = new Map(inWindow.map((s) => [s.id, s]))
 
-  // Step 2: confirmed, not-yet-reminded bookings for those sessions
-  const { data: bookings, error: bookErr } = await supabase
+  // Step 2: confirmed bookings for those sessions that still owe a reminder:
+  // the text (reminder_sent_at) or, since 2026-10-22, the email
+  // (reminder_email_sent_at, docs/migration-reminder-email.sql). Before that
+  // migration the email column is not there and only texts go out.
+  // A booking the family was emailed about as cancelled for coach time off
+  // (the old two-step flow emailed before cancelling) must not get a
+  // "lesson tomorrow" reminder (found 2026-10-07).
+  const stamps = (withEmail: boolean) => supabase
     .from('bookings')
-    .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial')
+    .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial, reminder_sent_at' + (withEmail ? ', reminder_email_sent_at' : ''))
     .eq('status', 'confirmed')
-    .is('reminder_sent_at', null)
-    // A booking the family was emailed about as cancelled for coach time off
-    // (the old two-step flow emailed before cancelling) must not get a
-    // "lesson tomorrow" text (found 2026-10-07).
     .is('block_notice_sent_at', null)
     .in('class_session_id', inWindow.map((s) => s.id))
-
+  let emailOn = true
+  let { data: found, error: bookErr } = await stamps(true)
+  if (bookErr && /reminder_email_sent_at/.test(bookErr.message || '')) {
+    emailOn = false
+    ;({ data: found, error: bookErr } = await stamps(false))
+  }
   if (bookErr) {
     console.error('Error fetching bookings:', bookErr)
     return NextResponse.json({ error: 'DB error (bookings)' }, { status: 500 })
   }
-  if (!bookings || bookings.length === 0) {
+  const bookings = ((found || []) as unknown as Row[]).filter((b) => !b.reminder_sent_at || (emailOn && !b.reminder_email_sent_at))
+  if (bookings.length === 0) {
     return NextResponse.json({ sent: 0, results: [], note: 'no unreminded bookings in window' })
   }
 
@@ -91,25 +103,24 @@ export async function GET(request: Request) {
   // the second half's start, and siblings got one text each. Pull in every
   // confirmed row of the hour lessons seen here (the other half can sit outside
   // this window), plus the sessions of those halves.
-  type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null; is_trial?: boolean | null; reminder_sent_at?: string | null }
   const groupIds = [...new Set(bookings.map((b) => b.lesson_group_id).filter(Boolean))] as string[]
   let groupRows: Row[] = []
   if (groupIds.length > 0) {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial, reminder_sent_at')
+      .select('id, class_session_id, student_id, parent_id, lesson_group_id, is_trial, reminder_sent_at' + (emailOn ? ', reminder_email_sent_at' : ''))
       .eq('status', 'confirmed')
       .in('lesson_group_id', groupIds)
     if (error) {
       console.error('Error fetching lesson groups:', error)
       return NextResponse.json({ error: 'DB error (lesson groups)' }, { status: 500 })
     }
-    groupRows = (data || []) as Row[]
+    groupRows = (data || []) as unknown as Row[]
     const missing = [...new Set(groupRows.map((r) => r.class_session_id))].filter((id) => !sessionMap.has(id))
     if (missing.length > 0) {
       const { data: more, error: moreErr } = await supabase
         .from('class_sessions')
-        .select('id, session_date, start_time, course_type_id, coach_id, location_id')
+        .select('id, session_date, start_time, end_time, course_type_id, coach_id, location_id')
         .in('id', missing)
       if (moreErr) {
         console.error('Error fetching sessions (other halves):', moreErr)
@@ -141,7 +152,7 @@ export async function GET(request: Request) {
 
   const [studentsRes, parentsRes, courseTypesRes, coachesRes, pools] = await Promise.all([
     supabase.from('students').select('id, full_name').in('id', studentIds),
-    supabase.from('parents').select('id, phone, first_name, terms_version').in('id', parentIds),
+    supabase.from('parents').select('id, phone, email, first_name, terms_version, preferred_language').in('id', parentIds),
     supabase.from('course_types').select('id, name').in('id', courseTypeIds),
     supabase.from('coaches').select('id, first_name').in('id', coachIds),
     getLocations(supabase),
@@ -179,7 +190,7 @@ export async function GET(request: Request) {
   const results: Array<Record<string, unknown>> = []
   let sent = 0
 
-  const remindLesson = async (rows: Row[]) => {
+  const textLesson = async (rows: Row[]) => {
     const ids = rows.map((r) => r.id)
     const parent = parentMap.get(rows[0].parent_id)
     if (!parent?.phone) return
@@ -275,6 +286,65 @@ export async function GET(request: Request) {
     }
   }
 
+  // The day-before email (owner, 2026-10-22): every family, whatever their
+  // SMS consent, in their language, with the pool's address, map and arrival
+  // notes and the lesson's calendar file. Claimed the same way as the text.
+  let emailed = 0
+  const emailLesson = async (rows: Row[]) => {
+    if (!emailOn) return
+    const parent = parentMap.get(rows[0].parent_id) as { email?: string | null; first_name?: string | null; preferred_language?: string | null } | undefined
+    if (!parent?.email) return
+    const sess = [...new Set(rows.map((r) => r.class_session_id))]
+      .map((id) => sessionMap.get(id))
+      .filter(Boolean)
+      .sort((a: any, b: any) => wallMs(a.session_date, a.start_time || '00:00:00') - wallMs(b.session_date, b.start_time || '00:00:00')) as any[]
+    const first = sess[0]
+    if (!first) return
+    const firstAt = wallMs(first.session_date, first.start_time || '00:00:00')
+    if (firstAt < winStart || firstAt >= winEnd) return
+    const pending = rows.filter((r) => !r.reminder_email_sent_at).map((r) => r.id)
+    if (pending.length === 0) return
+    const stampAt = new Date().toISOString()
+    const { data: claimed, error: claimErr } = await supabase
+      .from('bookings')
+      .update({ reminder_email_sent_at: stampAt })
+      .in('id', pending)
+      .is('reminder_email_sent_at', null)
+      .eq('status', 'confirmed')
+      .select('id')
+    if (claimErr || !claimed || claimed.length === 0) return
+    const claimedIds = claimed.map((r: any) => r.id as string)
+    const last = sess[sess.length - 1]
+    const names = [...new Set(rows.map((r) => studentMap.get(r.student_id || '')?.full_name).filter(Boolean))] as string[]
+    const courseType = courseTypeMap.get(first.course_type_id)
+    let ok = false
+    try {
+      ok = await sendEmail({
+        type: 'reminder_24h',
+        to: parent.email,
+        lang: parent.preferred_language || undefined,
+        parentName: parent.first_name || '',
+        studentName: names.join(' & '),
+        courseName: rows.some((r) => r.is_trial) ? 'Swim Assessment' : `${courseType?.name || ''}${sess.length > 1 ? ' (60 min)' : ''}`,
+        coachName: coachMap.get(first.coach_id)?.first_name || '',
+        date: first.session_date,
+        time: `${formatTime(first.start_time || '')} – ${formatTime(last.end_time || '')}`,
+        location: await lessonLocationLine(supabase, first.location_id, pools),
+        calendar: await lessonCalendar(supabase, rows[0].parent_id, rows.map((r) => r.id)),
+      })
+    } catch (err) {
+      console.error('reminder email: send failed for bookings', claimedIds.join(','), err)
+    }
+    if (ok) { emailed += 1; return }
+    const { error } = await supabase.from('bookings').update({ reminder_email_sent_at: null })
+      .in('id', claimedIds).eq('reminder_email_sent_at', stampAt)
+    if (error) console.error('Error releasing reminder email claim:', claimedIds, error)
+  }
+  const remindLesson = async (rows: Row[]) => {
+    await textLesson(rows)
+    await emailLesson(rows)
+  }
+
   // A few at a time: one-by-one could run past the function limit on a busy
   // day, all at once would hit Twilio's rate limit.
   const queue = [...lessons.values()]
@@ -285,7 +355,7 @@ export async function GET(request: Request) {
     }),
   )
 
-  return NextResponse.json({ sent, results })
+  return NextResponse.json({ sent, emailed, emailOn, results })
 }
 
 function formatTime(t: string): string {

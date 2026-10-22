@@ -616,6 +616,10 @@ export async function POST(req: NextRequest) {
         .update({ reminder_sent_at: null })
         .eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
       if (remErr) console.error('hour reschedule: could not clear reminder_sent_at:', remErr.message)
+      // And the reminder email's stamp (docs/migration-reminder-email.sql; an
+      // error before that migration only means there is no stamp to clear).
+      await svc.from('bookings').update({ reminder_email_sent_at: null })
+        .eq('lesson_group_id', lesson_group_id).neq('status', 'cancelled')
     }
 
     // The other lessons' cancelled rows go back to where they were: a fresh

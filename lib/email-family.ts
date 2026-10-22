@@ -199,7 +199,7 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
 
     case 'reminder_24h':
       return {
-        subject: t('mail.remind.subject', { course, time: p.time || '' }),
+        subject: t('mail.remind.subject', { course, time: String(p.time || '').split(/\s[–-]\s/)[0] }),
         html: shell(t('mail.remind.title'), para(t('mail.remind.body', { student })) + lessonTable() + para(t('mail.remind.after'))),
       }
 
