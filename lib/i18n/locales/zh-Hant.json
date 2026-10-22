@@ -85,7 +85,6 @@
   "account.noBirthday": "未填寫生日",
   "account.phone": "手機號碼",
   "account.profile": "個人資料",
-  "account.readOnly": "唯讀",
   "account.students": "學員",
   "account.submit": "送出",
   "account.subtitle": "管理您的個人資料與通知設定",
@@ -2262,5 +2261,9 @@
   "mail.guardian.can": "您可以預約和取消課程、加值點數、查看學員的進度，也會收到和對方相同的 Email 通知。",
   "mail.guardian.button": "設定密碼",
   "mail.guardian.signin": "設定完成後，請在我們的網站用 {email} 和您的密碼登入。",
-  "mail.guardian.note": "此連結只能使用一次，1 小時後失效。如果已失效，請在登入頁按「忘記密碼」，或請 {name} 再寄一次邀請。如果您沒有預期收到這封信，可以忽略它。"
+  "mail.guardian.note": "此連結只能使用一次，1 小時後失效。如果已失效，請在登入頁按「忘記密碼」，或請 {name} 再寄一次邀請。如果您沒有預期收到這封信，可以忽略它。",
+  "account.healthEdit": "修改健康資訊",
+  "account.healthFill": "填寫健康資訊",
+  "account.healthLabel": "健康",
+  "account.healthSep": "："
 }

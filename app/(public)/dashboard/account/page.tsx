@@ -210,14 +210,24 @@ export default function AccountPage() {
                 { label: t('account.email'), value: parent?.email, edit: 'email' },
                 { label: t('account.phone'), value: parent?.phone ? formatPhone(parent.phone) : '—', edit: 'phone' },
                 { label: t('account.memberSince'), value: parent?.registered_at ? fmt(parent.registered_at) : '—' },
-              ] as { label: string; value?: string; edit?: 'email' | 'phone' }[]).map(item => (
-                <div key={item.label}>
+                // The family's emergency contact (owner, 2026-10-22: it lives
+                // with the family's details; the health answers sit with each
+                // swimmer below). Both edit in the same safety dialog.
+                ...(safety ? [{
+                  label: t('safety.contact.title'), edit: 'safety' as const, wide: true, missing: !safety.contact,
+                  value: safety.contact ? `${safety.contact.name}${safety.contact.relation ? `（${safety.contact.relation}）` : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered'),
+                }] : []),
+              ] as { label: string; value?: string; edit?: 'email' | 'phone' | 'safety'; wide?: boolean; missing?: boolean }[]).map(item => (
+                <div key={item.label} style={item.wide ? { gridColumn: '1 / -1' } : undefined}>
                   <div className="ac-k">{item.label}</div>
                   <div className="ac-v" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.value}</span>
-                    {item.edit && !isGuardian && (
-                      <button type="button" className="tap-auto" onClick={() => { setContactSaved(null); setContactEdit(item.edit!) }}
-                        aria-label={t(item.edit === 'email' ? 'account.contact.titleEmail' : 'account.contact.titlePhone')}
+                    <span style={{ minWidth: 0, overflowWrap: 'anywhere', ...(item.missing ? { color: '#b4321f' } : {}) }}>{item.value}</span>
+                    {item.edit && (item.edit === 'safety' || !isGuardian) && (
+                      <button type="button" className="tap-auto" onClick={() => {
+                        if (item.edit === 'safety') { setSafetyOpen(true); return }
+                        setContactSaved(null); setContactEdit(item.edit!)
+                      }}
+                        aria-label={t(item.edit === 'email' ? 'account.contact.titleEmail' : item.edit === 'phone' ? 'account.contact.titlePhone' : 'safety.contact.title')}
                         style={{ background: 'none', border: 'none', padding: 0, color: '#1f5fbf', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                         {t('account.contact.change')}
                       </button>
@@ -253,57 +263,42 @@ export default function AccountPage() {
             </button>
           </section>
 
-          {/* Safety information (owner, 2026-10-22): each swimmer's medical
-              answer and the family's emergency contact. Coaches see it. */}
+          {/* Swimmers (add-only) with each one's health answer (owner,
+              2026-10-22: one card instead of a separate safety card). */}
           <section className="ac-card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <p className="ac-label" style={{ margin: 0 }}>{t('safety.modal.title')}</p>
-              <button type="button" className="ac-btn line" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => setSafetyOpen(true)}>
-                {safety?.missing ? t('safety.banner.cta') : t('safety.edit')}
-              </button>
+              <p className="ac-label" style={{ margin: 0 }}>{t('account.students')}</p>
+              {safety && safety.students.length > 0 && (
+                <button type="button" className="ac-btn line" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => setSafetyOpen(true)}>
+                  {safety.missing ? t('account.healthFill') : t('account.healthEdit')}
+                </button>
+              )}
             </div>
             {safety?.missing && <div className="ac-err" style={{ marginTop: 10 }}>{t('safety.banner.body')}</div>}
-            {safety && (
-              <div className="ac-stack" style={{ gap: 8, marginTop: 12 }}>
-                {safety.students.map(s => (
-                  <div key={s.id} className="ac-item">
-                    <div>
-                      <b>{s.full_name}</b>
-                      <small style={{ whiteSpace: 'pre-wrap' }}>{!s.answered ? t('safety.notAnswered') : s.medical_notes || t('safety.medical.none')}</small>
-                    </div>
-                  </div>
-                ))}
-                <div className="ac-item">
-                  <div>
-                    <b>{t('safety.contact.title')}</b>
-                    <small>{safety.contact ? `${safety.contact.name}${safety.contact.relation ? ` (${safety.contact.relation})` : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered')}</small>
-                  </div>
-                </div>
-              </div>
-            )}
-            <p className="ac-note">{t('safety.who')}</p>
-          </section>
-
-          {/* Swimmers (read-only, add-only) */}
-          <section className="ac-card">
-            <p className="ac-label">{t('account.students')}</p>
             {students.length > 0 && (
               <div className="ac-stack" style={{ gap: 10, marginTop: 12 }}>
-                {students.map(s => (
-                  <div key={s.id} className="ac-item">
-                    <div>
-                      <b>{s.full_name}</b>
-                      <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
-                      {s.added_by_parent && <div className="ac-tag">{t('account.addedByYou')}</div>}
-                      {/* Ticking the box on a new swimmer moves "you" to them. */}
-                      {s.is_account_holder && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
+                {students.map(s => {
+                  const h = safety?.students.find(x => x.id === s.id)
+                  return (
+                    <div key={s.id} className="ac-item">
+                      <div style={{ minWidth: 0 }}>
+                        <b>{s.full_name}</b>
+                        <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
+                        {h && (
+                          <small style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', marginTop: 4, ...(!h.answered ? { color: '#b4321f' } : {}) }}>
+                            {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('safety.medical.none')}
+                          </small>
+                        )}
+                        {s.added_by_parent && <div className="ac-tag">{t('account.addedByYou')}</div>}
+                        {/* Ticking the box on a new swimmer moves "you" to them. */}
+                        {s.is_account_holder && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
+                      </div>
                     </div>
-                    <span className="ac-muted">{t('account.readOnly')}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
-            <p className="ac-note">{t('account.contactSchool')}</p>
+            <p className="ac-note">{t('account.contactSchool')} {t('safety.who')}</p>
 
             {!showAddForm || full ? (
               <>

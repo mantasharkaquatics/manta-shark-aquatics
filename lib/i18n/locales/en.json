@@ -85,7 +85,6 @@
   "account.noBirthday": "No birthday on file",
   "account.phone": "Phone",
   "account.profile": "Profile",
-  "account.readOnly": "Read-only",
   "account.students": "Students",
   "account.submit": "Submit",
   "account.subtitle": "Manage your profile and notification settings",
@@ -2262,5 +2261,9 @@
   "mail.guardian.can": "You'll be able to book and cancel lessons, top up points and see the swimmers' progress, and you'll get the same emails they do.",
   "mail.guardian.button": "Set your password",
   "mail.guardian.signin": "After that, sign in on our website with {email} and your password.",
-  "mail.guardian.note": "This link works once and expires in 1 hour. If it has expired, use “Forgot password” on the sign-in page, or ask {name} to send the invitation again. Not expecting this? You can ignore this email."
+  "mail.guardian.note": "This link works once and expires in 1 hour. If it has expired, use “Forgot password” on the sign-in page, or ask {name} to send the invitation again. Not expecting this? You can ignore this email.",
+  "account.healthEdit": "Edit health info",
+  "account.healthFill": "Fill in health info",
+  "account.healthLabel": "Health",
+  "account.healthSep": ": "
 }
