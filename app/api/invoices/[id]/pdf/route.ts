@@ -103,23 +103,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .fact-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #c9a84c; margin-bottom: 4px; }
   .fact-value { font-size: 14px; font-weight: 600; color: #1a2744; }
   .table-wrap { overflow-x: auto; }
-  @media (max-width: 640px) {
-    .sheet { padding: 24px 18px; margin: 12px 12px 0; border-radius: 10px; }
-    .header { flex-direction: column; gap: 20px; }
-    .invoice-meta { text-align: left; }
-    .invoice-title { font-size: 26px; }
-    thead th, tbody td { padding: 10px 8px; }
-    .totals-box { min-width: 0; width: 100%; }
-    .footer { margin-top: 32px; }
-  }
-  @media print {
-    html, body { background: #fff; }
-    body { padding: 0; }
-    .sheet { margin: 0; padding: 24px; box-shadow: none; border-radius: 0; max-width: none; }
-    .toolbar { display: none; }
-    thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .payment-info { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 48px; }
   .brand-name { font-size: 24px; font-weight: 800; color: #1a2744; letter-spacing: -0.5px; }
   .brand-sub { font-size: 12px; color: #c9a84c; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
@@ -148,6 +131,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .payment-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #c9a84c; margin-bottom: 6px; }
   .payment-method { font-size: 13px; color: #333; font-weight: 600; }
   .footer { margin-top: 60px; text-align: center; font-size: 11px; color: #aaa; }
+  /* Last, so they beat the rules above. */
+  @media (max-width: 640px) {
+    .sheet { padding: 24px 18px; margin: 12px 12px 0; border-radius: 10px; }
+    .header { flex-direction: column; gap: 20px; }
+    .invoice-meta { text-align: left; }
+    .invoice-title { font-size: 26px; }
+    thead th, tbody td { padding: 10px 8px; }
+    .totals-box { min-width: 0; width: 100%; }
+    .footer { margin-top: 32px; }
+  }
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; }
+    .sheet { margin: 0; padding: 24px; box-shadow: none; border-radius: 0; max-width: none; }
+    .toolbar { display: none; }
+    thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .payment-info { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
