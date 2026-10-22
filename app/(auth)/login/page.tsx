@@ -37,6 +37,9 @@ export default function LoginPage() {
      send them to /register to finish the form instead (RegisterClient picks
      the account up and only adds the missing row). */
   async function isUnfinishedFamily(userId: string): Promise<boolean> {
+    // A second guardian (owner 2026-10-22) has no parents row of their own.
+    const { data: famId, error: famErr } = await supabase.rpc('my_parent_id')
+    if (famErr || famId) return false
     for (const table of ['parents', 'admins', 'coaches'] as const) {
       const { data, error } = await supabase.from(table).select('id').eq('auth_user_id', userId).limit(1)
       // A failed lookup is not proof of anything: leave them where they are.

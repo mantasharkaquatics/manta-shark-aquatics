@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, serviceClient } from '@/lib/api-auth'
+import { getAuthUser, serviceClient, familyOf } from '@/lib/api-auth'
 import { readCertificate, certificateHtml, PRINT_JS_HASH } from '@/lib/certificates'
 
 export const runtime = 'nodejs'
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const c = await readCertificate(svc, id)
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const [{ data: parent }, { data: admin }] = await Promise.all([
-    svc.from('parents').select('id, preferred_language').eq('auth_user_id', user.id).maybeSingle(),
+    familyOf(svc, user.id, 'id, preferred_language'),
     svc.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
   ])
   if (!admin && parent?.id !== c.parentId) return NextResponse.json({ error: 'Not found' }, { status: 404 })

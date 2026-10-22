@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { familyOf } from '@/lib/api-auth'
 
 export const runtime = 'nodejs'
 
@@ -23,7 +24,7 @@ export async function POST() {
   // Only parents have a last_activity_at to stamp. An admin or a coach browsing
   // the public pages is not an error -- this used to answer 404, which filled
   // the log with what looked like a broken endpoint every two minutes per tab.
-  const { data: parent } = await svc.from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(svc, user.id, 'id')
   if (!parent) return new NextResponse(null, { status: 204 })
 
   const { error } = await svc

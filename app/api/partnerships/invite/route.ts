@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { randomInt } from 'crypto'
 import { inviteCodeExpired, inviteCodeExpiresAt } from '@/lib/partnerships'
+import { familyOf } from '@/lib/api-auth'
 
 // crypto, not Math.random (found 2026-10-15): the code is what lets a family
 // link to this one, so it should not come from a guessable generator.
@@ -29,8 +30,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
   const answer = (row: { invite_code: string; created_at: string | null }) => NextResponse.json({

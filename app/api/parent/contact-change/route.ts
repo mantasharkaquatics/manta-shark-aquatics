@@ -25,6 +25,9 @@ const PER_HOUR = 5
 export async function POST(req: NextRequest) {
   const ctx = await requireParent()
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
+  // These are the main account's own email (its login) and phone: a second
+  // guardian cannot move them.
+  if (ctx.guardianId) return NextResponse.json({ error: 'Only the main account can change this', code: 'not_main' }, { status: 403 })
   const { svc } = ctx
   const body = await req.json().catch(() => null) as { action?: string; field?: string; new_value?: string; request_id?: string; code?: string } | null
   if (!body?.action) return NextResponse.json({ error: 'Invalid request', code: 'bad_request' }, { status: 400 })

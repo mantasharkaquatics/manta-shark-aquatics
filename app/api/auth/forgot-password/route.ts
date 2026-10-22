@@ -60,8 +60,18 @@ export async function POST(req: NextRequest) {
   const { data: parents } = await svc.from('parents')
     .select('auth_user_id, first_name, email, preferred_language').ilike('email', emailIlikePattern(email)).limit(20)
   const parent = (parents as Person[] | null)?.find(r => sameEmail(r.email, email))
+  // A second guardian (owner 2026-10-22) signs in with their own address;
+  // their link comes in the family's language. A removed one gets nothing.
+  const { data: guards } = parent ? { data: null } : await svc.from('parent_guardians')
+    .select('auth_user_id, first_name, email, removed_at, parents(preferred_language)').ilike('email', emailIlikePattern(email)).limit(20)
+  type Guard = { auth_user_id: string | null; first_name: string | null; email: string; removed_at: string | null; parents: { preferred_language: string | null } | { preferred_language: string | null }[] | null }
+  const guard = (guards as Guard[] | null)?.find(r => sameEmail(r.email, email))
   if (parent?.auth_user_id) person = parent
-  else {
+  else if (guard) {
+    if (guard.removed_at || !guard.auth_user_id) return NextResponse.json({ ok: true })
+    const fam = Array.isArray(guard.parents) ? guard.parents[0] : guard.parents
+    person = { auth_user_id: guard.auth_user_id, first_name: guard.first_name, email: guard.email, preferred_language: fam?.preferred_language || null }
+  } else {
     const { data: admins } = await svc.from('admins')
       .select('auth_user_id, first_name, email').ilike('email', emailIlikePattern(email)).limit(20)
     const admin = (admins as Person[] | null)?.find(r => sameEmail(r.email, email))

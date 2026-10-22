@@ -16,6 +16,7 @@ import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { mailInviteFailed } from '@/lib/bookings/invite-failed-mail'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { isSessionFull, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
+import { familyOf } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -36,8 +37,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: confirmingParent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: confirmingParent } = await familyOf(supabase, user.id, 'id')
   if (!confirmingParent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: partnerBooking } = await supabase

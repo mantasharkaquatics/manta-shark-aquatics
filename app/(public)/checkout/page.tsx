@@ -9,6 +9,7 @@ import { localePath } from '@/lib/i18n/paths'
 import { errorKey } from '@/lib/i18n/errors'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import { myParentId } from '@/lib/my-parent'
 
 // Swim Team is the only thing still bought as a plan: a monthly membership per
 // swimmer, billed to a card. Lessons are paid for out of the points wallet and
@@ -96,8 +97,10 @@ function CheckoutContent() {
       const { data: { user } } = await supabase.auth.getUser()
       // ?next= is what the login page reads (found 2026-10-05: ?redirect= was ignored).
       if (!user) { router.push('/login?next=' + encodeURIComponent('/checkout?plan=team')); return }
-      const { data: parent } = await supabase
-        .from('parents').select('id, first_name, last_name').eq('auth_user_id', user.id).single()
+      const familyId = await myParentId(supabase, user.id)
+      const { data: parent } = familyId
+        ? await supabase.from('parents').select('id, first_name, last_name').eq('id', familyId).single()
+        : { data: null }
       if (!parent) { router.push('/login'); return }
       setParentName(`${parent.first_name} ${parent.last_name}`)
       const { data: studs } = await supabase

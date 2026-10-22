@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireUser } from '@/lib/api-auth'
+import { requireUser, familyOf } from '@/lib/api-auth'
 // The school's contact address (found 2026-10-15): receipts printed an old
 // Gmail address, outside the info@ group every email replies to.
 import { CONTACT_EMAIL } from '@/lib/site-config'
@@ -65,8 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: adminRow } = await supabase
     .from('admins').select('id').eq('auth_user_id', auth.user.id).single()
   if (!adminRow) {
-    const { data: parentRow } = await supabase
-      .from('parents').select('id').eq('auth_user_id', auth.user.id).single()
+    const { data: parentRow } = await familyOf(supabase, auth.user.id, 'id')
     if (!parentRow || invoice.parent_id !== parentRow.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

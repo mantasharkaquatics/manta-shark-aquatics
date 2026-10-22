@@ -33,6 +33,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
+import { myParentId } from '@/lib/my-parent'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -2341,8 +2342,10 @@ export default function DashboardPage() {
     // here -- or anyone whose session has expired -- just watched it turn.
     if (!user) { router.replace('/login'); return }
 
-    const { data: parentData } = await supabase
-      .from('parents').select('*').eq('auth_user_id', user.id).single()
+    const familyId = await myParentId(supabase, user.id)
+    const { data: parentData } = familyId
+      ? await supabase.from('parents').select('*').eq('id', familyId).single()
+      : { data: null }
     if (!parentData) {
       const { data: admin } = await supabase
         .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
@@ -2354,6 +2357,11 @@ export default function DashboardPage() {
       if (coach) { router.replace(coach.is_active ? '/coach' : '/coach-login?inactive=1'); return }
       router.replace('/login')
       return
+    }
+    // A second guardian (owner, 2026-10-22) is greeted by their own name,
+    // kept on their login; everything else on the page is the family's.
+    if (parentData.auth_user_id && parentData.auth_user_id !== user.id && user.user_metadata?.first_name) {
+      parentData.first_name = String(user.user_metadata.first_name)
     }
     if (latest()) setParent(parentData)
 

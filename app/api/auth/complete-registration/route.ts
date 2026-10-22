@@ -125,6 +125,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(CREATE_FAILED, { status: 500 })
   }
   if (mine && mine.length > 0) return NextResponse.json({ ok: true, parent_id: mine[0].id, existing: true })
+  // A second guardian already belongs to a family (owner 2026-10-22) and does
+  // not start another one with the same login.
+  const { data: guard } = await svc.from('parent_guardians').select('parent_id, removed_at').eq('auth_user_id', user.id).maybeSingle()
+  if (guard && !guard.removed_at) return NextResponse.json({ ok: true, parent_id: guard.parent_id, existing: true })
+  if (guard) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   if ((staffA && staffA.length > 0) || (staffC && staffC.length > 0)) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }

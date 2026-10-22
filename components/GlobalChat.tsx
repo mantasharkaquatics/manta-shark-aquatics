@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import ChatWidget, { claimGuestChat } from '@/components/ChatWidget'
+import { myParentId } from '@/lib/my-parent'
 
 /* The chat button on every public, account and sign-in page (owner,
    2026-09-28). It used to be mounted page by page for signed-in parents only,
@@ -24,7 +25,8 @@ export default function GlobalChat() {
     let alive = true
     const apply = async (uid?: string) => {
       if (!uid) { if (alive) setParentId(null); return }
-      const { data } = await supabase.from('parents').select('id').eq('auth_user_id', uid).maybeSingle()
+      const familyId = await myParentId(supabase, uid)
+      const data = familyId ? { id: familyId } : null
       // Chatted as a visitor in this browser before signing in: the
       // conversation becomes the family's as soon as they are signed in,
       // whether or not they open the chat, so the team sees who it was

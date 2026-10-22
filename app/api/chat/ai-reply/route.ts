@@ -24,6 +24,7 @@ import { graceUsedThisMonth } from '@/lib/vouchers'
 import { translate } from '@/lib/i18n/all'
 import { takeSlots, keyHash } from '@/lib/ip-rate-limit'
 import { claimsCompletedCancellation, trialBookingClaim } from '@/lib/ai/reply-guards'
+import { familyOf } from '@/lib/api-auth'
 
 // The fixed texts this route posts itself (the catch-all fallback and the two
 // guard replacements) used to be English only, even to a parent writing in
@@ -367,8 +368,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await svc
-    .from('parents').select('id, email, first_name, preferred_language').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(svc, user.id, 'id, email, first_name, preferred_language')
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: thread } = await svc

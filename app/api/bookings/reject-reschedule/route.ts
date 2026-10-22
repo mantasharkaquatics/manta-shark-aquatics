@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
 import { mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
+import { familyOf } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -24,8 +25,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: myBooking } = await supabase

@@ -6,6 +6,7 @@ import { readJson, badRequest } from '@/lib/http'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { getLocations, lessonLocationLine } from '@/lib/locations'
+import { familyOf } from '@/lib/api-auth'
 
 type CancelledRow = { id: string; parent_id: string | null; student_id: string | null; class_session_id: string | null; lesson_group_id: string | null }
 type SessRow = { id: string; session_date: string; start_time: string; end_time: string | null; course_type_id: string; location_id?: string | null }
@@ -32,8 +33,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
   const { data: partnership } = await supabase

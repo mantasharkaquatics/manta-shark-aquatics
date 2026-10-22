@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAuthUser, serviceClient } from '@/lib/api-auth'
+import { getAuthUser, serviceClient, familyOf } from '@/lib/api-auth'
 import { activeLocations, getLocations, showLocations, poolHasDetails, withoutDetails, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 
 // GET -> the pools families can book, whether to show a location at all, and
@@ -26,7 +26,7 @@ export async function GET() {
   if (show || anyDetails) {
     const user = await getAuthUser()
     if (user) {
-      const { data: parent } = await svc.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle()
+      const { data: parent } = await familyOf(svc, user.id, 'id')
       if (parent) {
         const { data: kids } = await svc.from('students').select('id').eq('parent_id', parent.id)
         const ids = (kids || []).map((k: any) => k.id)

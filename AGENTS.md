@@ -243,3 +243,21 @@ the next family is offered it. `runWaitlist()` runs in the cleanup cron.
   `renewalHolds` (or `renewalHoldsInWay`) the same way.
 - A squad offer counts as a taken seat: `teamSeatsHeld` / `teamSeatsHeldAll`
   wherever the squad cap is checked.
+
+# A family can have a second guardian
+
+Owner, 2026-10-22. `lib/guardians.ts`, table `parent_guardians`
+(docs/migration-guardians.sql). The main account invites one second guardian
+from My Account; they get their own login and the same rights -- book,
+cancel, top up, the same points, a copy of every family email. Only the main
+account invites or removes them, and only it changes the account's email and
+phone. Text messages still go to the main account's phone only.
+
+- **Never look a family up by `parents.auth_user_id` again.** Server code uses
+  `familyOf(svc, user.id, cols)` or `requireParent()` (lib/api-auth.ts; its
+  `guardianId` says who is signed in). Browser code uses `myParentId()`
+  (lib/my-parent.ts), the same `my_parent_id()` function the RLS policies use.
+  A lookup by auth_user_id silently treats a guardian as having no family.
+- A new "own family" RLS policy uses `(select public.my_parent_id())`.
+- Removing a guardian deletes their login (banned if that fails), so access
+  ends at once and the address can be used again.

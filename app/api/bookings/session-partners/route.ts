@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
 import { allRowsIn } from '@/lib/db-paging'
+import { familyOf } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -31,8 +32,7 @@ export async function POST(req: NextRequest) {
     .from('admins').select('id').eq('auth_user_id', user.id).single()
   let parent_id = requestedParentId
   if (!adminRow) {
-    const { data: callerParent } = await supabase
-      .from('parents').select('id').eq('auth_user_id', user.id).single()
+    const { data: callerParent } = await familyOf(supabase, user.id, 'id')
     if (!callerParent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     parent_id = callerParent.id
   }

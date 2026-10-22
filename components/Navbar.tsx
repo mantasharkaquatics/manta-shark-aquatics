@@ -7,6 +7,7 @@ import { useT, useLocale, useSetLocale, rememberExplicitLocale, readExplicitLoca
 import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
+import { myParentId } from '@/lib/my-parent'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
    pixels inside the window, the name set as a wordmark instead of the round logo,
@@ -211,18 +212,28 @@ export default function Navbar() {
       // sign-out must not leave the old family's id for changeLocale to write to.
       if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); setParentId(null); return }
       setIsLoggedIn(true)
+      const familyId = await myParentId(supabase, userId)
+      if (!familyId) return
       const { data: parent } = await supabase
         .from('parents')
-        .select('id, first_name, last_name, preferred_language')
-        .eq('auth_user_id', userId)
+        .select('id, auth_user_id, first_name, last_name, preferred_language')
+        .eq('id', familyId)
         .single()
       if (!parent) return
-      setFirstName(parent.first_name)
-      setFullName(`${parent.first_name} ${parent.last_name || ''}`.trim())
-      setParentId(parent.id)
+      /* A second guardian (owner 2026-10-22) is greeted by their own name,
+         kept on their login, and their language switch stays theirs: the
+         family's language is what the family's emails are written in. */
+      const guardian = parent.auth_user_id !== userId
+      const meta = guardian ? ((await supabase.auth.getSession()).data.session?.user?.user_metadata || {}) : {}
+      const first = guardian ? String(meta.first_name || '') : parent.first_name
+      const last = guardian ? String(meta.last_name || '') : (parent.last_name || '')
+      setFirstName(first)
+      setFullName(`${first} ${last}`.trim())
+      setParentId(guardian ? null : parent.id)
       const chosen = readExplicitLocale()
       if (chosen) {
         setLocale(chosen)
+        if (guardian) return
         clearExplicitLocale()
         await supabase.from('parents').update({ preferred_language: chosen }).eq('id', parent.id)
       } else if (isLocale(parent.preferred_language) && !urlNamesLocale()) {

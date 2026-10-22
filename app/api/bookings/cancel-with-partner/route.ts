@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cancelLesson, type ExpectedOutcome } from '@/lib/bookings/cancel'
 import { readJson, badRequest } from '@/lib/http'
+import { familyOf } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -29,8 +30,7 @@ export async function POST(req: NextRequest) {
   // caller must be an admin: a coach (PIN session) or a job applicant also
   // has an auth user and no parents row, and used to get here as "admin" --
   // able to cancel any booking by id with a full refund (found 2026-10-03).
-  const { data: callerParent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).maybeSingle()
+  const { data: callerParent } = await familyOf(supabase, user.id, 'id')
   const parentId = callerParent?.id || null
   if (!parentId) {
     const { data: admin } = await supabase

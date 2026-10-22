@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { allRows } from '@/lib/db-paging'
 import { DEFAULT_LOCATION_ID } from '@/lib/locations'
 import { addDaysYMD, formatDateLA, getTodayLA } from '@/lib/date'
+import { familyOf } from '@/lib/api-auth'
 
 // Parent-facing team memberships. Same service-role pattern as /api/parent/wallet.
 export async function GET(req: Request) {
@@ -22,8 +23,7 @@ export async function GET(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await svc
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(svc, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 403 })
 
   const { data: students } = await svc

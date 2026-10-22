@@ -7,7 +7,7 @@ import { stageNameKey } from './levels'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 import { CONTACT_EMAIL, EMAIL_FROM } from './site-config'
 import { getLocations, locationLine, type Location } from './locations'
-import { FAMILY_TYPES, familyEmail, familyLang, placeHtml, calendarAttachments, withCalendarNote, type MailAttachment } from './email-family'
+import { FAMILY_TYPES, familyEmail, familyLang, guardianCopies, placeHtml, calendarAttachments, withCalendarNote, type MailAttachment } from './email-family'
 import type { CalendarLesson } from './lesson-calendar'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -29,6 +29,7 @@ export type EmailType =
   | 'contact_change_code'
   | 'contact_verify_code'
   | 'level_certificate'
+  | 'guardian_invite'
   | 'waitlist_offer'
   | 'contact_change_notice'
   | 'trial_payment_link'
@@ -222,6 +223,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   // with one is less often filed under Promotions).
   let text = ''
   let attachments: MailAttachment[] | undefined
+  // Second guardians copied on family emails (lib/email-family.ts).
+  let cc: string[] = []
   // The lesson's pool (its map link, phone and arrival notes come from it).
   const pool = await poolOfLine(payload.location)
 
@@ -230,6 +233,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const L = await familyLang(payload)
     const r = await familyEmail(payload, L, { pool, poolOfLine })
     if (r) { subject = r.subject; html = r.html; attachments = r.attachments }
+    cc = await guardianCopies(payload)
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${esc(applicantName || 'there')},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(code)}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
@@ -483,6 +487,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       html,
       ...(text ? { text } : {}),
       ...(attachments ? { attachments } : {}),
+      ...(cc.length ? { cc } : {}),
     })
     if (error) throw error
     return true

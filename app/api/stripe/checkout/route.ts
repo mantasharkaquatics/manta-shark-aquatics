@@ -6,6 +6,7 @@ import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
 import { teamSeatsHeld } from '@/lib/waitlist'
 import { FIRST_TOPUP_BANK_CAP_DOLLARS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
+import { familyOf } from '@/lib/api-auth'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -29,11 +30,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('id, first_name, last_name, email')
-      .eq('auth_user_id', user.id)
-      .single()
+    const { data: parent } = await familyOf(supabase, user.id, 'id, first_name, last_name, email')
 
     if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 

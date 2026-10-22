@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { myParentId } from '@/lib/my-parent'
 
 export type FamilyStatus = {
   /** null until the browser has looked; then whether anyone is signed in. */
@@ -34,8 +35,9 @@ export function useFamilyStatus(): FamilyStatus {
         if (!live) return
         if (!session) { setStatus({ signedIn: false, allAssessed: false, anyAssessed: false }); return }
         setStatus({ signedIn: true, allAssessed: false, anyAssessed: false })
-        const { data: p } = await supabase.from('parents').select('id').eq('auth_user_id', session.user.id).maybeSingle()
-        if (!p) return
+        const familyId = await myParentId(supabase, session.user.id)
+        if (!familyId) return
+        const p = { id: familyId }
         const { data: kids } = await supabase.from('students').select('current_level').eq('parent_id', p.id).eq('is_active', true)
         const levelled = (kids || []).filter((k: { current_level: number | null }) => k.current_level != null).length
         if (live && kids && levelled > 0) {

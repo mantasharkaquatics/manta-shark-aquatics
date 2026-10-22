@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { readJson, badRequest } from '@/lib/http'
 import { takeSlots, releaseSlot, ipHash, keyHash } from '@/lib/ip-rate-limit'
 import { inviteCodeExpired, inviteCodeCutoffIso } from '@/lib/partnerships'
+import { familyOf } from '@/lib/api-auth'
 
 /* Guessing codes (found 2026-10-15): any signed-in parent could try invite
    codes as fast as they liked, and a hit links them to a stranger family and
@@ -33,8 +34,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 404 })
 
   const slots = await takeSlots(supabase, [

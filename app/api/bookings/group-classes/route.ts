@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, serviceClient } from '@/lib/api-auth'
+import { getAuthUser, serviceClient, familyOf } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { familyZones, getEffectiveZones } from '@/lib/zones'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
     s.from('students').select('id, parent_id, current_level').eq('id', student_id).maybeSingle(),
     s.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
     s.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle(),
-    s.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle(),
+    familyOf(s, user.id, 'id'),
   ])
   const staff = !!admin || !!coach
   if (!staff && !parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

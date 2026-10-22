@@ -29,7 +29,35 @@ export const FAMILY_TYPES: ReadonlySet<EmailType> = new Set<EmailType>([
   'partner_reschedule_requested', 'partner_reschedule_not_moved', 'partner_absent_lesson_continues',
   'invoice', 'refund_issued', 'referral_reward', 'fixed_class_ended', 'payment_reversed',
   'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'level_certificate', 'waitlist_offer',
+  'guardian_invite',
 ])
+
+/** Family emails a second guardian does NOT get a copy of: codes and notices
+ *  about the main account's own login, and the guardian's own invitation. */
+const NO_GUARDIAN_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
+  'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'guardian_invite',
+])
+
+/**
+ * The second guardians who get a copy of this family email (owner,
+ * 2026-10-22: "all notices"). The family is the one whose main address the
+ * email goes to. Before docs/migration-guardians.sql runs the read fails and
+ * nobody is copied.
+ */
+export async function guardianCopies(payload: Pick<EmailPayload, 'type' | 'to'>): Promise<string[]> {
+  if (NO_GUARDIAN_COPY.has(payload.type)) return []
+  try {
+    const { serviceClient } = await import('./api-auth')
+    const svc = serviceClient()
+    const to = String(payload.to || '').trim().toLowerCase()
+    const { data: fam } = await svc.from('parents').select('id').eq('email', to).limit(1).maybeSingle()
+    if (!fam) return []
+    const { data: g, error } = await svc.from('parent_guardians').select('email')
+      .eq('parent_id', (fam as { id: string }).id).is('removed_at', null).not('auth_user_id', 'is', null)
+    if (error) return []
+    return [...new Set(((g || []) as { email: string }[]).map(r => r.email.trim().toLowerCase()).filter(e => e && e !== to))]
+  } catch { return [] }
+}
 
 const SITE = 'https://www.mantasharkaquatics.net'
 
@@ -498,6 +526,19 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
           + para(t('mail.cert.note'), 'color: #666; font-size: 13px; margin-top: 16px;')),
       }
     }
+
+    case 'guardian_invite':
+      // The main account added a second guardian (owner, 2026-10-22). The
+      // link sets their password on the same page families reset it on.
+      return {
+        subject: t('mail.guardian.subject', { name: p.inviterName || '' }),
+        html: shell(t('mail.guardian.title'),
+          para(t('mail.guardian.body', { name: `<strong>${esc(p.inviterName)}</strong>` }))
+          + para(t('mail.guardian.can'))
+          + button(p.resetUrl || `${SITE}/login`, t('mail.guardian.button'))
+          + para(t('mail.guardian.signin', { email: `<strong>${esc(p.to)}</strong>` }))
+          + para(t('mail.guardian.note', { name: esc(p.inviterName) }), 'color:#666; font-size: 13px;'), false),
+      }
 
     case 'contact_verify_code':
       // The family is changing their email themselves (owner, 2026-10-22):

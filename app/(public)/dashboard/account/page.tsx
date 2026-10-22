@@ -11,10 +11,12 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
 import ContactChange from '@/components/ContactChange'
+import GuardianSection from '@/components/GuardianSection'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
+import { myParentId } from '@/lib/my-parent'
 
 interface Parent {
-  id: string; first_name: string; last_name: string; email: string; phone: string
+  id: string; auth_user_id?: string | null; first_name: string; last_name: string; email: string; phone: string
   registered_at: string | null; newsletter_subscribed: boolean; preferred_language: string
 }
 interface Student { id: string; full_name: string; date_of_birth: string | null; added_by_parent?: boolean; is_account_holder?: boolean }
@@ -47,6 +49,9 @@ export default function AccountPage() {
   // Changing their own email or phone (owner, 2026-10-22).
   const [contactEdit, setContactEdit] = useState<'email' | 'phone' | null>(null)
   const [contactSaved, setContactSaved] = useState<string | null>(null)
+  // Signed in as the family's second guardian, not the main account (owner,
+  // 2026-10-22): the account's email and phone are the main account's to change.
+  const [isGuardian, setIsGuardian] = useState(false)
   const loadSafety = () => fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSafety(d) }).catch(() => {})
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -69,7 +74,10 @@ export default function AccountPage() {
     // orphan account or an expired session on "Loading…" for ever (found
     // 2026-10-05). Send them where dashboard/page.tsx sends them.
     if (!user) { router.replace('/login'); return }
-    const { data: parentData } = await supabase.from('parents').select('*').eq('auth_user_id', user.id).single()
+    const familyId = await myParentId(supabase, user.id)
+    const { data: parentData } = familyId
+      ? await supabase.from('parents').select('*').eq('id', familyId).single()
+      : { data: null }
     if (!parentData) {
       const { data: admin } = await supabase
         .from('admins').select('id').eq('auth_user_id', user.id).maybeSingle()
@@ -83,6 +91,7 @@ export default function AccountPage() {
       return
     }
     setParent(parentData)
+    setIsGuardian(!!parentData.auth_user_id && parentData.auth_user_id !== user.id)
     // is_account_holder exists once docs/migration-account-holder-swimmer.sql
     // has run; before that the list is read without it.
     const readStuds = (cols: string) => supabase.from('students').select(cols).eq('parent_id', parentData.id).eq('is_active', true).order('sort_order')
@@ -206,7 +215,7 @@ export default function AccountPage() {
                   <div className="ac-k">{item.label}</div>
                   <div className="ac-v" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.value}</span>
-                    {item.edit && (
+                    {item.edit && !isGuardian && (
                       <button type="button" className="tap-auto" onClick={() => { setContactSaved(null); setContactEdit(item.edit!) }}
                         aria-label={t(item.edit === 'email' ? 'account.contact.titleEmail' : 'account.contact.titlePhone')}
                         style={{ background: 'none', border: 'none', padding: 0, color: '#1f5fbf', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -217,6 +226,7 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
+            {isGuardian && <p className="ac-note" style={{ marginTop: 10 }}>{t('account.guardian.mainOnly')}</p>}
             {contactSaved && <div className="ac-okmsg" role="status" style={{ marginTop: 10 }}>✓ {contactSaved}</div>}
             {contactEdit && (
               <ContactChange field={contactEdit} onClose={() => setContactEdit(null)}
@@ -227,6 +237,8 @@ export default function AccountPage() {
                 }} />
             )}
           </section>
+
+          <GuardianSection mainName={`${parent?.first_name || ''} ${parent?.last_name || ''}`.trim()} />
 
           {/* Newsletter */}
           <section className="ac-card ac-row">

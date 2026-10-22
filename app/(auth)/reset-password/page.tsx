@@ -67,8 +67,11 @@ function ResetForm() {
       else {
         // A login whose registration never finished (found 2026-10-08) has no
         // family row yet: straight to the form that adds it, not the dashboard.
-        const { data: fam, error: famErr } = await supabase.from('parents').select('id').eq('auth_user_id', user.id).limit(1)
-        if (!famErr && fam && fam.length === 0) dest = '/register?finish=1'
+        const { data: famId, error: famErr } = await supabase.rpc('my_parent_id')
+        if (!famErr && !famId) {
+          const { data: fam, error: oldErr } = await supabase.from('parents').select('id').eq('auth_user_id', user.id).limit(1)
+          if (!oldErr && fam && fam.length === 0) dest = '/register?finish=1'
+        }
       }
     }
     setTimeout(() => router.push(dest), 1500)

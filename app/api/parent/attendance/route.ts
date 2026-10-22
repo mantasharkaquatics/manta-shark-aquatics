@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { familyOf } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies()
@@ -18,11 +19,7 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
 
   if (!parent) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

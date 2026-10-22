@@ -8,6 +8,7 @@ import { getTodayLA, getNowMinutesLA, minutesUntil, formatTime12h } from '@/lib/
 import { LEAD_TIME_MINUTES, singleMaxDate, SINGLE_TOO_FAR_ERROR, FIXED_NO_RESCHEDULE_ERROR } from '@/lib/booking-time'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { lessonLocationLine } from '@/lib/locations'
+import { familyOf } from '@/lib/api-auth'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -28,8 +29,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await supabase
-    .from('parents').select('id').eq('auth_user_id', user.id).single()
+  const { data: parent } = await familyOf(supabase, user.id, 'id')
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Fetch the initiator's booking

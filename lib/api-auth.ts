@@ -36,14 +36,32 @@ export async function requireAdmin() {
   return { user, admin, svc }
 }
 
+/* The family a signed-in person belongs to: as its main account (parents.
+   auth_user_id) or as a live second guardian (parent_guardians, owner
+   2026-10-22: same rights as the main account). Returns the parents row with
+   the columns asked for, shaped like a supabase read so call sites can swap
+   `.from('parents')...eq('auth_user_id', id).single()` for it. `guardianId` is
+   set when the person is a guardian, not the main account. Before
+   docs/migration-guardians.sql runs, the guardian read fails and only main
+   accounts resolve, as before. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function familyOf(svc: any, authUserId: string, cols = 'id'): Promise<{ data: any | null; guardianId: string | null }> {
+  const { data: own } = await svc.from('parents').select(cols).eq('auth_user_id', authUserId).maybeSingle()
+  if (own) return { data: own, guardianId: null }
+  const { data: g, error } = await svc.from('parent_guardians').select('id, parent_id')
+    .eq('auth_user_id', authUserId).is('removed_at', null).maybeSingle()
+  if (error || !g) return { data: null, guardianId: null }
+  const { data: fam } = await svc.from('parents').select(cols).eq('id', g.parent_id).maybeSingle()
+  return { data: fam || null, guardianId: fam ? g.id : null }
+}
+
 export async function requireParent() {
   const user = await getAuthUser()
   if (!user) return null
   const svc = serviceClient()
-  const { data: parent } = await svc
-    .from('parents').select('id, email, first_name').eq('auth_user_id', user.id).single()
+  const { data: parent, guardianId } = await familyOf(svc, user.id, 'id, email, first_name')
   if (!parent) return null
-  return { user, parent, svc }
+  return { user, parent: parent as { id: string; email: string | null; first_name: string | null }, svc, guardianId }
 }
 
 // is_active is the off-boarding switch. The PIN login has always honoured it,

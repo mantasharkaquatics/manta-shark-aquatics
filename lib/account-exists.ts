@@ -42,6 +42,12 @@ export async function emailHasAccount(svc: SupabaseClient, email: string): Promi
     if (error) return null // caller reports a lookup failure rather than guessing
     if (data && data.some((r: { email: string | null }) => sameEmail(r.email, e))) return true
   }
+  // A family's second guardian (owner 2026-10-22) has a login under this
+  // address too. Before docs/migration-guardians.sql the table is missing,
+  // which is not a failed lookup.
+  // A removed guardian's login is deleted, so their address is free again.
+  const { data: g } = await svc.from('parent_guardians').select('email').ilike('email', emailIlikePattern(e)).is('removed_at', null).limit(20)
+  if (g && g.some((r: { email: string | null }) => sameEmail(r.email, e))) return true
   return false
 }
 

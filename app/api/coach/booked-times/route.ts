@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, serviceClient } from '@/lib/api-auth'
+import { getAuthUser, serviceClient, familyOf } from '@/lib/api-auth'
 import { getCoachBlocks, blockedIntervalsFor } from '@/lib/availability'
 import { familyZones, getEffectiveZones } from '@/lib/zones'
 import { renewalHolds, minToTime } from '@/lib/fixed-classes'
@@ -24,7 +24,7 @@ async function resolveCaller(svc: ReturnType<typeof serviceClient>) {
   const [{ data: admin }, { data: coach }, { data: parent }] = await Promise.all([
     svc.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
     svc.from('coaches').select('id').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle(),
-    svc.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle(),
+    familyOf(svc, user.id, 'id'),
   ])
   if (admin) return { staff: true as const, parentId: null }
   if (parent) return { staff: false as const, parentId: parent.id as string }
