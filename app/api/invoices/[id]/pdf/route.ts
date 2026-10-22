@@ -4,6 +4,24 @@ import { requireUser } from '@/lib/api-auth'
 // The school's contact address (found 2026-10-15): receipts printed an old
 // Gmail address, outside the info@ group every email replies to.
 import { CONTACT_EMAIL } from '@/lib/site-config'
+import { createHash } from 'crypto'
+
+// The "Print / Save as PDF" button (owner, 2026-10-22: a web receipt the
+// family can keep as a PDF). The page's CSP allows exactly this script by its
+// hash and nothing else.
+const PRINT_JS = "document.getElementById('print').addEventListener('click',function(){window.print()})"
+const PRINT_JS_HASH = createHash('sha256').update(PRINT_JS).digest('base64')
+
+// What the family reads for each stored payment_method.
+function paymentLabel(raw: unknown): string {
+  const m = String(raw || '').trim()
+  const k = m.toLowerCase()
+  if (k === 'stripe') return 'Card (paid online)'
+  if (k === 'stripe_terminal' || k === 'credit card (terminal)') return 'Card (at the front desk)'
+  if (k === 'cash') return 'Cash'
+  if (k === 'zelle') return 'Zelle'
+  return m || 'Paid'
+}
 
 // Every value below comes from the database, and several are typed by people
 // (names, item names, notes). Interpolated raw, a name like <img onerror=...>
@@ -61,14 +79,47 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // sale in California printed as the next day (found 2026-10-05).
   const issuedDate = new Date(invoice.issued_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'long', day: 'numeric' })
   const items = (invoice.items || []) as { name: string; quantity: number; unit_price: number }[]
+  const swimmer = student ? (student.legal_full_name && isSdp ? student.legal_full_name : student.full_name) : ''
+  // Every invoice is written after the money arrived (Stripe webhook, POS
+  // sale), so this page is the family's receipt: "Paid", how and when.
+  const method = paymentLabel(invoice.payment_method)
 
   const html = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipt ${esc(invoice.invoice_number)} · Manta Shark Aquatics</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; padding: 60px; font-size: 14px; }
+  html { background: #eef2f7; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; font-size: 14px; background: #eef2f7; padding-bottom: 24px; }
+  .sheet { padding: 60px; background: #fff; max-width: 860px; margin: 16px auto 0; border-radius: 12px; box-shadow: 0 4px 24px rgba(26,39,68,.08); }
+  .toolbar { display: flex; justify-content: flex-end; gap: 10px; max-width: 860px; margin: 16px auto 0; padding: 0 16px; }
+  .toolbar button { font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: #1a2744; border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer; min-height: 44px; }
+  .toolbar button:focus-visible { outline: 3px solid #c9a84c; outline-offset: 2px; }
+  .paid { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #1f7a57; border: 2px solid #1f7a57; border-radius: 6px; padding: 3px 10px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 24px; margin-bottom: 32px; }
+  .fact-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #c9a84c; margin-bottom: 4px; }
+  .fact-value { font-size: 14px; font-weight: 600; color: #1a2744; }
+  .table-wrap { overflow-x: auto; }
+  @media (max-width: 640px) {
+    .sheet { padding: 24px 18px; margin: 12px 12px 0; border-radius: 10px; }
+    .header { flex-direction: column; gap: 20px; }
+    .invoice-meta { text-align: left; }
+    .invoice-title { font-size: 26px; }
+    thead th, tbody td { padding: 10px 8px; }
+    .totals-box { min-width: 0; width: 100%; }
+    .footer { margin-top: 32px; }
+  }
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; }
+    .sheet { margin: 0; padding: 24px; box-shadow: none; border-radius: 0; max-width: none; }
+    .toolbar { display: none; }
+    thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .payment-info { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 48px; }
   .brand-name { font-size: 24px; font-weight: 800; color: #1a2744; letter-spacing: -0.5px; }
   .brand-sub { font-size: 12px; color: #c9a84c; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
@@ -100,6 +151,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 </style>
 </head>
 <body>
+  <div class="toolbar"><button type="button" id="print">Print / Save as PDF</button></div>
+  <main class="sheet">
   <div class="header">
     <div class="brand">
       <div class="brand-name">Manta Shark Aquatics</div>
@@ -110,9 +163,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       </div>
     </div>
     <div class="invoice-meta">
-      <div class="invoice-title">INVOICE</div>
+      <div class="invoice-title">RECEIPT</div>
       <div class="invoice-number">${esc(invoice.invoice_number)}</div>
-      <div class="invoice-date">Issued: ${esc(issuedDate)}</div>
+      <div class="invoice-date">Paid ${esc(issuedDate)}</div>
+      <div class="paid">PAID</div>
     </div>
   </div>
 
@@ -120,7 +174,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   <div style="display:flex;justify-content:space-between;gap:24px;" class="bill-to">
     <div>
-      <div class="bill-to-label">Bill To</div>
+      <div class="bill-to-label">Received From</div>
       <div class="bill-to-name">${esc(parent?.first_name)} ${esc(parent?.last_name)}</div>
       <div class="bill-to-email">${esc(parent?.email)}</div>
     </div>
@@ -133,6 +187,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </div>` : ''}
   </div>
 
+  <div class="facts">
+    <div><div class="fact-label">Payment method</div><div class="fact-value">${esc(method)}</div></div>
+    <div><div class="fact-label">Date paid</div><div class="fact-value">${esc(issuedDate)}</div></div>
+    ${swimmer && !isSdp ? `<div><div class="fact-label">Swimmer</div><div class="fact-value">${esc(swimmer)}</div></div>` : ''}
+  </div>
+
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
@@ -152,20 +213,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       </tr>`).join('')}
     </tbody>
   </table>
+  </div>
 
   <div class="totals">
     <div class="totals-box">
       <div class="total-row"><span>Subtotal</span><span>$${Number(invoice.amount).toFixed(2)}</span></div>
       <div class="total-row"><span>Sales Tax</span><span>$0.00 (Service &ndash; Exempt)</span></div>
-      <div class="total-row main"><span>Total</span><span>$${Number(invoice.amount).toFixed(2)}</span></div>
+      <div class="total-row main"><span>Total paid</span><span>$${Number(invoice.amount).toFixed(2)}</span></div>
     </div>
   </div>
 
   ${invoice.notes ? `<div class="payment-info"><div class="payment-label">Note</div><div class="payment-method">${esc(invoice.notes)}</div></div>` : ''}
 
   <div class="footer">
-    Thank you for choosing Manta Shark Aquatics &middot; This invoice was generated automatically
+    Thank you for choosing Manta Shark Aquatics &middot; Questions about this receipt: ${esc(CONTACT_EMAIL)}
   </div>
+  </main>
+  <script>${PRINT_JS}</script>
 </body>
 </html>`
 
@@ -174,7 +238,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       'Content-Type': 'text/html; charset=utf-8',
       // Second line of defence behind esc(): this page needs inline styles and
       // nothing else -- no script, no fetches, no frames (found 2026-10-05).
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data: https:",
+      // The one script is the print button, allowed by its hash.
+      'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; img-src data: https:; script-src 'sha256-${PRINT_JS_HASH}'`,
     },
   })
 }
