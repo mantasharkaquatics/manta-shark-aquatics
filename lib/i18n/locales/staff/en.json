@@ -1709,5 +1709,10 @@
   "admin.locations.infoNeedsMigration": "Phone and arrival notes can be saved once the database update docs/migration-safety-info.sql has run.",
   "admin.locations.err.phone": "The phone must be a 10-digit US number.",
   "admin.locations.err.directions": "Arrival notes are too long (300 characters at most).",
-  "admin.locations.err.needsSafetyMigration": "Nothing was saved: phone and arrival notes need the database update docs/migration-safety-info.sql first."
+  "admin.locations.err.needsSafetyMigration": "Nothing was saved: phone and arrival notes need the database update docs/migration-safety-info.sql first.",
+  "admin.members.mediaWithdrawn": "Withdrawn {date}",
+  "admin.members.deletionRequested": "Account deletion requested",
+  "admin.members.deletionHint": "Settle unused points, upcoming lessons and any Swim Team subscription with the family, then delete the account.",
+  "admin.messages.guestNamed": "{name} (visitor)",
+  "admin.messages.guestContact": "{email} · {phone} · Your replies are also emailed to them."
 }

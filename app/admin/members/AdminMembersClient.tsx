@@ -43,6 +43,7 @@ type Parent = {
   newsletter_subscribed: boolean
   media_release_accepted: boolean | null
   media_release_at: string | null
+  deletion_requested_at?: string | null
   address_line1: string | null
   address_line2: string | null
   city: string | null
@@ -955,10 +956,20 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                       <p className="text-gray-300 text-sm">
                         {parent.media_release_accepted
                           ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at, locale)}</span>
-                          : <span className="text-red-400">✗ {t('admin.members.notAccepted')}</span>
+                          : parent.media_release_at
+                            // Turned off on My Account (2026-10-22): when.
+                            ? <span className="text-red-400">✗ {t('admin.members.mediaWithdrawn', { date: formatDateTime(parent.media_release_at, locale) })}</span>
+                            : <span className="text-red-400">✗ {t('admin.members.notAccepted')}</span>
                         }
                       </p>
                     </div>
+                    {parent.deletion_requested_at && (
+                      <div>
+                        <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.deletionRequested')}</p>
+                        <p className="text-red-400 text-sm">{formatDateTime(parent.deletion_requested_at, locale)}</p>
+                        <p className="text-gray-500 text-xs mt-1">{t('admin.members.deletionHint')}</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.newsletter')}</p>
                       <div className="flex items-center gap-2">

@@ -116,6 +116,39 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
      reply means the desk has it, the desk's hand-back notice means the AI is
      back, and a message the AI skipped means the desk has it. */
   const [mode, setMode] = useState<'ai' | 'human'>('ai')
+  /* A visitor asking for a person (owner, 2026-10-22, tier 3): a short form
+     for a name and an email (phone optional). The desk is alerted and its
+     replies are emailed to them (/api/chat/guest/contact). */
+  const [contactOpen, setContactOpen] = useState(false)
+  const [contact, setContact] = useState({ name: '', email: '', phone: '', text: '' })
+  const [contactBusy, setContactBusy] = useState(false)
+  const [contactErr, setContactErr] = useState<string | null>(null)
+  async function sendContact() {
+    setContactBusy(true); setContactErr(null)
+    try {
+      const r = await fetch('/api/chat/guest/contact', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: guestKey, ...contact, locale }),
+      })
+      const d = await r.json().catch(() => ({})) as { code?: string; key?: string; messages?: unknown[] }
+      if (r.status === 429) { setContactErr('chat.contact.err.limited'); return }
+      if (!r.ok) { setContactErr(d.code === 'bad_email' ? 'chat.contact.err.email' : d.code === 'missing' ? 'chat.contact.err.missing' : 'chat.contact.err.generic'); return }
+      if (d.key) { setGuestKey(d.key); try { localStorage.setItem(GUEST_KEY, d.key) } catch {} }
+      if (Array.isArray(d.messages)) setMessages(d.messages)
+      setContactOpen(false)
+      setContact({ name: '', email: '', phone: '', text: '' })
+    } catch { setContactErr('chat.contact.err.generic') } finally { setContactBusy(false) }
+  }
+  // A desk reply email links back with ?chat=1: open the chat on arrival.
+  useEffect(() => {
+    if (!guest) return
+    let wanted = false
+    try { wanted = new URLSearchParams(window.location.search).get('chat') === '1' } catch {}
+    if (!wanted) return
+    const timer = setTimeout(() => setOpen(true), 0)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const onOpen = (e: Event) => {
@@ -567,6 +600,11 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               <Link href="/register" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 800 }}>{t('chat.guest.signUp')}</Link>
               {' · '}
               <Link href="/login" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 700 }}>{t('chat.guest.signIn')}</Link>
+              {' · '}
+              <button type="button" className="tap-auto" onClick={() => { setContactErr(null); setContactOpen(true) }}
+                style={{ background: 'none', border: 'none', padding: 0, color: BLUE, fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+                {t('chat.contact.open')}
+              </button>
             </div>
           )}
 
@@ -617,7 +655,9 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                       {msg.metadata.options.map((opt: any, i: number) =>
-                        opt.type === 'link' ? (
+                        opt.type === 'contact' ? (
+                          <button key={i} onClick={() => { setContactErr(null); setContactOpen(true) }} style={{ background: AMBER, color: NAVY, border: 'none', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{opt.label}</button>
+                        ) : opt.type === 'link' ? (
                           <a key={i} href={opt.url} style={{ background: AMBER, color: NAVY, borderRadius: '8px', padding: '7px 12px', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>{opt.label}</a>
                         ) : (
                           <button key={i} onClick={() => sendMessage(opt.label)} disabled={sending} style={{ background: '#eef4fc', color: BLUE, border: '1px solid #c9d8ee', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer' }}>{opt.label}</button>
@@ -661,8 +701,32 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
               {t(sendFailed)}
             </div>
           )}
+          {guest && contactOpen && (
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #e3ebf6', background: '#f8fafd', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: NAVY }}>{t('chat.contact.title')}</div>
+              <div style={{ fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{t('chat.contact.desc')}</div>
+              {(['name', 'email', 'phone'] as const).map(f => (
+                <input key={f} className="kb-focus" aria-label={t('chat.contact.' + f)} placeholder={t('chat.contact.' + f)}
+                  type={f === 'email' ? 'email' : f === 'phone' ? 'tel' : 'text'} autoComplete={f === 'name' ? 'name' : f === 'email' ? 'email' : 'tel'}
+                  value={contact[f]} maxLength={f === 'name' ? 80 : 120} onChange={e => setContact(c => ({ ...c, [f]: e.target.value }))}
+                  style={{ border: '1px solid #d5e0ef', borderRadius: '8px', padding: '8px 12px', fontSize: '16px', color: BRAND.ink, outline: 'none', fontFamily: 'inherit' }} />
+              ))}
+              <textarea className="kb-focus" aria-label={t('chat.contact.text')} placeholder={t('chat.contact.text')} rows={2} maxLength={800}
+                value={contact.text} onChange={e => setContact(c => ({ ...c, text: e.target.value }))}
+                style={{ border: '1px solid #d5e0ef', borderRadius: '8px', padding: '8px 12px', fontSize: '16px', color: BRAND.ink, outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} />
+              {contactErr && <div role="alert" style={{ fontSize: '12.5px', color: '#9b1c1c' }}>{t(contactErr)}</div>}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" onClick={() => setContactOpen(false)} disabled={contactBusy}
+                  style={{ flex: 1, background: '#fff', border: '1px solid #d5e0ef', borderRadius: '8px', padding: '9px', fontWeight: 700, color: NAVY, cursor: 'pointer' }}>{t('common.cancel')}</button>
+                <button type="button" onClick={sendContact} disabled={contactBusy || !contact.name.trim() || !contact.email.trim()}
+                  style={{ flex: 1, background: AMBER, border: 'none', borderRadius: '8px', padding: '9px', fontWeight: 800, color: NAVY, cursor: contactBusy ? 'wait' : 'pointer', opacity: !contact.name.trim() || !contact.email.trim() ? 0.6 : 1 }}>
+                  {contactBusy ? t('chat.contact.sending') : t('chat.contact.send')}
+                </button>
+              </div>
+            </div>
+          )}
           {/* Input */}
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #e3ebf6', display: 'flex', gap: '8px', background: '#fff' }}>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #e3ebf6', display: contactOpen && guest ? 'none' : 'flex', gap: '8px', background: '#fff' }}>
             <input
               ref={inputRef}
               className="kb-focus"

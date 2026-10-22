@@ -1406,6 +1406,21 @@ export default function BookingPage() {
       {coachName(id).slice(0, 1)}
     </span>
   )
+  /* Who teaches a time, in words (owner, 2026-10-22): the faces showed one
+     letter, and Mitch and Mitzi were both "M". The first coach -- the one a
+     tap would give -- by name, the rest as "+2". */
+  const CoachNames = ({ ids, first }: { ids: string[]; first?: string }) => {
+    if (ids.length === 0) return null
+    const lead = first && ids.includes(first) ? first : [...ids].sort((a, b) => coachRank(a) - coachRank(b))[0]
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '6px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
+        <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: coachColor(lead), flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {coachName(lead)}{ids.length > 1 ? ` · +${ids.length - 1}` : ''}
+        </span>
+      </div>
+    )
+  }
   /** Coaches with an open time on a date, under the current filter. */
   function coachesOn(ds: string): string[] {
     const day = openings?.days[ds]
@@ -2954,9 +2969,7 @@ export default function BookingPage() {
                                 {/* Every coach who can teach the whole hour, not only
                                     the one pre-picked -- the same faces the 30-minute
                                     grid shows. The coach is chosen below once a time is. */}
-                                <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', marginTop: '6px' }}>
-                                  {h.opts.map((x: any) => <Face key={x.coach1_id} id={x.coach1_id} size={22} />)}
-                                </div>
+                                <CoachNames ids={(h.opts as { coach1_id: string }[]).map(x => x.coach1_id)} first={h.opts[0]?.coach1_id} />
                               </button>
                             )
                           })}
@@ -3144,9 +3157,8 @@ export default function BookingPage() {
                                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: '#56647d', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                               )}
                               {!isTrial && w24 && <div style={{ fontSize: '11.5px', color: GOLD, marginTop: '2px', fontWeight: 700 }}>24h</div>}
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', marginTop: '6px' }}>
-                                {(chosenCoach ? [chosenCoach] : ids).map(id => <Face key={id} id={id} size={22} />)}
-                              </div>
+                              <CoachNames ids={chosenCoach ? [chosenCoach] : ids}
+                                first={chosenCoach || (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0])} />
                             </button>
                           )
                         })}

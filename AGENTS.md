@@ -261,3 +261,19 @@ phone. Text messages still go to the main account's phone only.
 - A new "own family" RLS policy uses `(select public.my_parent_id())`.
 - Removing a guardian deletes their login (banned if that fails), so access
   ends at once and the address can be used again.
+
+# Tier 3 (owner, 2026-10-22): cards, visitors, account self-service
+
+- **Saved cards.** Checkout for points and the Swim Assessment passes the
+  family's Stripe customer (`familyCustomer` / `checkoutCustomer` in
+  lib/stripe-customer.ts) with the "save this card" box. A new parent
+  checkout must do the same. Cards are listed and removed through
+  /api/parent/cards; nothing about a card is stored on our side but the
+  customer id. Automatic top-up is NOT built: it waits for the lawyer.
+- **Visitors can ask for a person** (/api/chat/guest/contact): name + email
+  on the thread, mode 'human', desk alerted like a family hand-off, and every
+  desk reply is emailed to them from /api/admin/chat-message. Never text a
+  visitor; they have not agreed to the SMS terms.
+- **My Account** has the photo/video consent switch and "request account
+  deletion" (/api/parent/account). Deletion is a request the desk settles
+  (points, lessons, team) before deleting; only the main account can ask.

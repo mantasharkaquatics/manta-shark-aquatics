@@ -12,6 +12,7 @@ import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
 import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
+import AccountPrivacy from '@/components/AccountPrivacy'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 import { myParentId } from '@/lib/my-parent'
 
@@ -348,6 +349,8 @@ export default function AccountPage() {
               </div>
             )}
           </section>
+
+          <AccountPrivacy />
 
         </div>
       </div>

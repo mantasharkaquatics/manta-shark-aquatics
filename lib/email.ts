@@ -68,6 +68,7 @@ export type EmailType =
   | 'staff_email_changed'
   | 'welcome'
   | 'chat_reply'
+  | 'guest_chat_reply'
 
 export interface EmailPayload {
   type: EmailType
@@ -154,6 +155,8 @@ export interface EmailPayload {
   /** waitlist_offer: when the hold ends, so the email can write it in the
    *  family's language (deadline is the English text, kept for the SMS). */
   deadlineAt?: string
+  /** guest_chat_reply: what the desk wrote to the visitor. */
+  replyText?: string
   lang?: string
   // assessment_report (written in the family's language): the level the
   // swimmer was placed in, what the school recommends, and the credit deadline.
@@ -301,6 +304,16 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const t = getT(L)
     subject = t('chat.email.subject')
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('chat.email.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><p style="color: #16294a; line-height: 1.6;">${t('chat.email.body')}</p><div style="text-align:center; margin: 28px 0 8px;"><a href="https://www.mantasharkaquatics.net/dashboard?chat=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('chat.email.button')}</a></div></div></div>`
+
+  } else if (type === 'guest_chat_reply') {
+    // The desk answered a visitor who asked for a person and left an email
+    // (owner, 2026-10-22, tier 3). The reply itself is in the email: the
+    // visitor has no account and may not come back to the chat.
+    const L = toLocale(payload.lang)
+    const t = getT(L)
+    const reply = esc(payload.replyText || '').replace(/\n/g, '<br>')
+    subject = t('chat.guestEmail.subject')
+    html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f6f9fd; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><div style="color: #12254a; font-size: 18px; font-weight: 800; letter-spacing: 0.3em;">MANTA SHARK</div></div><div style="background: white; border-radius: 10px; padding: 28px;"><h2 style="color: #12254a; margin-top: 0;">${t('chat.guestEmail.title')}</h2><p style="color: #16294a;">${t('assess.email.hi', { name: esc(parentName || '') })}</p><div style="color: #16294a; line-height: 1.6; background: #f1f6fd; border-left: 4px solid #1f5fbf; padding: 14px 16px; border-radius: 6px; margin: 16px 0;">${reply}</div><p style="color: #56647d; font-size: 14px; line-height: 1.6;">${t('chat.guestEmail.note')}</p><div style="text-align:center; margin: 24px 0 8px;"><a href="https://www.mantasharkaquatics.net/?chat=1" style="display: inline-block; background: #f09800; color: #12254a; font-weight: 800; padding: 14px 32px; border-radius: 10px; text-decoration: none;">${t('chat.guestEmail.button')}</a></div></div></div>`
 
   } else if (type === 'voucher_expiring') {
     // A make-up voucher runs out in a week. In the family's language, once.

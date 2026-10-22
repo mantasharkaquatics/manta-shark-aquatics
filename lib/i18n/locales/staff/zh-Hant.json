@@ -1709,5 +1709,10 @@
   "admin.locations.infoNeedsMigration": "資料庫更新 docs/migration-safety-info.sql 執行後，才能儲存電話與到場說明。",
   "admin.locations.err.phone": "電話必須是 10 位數的美國號碼。",
   "admin.locations.err.directions": "到場說明太長（最多 300 字）。",
-  "admin.locations.err.needsSafetyMigration": "沒有儲存：電話與到場說明需要先執行資料庫更新 docs/migration-safety-info.sql。"
+  "admin.locations.err.needsSafetyMigration": "沒有儲存：電話與到場說明需要先執行資料庫更新 docs/migration-safety-info.sql。",
+  "admin.members.mediaWithdrawn": "已撤回（{date}）",
+  "admin.members.deletionRequested": "申請刪除帳戶",
+  "admin.members.deletionHint": "先和家長處理還沒用完的點數、之後的課程和泳隊訂閱，再刪除帳戶。",
+  "admin.messages.guestNamed": "{name}（訪客）",
+  "admin.messages.guestContact": "{email} · {phone} · 您的回覆也會寄到對方信箱。"
 }

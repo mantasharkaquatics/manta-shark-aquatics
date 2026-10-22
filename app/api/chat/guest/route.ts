@@ -202,9 +202,9 @@ export async function POST(req: NextRequest) {
         const arr = JSON.parse(full.slice(at + '<<OPTIONS>>'.length).trim())
         const clean = (Array.isArray(arr) ? arr : [])
           .filter((o: any) => o && typeof o.label === 'string' && o.label.length <= 60 &&
-            (o.type === 'reply' || (o.type === 'link' && LINKS.has(o.url))))
+            (o.type === 'reply' || o.type === 'contact' || (o.type === 'link' && LINKS.has(o.url))))
           .slice(0, 3)
-          .map((o: any) => o.type === 'link' ? { label: o.label, type: 'link', url: o.url } : { label: o.label, type: 'reply' })
+          .map((o: any) => o.type === 'link' ? { label: o.label, type: 'link', url: o.url } : { label: o.label, type: o.type === 'contact' ? 'contact' : 'reply' })
         if (clean.length) meta = { options: clean }
       } catch {}
     }

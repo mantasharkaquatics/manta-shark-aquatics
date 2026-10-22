@@ -2,6 +2,7 @@ import { sendEmail } from '@/lib/email'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { requireAdmin, requireParent, serviceClient } from '@/lib/api-auth'
+import { familyCustomer, checkoutCustomer } from '@/lib/stripe-customer'
 import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { formatTime12h } from '@/lib/date'
 import { SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
@@ -227,6 +228,10 @@ export async function POST(req: NextRequest) {
     // The hold above already exists, and nothing else would ever release it:
     // with no stripe_session_id there is no checkout to expire or pay. If
     // Stripe throws, give the slot straight back (found 2026-10-05).
+    // The family's Stripe customer: a remembered card is offered, and this
+    // one can be saved (lib/stripe-customer.ts). Not for a desk booking:
+    // the card in that checkout may not be the family's.
+    const customerId = isParentFlow ? await familyCustomer(stripe, svc, { id: student.parent_id, email: parent?.email, first_name: parent?.first_name }) : null
     let checkoutSession: Stripe.Checkout.Session
     try {
       checkoutSession = await stripe.checkout.sessions.create({
@@ -237,7 +242,7 @@ export async function POST(req: NextRequest) {
         // until after the lesson had happened.
         payment_method_types: ['card'],
         mode: 'payment',
-        customer_email: parent?.email,
+        ...checkoutCustomer(customerId, parent?.email),
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60 + 60,
         line_items: [{
           price_data: {

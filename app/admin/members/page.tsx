@@ -63,5 +63,17 @@ export default async function AdminMembersPage() {
     }
   } catch { /* no toggle shown */ }
 
+  // Families who asked for their account to be deleted (My Account, owner
+  // 2026-10-22). Read on its own and allowed to fail: the column comes with
+  // docs/migration-tier3.sql.
+  try {
+    const { data: asked, error } = await serviceClient().from('parents')
+      .select('id, deletion_requested_at').not('deletion_requested_at', 'is', null)
+    if (!error) {
+      const at = new Map((asked || []).map((r: { id: string; deletion_requested_at: string }) => [r.id, r.deletion_requested_at]))
+      for (const p of parents as { id: string; deletion_requested_at?: string | null }[]) if (at.has(p.id)) p.deletion_requested_at = at.get(p.id)
+    }
+  } catch { /* nothing shown */ }
+
   return <AdminMembersClient parents={parents} deactivations={deactivations} holderReady={holderReady} />
 }

@@ -295,7 +295,7 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#fff', fontSize: '14px' }}>
-                  {thread.parents ? `${thread.parents.first_name} ${thread.parents.last_name || ''}` : t('admin.messages.guest')}
+                  {thread.parents ? `${thread.parents.first_name} ${thread.parents.last_name || ''}` : thread.guest_name ? t('admin.messages.guestNamed', { name: thread.guest_name }) : t('admin.messages.guest')}
                   {thread.unread_by_admin && (
                     <span style={{ background: RED, borderRadius: '50%', width: '8px', height: '8px', display: 'inline-block', flexShrink: 0 }} />
                   )}
@@ -331,8 +331,12 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
                   <button onClick={(e) => { e.stopPropagation(); setMobileView('list') }} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '20px', cursor: 'pointer' }}>←</button>
                 )}
                 <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents ? `${selectedThread.parents.first_name} ${selectedThread.parents.last_name || ''}` : t('admin.messages.guest')}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents ? selectedThread.parents.email : t('admin.messages.guestHint')}</div>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '15px' }}>{selectedThread.parents ? `${selectedThread.parents.first_name} ${selectedThread.parents.last_name || ''}` : selectedThread.guest_name ? t('admin.messages.guestNamed', { name: selectedThread.guest_name }) : t('admin.messages.guest')}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{selectedThread.parents ? selectedThread.parents.email
+                    // A visitor who asked for a person left a way to reach them
+                    // (tier 3); every reply is also emailed to them.
+                    : selectedThread.guest_email ? t('admin.messages.guestContact', { email: selectedThread.guest_email, phone: selectedThread.guest_phone || '—' })
+                    : t('admin.messages.guestHint')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
                     {selectedThread.mode === 'human' ? (
                       <>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
+import { sendEmail } from '@/lib/email'
 
 // A desk reply from Admin > Messages, written with the service role
 // (2026-10-15, audit F39). Admin Messages used to insert it from the browser,
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   const body = input.body.trim()
   if (!body || body.length > MAX_LEN) return badRequest('Message is empty or too long')
 
-  const { data: thread } = await svc.from('chat_threads').select('id').eq('id', input.thread_id).maybeSingle()
+  const { data: thread } = await svc.from('chat_threads').select('*').eq('id', input.thread_id).maybeSingle()
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
 
   const { data: message, error } = await svc.from('chat_messages')
@@ -36,5 +37,16 @@ export async function POST(req: NextRequest) {
   await svc.from('chat_threads')
     .update({ last_message_at: message.created_at || new Date().toISOString(), last_message_preview: body.slice(0, 120), unread_by_admin: false })
     .eq('id', thread.id)
-  return NextResponse.json({ ok: true, message })
+  // A visitor who left an email when asking for a person (tier 3, owner
+  // 2026-10-22; /api/chat/guest/contact): every reply goes to them by email
+  // too, since they may never open the chat again. Families get the
+  // unread-reply email instead (app/api/cron/chat-reply-email).
+  let emailed: boolean | undefined
+  if (!thread.parent_id && thread.guest_email) {
+    emailed = await sendEmail({
+      type: 'guest_chat_reply', to: thread.guest_email, parentName: thread.guest_name || '',
+      lang: thread.guest_lang || 'en', replyText: body,
+    }).catch(() => false)
+  }
+  return NextResponse.json({ ok: true, message, emailed })
 }
