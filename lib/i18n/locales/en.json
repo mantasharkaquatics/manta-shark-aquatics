@@ -2133,5 +2133,9 @@
   "mail.changed.title.phone": "Account phone number updated",
   "mail.changed.body.email": "The email address on your account is now {value}.",
   "mail.changed.body.phone": "The phone number on your account is now {value}.",
-  "mail.changed.note": "If you did not request this change, contact us immediately by replying to this email or messaging us in the chat on our website."
+  "mail.changed.note": "If you did not request this change, contact us immediately by replying to this email or messaging us in the chat on our website.",
+  "mail.ics.title": "Swim lesson: {names} ({course})",
+  "mail.ics.coach": "Coach {coach}",
+  "mail.ics.note": "The attached calendar file adds this lesson to your calendar. If it moves or is cancelled, our email will update your calendar too.",
+  "dash.addToCalendar": "Add to calendar"
 }

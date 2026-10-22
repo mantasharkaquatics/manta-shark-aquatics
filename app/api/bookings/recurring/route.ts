@@ -12,6 +12,7 @@ import { alertRollbackFailed } from '@/lib/bookings/rollback-alert'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { groupBandsFor, isLegacyCoach } from '@/lib/zones'
 import { activeLocations, getLocations, locationParam, sessionLocationLine, sessionLocationLines } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { isSessionFull, sessionFullBody, fullSessionId, SESSION_FULL_CODE } from '@/lib/bookings/session-full'
 
 // Parent-facing batch booking (owner decision 2026-07-24, option a):
@@ -546,6 +547,7 @@ export async function POST(req: NextRequest) {
             courseName: ct.name, coachName: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : '',
             date: s0.date, time: `${formatTime12h(s0.time)} – ${formatTime12h(endOf(s0.time))}`,
             location: await sessionLocationLine(svc, sessionIdByKey.get(slotKey(s0))),
+            calendar: await lessonCalendar(svc, parent.id, (rowsIn as { id: string }[]).map(r => r.id)),
           })
         }
       } catch {}
@@ -687,6 +689,7 @@ export async function POST(req: NextRequest) {
           times: uniformTime ? undefined : booked.map(s2 => `${formatTime12h(s2.time)} – ${formatTime12h(endOf(s2.time))}`),
           time: uniformTime ? `${formatTime12h(uniformTime)} – ${formatTime12h(endOf(uniformTime))}` : undefined,
           locations: locs.size > 0 ? booked.map(s2 => locs.get(firstSess(s2) || '')) : undefined,
+          calendar: await lessonCalendar(svc, parent.id, ((bookRows || []) as { id: string }[]).map(r => r.id)),
         })
       }
     } catch {}

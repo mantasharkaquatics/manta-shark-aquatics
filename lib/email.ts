@@ -7,7 +7,8 @@ import { stageNameKey } from './levels'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 import { CONTACT_EMAIL, EMAIL_FROM } from './site-config'
 import { getLocations, locationLine, type Location } from './locations'
-import { FAMILY_TYPES, familyEmail, familyLang, placeHtml } from './email-family'
+import { FAMILY_TYPES, familyEmail, familyLang, placeHtml, calendarAttachments, withCalendarNote, type MailAttachment } from './email-family'
+import type { CalendarLesson } from './lesson-calendar'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -183,6 +184,10 @@ export interface EmailPayload {
   /** booking_series_confirmed: the pool of each date, aligned with `dates`.
    *  All the same = one Location row; different = said on each date. */
   locations?: (string | undefined)[]
+  /** The lessons this email is about, for its calendar file (owner,
+   *  2026-10-22): lessonCalendar() in lib/lesson-calendar.ts, read after the
+   *  change. Family emails only. */
+  calendar?: CalendarLesson[]
   /** low_balance (lib/low-balance.ts): spendable points, points per week,
    *  points already paid for booked lessons, and weeks the two together last. */
   balance?: number
@@ -211,6 +216,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   // A plain-text copy, for the few emails that set one (an account notice
   // with one is less often filed under Promotions).
   let text = ''
+  let attachments: MailAttachment[] | undefined
   // The lesson's pool (its map link, phone and arrival notes come from it).
   const pool = await poolOfLine(payload.location)
 
@@ -218,7 +224,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // The family's emails, in the family's language (lib/email-family.ts).
     const L = await familyLang(payload)
     const r = await familyEmail(payload, L, { pool, poolOfLine })
-    if (r) { subject = r.subject; html = r.html }
+    if (r) { subject = r.subject; html = r.html; attachments = r.attachments }
   } else if (type === 'applicant_verification_code') {
     subject = `Your Manta Shark Aquatics application code`
     html = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px;"><h2 style="color: #1a2744; margin-top: 0;">Verify your email</h2><p>Hi ${esc(applicantName || 'there')},</p><p>Thanks for starting an application with us. Enter this code to verify your email address and continue:</p><div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(code)}</span></div><p style="color:#666; font-size: 13px;">The code expires in 10 minutes. If you did not start an application, you can ignore this email.</p></div></div>`
@@ -447,6 +453,15 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     }
   }
 
+  // Any other email about lessons (a fixed class moved) carries its calendar
+  // files the same way.
+  if (!attachments && payload.calendar?.length && html) {
+    const L = toLocale(payload.lang)
+    attachments = calendarAttachments(payload, L)
+    if (attachments.some(f => f.contentType.endsWith('REQUEST'))) html = withCalendarNote(html, L)
+    if (!attachments.length) attachments = undefined
+  }
+
   if (!subject || !html) {
     console.error('sendEmail: unknown type', type)
     return false
@@ -462,6 +477,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       subject,
       html,
       ...(text ? { text } : {}),
+      ...(attachments ? { attachments } : {}),
     })
     if (error) throw error
     return true

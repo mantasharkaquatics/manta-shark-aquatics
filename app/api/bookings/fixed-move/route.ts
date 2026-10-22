@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { commitMove, moveContext, moveOptions, planMove, type MoveTarget } from '@/lib/fixed-move'
 import { lessonsOf, minToTime, toMin, weekdayOf } from '@/lib/fixed-classes'
 import { DEFAULT_LOCATION_ID, getLocations, lessonLocationLine, poolHasDetails, showLocations } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 
 export const runtime = 'nodejs'
 
@@ -79,7 +80,15 @@ export async function POST(req: NextRequest) {
         const ids = [...new Set(moved.map(l => l.locationId || DEFAULT_LOCATION_ID))]
         if (ids.length === 1) location = await lessonLocationLine(svc, ids[0], pools)
       }
+      // The calendar: the old dates go (their rows were cancelled), the new
+      // ones come in (new rows).
+      const fromDates = new Set(plan.items.filter(i => i.to).map(i => i.from))
+      const newDates = new Set(plan.items.filter(i => i.to).map(i => i.to!))
+      const oldRowIds = ctx.movable.filter(l => fromDates.has(l.date)).flatMap(l => l.rows.map(r => r.id))
+      const newRowIds = ((await lessonsOf(svc, [ctx.fc.id])).get(ctx.fc.id) || []).filter(l => newDates.has(l.date)).flatMap(l => l.rows.map(r => r.id))
+      const calendar = await lessonCalendar(svc, parent.id, [...oldRowIds, ...newRowIds])
       if (p?.email) await sendEmail({
+        calendar,
         type: 'fixed_class_moved', to: p.email, parentName: p.first_name || '', lang: p.preferred_language || 'en',
         studentNames: (kids || []).map((k: any) => k.full_name),
         weekday: weekdayOf(start_date), time: `${formatTime12h(start_time)} – ${formatTime12h(end)}`,

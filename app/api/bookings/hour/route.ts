@@ -18,6 +18,7 @@ import { attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVo
 import { renewalHolds, heldSeats } from '@/lib/fixed-classes'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { sessionLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 
 export const runtime = 'nodejs'
 
@@ -509,6 +510,7 @@ export async function POST(req: NextRequest) {
           studentName: students.map((x: any) => x.full_name).join(' & '), courseName: `${ct.name} (60 min)`, coachName: who,
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
           location: await sessionLocationLine(svc, firstSessId),
+          calendar: await lessonCalendar(svc, parent.id, createdBookings),
         })
       }
     } catch {}
@@ -661,6 +663,9 @@ export async function POST(req: NextRequest) {
           date: session_date, time: `${formatTime12h(toT(s1))} – ${formatTime12h(toT(e2))}`,
           // Read after the move: the trigger re-places the lesson by its new coach and time.
           location: await sessionLocationLine(svc, ordered[0].id),
+          // Same event as the booking's (bookings keep their ids), moved.
+          calendar: await lessonCalendar(svc, parent.id,
+            ((await svc.from('bookings').select('id').eq('lesson_group_id', lesson_group_id)).data || []).map((r: { id: string }) => r.id)),
         })
       }
     } catch {}

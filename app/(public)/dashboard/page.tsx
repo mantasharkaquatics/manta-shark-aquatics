@@ -3774,6 +3774,14 @@ export default function DashboardPage() {
                           </div>
                         ))}
                         <PoolDetails id={b.location_id} />
+                        {/* Same event as the booking emails' calendar file (owner, 2026-10-22). */}
+                        {!past && b.status === 'confirmed' && b.id && (
+                          <a href={`/api/parent/calendar?booking=${encodeURIComponent(b.id)}`}
+                            style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
+                            {t('dash.addToCalendar')}
+                          </a>
+                        )}
                         <button onClick={() => setLessonDetail(null)}
                           style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
                       </div>

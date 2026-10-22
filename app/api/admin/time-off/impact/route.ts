@@ -10,6 +10,7 @@ import { reopenReversedAssessment } from '@/lib/assessments'
 import { getEffectiveZones } from '@/lib/zones'
 import { getLocations, lessonLocationLine } from '@/lib/locations'
 import { textLessonCancelled } from '@/lib/lesson-cancel-sms'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -356,6 +357,7 @@ export async function POST(req: NextRequest) {
         date: s.session_date,
         time: `${formatTime12h(s.start_time)} – ${formatTime12h(sLast.end_time)}`,
         location: await lessonLocationLine(svc, s.location_id, allLocations),
+        calendar: await lessonCalendar(svc, b.parent_id, ids),
       })
       if (ok) {
         sent++

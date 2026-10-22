@@ -12,6 +12,7 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal, type HoldHit } from '@/lib/bookings/desk-checks'
 import { allRows } from '@/lib/db-paging'
 import { sessionLocationLines } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { bandRange } from '@/lib/zone-colors'
 import { isSessionFull, sessionFullDeskBody } from '@/lib/bookings/session-full'
 import { dropEmptySessions } from '@/lib/bookings/unrestored'
@@ -649,6 +650,7 @@ export async function POST(req: NextRequest) {
             studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             date: dates[0], time: timeStr,
             location: locs.get(sessOfDate[0] || ''),
+            calendar: await lessonCalendar(svc, t.parent_id, createdBookingIds),
           })
         } else {
           await sendEmail({
@@ -656,6 +658,7 @@ export async function POST(req: NextRequest) {
             studentName: t.studentName, partnerName: t.partnerName, courseName: hour ? `${ct.name} (60 min)` : ct.name, coachName,
             dates, time: timeStr,
             locations: locs.size > 0 ? dates.map((_, i) => locs.get(sessOfDate[i] || '')) : undefined,
+            calendar: await lessonCalendar(svc, t.parent_id, createdBookingIds),
           })
         }
       }

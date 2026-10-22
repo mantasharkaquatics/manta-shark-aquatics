@@ -6,6 +6,7 @@ import { getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { getEffectiveZones, zoneTypeForSlug } from '@/lib/zones'
 import { bandRange } from '@/lib/zone-colors'
 
@@ -275,6 +276,7 @@ export async function POST(req: NextRequest) {
         date,
         time: t12(time) + ' – ' + t12(endTime),
         location,
+        calendar: await lessonCalendar(svc, pa.id, activeBookings.map((b: any) => b.id)),
       })
     }
   } catch (e) {

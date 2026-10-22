@@ -2133,5 +2133,9 @@
   "mail.changed.title.phone": "账户电话号码已更新",
   "mail.changed.body.email": "您账户上的 Email 现在是 {value}。",
   "mail.changed.body.phone": "您账户上的电话号码现在是 {value}。",
-  "mail.changed.note": "如果不是您提出的变更，请立刻回复这封邮件，或在网站的聊天室告诉我们。"
+  "mail.changed.note": "如果不是您提出的变更，请立刻回复这封邮件，或在网站的聊天室告诉我们。",
+  "mail.ics.title": "游泳课：{names}（{course}）",
+  "mail.ics.coach": "{coach} 教练",
+  "mail.ics.note": "附件的日历文件可以把这节课加进您的日历。如果课程改期或取消，我们寄出的邮件也会一并更新您的日历。",
+  "dash.addToCalendar": "加入日历"
 }

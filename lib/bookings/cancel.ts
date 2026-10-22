@@ -4,6 +4,7 @@ import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { graceUsedThisMonth, issueVoucher, restoreVoucher, voucherWindow, type Voucher } from '@/lib/vouchers'
 import { lessonLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { settleUnrestored } from '@/lib/bookings/unrestored'
 
 export type CancelTarget = {
@@ -161,6 +162,8 @@ export async function notifyCancellation(
         partnerCancelled: !!entry.by,
         partnerName: entry.by?.join(' & ') || undefined,
         amount: entry.by && entry.points > 0 ? entry.points : undefined,
+        // Removes (or, a sibling still booked, updates) the calendar event.
+        calendar: await lessonCalendar(svc, parentId, opts.bookingIds),
       })
     }
   } catch {}

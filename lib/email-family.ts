@@ -16,6 +16,8 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from './plans'
 import { formatTime12h } from './date'
 import { locationMapUrl, type Location } from './locations'
 import type { EmailPayload, EmailType } from './email'
+import { icsFile } from './ics'
+import { CONTACT_EMAIL } from './site-config'
 
 type T = (key: string, vars?: Record<string, string | number>) => string
 
@@ -99,7 +101,58 @@ export type FamilyCtx = {
 }
 
 /** Subject and HTML for one family email, or null for a type not handled here. */
-export async function familyEmail(p: EmailPayload, L: Locale, ctx: FamilyCtx): Promise<{ subject: string; html: string } | null> {
+export type MailAttachment = { filename: string; content: string; contentType: string }
+
+/** The calendar files for p.calendar (lib/lesson-calendar.ts): an invitation
+ *  for the lessons still on, a cancellation for the ones that are not. A
+ *  lesson moved by cancelling and rebooking (a fixed class) has both. */
+/** The calendar events for these lessons, in the family's language. */
+export function calendarEvents(lessons: NonNullable<EmailPayload['calendar']>, L: Locale) {
+  const t = getT(L) as T
+  const amp = L === 'en' ? ' & ' : '、'
+  return lessons.map(l => ({
+    uid: l.uid, date: l.date, start: l.start, minutes: l.minutes,
+    title: t('mail.ics.title', { names: l.students.join(amp), course: courseIn(L, t, l.course) }),
+    location: l.place ? `Manta Shark Aquatics – ${l.place}` : 'Manta Shark Aquatics',
+    description: [l.coach ? t('mail.ics.coach', { coach: l.coach }) : '', `${SITE}/dashboard`].filter(Boolean).join('\n'),
+  }))
+}
+
+export function calendarAttachments(p: EmailPayload, L: Locale): MailAttachment[] {
+  const lessons = p.calendar || []
+  if (!lessons.length || !p.to) return []
+  const file = (method: 'REQUEST' | 'CANCEL', ls: typeof lessons): MailAttachment => ({
+    filename: method === 'CANCEL' ? 'cancelled-lesson.ics' : 'lesson.ics',
+    contentType: `text/calendar; charset=UTF-8; method=${method}`,
+    content: icsFile({ method, organizer: { name: 'Manta Shark Aquatics', email: CONTACT_EMAIL }, attendee: p.to, events: calendarEvents(ls, L) }),
+  })
+  const live = lessons.filter(l => !l.cancelled)
+  const gone = lessons.filter(l => l.cancelled)
+  return [...(live.length ? [file('REQUEST', live)] : []), ...(gone.length ? [file('CANCEL', gone)] : [])]
+}
+
+/** The note under an email's details when it carries an invitation. */
+export function calendarNote(L: Locale): string {
+  return `<p style="color: #56647d; font-size: 13px; text-align: center; margin: 0 0 12px;">📅 ${getT(L)('mail.ics.note')}</p>`
+}
+
+/** Puts the note before the email's footer line, or at the end. */
+export function withCalendarNote(html: string, L: Locale): string {
+  const foot = html.lastIndexOf('<p style="color: #666; font-size: 13px; text-align: center;">')
+  const at = foot >= 0 ? foot : html.lastIndexOf('</div>')
+  return at >= 0 ? html.slice(0, at) + calendarNote(L) + html.slice(at) : html + calendarNote(L)
+}
+
+export async function familyEmail(p: EmailPayload, L: Locale, ctx: FamilyCtx): Promise<{ subject: string; html: string; attachments?: MailAttachment[] } | null> {
+  const r = await familyEmailBody(p, L, ctx)
+  if (!r) return null
+  const files = calendarAttachments(p, L)
+  if (!files.length) return r
+  const invite = files.some(f => f.contentType.endsWith('REQUEST'))
+  return { ...r, html: invite ? withCalendarNote(r.html, L) : r.html, attachments: files }
+}
+
+async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Promise<{ subject: string; html: string } | null> {
   const t = getT(L) as T
   const sep = L === 'en' ? ' ' : ''
   const amp = L === 'en' ? ' & ' : '、'

@@ -10,6 +10,7 @@ import { alertAdmin } from '@/lib/admin-alert'
 import { readJson, badRequest } from '@/lib/http'
 import { formatTime12h, getTodayLA, getNowMinutesLA, minutesUntil } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { LEAD_TIME_MINUTES } from '@/lib/booking-time'
 import { getCoachBlocks, isBlocked } from '@/lib/availability'
 import { mailInviteFailed } from '@/lib/bookings/invite-failed-mail'
@@ -447,6 +448,7 @@ export async function POST(req: NextRequest) {
           parentName: initiatorParent.first_name,
           studentName: namesOf(mine),
           ...lesson,
+          calendar: await lessonCalendar(supabase, initiatorBooking.parent_id, groupIds),
         })
       }
       // The family who accepted was charged too, and every other booking path
@@ -459,6 +461,7 @@ export async function POST(req: NextRequest) {
           studentName: namesOf(mine),
           partnerName: namesOf(theirs),
           ...lesson,
+          calendar: await lessonCalendar(supabase, confirmingParent.id, groupIds),
         })
       }
     }

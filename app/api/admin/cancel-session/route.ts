@@ -5,6 +5,7 @@ import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { lessonLocationLine } from '@/lib/locations'
 import { textLessonCancelled } from '@/lib/lesson-cancel-sms'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
@@ -248,6 +249,7 @@ export async function POST(req: NextRequest) {
             expiresOn: vBack?.expires_on,
             usableFrom: vBack?.usable_from ?? undefined,
             location,
+            calendar: await lessonCalendar(svc, t.parent_id, allBookings.map(b => b.id)),
           })
         }
         // Within 48 hours a text too, so nobody drives to a cancelled lesson

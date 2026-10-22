@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 
 export type RescheduleOutcome = 'declined' | 'withdrawn' | 'expired' | 'unavailable' | 'too_late' | 'coach_unavailable'
 
@@ -118,6 +119,7 @@ export async function mailRescheduleDone(svc: SupabaseClient, opts: { bookingIds
         studentName: f.own,
         partnerName: f.other,
         ...lesson,
+        calendar: await lessonCalendar(svc, f.parent.id, rows.map((r: any) => r.id)),
       }).catch(e => console.error('partner reschedule email failed:', e))
     }
   } catch (e) {

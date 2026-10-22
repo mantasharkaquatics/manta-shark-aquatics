@@ -1,4 +1,5 @@
 import { sendEmail } from '@/lib/email'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { centsToPoints } from '@/lib/points'
 import { applyPoints, arrears, creditPurchase, DuplicateLedgerEntry, getWallet, InsufficientPoints, purchaseAlreadyCredited, purchaseAlreadyReversed, reversePurchase, type ReversalReason } from '@/lib/points-wallet'
 import { reclaimForArrears, type ReleasedLesson } from '@/lib/points-arrears'
@@ -731,6 +732,9 @@ export async function POST(req: NextRequest) {
           lessonsReleased: reclaimed.lessonsReleased,
           releasedLessons: reclaimed.released,
           reversalKind: reason,
+          lang: (parentRow as any).preferred_language || undefined,
+          // The released lessons leave the family's calendar.
+          calendar: await lessonCalendar(supabase, topUp.parentId, reclaimed.cancelledBookingIds),
         })
       }
       const { data: th } = await supabase.from('chat_threads').select('id')

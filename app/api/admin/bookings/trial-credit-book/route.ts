@@ -6,6 +6,7 @@ import { SCHOOL_CANCEL_REASONS } from '@/lib/trial-booking'
 import { assessmentPaymentReversed, reopenReversedAssessment } from '@/lib/assessments'
 import { coachBlocksOn, overlapsAny, studentLessonsOn, renewalHoldsInWay, renewalHoldRefusal } from '@/lib/bookings/desk-checks'
 import { sessionLocationLine } from '@/lib/locations'
+import { lessonCalendarForSessions } from '@/lib/lesson-calendar'
 import { isSessionFull, sessionFullDeskBody } from '@/lib/bookings/session-full'
 
 export async function POST(req: NextRequest) {
@@ -223,6 +224,7 @@ export async function POST(req: NextRequest) {
           date,
           time: `${formatTime12h(time)} – ${formatTime12h(endTime)}`,
           location: await sessionLocationLine(svc, sessId),
+          calendar: await lessonCalendarForSessions(svc, student.parent_id, [sessId]),
         })
       }
     } catch (e) {

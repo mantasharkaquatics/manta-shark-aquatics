@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA } from '@/lib/date'
 import { lessonLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { alertAdmin } from '@/lib/admin-alert'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { isSessionFull } from '@/lib/bookings/session-full'
@@ -185,6 +186,8 @@ export async function confirmTrialBooking(
         date: sess.session_date,
         time: formatTime12h(String(sess.start_time).slice(0, 5)),
         location: await lessonLocationLine(supabase, sess.location_id),
+        lang: (parentRow as any)?.preferred_language || undefined,
+        calendar: await lessonCalendar(supabase, bk.parent_id, [booking_id]),
       })
     }
   } catch (e) {

@@ -6,6 +6,7 @@ import { formatTime12h } from '@/lib/date'
 import { SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assessmentSlotError } from '@/lib/assessment-slot'
 import { sessionLocationLine } from '@/lib/locations'
+import { lessonCalendarForSessions } from '@/lib/lesson-calendar'
 import { isSessionFull, sessionFullBody } from '@/lib/bookings/session-full'
 
 // Booking a Swim Assessment that was already paid for at the front desk.
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
           date,
           time: `${formatTime12h(time)} – ${formatTime12h(endTime)}`,
           location: await sessionLocationLine(svc, sessId),
+          calendar: await lessonCalendarForSessions(svc, ctx.parent.id, [sessId]),
         })
       }
     } catch (e) {
