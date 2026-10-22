@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
 
     const { staticPart, dynamicPart } = buildSystemPromptParts({
       mode: 'guest', parentName: '', knowledge: await buildKnowledgeBlock(svc),
-      dateLine: `Current date (Pacific Time): ${getTodayLA()}.`,
+      dateLine: `Current date (local, Southern California): ${getTodayLA()}.`,
       // The same POOLS list a signed-in family's assistant gets.
       pools: activeLocations(await getLocations(svc)),
     })

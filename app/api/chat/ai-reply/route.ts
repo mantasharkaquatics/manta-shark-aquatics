@@ -1170,7 +1170,7 @@ export async function POST(req: NextRequest) {
       const stamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
       const merged = ((t?.escalation_summary ? t.escalation_summary + '\n\n' : '') + `[${stamp}] ` + summary).slice(-4000)
       await svc.from('chat_threads').update({ escalation_summary: merged }).eq('id', thread_id)
-      return { acknowledged: true, note: 'A team member has been notified about THIS request (email and text) and will reply in this chat the same day; after 9 PM Pacific, the next morning. Tell the parent this specific request was passed to the team, then ask if there is anything else you can help with right now. You remain available for other questions.' }
+      return { acknowledged: true, note: 'A team member has been notified about THIS request (email and text) and will reply in this chat the same day; after 9 PM, the next morning. Tell the parent this specific request was passed to the team, then ask if there is anything else you can help with right now. You remain available for other questions.' }
     }
 
     return { error: 'Unknown tool.' }
@@ -1233,7 +1233,7 @@ export async function POST(req: NextRequest) {
     const { staticPart, dynamicPart } = buildSystemPromptParts({
       mode: 'live',
       parentName: parent.first_name,
-      dateLine: `Current date (Pacific Time): ${getTodayLA()}, current time: ${formatTime12h(`${hh}:${mm}`)}.`,
+      dateLine: `Current date (local, Southern California): ${getTodayLA()}, current time: ${formatTime12h(`${hh}:${mm}`)}.`,
       upcomingSnapshotJson: JSON.stringify(upcomingSnapshot),
       teamSnapshotJson: JSON.stringify(teamSnapshot),
       planList,

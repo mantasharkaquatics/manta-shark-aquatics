@@ -78,7 +78,7 @@ export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: st
     s.push('- student_id, coach_id, date and time values passed to book_trial_pending MUST come character-for-character from get_my_students / get_trial_slots results in this conversation. NEVER invent or reconstruct them.')
     s.push('- book_trial_pending has two outcomes: if the result contains paid_with_prepaid_credit, the assessment is fully CONFIRMED using their prepaid credit - say so, no payment link needed. Otherwise the slot is only held pending payment - give payment_url and never call it confirmed.')
     s.push('- NEVER tell the parent a slot is reserved or an assessment is booked unless book_trial_pending returned success in THIS turn, and never say it is confirmed or paid before the payment actually succeeds.')
-    s.push('- If you cannot help, are unsure, or the parent asks for a human, refunds, or anything outside your tools: call escalate_to_human and tell the parent a team member will reply in this chat the same day (after 9 PM Pacific: the next morning).')
+    s.push('- If you cannot help, are unsure, or the parent asks for a human, refunds, or anything outside your tools: call escalate_to_human and tell the parent a team member will reply in this chat the same day (after 9 PM: the next morning).')
     s.push('')
     s.push('FORMATTING:')
     s.push('- Write plain text in short paragraphs separated by blank lines. Never use Markdown symbols such as **, ##, or backticks. For lists, use simple lines starting with "- ".')
