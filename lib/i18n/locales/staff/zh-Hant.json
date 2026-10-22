@@ -351,7 +351,7 @@
   "admin.suggestions.markDone": "標記為已處理",
   "admin.suggestions.moveBack": "改回未處理",
   "admin.locations.intro": "學校上課的泳池。每位教練哪些時段在哪個場館，請在「分級時段」設定。",
-  "admin.locations.stateHidden": "只有一個場館開放給家長時，網站上任何地方都不會顯示場館。",
+  "admin.locations.stateHidden": "只開放一個場館時，網站不顯示場館名稱。下方填好的地址、電話與到場說明，仍會寄給已預約的家庭。",
   "admin.locations.stateShown": "目前有 {n} 個場館開放給家長，家長預約時會選場館，每堂課也都會顯示場館。",
   "admin.locations.empty": "還沒有場館。請先執行 docs/migration-locations.sql。",
   "admin.locations.open": "開放給家長",
@@ -1701,5 +1701,13 @@
   "admin.safety.notAnswered": "家長尚未填寫",
   "admin.safety.none": "沒有已知的疾病或過敏",
   "admin.safety.contact": "緊急聯絡人",
-  "admin.safety.loadFailed": "無法載入安全資訊。"
+  "admin.safety.loadFailed": "無法載入安全資訊。",
+  "admin.locations.phone": "場館電話",
+  "admin.locations.directions": "到場說明",
+  "admin.locations.directionsPlaceholder": "例如：從 Elm St 側門進入；請停在路邊，不要停車道。",
+  "admin.locations.privateHint": "地址、地圖連結、電話與到場說明只給已預約的家庭：預約確認信、提醒簡訊，以及他們儀表板上的課程詳情。公開網站不會顯示。",
+  "admin.locations.infoNeedsMigration": "資料庫更新 docs/migration-safety-info.sql 執行後，才能儲存電話與到場說明。",
+  "admin.locations.err.phone": "電話必須是 10 位數的美國號碼。",
+  "admin.locations.err.directions": "到場說明太長（最多 300 字）。",
+  "admin.locations.err.needsSafetyMigration": "沒有儲存：電話與到場說明需要先執行資料庫更新 docs/migration-safety-info.sql。"
 }

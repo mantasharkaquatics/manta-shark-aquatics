@@ -23,6 +23,11 @@ export interface Location {
   lat?: number | null
   lng?: number | null
   checkin_radius_m?: number
+  /** The pool's phone and arrival notes (docs/migration-safety-info.sql).
+   *  Absent before that migration; null = not set. Families with a booking
+   *  only, like the address (poolDetails). */
+  phone?: string | null
+  directions?: string | null
 }
 
 /** The pool every existing zone and lesson belongs to. */
@@ -33,6 +38,26 @@ export const DEFAULT_LOCATION_ID = 'brea'
  *  has run and nothing breaks before it has (a fixed list naming lat/lng
  *  would fail outright on a database without them). */
 export const LOCATION_COLUMNS = 'id, name, address, map_url, sort_order, is_active'
+
+/** What anyone may read (owner, 2026-10-22: "the address only goes to
+ *  families with a booking"). docs/migration-safety-info.sql takes the other
+ *  columns away from the publishable key, so the public site asks for these. */
+export const PUBLIC_LOCATION_COLUMNS = 'id, name, sort_order, is_active'
+
+/** A pool with something a booked family needs to find it: an address, a map
+ *  link, a phone or arrival notes. */
+export function poolHasDetails(loc: Partial<Location> | null | undefined): boolean {
+  if (!loc) return false
+  const addr = (loc.address || '').trim()
+  const realAddr = !!addr && addr.toLowerCase() !== String(loc.name || '').trim().toLowerCase()
+  return realAddr || !!loc.map_url || !!(loc.phone || '').trim() || !!(loc.directions || '').trim()
+}
+
+/** The private part of a pool (address, map, phone, arrival notes) cleared,
+ *  for anyone who has not booked a lesson. */
+export function withoutDetails<T extends Partial<Location>>(loc: T): T {
+  return { ...loc, address: null, map_url: null, phone: null, directions: null, lat: null, lng: null }
+}
 
 /** Every pool, active or not, in display order. Empty before the migration. */
 export async function getLocations(svc: SupabaseClient): Promise<Location[]> {
@@ -62,6 +87,22 @@ export function lessonPoolShown(all: Location[], locationId: string | null | und
   const open = activeLocations(all)
   return open.length === 1 && (locationId || DEFAULT_LOCATION_ID) !== open[0].id
 }
+
+/**
+ * Whether a lesson's emails, SMS and dashboard card say where it is: when its
+ * pool is named (lessonPoolShown), and also -- owner, 2026-10-22 -- whenever
+ * the pool has an address, phone or arrival notes, even with one pool open.
+ * They go only to the family who booked, so this is where they learn it.
+ */
+export function lessonPlaceShown(all: Location[], locationId: string | null | undefined): boolean {
+  if (lessonPoolShown(all, locationId)) return true
+  return poolHasDetails(all.find(l => l.id === (locationId || DEFAULT_LOCATION_ID)))
+}
+
+/** Nothing about any lesson's pool would be said (lessonPlaceShown is false
+ *  for every lesson), so callers can skip reading the lessons. */
+const placeNeverShown = (all: Location[]) =>
+  !showLocations(all) && !all.some(l => !l.is_active) && !all.some(poolHasDetails)
 
 /**
  * Whether families may book at this pool: it is open to them. A hidden pool's
@@ -104,7 +145,7 @@ export async function lessonLocationLine(
   all?: Location[],
 ): Promise<string | undefined> {
   const list = all ?? await getLocations(svc)
-  if (!lessonPoolShown(list, locationId)) return undefined
+  if (!lessonPlaceShown(list, locationId)) return undefined
   const loc = list.find(l => l.id === (locationId || DEFAULT_LOCATION_ID))
   return loc ? locationLine(loc) : undefined
 }
@@ -113,11 +154,11 @@ export async function lessonLocationLine(
 export async function sessionLocationLine(svc: SupabaseClient, sessionId: string | null | undefined): Promise<string | undefined> {
   if (!sessionId) return undefined
   const list = await getLocations(svc)
-  // Nothing to read while no lesson can be at a pool other than the open one.
-  if (!showLocations(list) && !list.some(l => !l.is_active)) return undefined
+  // Nothing to read while nothing about any pool would be said.
+  if (placeNeverShown(list)) return undefined
   const { data } = await svc.from('class_sessions').select('location_id').eq('id', sessionId).maybeSingle()
   const locationId = (data as any)?.location_id || DEFAULT_LOCATION_ID
-  if (!lessonPoolShown(list, locationId)) return undefined
+  if (!lessonPlaceShown(list, locationId)) return undefined
   const loc = list.find(l => l.id === locationId)
   return loc ? locationLine(loc) : undefined
 }
@@ -150,11 +191,11 @@ export async function sessionLocationLines(svc: SupabaseClient, sessionIds: (str
   const ids = [...new Set(sessionIds.filter((x): x is string => !!x))]
   if (ids.length === 0) return out
   const list = await getLocations(svc)
-  if (!showLocations(list) && !list.some(l => !l.is_active)) return out
+  if (placeNeverShown(list)) return out
   for (let i = 0; i < ids.length; i += 150) {
     const { data } = await svc.from('class_sessions').select('id, location_id').in('id', ids.slice(i, i + 150))
     for (const r of (data || []) as { id: string; location_id: string | null }[]) {
-      if (!lessonPoolShown(list, r.location_id)) continue
+      if (!lessonPlaceShown(list, r.location_id)) continue
       const loc = list.find(l => l.id === (r.location_id || DEFAULT_LOCATION_ID))
       if (loc) out.set(r.id, locationLine(loc))
     }

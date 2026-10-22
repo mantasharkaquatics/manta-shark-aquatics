@@ -8,6 +8,7 @@ import { stageNameKey } from './levels'
 import { formatTime12h } from './date'
 import { ASSESSMENT_POINTS as CREDIT_POINTS, ASSESSMENT_CREDIT_LESSONS as CREDIT_LESSONS } from './points'
 import { CONTACT_EMAIL, EMAIL_FROM } from './site-config'
+import { getLocations, locationLine, locationMapUrl, type Location } from './locations'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -198,6 +199,33 @@ function assessmentCancelledHtml(parentName: string, studentName: string, format
   return `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;"><div style="text-align: center; margin-bottom: 24px;"><h1 style="color: #1a2744; font-size: 24px; margin: 0;">Manta Shark Aquatics</h1></div><div style="background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px;"><h2 style="color: #1a2744; margin-top: 0;">Swim Assessment Cancelled</h2><p>Hi ${parentName},</p><p>We're sorry — we had to cancel the Swim Assessment below.</p><table style="width: 100%; border-collapse: collapse;">${row('Student', studentName)}${row('Date', formattedDate)}${row('Time', time)}${location ? row('Location', location) : ''}</table><p style="color: #c9a84c; font-weight: 600;">${note}</p></div><p style="color: #666; font-size: 13px; text-align: center;">Questions? Reply to this email or chat with us at <a href="https://www.mantasharkaquatics.net">mantasharkaquatics.net</a></p></div>`
 }
 
+/** The pool a lesson email's `location` line names (lib/locations
+ *  locationLine), read back so the email can add its map link, phone and
+ *  arrival notes (owner, 2026-10-22). null when it cannot be matched. */
+async function poolOfLine(line: string | undefined): Promise<Location | null> {
+  if (!line) return null
+  try {
+    const { serviceClient } = await import('./api-auth')
+    const all = await getLocations(serviceClient())
+    return all.find(l => locationLine(l) === line) || null
+  } catch { return null }
+}
+
+/** The Location cell: the line, then a Map link, the pool's phone and its
+ *  arrival notes when the desk has set them. Values are escaped here. */
+function placeHtml(line: string, pool: Location | null): string {
+  let h = esc(line)
+  if (!pool) return h
+  const url = locationMapUrl(pool)
+  const hasAddr = !!(pool.address || '').trim() && (pool.address || '').trim().toLowerCase() !== pool.name.trim().toLowerCase()
+  if (url && (hasAddr || pool.map_url)) h += ` &middot; <a href="${esc(url)}" style="color: #1a5fb4;">Map</a>`
+  const ph = String(pool.phone || '').replace(/\D/g, '')
+  if (ph.length === 10) h += `<br><span style="font-weight: 400; color: #444;">Pool phone: <a href="tel:+1${ph}" style="color: #1a5fb4;">(${ph.slice(0, 3)}) ${ph.slice(3, 6)}-${ph.slice(6)}</a></span>`
+  const notes = String(pool.directions || '').trim()
+  if (notes) h += `<br><span style="font-weight: 400; color: #444;">${esc(notes)}</span>`
+  return h
+}
+
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   const { type, to, parentName, studentName, partnerName, courseName, coachName, date, time, paymentUrl, inviterName, invoiceNumber, invoiceId, invoiceUrl, amount, refundKind, code, changeField, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
@@ -208,7 +236,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   let text = ''
   // The pool, right under the Time row of every lesson email. Empty while
   // only one pool is open, so those emails read exactly as before.
-  const locRow = payload.location ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${esc(payload.location)}</td></tr>` : ''
+  const pool = await poolOfLine(payload.location)
+  const locRow = payload.location ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${placeHtml(payload.location, pool)}</td></tr>` : ''
 
   const formattedDate = date ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date + 'T00:00:00Z' : date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : ''
 
@@ -651,7 +680,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     // The pool, under the body: these two go out in the family's language and
     // have no label rows, so a pin and the pool's own name and address say it
     // without a word to translate.
-    const poolP = payload.location ? `<p style="color: #16294a; line-height: 1.6;">&#128205; ${esc(payload.location)}</p>` : ''
+    const poolP = payload.location ? `<p style="color: #16294a; line-height: 1.6;">&#128205; ${placeHtml(payload.location, pool)}</p>` : ''
     if (type === 'fixed_class_renewal') {
       // Plain text: the escaped names showed "O&#39;Brien" in the subject line
       // (found 2026-10-07). The escaped vars stay for the HTML body.
@@ -714,7 +743,8 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
     const llSet = new Set(ll.map(x => x || ''))
     const perDateLoc = ll.length > 0 && llSet.size > 1
     const seriesLoc = perDateLoc ? '' : (payload.location || ll[0] || '')
-    const seriesLocRow = seriesLoc ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${esc(seriesLoc)}</td></tr>` : ''
+    const seriesPool = seriesLoc === payload.location ? pool : await poolOfLine(seriesLoc)
+    const seriesLocRow = seriesLoc ? `<tr><td style="padding: 8px 16px 8px 0; color: #666; white-space: nowrap; width: 1%; vertical-align: top;">Location</td><td style="padding: 8px 0; font-weight: 600;">${placeHtml(seriesLoc, seriesPool)}</td></tr>` : ''
     const dateRows = dl.map((d, i) => `<tr><td style="padding: 6px 0; color: #666;">Lesson ${i + 1}</td><td style="padding: 6px 0; font-weight: 600;">${fmtD(d)}${tl[i] ? ` &middot; ${esc(tl[i])}` : ''}${perDateLoc && ll[i] ? ` &middot; ${esc(ll[i])}` : ''}</td></tr>`).join('')
     // A fixed class says so, with the leave rule that comes with it; a basket
     // of separate lessons is not "recurring" (found 2026-10-06: both got

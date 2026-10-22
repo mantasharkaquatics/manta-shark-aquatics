@@ -191,6 +191,13 @@ has the type and helpers.
 - **Hidden = families cannot book there.** Parent booking routes offer and
   accept only blocks at open pools (`familyCanBookAt`, `familyZones` in
   `lib/zones.ts`); staff routes are not limited.
+- **The address is for families with a booking** (owner, 2026-10-22). Address,
+  map link, phone, arrival notes and the check-in point are not readable with
+  the publishable key (docs/migration-safety-info.sql); the public site reads
+  `PUBLIC_LOCATION_COLUMNS`, `/api/locations` sends them only to a family with
+  a booking, and the AI never has them. Lesson emails and the reminder SMS say
+  the pool whenever it has an address, even with one pool open
+  (`lessonPlaceShown`).
 - Points, prices and programs are the same at every pool. The booking page
   keeps pools separate: pick the pool (`?location=`), then only its times.
 - Prerendered public pages read the pools through `lib/public-locations.ts`

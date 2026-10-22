@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthUser, serviceClient } from '@/lib/api-auth'
-import { activeLocations, getLocations, showLocations, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { activeLocations, getLocations, showLocations, poolHasDetails, withoutDetails, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 
 // GET -> the pools families can book, whether to show a location at all, and
 // (signed-in family) each swimmer's usual pool: the pool of their latest
@@ -9,14 +9,21 @@ import { activeLocations, getLocations, showLocations, DEFAULT_LOCATION_ID } fro
 // still be named on the family's cards (lib/locations lessonPoolShown, found
 // 2026-10-15, F66). Never offered for booking. The table is readable by
 // anyone (RLS select), so this tells nobody anything new.
+//
+// `details`: the address, map link, phone and arrival notes (owner,
+// 2026-10-22: "the address only goes to families with a booking"). Sent only
+// to a signed-in family with at least one lesson booked, ever; everyone else
+// gets the names. `details` is also true when some pool has them, so the
+// dashboard knows to show a lesson's pool with one pool open.
 export async function GET() {
   const svc = serviceClient()
   const all = await getLocations(svc)
-  const locations = activeLocations(all)
   const show = showLocations(all)
+  const anyDetails = all.some(poolHasDetails)
   const studentLocations: Record<string, string> = {}
+  let booked = false
 
-  if (show) {
+  if (show || anyDetails) {
     const user = await getAuthUser()
     if (user) {
       const { data: parent } = await svc.from('parents').select('id').eq('auth_user_id', user.id).maybeSingle()
@@ -34,6 +41,8 @@ export async function GET() {
             .neq('status', 'cancelled')
             .order('created_at', { ascending: false })
             .limit(400)
+          booked = (rows || []).length > 0
+          const locations = activeLocations(all)
           const latest: Record<string, string> = {}
           for (const r of (rows || []) as any[]) {
             const cs = Array.isArray(r.class_sessions) ? r.class_sessions[0] : r.class_sessions
@@ -50,8 +59,16 @@ export async function GET() {
     }
   }
 
+  const out = (l: Location) => {
+    const { id, name, address, map_url, sort_order, is_active, phone, directions } = l
+    const row = { id, name, address, map_url, sort_order, is_active, phone: phone ?? null, directions: directions ?? null }
+    return booked ? row : withoutDetails(row)
+  }
   return NextResponse.json(
-    { locations, show, studentLocations, hidden: all.filter(l => !l.is_active).map(({ id, name, address, map_url, sort_order, is_active }) => ({ id, name, address, map_url, sort_order, is_active })) },
+    {
+      locations: activeLocations(all).map(out), show, details: booked && anyDetails, studentLocations,
+      hidden: all.filter(l => !l.is_active).map(out),
+    },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

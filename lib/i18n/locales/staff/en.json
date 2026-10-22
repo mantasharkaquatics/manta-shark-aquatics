@@ -351,7 +351,7 @@
   "admin.suggestions.markDone": "Mark done",
   "admin.suggestions.moveBack": "Move back to new",
   "admin.locations.intro": "The pools the school teaches at. Which hours each coach is at which pool is set in Zones.",
-  "admin.locations.stateHidden": "While only one pool is open to families, families see no location anywhere on the site.",
+  "admin.locations.stateHidden": "While only one pool is open to families, the site shows no pool names. A pool’s address, phone and arrival notes still go to families with a booking once you fill them in below.",
   "admin.locations.stateShown": "{n} pools are open to families, so families pick a pool when booking and see it on every lesson.",
   "admin.locations.empty": "No pools yet. Run docs/migration-locations.sql first.",
   "admin.locations.open": "Open to families",
@@ -1701,5 +1701,13 @@
   "admin.safety.notAnswered": "Not given yet",
   "admin.safety.none": "No known medical conditions or allergies",
   "admin.safety.contact": "Emergency contact",
-  "admin.safety.loadFailed": "Could not load safety information."
+  "admin.safety.loadFailed": "Could not load safety information.",
+  "admin.locations.phone": "Pool phone",
+  "admin.locations.directions": "Arrival notes",
+  "admin.locations.directionsPlaceholder": "e.g. Enter by the side gate on Elm St; park on the street, not the driveway.",
+  "admin.locations.privateHint": "Address, map link, phone and arrival notes go only to families with a booking: their confirmation emails, the reminder text and the lesson details on their dashboard. The public website never shows them.",
+  "admin.locations.infoNeedsMigration": "Phone and arrival notes can be saved once the database update docs/migration-safety-info.sql has run.",
+  "admin.locations.err.phone": "The phone must be a 10-digit US number.",
+  "admin.locations.err.directions": "Arrival notes are too long (300 characters at most).",
+  "admin.locations.err.needsSafetyMigration": "Nothing was saved: phone and arrival notes need the database update docs/migration-safety-info.sql first."
 }

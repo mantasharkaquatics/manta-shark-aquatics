@@ -2,7 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { serviceClient } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
-import { LOCATION_COLUMNS, DEFAULT_LOCATION_ID, activeLocations, showLocations, type Location } from '@/lib/locations'
+import { PUBLIC_LOCATION_COLUMNS, DEFAULT_LOCATION_ID, activeLocations, showLocations, type Location } from '@/lib/locations'
 
 /* The pool list for the public site's prerendered pages (server only).
 
@@ -27,10 +27,13 @@ const anon = () => createClient(
 )
 
 const readLocations = unstable_cache(async (): Promise<Location[]> => {
-  const { data, error } = await anon().from('locations').select(LOCATION_COLUMNS).order('sort_order')
+  // No address, map link or phone: those are for families with a booking
+  // (owner, 2026-10-22), and the publishable key cannot read them anyway once
+  // docs/migration-safety-info.sql has run.
+  const { data, error } = await anon().from('locations').select(PUBLIC_LOCATION_COLUMNS).order('sort_order')
   if (error) throw new Error(error.message)
-  return (data || []) as Location[]
-}, ['public-locations-v1'], { revalidate: TTL, tags: ['locations'] })
+  return ((data || []) as Partial<Location>[]).map(l => ({ ...l, address: null, map_url: null }) as Location)
+}, ['public-locations-v2'], { revalidate: TTL, tags: ['locations'] })
 
 /** Every pool, active or not, in display order; [] when it cannot be read. */
 export async function publicLocations(): Promise<Location[]> {

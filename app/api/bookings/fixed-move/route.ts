@@ -4,7 +4,7 @@ import { formatTime12h } from '@/lib/date'
 import { sendEmail } from '@/lib/email'
 import { commitMove, moveContext, moveOptions, planMove, type MoveTarget } from '@/lib/fixed-move'
 import { lessonsOf, minToTime, toMin, weekdayOf } from '@/lib/fixed-classes'
-import { DEFAULT_LOCATION_ID, getLocations, lessonLocationLine, showLocations } from '@/lib/locations'
+import { DEFAULT_LOCATION_ID, getLocations, lessonLocationLine, poolHasDetails, showLocations } from '@/lib/locations'
 
 export const runtime = 'nodejs'
 
@@ -69,10 +69,11 @@ export async function POST(req: NextRequest) {
       const cName = new Map<string, string>((coaches || []).map((c: any) => [c.id, c.first_name]))
       const end = minToTime(toMin(start_time) + ctx.fc.minutes)
       // Where the moved lessons now are, when they all share one pool and
-      // more than one is open (the trigger placed them by the new slot).
+      // more than one is open (the trigger placed them by the new slot), or
+      // the pool has an address to give (lessonPlaceShown).
       let location: string | undefined
       const pools = await getLocations(svc)
-      if (showLocations(pools)) {
+      if (showLocations(pools) || pools.some(poolHasDetails)) {
         const toDates = new Set(plan.items.filter(i => i.to).map(i => i.to!))
         const moved = ((await lessonsOf(svc, [ctx.fc.id])).get(ctx.fc.id) || []).filter(l => toDates.has(l.date))
         const ids = [...new Set(moved.map(l => l.locationId || DEFAULT_LOCATION_ID))]

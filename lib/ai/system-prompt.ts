@@ -23,18 +23,20 @@ export type SystemPromptOptions = {
 // assistant describes the school as at that pool, as it always has; the ids
 // are shown only when there is a choice to pass to a tool.
 function poolLines(pools: SystemPromptOptions['pools']): string[] {
-  const addr = (a: string | null | undefined) => (a || '').trim()
-    ? `address: ${(a || '').trim()}`
-    : 'address: not listed here (never guess it)'
+  // The address is never given in chat (owner, 2026-10-22: it goes only to
+  // families with a booking, in their confirmation email, reminder text and
+  // dashboard). Anyone can open the chat, so the assistant never has it.
+  const where = 'The exact address is sent once a lesson is booked: in the confirmation email, the reminder text and on the lesson in the dashboard. Never give or guess an address in chat.'
   if (!pools || pools.length === 0) {
-    return ['POOLS: the school teaches at one pool, Brea, Southern California; every lesson is there. Its address is not listed here (never guess it).']
+    return [`POOLS: the school teaches at one pool, Brea, Southern California; every lesson is there. ${where}`]
   }
   if (pools.length === 1) {
-    return [`POOLS: the school teaches at one pool, ${pools[0].name}, Southern California; every lesson is there. ${addr(pools[0].address).replace(/^a/, 'A')}.`]
+    return [`POOLS: the school teaches at one pool, ${pools[0].name}, Southern California; every lesson is there. ${where}`]
   }
   return [
     'POOLS (the school teaches at each of these; the id in brackets is the value for a tool\'s location input):',
-    ...pools.map(p => `- ${p.name} [${p.id}] - ${addr(p.address)}`),
+    ...pools.map(p => `- ${p.name} [${p.id}]`),
+    where,
   ]
 }
 

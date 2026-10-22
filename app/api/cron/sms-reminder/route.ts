@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { requireCron } from '@/lib/cron-auth'
-import { getLocations, lessonPoolShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
+import { getLocations, lessonPlaceShown, DEFAULT_LOCATION_ID } from '@/lib/locations'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -146,11 +146,13 @@ export async function GET(request: Request) {
     supabase.from('coaches').select('id, first_name').in('id', coachIds),
     getLocations(supabase),
   ])
-  // Which pool, once there is more than one open to families: " at Monrovia
-  // (123 Main St)". With one pool the text is exactly what it was -- except
-  // for a lesson at a hidden pool, which says so (lessonPoolShown, F66).
+  // Which pool: " at Monrovia (123 Main St)". Said once more than one is open
+  // to families, for a lesson at a hidden pool (F66), and -- owner,
+  // 2026-10-22 -- whenever the pool has an address set (lessonPlaceShown);
+  // these go only to the family who booked. A pool with no address and one
+  // pool open reads exactly as before.
   const poolText = (locationId: string | null | undefined) => {
-    if (!lessonPoolShown(pools, locationId)) return ''
+    if (!lessonPlaceShown(pools, locationId)) return ''
     const loc = pools.find((l) => l.id === (locationId || DEFAULT_LOCATION_ID))
     if (!loc) return ''
     const addr = (loc.address || '').trim()

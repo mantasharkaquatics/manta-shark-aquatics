@@ -12,11 +12,16 @@ export const runtime = 'nodejs'
 // every change goes through here.
 //
 // GET  -> { locations } every pool, closed-to-families ones too
-// POST -> { id, name?, address?, map_url?, is_active?, confirm_lessons?, lat?, lng?, checkin_radius_m? }
+// POST -> { id, name?, address?, map_url?, phone?, directions?, is_active?, confirm_lessons?, lat?, lng?, checkin_radius_m? }
 //         edits one pool (a refusal carries `code`, which the page turns into
 //         its own words). lat/lng are the "I'm here" check-in point
 //         (docs/migration-locations-checkin.sql): both or neither; both
 //         empty turns self check-in off at that pool.
+//
+// phone and directions (arrival notes) are docs/migration-safety-info.sql;
+// like the address they go only to families with a booking (owner,
+// 2026-10-22): the confirmation emails, the reminder SMS and the lesson's
+// details on the dashboard.
 //
 // No create or delete: the two rows come from the migration, and a pool's id
 // is referenced by every zone and lesson at it.
@@ -80,6 +85,22 @@ export async function POST(req: NextRequest) {
     if (url && !/^https?:\/\/\S+$/i.test(url)) return NextResponse.json({ error: 'Map link must start with https://', code: 'mapUrl' }, { status: 400 })
     patch.map_url = url || null
   }
+  const wantsInfo = 'phone' in body || 'directions' in body
+  if (wantsInfo) {
+    if (!all.some(l => 'phone' in l))
+      return NextResponse.json({ error: 'Run docs/migration-safety-info.sql first', code: 'needsSafetyMigration' }, { status: 409 })
+    if ('phone' in body) {
+      let d = String(body.phone ?? '').replace(/\D/g, '')
+      if (d.length === 11 && d.startsWith('1')) d = d.slice(1)
+      if (d && d.length !== 10) return NextResponse.json({ error: 'Phone must be a 10-digit US number', code: 'phone' }, { status: 400 })
+      patch.phone = d || null
+    }
+    if ('directions' in body) {
+      const notes = clean(body.directions, 300)
+      if (notes === null) return NextResponse.json({ error: 'Arrival notes are too long (300 characters at most)', code: 'directions' }, { status: 400 })
+      patch.directions = notes || null
+    }
+  }
   if ('is_active' in body) {
     if (typeof body.is_active !== 'boolean') return badRequest()
     // With no pool open the booking page would have nowhere to book at all.
@@ -130,6 +151,8 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await svc.from('locations').update(patch).eq('id', loc.id).select('*').single()
   if (error) {
+    if (wantsInfo && /\b(phone|directions)\b/.test(error.message || ''))
+      return NextResponse.json({ error: 'Run docs/migration-safety-info.sql first', code: 'needsSafetyMigration' }, { status: 409 })
     if (wantsCheckIn && missingColumn(error))
       return NextResponse.json({ error: 'Run docs/migration-locations-checkin.sql first', code: 'needsMigration' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -145,13 +145,14 @@ export default function FixedClassPage() {
   }, [id])
   useEffect(() => { load() }, [load])
 
-  // Where the class is. Shown only while more than one pool is open to
-  // families (/api/locations `show`); with one pool the page is unchanged.
+  // Where the class is. Shown while more than one pool is open to families
+  // (/api/locations `show`), or when the pool has an address for this booked
+  // family (`details`, owner 2026-10-22).
   const [pools, setPools] = useState<Location[] | null>(null)
   useEffect(() => {
     let live = true
     fetch('/api/locations', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
-      .then(j => { if (live && j?.show) setPools(j.locations || []) }).catch(() => {})
+      .then(j => { if (live && (j?.show || j?.details)) setPools(j.locations || []) }).catch(() => {})
     return () => { live = false }
   }, [])
   const poolOf = (id?: string | null) => pools?.find(l => l.id === (id || DEFAULT_LOCATION_ID)) || null

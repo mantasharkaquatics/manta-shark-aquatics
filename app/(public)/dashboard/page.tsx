@@ -32,7 +32,7 @@ const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: 
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
-import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, type Location } from '@/lib/locations'
+import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -1388,7 +1388,10 @@ function ReferralCard({ focus }: { focus: boolean }) {
    `show` is then "some lesson may be named". */
 type PoolInfo = { list: Location[]; show: boolean }
 const PoolsCtx = createContext<PoolInfo>({ list: [], show: false })
-const poolShown = (p: PoolInfo, id?: string | null) => p.show && lessonPoolShown(p.list, id)
+// Also shown when the pool has an address for this family: /api/locations
+// sends one only to a family with a booking (owner, 2026-10-22).
+const poolShown = (p: PoolInfo, id?: string | null) =>
+  p.show && (lessonPoolShown(p.list, id) || poolHasDetails(p.list.find(l => l.id === (id || DEFAULT_LOCATION_ID))))
 function PoolLink({ id, prefix, plain, style }: { id?: string | null; prefix?: string; plain?: boolean; style?: React.CSSProperties }) {
   const pools = useContext(PoolsCtx)
   const { list } = pools
@@ -1402,6 +1405,32 @@ function PoolLink({ id, prefix, plain, style }: { id?: string | null; prefix?: s
       aria-label={t('dash.pool.mapAria', { name: loc.name })} title={t('dash.pool.mapAria', { name: loc.name })}
       style={{ color: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: '2px', ...style }}>📍 {loc.name}</a>
   ) : <span style={{ whiteSpace: 'nowrap', ...style }}>📍 {loc.name}</span>}</>
+}
+/** The pool's address, phone and arrival notes, under a lesson's details.
+ *  Only a family with a booking is sent them (/api/locations), so for anyone
+ *  else, and for a pool with none set, this renders nothing. */
+function PoolDetails({ id }: { id?: string | null }) {
+  const pools = useContext(PoolsCtx)
+  const t = useT()
+  if (!poolShown(pools, id)) return null
+  const loc = pools.list.find(l => l.id === (id || DEFAULT_LOCATION_ID))
+  if (!loc) return null
+  const addr = (loc.address || '').trim()
+  const realAddr = addr && addr.toLowerCase() !== loc.name.trim().toLowerCase() ? addr : ''
+  const phone = (loc.phone || '').replace(/\D/g, '')
+  const notes = (loc.directions || '').trim()
+  if (!realAddr && phone.length !== 10 && !notes) return null
+  const url = locationMapUrl(loc)
+  const fmt = phone.length === 10 ? `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}` : ''
+  return (
+    <div style={{ marginTop: '12px', background: '#f5f8fd', border: '1px solid #e3ebf6', borderRadius: '10px', padding: '10px 12px', fontSize: '13px', color: '#16294a', lineHeight: 1.55, display: 'grid', gap: '6px' }}>
+      {realAddr && (url
+        ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#16294a', fontWeight: 600 }}>📍 {realAddr}</a>
+        : <span style={{ fontWeight: 600 }}>📍 {realAddr}</span>)}
+      {fmt && <span>{t('dash.pool.phone')} <a href={`tel:+1${phone}`} style={{ color: '#1f5fbf', fontWeight: 600 }}>{fmt}</a></span>}
+      {notes && <span style={{ whiteSpace: 'pre-wrap' }}><span style={{ color: '#56647d' }}>{t('dash.pool.directions')}</span> {notes}</span>}
+    </div>
+  )
 }
 /** Two pool ids are the same pool (a row read before the migration has none = the default pool). */
 const samePool = (a?: string | null, b?: string | null) => (a || DEFAULT_LOCATION_ID) === (b || DEFAULT_LOCATION_ID)
@@ -1549,7 +1578,7 @@ export default function DashboardPage() {
     fetch('/api/locations', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
       .then(j => {
         const hidden: Location[] = Array.isArray(j?.hidden) ? j.hidden : []
-        if (live && (j?.show || hidden.length > 0)) setPools({ list: [...(j.locations || []), ...hidden], show: true })
+        if (live && (j?.show || j?.details || hidden.length > 0)) setPools({ list: [...(j.locations || []), ...hidden], show: true })
       })
       .catch(() => {})
     return () => { live = false }
@@ -3744,6 +3773,7 @@ export default function DashboardPage() {
                             <span style={{ fontSize: '13px', fontWeight: 600, color: '#16294a', textAlign: 'right' }}>{row.value}</span>
                           </div>
                         ))}
+                        <PoolDetails id={b.location_id} />
                         <button onClick={() => setLessonDetail(null)}
                           style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
                       </div>

@@ -351,7 +351,7 @@
   "admin.suggestions.markDone": "标记为已处理",
   "admin.suggestions.moveBack": "改回未处理",
   "admin.locations.intro": "学校上课的泳池。每位教练哪些时段在哪个场馆，请在「分级时段」设置。",
-  "admin.locations.stateHidden": "只有一个场馆开放给家长时，网站上任何地方都不会显示场馆。",
+  "admin.locations.stateHidden": "只开放一个场馆时，网站不显示场馆名称。下方填好的地址、电话与到场说明，仍会发给已预约的家庭。",
   "admin.locations.stateShown": "目前有 {n} 个场馆开放给家长，家长预约时会选场馆，每节课也都会显示场馆。",
   "admin.locations.empty": "还没有场馆。请先执行 docs/migration-locations.sql。",
   "admin.locations.open": "开放给家长",
@@ -1701,5 +1701,13 @@
   "admin.safety.notAnswered": "家长尚未填写",
   "admin.safety.none": "没有已知的疾病或过敏",
   "admin.safety.contact": "紧急联系人",
-  "admin.safety.loadFailed": "无法加载安全信息。"
+  "admin.safety.loadFailed": "无法加载安全信息。",
+  "admin.locations.phone": "场馆电话",
+  "admin.locations.directions": "到场说明",
+  "admin.locations.directionsPlaceholder": "例如：从 Elm St 侧门进入；请停在路边，不要停车道。",
+  "admin.locations.privateHint": "地址、地图链接、电话与到场说明只给已预约的家庭：预约确认信、提醒短信，以及他们仪表板上的课程详情。公开网站不会显示。",
+  "admin.locations.infoNeedsMigration": "数据库更新 docs/migration-safety-info.sql 执行后，才能保存电话与到场说明。",
+  "admin.locations.err.phone": "电话必须是 10 位数的美国号码。",
+  "admin.locations.err.directions": "到场说明太长（最多 300 字）。",
+  "admin.locations.err.needsSafetyMigration": "没有保存：电话与到场说明需要先执行数据库更新 docs/migration-safety-info.sql。"
 }

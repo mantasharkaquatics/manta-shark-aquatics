@@ -6,9 +6,14 @@ import { useT } from '@/lib/i18n/provider'
 import { hasCheckInColumns, type Location } from '@/lib/locations'
 import { locationColor } from '@/lib/location-colors'
 
-type Draft = { name: string; address: string; map_url: string; lat: string; lng: string; radius: string }
+type Draft = { name: string; address: string; map_url: string; phone: string; directions: string; lat: string; lng: string; radius: string }
+const fmtPhone = (raw: string | null | undefined) => {
+  const d = String(raw || '').replace(/\D/g, '')
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : String(raw || '')
+}
 const draftOf = (l: Location): Draft => ({
   name: l.name, address: l.address || '', map_url: l.map_url || '',
+  phone: fmtPhone(l.phone), directions: l.directions || '',
   lat: l.lat == null ? '' : String(l.lat),
   lng: l.lng == null ? '' : String(l.lng),
   radius: String(l.checkin_radius_m ?? 150),
@@ -17,8 +22,10 @@ const draftOf = (l: Location): Draft => ({
    "34.12345678, -118.12345678". Pasted into either box, it fills both. */
 const PAIR = /^\s*\(?\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)?\s*$/
 
-/* The pools. Name, address and map link are what families read on lesson
-   cards and in emails once more than one pool is open; "open to families" is
+/* The pools. Address, map link, phone and arrival notes go only to families
+   with a booking (owner, 2026-10-22): their confirmation emails, reminder SMS
+   and the lesson's details on the dashboard -- never the public site. Names
+   show on lesson cards once more than one pool is open; "open to families" is
    the switch that makes a pool bookable (and, with a second one on, makes
    locations appear across the site). Which hours a coach teaches at which pool
    is set in Zones, not here.
@@ -58,7 +65,7 @@ export default function AdminLocationsPage() {
         setHideAsk({ id, name: (list || []).find(l => l.id === id)?.name || id, count: Number(d.count) || 0, lessons: Array.isArray(d.lessons) ? d.lessons : [] })
         return null
       }
-      const known = ['name', 'address', 'mapUrl', 'lastOpen', 'coords', 'radius', 'needsMigration']
+      const known = ['name', 'address', 'mapUrl', 'phone', 'directions', 'lastOpen', 'coords', 'radius', 'needsMigration', 'needsSafetyMigration']
       setAlertMsg(known.includes(d.code) ? t(`admin.locations.err.${d.code}`) : t('admin.locations.err.saveFailed'))
       return null
     }
@@ -67,6 +74,10 @@ export default function AdminLocationsPage() {
     return loc
   }
 
+  const infoDirty = (l: Location, dr: Draft) => {
+    const o = draftOf(l)
+    return dr.phone !== o.phone || dr.directions !== o.directions
+  }
   const checkInDirty = (l: Location, dr: Draft) => {
     const o = draftOf(l)
     return dr.lat !== o.lat || dr.lng !== o.lng || dr.radius !== o.radius
@@ -79,6 +90,7 @@ export default function AdminLocationsPage() {
     // as typed; the server parses and range-checks them.
     const loc = await send(l.id, {
       name: dr.name, address: dr.address, map_url: dr.map_url,
+      ...(infoDirty(l, dr) ? { phone: dr.phone, directions: dr.directions } : {}),
       ...(checkInDirty(l, dr) ? { lat: dr.lat, lng: dr.lng, checkin_radius_m: dr.radius } : {}),
     })
     if (loc) { setDrafts(prev => ({ ...prev, [loc.id]: draftOf(loc) })); setSaved(loc.id) }
@@ -87,6 +99,7 @@ export default function AdminLocationsPage() {
   if (!list) return <div className="p-8 text-gray-400 text-sm">{t('common.loading')}</div>
   const openCount = list.filter(l => l.is_active).length
   const checkInReady = hasCheckInColumns(list)
+  const infoReady = list.some(l => 'phone' in l)
 
   return (
     <div className="p-6 md:p-8 max-w-3xl">
@@ -119,7 +132,7 @@ export default function AdminLocationsPage() {
       <div className="space-y-4 mt-6">
         {list.map(l => {
           const dr = drafts[l.id] || draftOf(l)
-          const dirty = dr.name !== l.name || dr.address !== (l.address || '') || dr.map_url !== (l.map_url || '') || checkInDirty(l, dr)
+          const dirty = dr.name !== l.name || dr.address !== (l.address || '') || dr.map_url !== (l.map_url || '') || infoDirty(l, dr) || checkInDirty(l, dr)
           const field = (key: keyof Draft, label: string, placeholder?: string, opts?: { disabled?: boolean; numeric?: boolean }) => (
             <label className="block">
               <span className="text-gray-500 text-xs uppercase tracking-wider">{label}</span>
@@ -167,6 +180,16 @@ export default function AdminLocationsPage() {
               </div>
               <div className="mt-3">{field('map_url', t('admin.locations.mapUrl'), 'https://maps.app.goo.gl/…')}</div>
               <p className="text-gray-500 text-xs mt-1">{t('admin.locations.mapUrlHint')}</p>
+              <div className="grid gap-3 sm:grid-cols-2 mt-3">
+                {field('phone', t('admin.locations.phone'), '(714) 555-0123', { disabled: !infoReady })}
+              </div>
+              <label className="block mt-3">
+                <span className="text-gray-500 text-xs uppercase tracking-wider">{t('admin.locations.directions')}</span>
+                <textarea value={dr.directions} rows={2} maxLength={300} disabled={!infoReady} placeholder={t('admin.locations.directionsPlaceholder')}
+                  onChange={e => { const v = e.target.value; setDrafts(prev => ({ ...prev, [l.id]: { ...dr, directions: v } })); setSaved(null) }}
+                  className="mt-1 w-full rounded-lg border border-[#1e3a6e] bg-[#0d1529] px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-[#c9a84c] focus:outline-none disabled:opacity-50" />
+              </label>
+              <p className={`text-xs mt-1 ${infoReady ? 'text-gray-500' : 'text-amber-300'}`}>{infoReady ? t('admin.locations.privateHint') : t('admin.locations.infoNeedsMigration')}</p>
 
               <div className="mt-4 border-t border-[#1e3a6e] pt-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
