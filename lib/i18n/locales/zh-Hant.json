@@ -2137,5 +2137,6 @@
   "mail.ics.title": "游泳課：{names}（{course}）",
   "mail.ics.coach": "{coach} 教練",
   "mail.ics.note": "附件的行事曆檔案可以把這堂課加進您的行事曆。如果課程改期或取消，我們寄出的信也會一併更新您的行事曆。",
-  "dash.addToCalendar": "加入行事曆"
+  "dash.addToCalendar": "加入行事曆",
+  "dash.reportUnderReview": "教練已記錄，審核中"
 }

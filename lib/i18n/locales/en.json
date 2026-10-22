@@ -2137,5 +2137,6 @@
   "mail.ics.title": "Swim lesson: {names} ({course})",
   "mail.ics.coach": "Coach {coach}",
   "mail.ics.note": "The attached calendar file adds this lesson to your calendar. If it moves or is cancelled, our email will update your calendar too.",
-  "dash.addToCalendar": "Add to calendar"
+  "dash.addToCalendar": "Add to calendar",
+  "dash.reportUnderReview": "Coach recorded · under review"
 }

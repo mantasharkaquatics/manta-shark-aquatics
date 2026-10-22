@@ -507,6 +507,15 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   // Focus into the sheet as it opens (found 2026-10-15: it stayed on the opener).
   const box = useDialogFocus(true)
+  // Reports the coach has written that a manager has not approved yet
+  // (owner, 2026-10-22): "recorded, under review" instead of nothing.
+  const [pendingReports, setPendingReports] = useState<{ date: string; start: string | null }[]>([])
+  useEffect(() => {
+    let live = true
+    fetch(`/api/parent/pending-reports?student=${encodeURIComponent(student.id)}`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null)).then(d => { if (live && Array.isArray(d?.pending)) setPendingReports(d.pending) }).catch(() => {})
+    return () => { live = false }
+  }, [student.id])
 
   type Row = { key: string; date: string; start?: string; end?: string; course?: string; courseId?: string; coach?: string; b?: Booking; rec?: ProgressRecord }
   const hm = (x?: string) => (x || '').slice(0, 5)
@@ -556,6 +565,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
             const badgeColor = absent ? '#e05a4a' : attended ? '#1f7a57' : b ? (STATUS_COLORS[b.status] || '#9aa6ba') : ''
             const badge = !b ? '' : absent ? t('status.absent') : attended ? t('status.attended') : b.status
             const hasDetail = !!r.rec && (!!r.rec.note || r.rec.skills.length > 0)
+            const underReview = !r.rec && !!b && pendingReports.some(p => p.date === r.date && (!p.start || hm(p.start) === hm(r.start)))
             const isOpen = !!open[r.key]
             return (
               <div key={r.key} style={{ border: '1px solid #e3ebf6', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
@@ -574,6 +584,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
                     </span>
                   </span>
                   {r.rec?.note && <span style={{ fontSize: '10px', fontWeight: 700, color: GOLD, flexShrink: 0 }}>{t('dash.coachNote')}</span>}
+                  {underReview && <span style={{ fontSize: '10px', fontWeight: 700, color: '#56647d', background: '#eef2f8', borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>{t('dash.reportUnderReview')}</span>}
                   {badge && (
                     <span style={{ fontSize: '10px', fontWeight: 700, color: badgeColor, background: `${badgeColor}18`,
                       borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>{badge}</span>
