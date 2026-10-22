@@ -29,6 +29,7 @@ export type EmailType =
   | 'contact_change_code'
   | 'contact_verify_code'
   | 'level_certificate'
+  | 'waitlist_offer'
   | 'contact_change_notice'
   | 'trial_payment_link'
   | 'booking_rescheduled'
@@ -190,6 +191,8 @@ export interface EmailPayload {
    *  2026-10-22): lessonCalendar() in lib/lesson-calendar.ts, read after the
    *  change. Family emails only. */
   calendar?: CalendarLesson[]
+  /** waitlist_offer: what the family waited for (lib/waitlist.ts). */
+  waitKind?: 'team' | 'group' | 'slot'
   /** low_balance (lib/low-balance.ts): spendable points, points per week,
    *  points already paid for booked lessons, and weeks the two together last. */
   balance?: number

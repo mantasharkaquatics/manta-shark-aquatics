@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+import { teamSeatsHeldAll } from '@/lib/waitlist'
 
 // Public tier list with remaining spots (aggregate counts only — not sensitive).
 export async function GET() {
@@ -18,7 +19,8 @@ export async function GET() {
     .select('team_tier_id')
     .in('status', ['active', 'past_due'])
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-  const countByTier: Record<string, number> = {}
+  // Places offered to waitlisted families count as taken (lib/waitlist.ts).
+  const countByTier: Record<string, number> = { ...(await teamSeatsHeldAll(svc)) }
   for (const m of members || []) countByTier[m.team_tier_id] = (countByTier[m.team_tier_id] || 0) + 1
   return NextResponse.json({
     tiers: (tiers || []).map(t => ({

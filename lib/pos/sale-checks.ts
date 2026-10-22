@@ -18,6 +18,7 @@
 
 import { BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS } from '@/lib/points'
 import { tierFor, TEAM_SQUAD_CAP, type TierBand } from '@/lib/team-tiers'
+import { teamSeatsHeld } from '@/lib/waitlist-seats'
 
 type Svc = any
 
@@ -199,7 +200,8 @@ export async function checkTeamSale(svc: Svc, input: {
   if (student.current_level == null) reasons.push(`${student.full_name} has no swim assessment on file`)
   else if (!recommended) reasons.push(`Level ${student.current_level} is below the team minimum of Level 4`)
   else if (recommended.id !== tierId) reasons.push(`this swimmer's level places them in ${recommended.name}`)
-  if ((others || 0) >= TEAM_SQUAD_CAP) reasons.push(`${tier.name} is already at ${others} of ${TEAM_SQUAD_CAP}`)
+  const offered = await teamSeatsHeld(svc, String(tierId), String(studentId))
+  if ((others || 0) + offered >= TEAM_SQUAD_CAP) reasons.push(`${tier.name} is already at ${(others || 0) + offered} of ${TEAM_SQUAD_CAP}${offered ? ` (${offered} held for the waitlist)` : ''}`)
 
   if (reasons.length > 0 && !input.override) {
     return refuse(409, `Sold as ${tier.name}, but ${reasons.join('; ')}.`, {

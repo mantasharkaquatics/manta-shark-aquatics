@@ -72,6 +72,17 @@ function CheckoutContent() {
   const [students, setStudents] = useState<{ id: string; full_name: string; current_level: number | null }[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [teamPrice, setTeamPrice] = useState<{ cents: number; varies: boolean } | null>(null)
+  // The squad is full: offer its waitlist (lib/waitlist.ts, owner 2026-10-22).
+  const [squadFull, setSquadFull] = useState(false)
+  const [waitMsg, setWaitMsg] = useState<string | null>(null)
+  async function joinTeamWaitlist() {
+    setWaitMsg(null)
+    const r = await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'team', student_id: selectedStudentId }) }).catch(() => null)
+    const d = r ? await r.json().catch(() => null) : null
+    const code = r?.ok ? 'ok' : (d?.code || 'error')
+    setWaitMsg(t(['ok', 'not_full', 'already_waiting', 'too_many', 'wrong_level', 'already_in'].includes(code) ? `wait.${code}` : 'wait.error'))
+    if (r?.ok) setSquadFull(false)
+  }
 
   // A link to an old package checkout is not an error the parent should have to
   // read about -- send them to the page that replaced it.
@@ -127,6 +138,7 @@ function CheckoutContent() {
     } else {
       const k = errorKey(data.error)
       setError(k ? t(k) : (data.error || t('checkout.err.payment')))
+      setSquadFull(k === 'err.teamFull')
       setPaying(false)
     }
   }
@@ -192,7 +204,7 @@ function CheckoutContent() {
                         return (
                           <button key={st.id} type="button" className="co-st" disabled={!eligible}
                             aria-pressed={selectedStudentId === st.id}
-                            onClick={() => eligible && setSelectedStudentId(st.id)}>
+                            onClick={() => { if (!eligible) return; setSelectedStudentId(st.id); setSquadFull(false); setWaitMsg(null); setError('') }}>
                             <span>{st.full_name}</span>
                             <small>
                               {!st.current_level
@@ -212,6 +224,10 @@ function CheckoutContent() {
                   )}
 
                   {error && <div className="co-err">{error}</div>}
+                  {squadFull && selectedStudentId && (
+                    <button type="button" className="b-btn line co-pay" onClick={joinTeamWaitlist}>{t('wait.join')}</button>
+                  )}
+                  {waitMsg && <p role="status" style={{ fontSize: 14, color: BRAND.navy, margin: '10px 0 0' }}>{waitMsg}</p>}
 
                   <button type="button" className="b-btn gold co-pay" onClick={handleCheckout} disabled={paying || !selectedStudentId}>
                     {paying ? t('checkout.redirecting') : t('checkout.subscribe', { price: priceLabel })}

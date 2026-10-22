@@ -104,6 +104,8 @@ async function dayClasses(s: any, date: string, level: number, student_id: strin
           coach_id: cid, coach_name: coachName[cid] || '',
           enrolled, max: ct.max_students, full: enrolled >= ct.max_students,
           session_id: own && enrolled < ct.max_students ? own.id : undefined,
+          // A full class can be waited for (lib/waitlist.ts).
+          waitlist_session_id: own && enrolled >= ct.max_students ? own.id : undefined,
           already_booked: myTimes.has(t),
           band: bandKey(z.group_level_min, z.group_level_max),
         })
@@ -250,6 +252,7 @@ export async function GET(req: NextRequest) {
               coach_id: cid, coach_name: coachName[cid] || '',
               enrolled, max: ct.max_students, full: enrolled >= ct.max_students,
               session_id: own && enrolled < ct.max_students ? own.id : undefined,
+              waitlist_session_id: own && enrolled >= ct.max_students ? own.id : undefined,
               already_booked: myTimes.has(t),
               band: bandKey(z.group_level_min, z.group_level_max),
             })

@@ -57,7 +57,7 @@ interface Student { id: string; full_name: string; current_level: number; parent
 interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
-interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean; fill?: string }
+interface TimeSlot { time: string; label: string; available: boolean; enrolled: number; max: number; session_id?: string; within24h?: boolean; fill?: string; waitable?: boolean }
 type Wallet = {
   balance: number
   lessonsCompleted: number
@@ -363,6 +363,17 @@ export default function BookingPage() {
   const [selectedStudent2, setSelectedStudent2] = useState<Student | PartnerStudent | null>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  // Waitlist places joined from this page (lib/waitlist.ts, owner 2026-10-22):
+  // key -> 'ok' or the refusal's code.
+  const [waitState, setWaitState] = useState<Record<string, string>>({})
+  async function joinWaitlist(key: string, body: Record<string, unknown>) {
+    if (!selectedStudent) return
+    setWaitState(w => ({ ...w, [key]: 'busy' }))
+    const r = await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, student_id: selectedStudent.id }) }).catch(() => null)
+    const d = r ? await r.json().catch(() => null) : null
+    setWaitState(w => ({ ...w, [key]: r?.ok ? 'ok' : (d?.code || 'server') }))
+  }
+  const waitText = (code: string) => t(['ok', 'not_full', 'already_waiting', 'too_many', 'wrong_level', 'already_in'].includes(code) ? `wait.${code}` : 'wait.error')
   const [selectedCourse, setSelectedCourse] = useState<CourseType | null>(null)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -689,7 +700,7 @@ export default function BookingPage() {
   }, [isTrial])
 
   // The programme page's slot link, until it has been applied (see init).
-  const slotLinkRef = useRef<{ course: string; date: string; time: string; coursePicked: boolean } | null>(null)
+  const slotLinkRef = useRef<{ course: string; date: string; time: string; coursePicked: boolean; coach?: string } | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -817,7 +828,8 @@ export default function BookingPage() {
       const lc = params.get('course'), ld = params.get('date') || '', lt = params.get('time') || ''
       const slotLink = !vId && !params.get('student') && !!lc && ['1on1', '1on2', '1on4'].includes(lc)
         && /^\d{4}-\d{2}-\d{2}$/.test(ld) && /^\d{2}:\d{2}$/.test(lt) && ld >= getTodayLA()
-      if (slotLink) { slotLinkRef.current = { course: lc!, date: ld, time: lt, coursePicked: false }; dropResume() }
+      // &coach= (a waitlist offer, lib/waitlist.ts) prefers that coach at the time.
+      if (slotLink) { slotLinkRef.current = { course: lc!, date: ld, time: lt, coursePicked: false, coach: params.get('coach') || undefined }; dropResume() }
 
       // Back from topping up: put the booking that was in progress back.
       if (!vId && !params.get('student') && !slotLink) {
@@ -983,6 +995,9 @@ export default function BookingPage() {
       return s < toMinB(b.end) && s + slotDur > toMinB(b.start)
     })
 
+    // A coach's 1-on-1 time someone else has can be waited for (owner,
+    // 2026-10-22, lib/waitlist.ts). Not while moving or making up a lesson.
+    const canWaitSlot = selectedCourse.slug === '1on1' && !isReschedule && !makeUp && !isTrial
     const slots: TimeSlot[] = allSlots.map(t => {
       const maxStudents = selectedCourse.max_students
       if (!meetsLeadTime(dateStr, t)) {
@@ -1002,17 +1017,18 @@ export default function BookingPage() {
         // free when another lesson overlaps it, and a 1-on-2 needs room for
         // both seats -- one left with a lone swimmer is not bookable.
         if (laneBusy(t, existing.id)) {
-          return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
+          return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1, waitable: canWaitSlot }
         }
         const isFull = existing.enrolled_count + seatsNeeded > existing.max_students || heldSessions.has(existing.id)
         return {
           time: t, label: formatTime(t),
           available: !isFull, within24h,
           enrolled: existing.enrolled_count, max: existing.max_students, session_id: isFull ? undefined : existing.id,
+          waitable: isFull && canWaitSlot,
         }
       }
       if (blockedTimes.has(t)) {
-        return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1 }
+        return { time: t, label: formatTime(t), available: false, enrolled: 1, max: 1, waitable: canWaitSlot }
       }
       return { time: t, label: formatTime(t), available: true, enrolled: 0, max: maxStudents, within24h }
     })
@@ -1339,7 +1355,7 @@ export default function BookingPage() {
       if (ids.length === 0 || !bookableNow(ds, tm)) return
       // The grid disables a time the basket cannot pay for; so does this.
       if (batchFlow && dueOf([{ date: ds, time: tm, label: '', points: priceAt(ds, tm, 30)?.charged ?? 0, coachId: '' }], 30) > balance) return
-      const c = coaches.find(x => x.id === (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0]))
+      const c = coaches.find(x => x.id === (link.coach && ids.includes(link.coach) ? link.coach : openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0]))
       if (c) choosePrivate(ds, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse.max_students ?? 1, within24h: isWithin24Hours(ds, tm) }, c)
     } else if (groupFlow) {
       if (groupWeeks.length === 0) return
@@ -2979,8 +2995,11 @@ export default function BookingPage() {
                           const w24 = isWithin24Hours(ds2, gc.time)
                           const sel = selectedSlot?.time === gc.time && selectedCoach?.id === gc.coach_id
                           const clickable = !gc.full && !gc.already_booked
+                          const wKey = 'g:' + (gc.waitlist_session_id || '')
+                          const canWait = gc.full && !gc.already_booked && !!gc.waitlist_session_id && !isReschedule && !makeUp
                           return (
-                            <button key={gc.coach_id + gc.time}
+                            <div key={gc.coach_id + gc.time}>
+                            <button
                               onClick={() => {
                                 if (!clickable) return
                                 const c = coaches.find(x => x.id === gc.coach_id)
@@ -3018,6 +3037,21 @@ export default function BookingPage() {
                                 </span>
                               </span>
                             </button>
+                            {canWait && (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                {waitState[wKey] && waitState[wKey] !== 'busy' && (
+                                  <span role="status" style={{ fontSize: '12.5px', color: waitState[wKey] === 'ok' ? '#1f7a57' : '#c0392b' }}>{waitText(waitState[wKey])}</span>
+                                )}
+                                {waitState[wKey] !== 'ok' && (
+                                  <button type="button" className="tap-auto" disabled={waitState[wKey] === 'busy'}
+                                    onClick={() => joinWaitlist(wKey, { kind: 'group', class_session_id: gc.waitlist_session_id })}
+                                    style={{ fontSize: '13px', fontWeight: 700, color: '#1f5fbf', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '999px', padding: '6px 14px', cursor: 'pointer' }}>
+                                    {t('wait.join')}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            </div>
                           )
                         })}
                       </div>
@@ -3142,7 +3176,17 @@ export default function BookingPage() {
                       const affordable0 = !batchFlow || inBasket
                         || dueOf([...recurSel.values()].filter(x => x.date !== ds0).concat({ date: ds0, time: slot.time, label: '', points: cost0, coachId: '' }), 30) <= balance
                       const usable0 = slot.available && affordable0
-                      return (
+                      const wKey = `s:${selectedCoach?.id}|${ds0}|${slot.time}`
+                      const waitBtn = !slot.available && slot.waitable && selectedCoach && selectedCourse ? (
+                        waitState[wKey] && waitState[wKey] !== 'busy'
+                          ? <span role="status" style={{ display: 'block', fontSize: '11.5px', marginTop: '4px', color: waitState[wKey] === 'ok' ? '#1f7a57' : '#c0392b' }}>{waitText(waitState[wKey])}</span>
+                          : <button type="button" className="tap-auto" disabled={waitState[wKey] === 'busy'}
+                              onClick={() => joinWaitlist(wKey, { kind: 'slot', coach_id: selectedCoach.id, course_type_id: selectedCourse.id, date: ds0, time: slot.time, minutes: 30 })}
+                              style={{ display: 'block', width: '100%', marginTop: '4px', fontSize: '12px', fontWeight: 700, color: '#1f5fbf', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '8px', padding: '5px 6px', cursor: 'pointer' }}>
+                              {t('wait.join')}
+                            </button>
+                      ) : null
+                      const cell = (
                         <button key={slot.time}
                         onClick={() => {
                           if (!slot.available || !selectedDate || !selectedCoach) return
@@ -3151,6 +3195,7 @@ export default function BookingPage() {
                         }}
                         disabled={!usable0}
                         style={{
+                          width: '100%', boxSizing: 'border-box',
                           padding: '12px 8px', borderRadius: '10px',
                           border: `2px ${batchFlow && !affordable0 && !inBasket && slot.available ? 'dashed' : 'solid'} ${on ? GOLD : usable0 ? (slot.fill ? slot.fill + '55' : '#e3ebf6') : '#e3ebf6'}`,
                           background: on ? `${GOLD}20` : usable0 ? (slot.fill ? slot.fill + '22' : '#fff') : '#f6f9fd',
@@ -3181,6 +3226,7 @@ export default function BookingPage() {
                         )}
                       </button>
                       )
+                      return waitBtn ? <div key={slot.time}>{cell}{waitBtn}</div> : cell
                     })}
                   </div>
                   </>

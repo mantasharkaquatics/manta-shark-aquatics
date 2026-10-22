@@ -1444,6 +1444,60 @@ function PoolDetails({ id }: { id?: string | null }) {
     </div>
   )
 }
+type WaitItem = { id: string; kind: 'team' | 'group' | 'slot'; status: 'waiting' | 'offered'; studentName: string; course: string; coach: string; date: string | null; time: string | null; link: string; until: string | null; position: number }
+/** The family's waitlist places (lib/waitlist.ts, owner 2026-10-22): an
+ *  offer first, with its deadline and a button to book it; then the places
+ *  still waiting, with where they are in line. Nothing when there are none. */
+function WaitlistCard() {
+  const t = useT()
+  const locale = useLocale()
+  const [items, setItems] = useState<WaitItem[]>([])
+  const load = useCallback(() => {
+    fetch('/api/waitlist', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (Array.isArray(d?.entries)) setItems(d.entries) }).catch(() => {})
+  }, [])
+  useEffect(() => { load() }, [load])
+  if (items.length === 0) return null
+  const leave = async (id: string) => {
+    await fetch(`/api/waitlist?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null)
+    load()
+  }
+  const when = (w: WaitItem) => w.date
+    ? `${new Date(w.date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'short', day: 'numeric' })} · ${w.time || ''}`
+    : ''
+  const until = (iso: string) => new Date(iso).toLocaleString(intlOf(locale), { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return (
+    <section role="region" aria-labelledby="wait-h" style={{ marginBottom: '24px', background: '#fff', border: '1px solid #e3ebf6', borderRadius: '14px', padding: '16px 18px' }}>
+      <h2 id="wait-h" style={{ margin: '0 0 10px', fontSize: '16px', fontWeight: 800, color: NAVY }}>{t('wait.cardTitle')}</h2>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {items.map(w => (
+          <div key={w.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 14px', padding: '10px 12px', borderRadius: '10px',
+            background: w.status === 'offered' ? '#fff7e6' : '#f6f9fd', border: `1px solid ${w.status === 'offered' ? '#f3dfb4' : '#e3ebf6'}` }}>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: NAVY }}>{w.studentName} · {w.course}</div>
+              <div style={{ fontSize: '12.5px', color: '#56647d', marginTop: '2px' }}>
+                {[when(w), w.coach ? t('dash.up.coach', { name: w.coach }) : ''].filter(Boolean).join(' · ')}
+              </div>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, marginTop: '4px', color: w.status === 'offered' ? '#a86b00' : '#56647d' }}>
+                {w.status === 'offered' && w.until ? t('wait.offered', { until: until(w.until) }) : t('wait.position', { n: w.position })}
+              </div>
+            </div>
+            {w.status === 'offered' && (
+              <a href={w.link.replace(/^https:\/\/www\.mantasharkaquatics\.net/, '')}
+                style={{ padding: '9px 16px', borderRadius: '10px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '13px', textDecoration: 'none' }}>
+                {t(w.kind === 'team' ? 'mail.wait.buttonTeam' : 'mail.wait.button')}
+              </a>
+            )}
+            <button type="button" className="tap-auto" onClick={() => leave(w.id)}
+              style={{ background: 'none', border: 'none', color: '#56647d', fontSize: '12.5px', textDecoration: 'underline', cursor: 'pointer', padding: '6px' }}>
+              {t('wait.leave')}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 /** Two pool ids are the same pool (a row read before the migration has none = the default pool). */
 const samePool = (a?: string | null, b?: string | null) => (a || DEFAULT_LOCATION_ID) === (b || DEFAULT_LOCATION_ID)
 
@@ -3271,6 +3325,7 @@ export default function DashboardPage() {
           </section>
         )}
         {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={m => setSafetyMissing(m)} />}
+        <WaitlistCard />
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>

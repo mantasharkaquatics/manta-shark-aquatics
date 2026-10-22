@@ -28,7 +28,7 @@ export const FAMILY_TYPES: ReadonlySet<EmailType> = new Set<EmailType>([
   'partner_invite_expired', 'partner_invite_withdrawn', 'partner_invite_unlinked', 'partner_invite_failed',
   'partner_reschedule_requested', 'partner_reschedule_not_moved', 'partner_absent_lesson_continues',
   'invoice', 'refund_issued', 'referral_reward', 'fixed_class_ended', 'payment_reversed',
-  'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'level_certificate',
+  'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'level_certificate', 'waitlist_offer',
 ])
 
 const SITE = 'https://www.mantasharkaquatics.net'
@@ -61,9 +61,10 @@ export function courseIn(L: Locale, t: T, name: string | undefined): string {
   if (raw === 'Swim Assessment') return t('mail.course.assessment')
   const hour = / \(60 min\)$/.test(raw)
   const base = hour ? raw.replace(/ \(60 min\)$/, '') : raw
-  const map = (dbStrings as { course_types: Record<string, Record<string, string>> }).course_types
-  const id = Object.keys(map).find(k => map[k].en === base)
-  const local = id ? tDb(L, 'course_types', id, base) : base
+  const db = dbStrings as { course_types: Record<string, Record<string, string>>; team_tiers: Record<string, Record<string, string>> }
+  const id = Object.keys(db.course_types).find(k => db.course_types[k].en === base)
+  const tierId = id ? undefined : Object.keys(db.team_tiers || {}).find(k => db.team_tiers[k].en === base)
+  const local = id ? tDb(L, 'course_types', id, base) : tierId ? tDb(L, 'team_tiers', tierId, base) : base
   return hour ? t('mail.course.min60', { name: local }) : local
 }
 
@@ -471,6 +472,20 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
           + `<div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(p.code)}</span></div>`
           + para(t('mail.code.note'), 'color:#666; font-size: 13px;'), false),
       }
+
+    case 'waitlist_offer': {
+      // A place opened and is held for this family (lib/waitlist.ts).
+      const team = p.waitKind === 'team'
+      return {
+        subject: t(team ? 'mail.wait.subjectTeam' : 'mail.wait.subject', { student: p.studentName || '', course }),
+        html: shell(t('mail.wait.title'),
+          para(t(team ? 'mail.wait.bodyTeam' : 'mail.wait.body', { student, course: esc(course) }))
+          + (team ? '' : lessonTable())
+          + para(t('mail.wait.until', { until: `<strong>${esc(p.deadline)}</strong>` }), 'color: #c9a84c; font-weight: 600;')
+          + button(p.linkUrl || `${SITE}/booking`, t(team ? 'mail.wait.buttonTeam' : 'mail.wait.button'))
+          + para(t('mail.wait.note'), 'color: #666; font-size: 13px; margin-top: 16px;')),
+      }
+    }
 
     case 'level_certificate': {
       // A promotion the school approved (lib/certificates.ts).

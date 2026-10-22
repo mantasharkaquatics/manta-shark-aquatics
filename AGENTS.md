@@ -226,3 +226,20 @@ Zelle sale must name one of those rows (`zelleReceiptId`).
   passed for bankofamerica.com, sent from ealerts.bankofamerica.com, is
   `verified`; anything else is shown with a warning and POS refuses it.
 - The three tables and the function are server-only (RLS on, no policies).
+
+# Waitlists hold places through the renewal-hold machinery
+
+Owner, 2026-10-22. `lib/waitlist.ts`, table `waitlist_entries`
+(docs/migration-waitlist.sql). A family waits for a full Swim Team squad, a
+full 1-on-4 class, or a coach's 1-on-1 time someone else has. When a place
+opens, only the first in line is offered it (email + text) and it is held for
+12 hours (2 when the lesson is under 24 hours away); unbooked, it lapses and
+the next family is offered it. `runWaitlist()` runs in the cleanup cron.
+
+- A class or time offer is a `Hold` (`source: 'waitlist'`):
+  `renewalHolds()` returns waitlist holds too, so every path that already
+  respects renewal holds -- openings, group classes, recurring, hour, desk
+  checks, the AI -- keeps other families out. A new booking path must read
+  `renewalHolds` (or `renewalHoldsInWay`) the same way.
+- A squad offer counts as a taken seat: `teamSeatsHeld` / `teamSeatsHeldAll`
+  wherever the squad cap is checked.

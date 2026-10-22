@@ -13,6 +13,7 @@ import { familyZones, getEffectiveZones, legacyHoursFit, zoneTypeForSlug } from 
 import { sendEmail } from '@/lib/email'
 import { activePartnershipId, openInvitesAtLimit, OPEN_INVITES_ERROR } from '@/lib/partnerships'
 import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
+import { renewalHoldsInWay } from '@/lib/bookings/desk-checks'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { getLocations, sessionLocationLine } from '@/lib/locations'
 import { bandRange } from '@/lib/zone-colors'
@@ -123,6 +124,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'The coach already has another class at this time. Please pick another time.' }, { status: 409 })
   if (sameCourseSession && (sameCourseSession.enrolled_count >= sameCourseSession.max_students || held.has(sameCourseSession.id)))
     return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
+
+  // Held for someone else: a fixed-class renewal or a waitlist offer
+  // (lib/fixed-classes renewalHolds). The booking page already hides a held
+  // time; this route did not check, so a page left open could take it.
+  {
+    const hits = await renewalHoldsInWay(svc, {
+      coachId: coach_id, courseTypeId: course_type_id, dates: [session_date], spanStart: newStartMin, spanEnd: newEndMin,
+      seatsNeeded: student2_id ? 2 : 1, defaultMax: course.max_students || 1,
+      capacity: () => (sameCourseSession ? { enrolled: sameCourseSession.enrolled_count || 0, max: sameCourseSession.max_students || 1 } : null),
+      exceptParentIds: [parent.id],
+    })
+    if (hits.size > 0) return NextResponse.json({ error: 'This time slot is full. Please pick another time.' }, { status: 409 })
+  }
 
   // Find or create session
   let sessionId: string | null = sameCourseSession?.id || null

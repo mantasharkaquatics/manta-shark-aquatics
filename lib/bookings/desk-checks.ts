@@ -74,7 +74,7 @@ export async function studentLessonsOn(
 }
 
 /** A fixed-class renewal hold a desk booking would land on. */
-export type HoldHit = { date: string; family: string; until: string }
+export type HoldHit = { date: string; family: string; until: string; waitlist?: boolean }
 
 /**
  * Fixed-class renewal holds (lib/fixed-classes renewalHolds) in the way of a
@@ -118,7 +118,7 @@ export async function renewalHoldsInWay(svc: SupabaseClient, o: {
   const pids = [...new Set(hits.map(h => h.hold.parentId))]
   const { data: fams } = await svc.from('parents').select('id, first_name, last_name').in('id', pids)
   const name = new Map((fams || []).map((p: any) => [p.id, `${p.first_name || ''} ${p.last_name || ''}`.trim()]))
-  for (const h of hits) out.set(h.date, { date: h.date, family: name.get(h.hold.parentId) || '', until: h.hold.until })
+  for (const h of hits) out.set(h.date, { date: h.date, family: name.get(h.hold.parentId) || '', until: h.hold.until, waitlist: h.hold.source === 'waitlist' })
   return out
 }
 
@@ -127,7 +127,7 @@ export async function renewalHoldsInWay(svc: SupabaseClient, o: {
 export function renewalHoldRefusal(hits: Map<string, HoldHit>) {
   const list = [...hits.values()]
   return {
-    error: `Held for a fixed-class renewal: ${list.map(h => `${h.date} (${h.family || 'a family'}, until ${h.until})`).join(', ')}. Confirm to book over the hold.`,
+    error: `Held for ${list.some(h => h.waitlist) ? 'a waitlist offer or ' : ''}a fixed-class renewal: ${list.map(h => `${h.date} (${h.family || 'a family'}${h.waitlist ? ', waitlist' : ''}, until ${h.until})`).join(', ')}. Confirm to book over the hold.`,
     code: 'renewal_hold',
     holds: list,
   }

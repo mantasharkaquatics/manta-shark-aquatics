@@ -14,6 +14,7 @@
 // class, a renewal, a change of slot or a make-up -- never a single lesson.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { waitlistHolds } from './waitlist'
 import { isBlocked, type CoachBlock } from '@/lib/availability'
 import { zoneTypeForSlug } from '@/lib/zones'
 import { familyCanBookAt, zoneAtLocation, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
@@ -267,7 +268,10 @@ export function renewOpen(last: string | null, today = getTodayLA()) {
 }
 
 export type Hold = {
-  fixedClassId: string; parentId: string; coachId: string; courseTypeId: string
+  /** What holds it: a fixed-class renewal (the default) or a waitlist offer
+   *  (lib/waitlist.ts, owner 2026-10-22). */
+  source?: 'renewal' | 'waitlist'
+  fixedClassId?: string; parentId: string; coachId: string; courseTypeId: string
   date: string; startMin: number; endMin: number
   /** Seats kept in a 1-on-4; a private or sibling 1-on-2 hold is the whole slot. */
   seats: number; whole: boolean
@@ -280,6 +284,15 @@ export type Hold = {
  * exceptParentId (a family is never kept out of its own slot).
  */
 export async function renewalHolds(svc: Svc, from: string, to: string, exceptParentId?: string | null, today = getTodayLA()): Promise<Hold[]> {
+  // Waitlist offers hold their class or time the same way (lib/waitlist.ts).
+  const [renewals, offers] = await Promise.all([
+    renewalOnlyHolds(svc, from, to, exceptParentId, today),
+    waitlistHolds(svc as any, from, to, exceptParentId).catch(() => [] as Hold[]),
+  ])
+  return [...renewals, ...offers]
+}
+
+async function renewalOnlyHolds(svc: Svc, from: string, to: string, exceptParentId?: string | null, today = getTodayLA()): Promise<Hold[]> {
   // The earliest a held week can be: the class's weekday after L (L+7, or
   // sooner were L ever off that weekday -- nextOnWeekday), with L at least today+14.
   if (to < addDaysStr(today, HOLD_RELEASE_DAYS + 1)) return []

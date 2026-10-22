@@ -19,6 +19,7 @@ export default function SmsTermsPage() {
           <li><strong>Verification passcodes.</strong> A one-time passcode to confirm your phone number when you register, or when you apply for a coaching position, sent only when you request it.</li>
           <li><strong>Lesson reminders.</strong> A reminder the day before each lesson you have booked, with the swimmer, lesson time and coach.</li>
           <li><strong>Lesson changes.</strong> A message when we have to cancel a lesson you booked that starts within the next 48 hours.</li>
+          <li><strong>Waitlist notices.</strong> A message when a place opens on a waitlist you joined, saying how long it is held for you.</li>
           <li><strong>Account notices.</strong> Occasional messages about your account, such as a confirmation when the phone number on your account is changed.</li>
         </ul>
         <p>We do not send marketing or promotional text messages.</p>
@@ -28,7 +29,8 @@ export default function SmsTermsPage() {
           Message frequency varies. Passcodes are sent only when you request one. Lesson reminders are
           one message for each lesson you have booked; a 60-minute lesson, or two of your children in
           the same lesson, gets one reminder, not two. A lesson-change message is sent only when we
-          cancel a lesson of yours at short notice.
+          cancel a lesson of yours at short notice, and a waitlist notice only when a place you are
+          waiting for opens.
         </p>
 
         <h2>Fees</h2>

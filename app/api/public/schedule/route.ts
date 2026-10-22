@@ -5,6 +5,7 @@ import { meetsLeadTime } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { bandKey } from '@/lib/zone-colors'
 import { TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+import { teamSeatsHeldAll } from '@/lib/waitlist'
 import { renewalHolds, heldSeats, allRows } from '@/lib/fixed-classes'
 import { inviteHeldSessions } from '@/lib/bookings/invite-holds'
 import { privateSlotOpen } from '@/lib/bookings/private-slot'
@@ -111,7 +112,8 @@ export async function GET(req: NextRequest) {
       svc.from('team_memberships').select('team_tier_id').in('status', ['active', 'past_due'])
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
     ])
-    const count: Record<string, number> = {}
+    // Places offered to waitlisted families count as taken (lib/waitlist.ts).
+    const count: Record<string, number> = { ...(await teamSeatsHeldAll(svc)) }
     for (const m of members || []) count[m.team_tier_id] = (count[m.team_tier_id] || 0) + 1
     const tierIds = new Set((tiers || []).map((t: any) => t.id))
 

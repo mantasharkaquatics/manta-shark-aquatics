@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSvcClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { tierFor, TEAM_SQUAD_CAP } from '@/lib/team-tiers'
+import { teamSeatsHeld } from '@/lib/waitlist'
 import { FIRST_TOPUP_BANK_CAP_DOLLARS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS, TOPUP_PRESETS } from '@/lib/points'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
@@ -86,8 +87,9 @@ export async function POST(req: NextRequest) {
           .eq('team_tier_id', tier.id).in('status', ['active', 'past_due'])
           // Lapsed prepaid rows stay 'active'; expiry frees the seat.
           .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-        if ((members || 0) >= TEAM_SQUAD_CAP)
-          return NextResponse.json({ error: `${tier.name} is currently full — please contact us to join the waitlist.` }, { status: 409 })
+        // A place offered to a waitlisted family is theirs for now (lib/waitlist.ts).
+        if ((members || 0) + await teamSeatsHeld(svc, tier.id, student.id) >= TEAM_SQUAD_CAP)
+          return NextResponse.json({ error: `${tier.name} is currently full. You can join the waitlist on the Swim Team page.` }, { status: 409 })
       }
 
       // Never fall back to a guessed amount — this is a real charge.

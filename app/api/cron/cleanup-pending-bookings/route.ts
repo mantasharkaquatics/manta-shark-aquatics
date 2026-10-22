@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { runWaitlist } from '@/lib/waitlist'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { formatTime12h } from '@/lib/date'
@@ -239,5 +240,10 @@ export async function GET(req: NextRequest) {
     console.error('cleanup-pending-bookings: trial sweep failed', err)
   }
 
-  return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed })
+  // Waitlists (lib/waitlist.ts, owner 2026-10-22): close offers that lapsed
+  // or were booked, and offer each open place to the first family in line.
+  let waitlist: unknown = null
+  try { waitlist = await runWaitlist(supabase) } catch (err) { console.error('cleanup-pending-bookings: waitlist pass failed', err) }
+
+  return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed, waitlist })
 }
