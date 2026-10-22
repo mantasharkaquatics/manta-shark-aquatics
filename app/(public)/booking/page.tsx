@@ -24,6 +24,7 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
+import SiblingBooking from './SiblingBooking'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -289,6 +290,8 @@ export default function BookingPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const [step, setStep] = useState(0)
+  // Two swimmers booked together (owner, 2026-10-22): its own panel, SiblingBooking.
+  const [siblingMode, setSiblingMode] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   // Set as the page leaves for the Swim Assessment payment page. A "Back"
@@ -2423,7 +2426,24 @@ export default function BookingPage() {
           </div>
         )}
 
-        {step === 0 && (
+        {siblingMode && (
+          <div>
+            {showLoc && locList.length > 1 && (
+              <div role="radiogroup" aria-label={t('booking.loc.title')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginBottom: '14px' }}>
+                {locList.map(l => (
+                  <button key={l.id} role="radio" aria-checked={location === l.id} onClick={() => setLocation(l.id)}
+                    style={{ minHeight: '48px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
+                      border: `1.5px solid ${location === l.id ? NAVY : '#d3deec'}`, background: location === l.id ? NAVY : '#fff', color: location === l.id ? '#fff' : '#16294a' }}>
+                    📍 {l.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <SiblingBooking key={location ?? 'all'} students={students} courses={courseTypes} location={location ?? null} balance={balance} onExit={() => setSiblingMode(false)} />
+          </div>
+        )}
+
+        {step === 0 && !siblingMode && (
           <div>
             <SectionTitle title={t('booking.s1.title')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2447,6 +2467,13 @@ export default function BookingPage() {
                 </SelectCard>
               ))}
             </div>
+            {!isReschedule && !makeUp && students.filter(s => s.current_level != null).length >= 2 && (
+              <button type="button" onClick={() => setSiblingMode(true)}
+                style={{ marginTop: '14px', width: '100%', textAlign: 'left', padding: '14px 18px', borderRadius: '14px', border: '1.5px dashed #b8c8e0', background: '#f6f9fd', cursor: 'pointer' }}>
+                <span style={{ display: 'block', fontSize: '15px', fontWeight: 800, color: NAVY }}>👫 {t('sib.entry')}</span>
+                <span style={{ display: 'block', fontSize: '13px', color: '#56647d', marginTop: '3px', lineHeight: 1.5 }}>{t('sib.entryHint')}</span>
+              </button>
+            )}
           </div>
         )}
 

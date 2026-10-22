@@ -16,6 +16,7 @@ import { sessionsHeldByInvites } from '@/lib/bookings/invite-holds'
 import { renewalHoldsInWay } from '@/lib/bookings/desk-checks'
 import { studentsBusyAt } from '@/lib/bookings/student-clash'
 import { getLocations, sessionLocationLine } from '@/lib/locations'
+import { lessonCalendar } from '@/lib/lesson-calendar'
 import { bandRange } from '@/lib/zone-colors'
 
 export async function POST(req: NextRequest) {
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
     student_id, student2_id, partner,
     reschedule_booking_id, partner_reschedule,
   } = body
+  // A sibling booking (/api/bookings/siblings) books two lessons through here
+  // and sends their confirmations once both are in (owner, 2026-10-22).
+  const quiet = body.quiet === true && !reschedule_booking_id && !partner_reschedule
 
   if (!course_type_id || !coach_id || !session_date || !start_time)
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -677,7 +681,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Confirmation email (skipped for pending partner bookings)
-  if (!isPartnerBooking) {
+  if (!isPartnerBooking && !quiet) {
     try {
       if (parentRow?.email) {
         await sendEmail({
@@ -692,6 +696,8 @@ export async function POST(req: NextRequest) {
             date: session_date,
             time: formatTime12h(start_time) + ' – ' + formatTime12h(end_time),
             location: await sessionLocationLine(svc, sessionId),
+            // The new time in, and on a move the old time out of, the calendar.
+            calendar: await lessonCalendar(svc, parent.id, [newBooking.id, ...(oldBooking ? (oldLessonRows.length ? oldLessonRows.map((r: any) => r.id) : [oldBooking.id]) : [])]),
           })
       }
     } catch {}
