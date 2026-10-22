@@ -834,7 +834,13 @@ export default function BookingPage() {
       const slotLink = !vId && !params.get('student') && !!lc && ['1on1', '1on2', '1on4'].includes(lc)
         && /^\d{4}-\d{2}-\d{2}$/.test(ld) && /^\d{2}:\d{2}$/.test(lt) && ld >= getTodayLA()
       // &coach= (a waitlist offer, lib/waitlist.ts) prefers that coach at the time.
-      if (slotLink) { slotLinkRef.current = { course: lc!, date: ld, time: lt, coursePicked: false, coach: params.get('coach') || undefined }; dropResume() }
+      if (slotLink) {
+        slotLinkRef.current = { course: lc!, date: ld, time: lt, coursePicked: false, coach: params.get('coach') || undefined }; dropResume()
+        // &swimmer= (a waitlist offer, owner 2026-10-22): the place is held
+        // for that swimmer, so they are chosen too, as a tap on their card.
+        const sw = (studs || []).find((x: { id: string }) => x.id === params.get('swimmer'))
+        if (sw) { setSelectedStudent(sw as any); setStep(1) }
+      }
 
       // Back from topping up: put the booking that was in progress back.
       if (!vId && !params.get('student') && !slotLink) {

@@ -180,7 +180,7 @@ async function describe(svc: SupabaseClient, e: WaitEntry) {
   const endM = toMin(hm) + minutes
   const end = `${String(Math.floor(endM / 60)).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
   const slug = ct?.slug || (e.kind === 'group' ? '1on4' : '1on1')
-  const link = `${SITE}/booking?course=${encodeURIComponent(slug)}&date=${date}&time=${hm}${coachId ? `&coach=${coachId}` : ''}`
+  const link = `${SITE}/booking?course=${encodeURIComponent(slug)}&date=${date}&time=${hm}${coachId ? `&coach=${coachId}` : ''}&swimmer=${e.student_id}`
   return {
     kid: kid?.full_name || '', parent, what: ct?.name || '', date: date || undefined,
     time: `${formatTime12h(hm)} – ${formatTime12h(end)}`, coach: coach ? `${coach.first_name || ''} ${coach.last_name || ''}`.trim() : '',
@@ -197,7 +197,7 @@ async function sendOffer(svc: SupabaseClient, e: WaitEntry, until: Date): Promis
     if (p?.email) await sendEmail({
       type: 'waitlist_offer', to: p.email, lang: p.preferred_language || undefined, parentName: p.first_name || '',
       studentName: d.kid, courseName: d.course, coachName: d.coach, date: d.date, time: d.time,
-      deadline: untilText, linkUrl: d.link, waitKind: e.kind,
+      deadline: untilText, deadlineAt: until.toISOString(), linkUrl: d.link, waitKind: e.kind,
     })
     // Texts follow the same consent rule as reminders (SMS terms list
     // "Waitlist notices" from 2026-10-22).

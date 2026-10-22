@@ -109,6 +109,18 @@ const reDate = (L: Locale, s?: string) => {
   return isNaN(d.getTime()) || L === 'en' ? s : d.toLocaleDateString(dateTag(L), { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+/** A hold's end in the family's language ("10月23日 週五 3:15 AM"): the date
+ *  follows the language, the clock stays 12-hour as everywhere else. Seen
+ *  live 2026-10-22: the Chinese offer read "Fri, Oct 23, 3:15 AM". */
+function holdUntil(L: Locale, at?: string, fallback?: string): string {
+  const d = at ? new Date(at) : null
+  if (!d || isNaN(d.getTime()) || L === 'en') return fallback || ''
+  const tz = 'America/Los_Angeles'
+  const day = d.toLocaleDateString(dateTag(L), { timeZone: tz, month: 'long', day: 'numeric', weekday: 'short' })
+  const clock = d.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })
+  return `${day} ${clock}`
+}
+
 /** The Location cell: the line, a Map link, the pool's phone and arrival notes. */
 export function placeHtml(t: T, line: string, pool: Location | null): string {
   let h = esc(line)
@@ -509,7 +521,7 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
         html: shell(t('mail.wait.title'),
           para(t(team ? 'mail.wait.bodyTeam' : 'mail.wait.body', { student, course: esc(course) }))
           + (team ? '' : lessonTable())
-          + para(t('mail.wait.until', { until: `<strong>${esc(p.deadline)}</strong>` }), 'color: #c9a84c; font-weight: 600;')
+          + para(t('mail.wait.until', { until: `<strong>${esc(holdUntil(L, p.deadlineAt, p.deadline))}</strong>` }), 'color: #c9a84c; font-weight: 600;')
           + button(p.linkUrl || `${SITE}/booking`, t(team ? 'mail.wait.buttonTeam' : 'mail.wait.button'))
           + para(t('mail.wait.note'), 'color: #666; font-size: 13px; margin-top: 16px;')),
       }

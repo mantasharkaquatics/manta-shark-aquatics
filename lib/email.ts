@@ -151,6 +151,9 @@ export interface EmailPayload {
   // parent_password_reset: the link to /reset-password, and the family's
   // language (en / zh-Hant / zh-Hans) -- this one email is written in all three.
   resetUrl?: string
+  /** waitlist_offer: when the hold ends, so the email can write it in the
+   *  family's language (deadline is the English text, kept for the SMS). */
+  deadlineAt?: string
   lang?: string
   // assessment_report (written in the family's language): the level the
   // swimmer was placed in, what the school recommends, and the credit deadline.
