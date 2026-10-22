@@ -9,6 +9,7 @@ import { closeTrialCheckout } from '@/lib/trial-booking'
 import { reopenReversedAssessment } from '@/lib/assessments'
 import { getEffectiveZones } from '@/lib/zones'
 import { getLocations, lessonLocationLine } from '@/lib/locations'
+import { textLessonCancelled } from '@/lib/lesson-cancel-sms'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' as any })
 
@@ -358,6 +359,9 @@ export async function POST(req: NextRequest) {
       })
       if (ok) {
         sent++
+        // Within 48 hours a text too (owner, 2026-10-22). Only after the
+        // email went, so a retried press never texts twice.
+        await textLessonCancelled(svc, { parentId: b.parent_id, who: names.join(' & '), sessionDate: s.session_date, startTime: s.start_time })
       } else {
         // Hand the notice back so the next press tries the email again.
         await svc.from('bookings').update({ block_notice_sent_at: null }).in('id', claimed.map((r: any) => r.id))

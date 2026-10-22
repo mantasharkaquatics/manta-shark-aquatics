@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { lessonLocationLine } from '@/lib/locations'
+import { textLessonCancelled } from '@/lib/lesson-cancel-sms'
 import { giveBackVouchers } from '@/lib/vouchers'
 import { readJson, badRequest } from '@/lib/http'
 import Stripe from 'stripe'
@@ -249,6 +250,9 @@ export async function POST(req: NextRequest) {
             location,
           })
         }
+        // Within 48 hours a text too, so nobody drives to a cancelled lesson
+        // (owner, 2026-10-22). Best effort; consent is checked inside.
+        await textLessonCancelled(svc, { parentId: t.parent_id, who: kidNames.join(' & '), sessionDate: sess.session_date, startTime: startStr })
       }
     }
   } catch {}
