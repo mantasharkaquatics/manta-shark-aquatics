@@ -789,7 +789,7 @@
   "err.userExists": "这个电子邮件已经有账号了，请直接登录。",
   "err.walletInArrears": "您上一笔付款在银行端未能完成，余额补足前暂时无法订课。到「点数与价目」页面用信用卡付款可立即恢复。",
   "faq.a.adaptive": "有。我们的联合创始人 Mitzi 是学校心理师，我们为自闭症、ADHD、感觉统合等各种特殊需求的孩子提供一对一课程，价格与一般课程相同。我们也是 Regional Center of Orange County 的登记服务供应商。详情请看“适性游泳”页面，或在聊天室询问。",
-  "faq.a.age": "3 岁以上就可以开始。若孩子有医疗状况或任何我们该知道的需求，请在第一堂课前告诉我们，我们才好事先安排。",
+  "faq.a.age": "孩子 3 岁就可以开始。新增学员时我们会询问有没有疾病或过敏，让教练事先准备；之后随时可以在「我的账户」更新。",
   "faq.a.assessCancel": "无法在线操作。开始前 24 小时以上，发消息给我们，我们会依教练的空档帮您改到其他时间；24 小时内就无法更改。需要取消也请联系我们。",
   "faq.a.assessCredit": "可以，以点数折抵。游泳评估后 60 天内上满 8 堂课，我们会在您的账户加入 85 点赠送点数。课程上完、而且是用购买的点数付费的才算；用补课券补上的课也算，60 分钟的课算 2 堂。泳队练习不算。这些赠送点数和其他赠送点数一样，有效期一年。60 天内没有上满，折抵就自动失效。",
   "faq.a.bring": "泳衣、毛巾、泳镜、泳帽（长发建议戴泳帽）。也请带饮用水或运动饮料。",
@@ -1937,5 +1937,11 @@
   "safety.banner.body": "下次上课前，请告诉我们孩子有没有疾病或过敏，并留一位紧急联系人。",
   "safety.banner.cta": "现在填写",
   "dash.pool.phone": "场馆电话：",
-  "dash.pool.directions": "到场说明："
+  "dash.pool.directions": "到场说明：",
+  "faq.q.coachSafety": "教练有水上安全相关证书吗？",
+  "faq.a.coachSafety": "有。每位教练都持有有效的 CPR / AED、急救（First Aid）与救生员（Lifeguard）证书。第一节课前，您会告诉我们孩子有没有疾病或过敏，并留一位紧急联系人；每节课的教练都看得到这些信息。",
+  "about.team.certs": "每位教练都持有有效的 CPR / AED、急救与救生员证书。",
+  "about.team.cert.cpr": "CPR / AED",
+  "about.team.cert.firstAid": "急救 First Aid",
+  "about.team.cert.lifeguard": "救生员 Lifeguard"
 }

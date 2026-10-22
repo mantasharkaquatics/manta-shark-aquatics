@@ -789,7 +789,7 @@
   "err.userExists": "An account with this email already exists. Please sign in instead.",
   "err.walletInArrears": "Your last payment didn't clear at the bank, so booking is paused until the balance is settled. Paying by card on the Points & Pricing page clears it right away.",
   "faq.a.adaptive": "Yes. Our co-founder, Mitzi, is a school psychologist, and we teach children with autism, ADHD, sensory differences and other special needs one-on-one, at the same price as our other lessons. We are a Regional Center of Orange County vendor. See our Adaptive Swim page, or ask us in chat.",
-  "faq.a.age": "Children can start from age 3. If your child has a medical condition or any needs we should know about, please tell us before the first lesson so we can plan for it.",
+  "faq.a.age": "Children can start from age 3. When you add a swimmer we ask about any medical conditions or allergies, so the coach can plan for them; you can update the answer any time in My Account.",
   "faq.a.assessCancel": "Not online. More than 24 hours before it starts, send us a message and we will move it to another time with a coach who is free; within 24 hours it can no longer be changed. To cancel it, contact us too.",
   "faq.a.assessCredit": "Yes, as points. If your swimmer takes 8 lessons within 60 days of the Swim Assessment, we add 85 bonus points to your account. A lesson counts once it has taken place and was paid with points you bought; a make-up booked with a make-up voucher counts too, and a 60-minute lesson counts as 2. Swim Team practices do not count. Like other bonus points, these last one year. If the 60 days pass first, the credit simply lapses.",
   "faq.a.bring": "A swimsuit, a towel, goggles and a swim cap — we recommend a cap for long hair. Bring drinking water or a sports drink too.",
@@ -1937,5 +1937,11 @@
   "safety.banner.body": "Please tell us about any medical conditions or allergies, and give us an emergency contact, before the next lesson.",
   "safety.banner.cta": "Fill in now",
   "dash.pool.phone": "Pool phone:",
-  "dash.pool.directions": "Arriving:"
+  "dash.pool.directions": "Arriving:",
+  "faq.q.coachSafety": "Are your coaches certified in water safety?",
+  "faq.a.coachSafety": "Yes. Every coach holds current CPR/AED, First Aid and Lifeguard certifications. Before the first lesson you tell us about any medical conditions or allergies and give us an emergency contact; your swimmer’s coach sees both for every lesson.",
+  "about.team.certs": "Every coach holds current CPR/AED, First Aid and Lifeguard certifications.",
+  "about.team.cert.cpr": "CPR / AED",
+  "about.team.cert.firstAid": "First Aid",
+  "about.team.cert.lifeguard": "Lifeguard"
 }

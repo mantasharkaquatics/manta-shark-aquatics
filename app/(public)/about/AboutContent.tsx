@@ -46,6 +46,10 @@ const css = `
   .ab-ico { width: 44px; height: 44px; border-radius: 12px; background: ${BRAND.paper}; border: 1px solid ${BRAND.line};
     display: grid; place-items: center; margin-bottom: 16px; color: ${BRAND.blue}; }
 
+  .ab-certs { margin: 18px 0 4px; padding: 14px 16px; border: 1px solid ${BRAND.line}; border-radius: 14px; background: #fff; }
+  .b-head .ab-certs p { margin: 0 0 10px; font-size: 15px; line-height: 1.5; font-weight: 600; color: ${BRAND.navy}; }
+  .ab-certs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .ab-certs li { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: #1f7a57; background: #e8f5ef; border: 1px solid #bfe3d1; border-radius: 999px; padding: 6px 12px; }
   .ab-team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .ab-coach { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 20px; overflow: hidden; }
   .ab-coach-top { display: flex; align-items: center; gap: 16px; padding: 24px 24px 20px; border-bottom: 1px solid ${BRAND.line}; }
@@ -173,6 +177,18 @@ export default function AboutContent() {
             <p className="b-eyebrow">{t('about.team.eyebrow')}</p>
             <h2>{t('about.team.title1')}{gap}<em style={{ color: BRAND.blue }}>{t('about.team.title2')}</em></h2>
             <p>{t('about.team.subtitle')}</p>
+            {/* Owner, 2026-10-22: what every coach is certified in. */}
+            <div className="ab-certs">
+              <p>{t('about.team.certs')}</p>
+              <ul aria-label={t('about.team.certs')}>
+                {(['cpr', 'firstAid', 'lifeguard'] as const).map(k => (
+                  <li key={k}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="m9 12 2 2 4-4" /></svg>
+                    {t(`about.team.cert.${k}`)}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <p><Link href={localePath('/adaptive-swim', locale)} className="b-link">{t('about.team.adaptive')} →</Link></p>
           </div>
           <div className="ab-team">
