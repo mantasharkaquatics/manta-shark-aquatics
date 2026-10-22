@@ -27,6 +27,7 @@ const esc = (v: unknown) => String(v ?? '')
 export type EmailType =
   | 'booking_confirmed'
   | 'contact_change_code'
+  | 'contact_verify_code'
   | 'contact_change_notice'
   | 'trial_payment_link'
   | 'booking_rescheduled'

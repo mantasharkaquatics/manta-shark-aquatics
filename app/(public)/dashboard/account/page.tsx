@@ -10,6 +10,7 @@ import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
+import ContactChange from '@/components/ContactChange'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 
 interface Parent {
@@ -43,6 +44,9 @@ export default function AccountPage() {
   type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]; missing: boolean }
   const [safety, setSafety] = useState<Safety | null>(null)
   const [safetyOpen, setSafetyOpen] = useState(false)
+  // Changing their own email or phone (owner, 2026-10-22).
+  const [contactEdit, setContactEdit] = useState<'email' | 'phone' | null>(null)
+  const [contactSaved, setContactSaved] = useState<string | null>(null)
   const loadSafety = () => fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSafety(d) }).catch(() => {})
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -192,18 +196,36 @@ export default function AccountPage() {
           <section className="ac-card">
             <p className="ac-label">{t('account.profile')}</p>
             <div className="ac-grid">
-              {[
+              {([
                 { label: t('account.name'), value: `${parent?.first_name} ${parent?.last_name}` },
-                { label: t('account.email'), value: parent?.email },
-                { label: t('account.phone'), value: parent?.phone || '—' },
+                { label: t('account.email'), value: parent?.email, edit: 'email' },
+                { label: t('account.phone'), value: parent?.phone ? formatPhone(parent.phone) : '—', edit: 'phone' },
                 { label: t('account.memberSince'), value: parent?.registered_at ? fmt(parent.registered_at) : '—' },
-              ].map(item => (
+              ] as { label: string; value?: string; edit?: 'email' | 'phone' }[]).map(item => (
                 <div key={item.label}>
                   <div className="ac-k">{item.label}</div>
-                  <div className="ac-v">{item.value}</div>
+                  <div className="ac-v" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.value}</span>
+                    {item.edit && (
+                      <button type="button" className="tap-auto" onClick={() => { setContactSaved(null); setContactEdit(item.edit!) }}
+                        aria-label={t(item.edit === 'email' ? 'account.contact.titleEmail' : 'account.contact.titlePhone')}
+                        style={{ background: 'none', border: 'none', padding: 0, color: '#1f5fbf', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                        {t('account.contact.change')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+            {contactSaved && <div className="ac-okmsg" role="status" style={{ marginTop: 10 }}>✓ {contactSaved}</div>}
+            {contactEdit && (
+              <ContactChange field={contactEdit} onClose={() => setContactEdit(null)}
+                onDone={v => {
+                  const f = contactEdit
+                  setParent(prev => (prev ? { ...prev, [f]: v } : prev))
+                  setContactSaved(t(f === 'email' ? 'account.contact.doneEmail' : 'account.contact.donePhone', { value: f === 'phone' ? formatPhone(v) : v }))
+                }} />
+            )}
           </section>
 
           {/* Newsletter */}

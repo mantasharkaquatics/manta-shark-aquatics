@@ -28,7 +28,7 @@ export const FAMILY_TYPES: ReadonlySet<EmailType> = new Set<EmailType>([
   'partner_invite_expired', 'partner_invite_withdrawn', 'partner_invite_unlinked', 'partner_invite_failed',
   'partner_reschedule_requested', 'partner_reschedule_not_moved', 'partner_absent_lesson_continues',
   'invoice', 'refund_issued', 'referral_reward', 'fixed_class_ended', 'payment_reversed',
-  'contact_change_code', 'contact_change_notice',
+  'contact_change_code', 'contact_verify_code', 'contact_change_notice',
 ])
 
 const SITE = 'https://www.mantasharkaquatics.net'
@@ -470,6 +470,16 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
         html: shell(t('mail.code.title'), para(t('mail.code.body'))
           + `<div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(p.code)}</span></div>`
           + para(t('mail.code.note'), 'color:#666; font-size: 13px;'), false),
+      }
+
+    case 'contact_verify_code':
+      // The family is changing their email themselves (owner, 2026-10-22):
+      // the code goes to the NEW address, to prove it is theirs and typed right.
+      return {
+        subject: t('mail.verify.subject'),
+        html: shell(t('mail.verify.title'), para(t('mail.verify.body', { value: `<strong>${esc(p.newValue)}</strong>` }))
+          + `<div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(p.code)}</span></div>`
+          + para(t('mail.verify.note'), 'color:#666; font-size: 13px;'), false),
       }
 
     case 'contact_change_notice': {
