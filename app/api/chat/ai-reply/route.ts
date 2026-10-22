@@ -3,6 +3,7 @@ import { autoHandBackIfIdle } from '@/lib/chat-handback'
 import { getEffectiveZones, type EffectiveZones, type ZoneRow } from '@/lib/zones'
 import { getLocations, activeLocations, showLocations, zoneAtLocation, DEFAULT_LOCATION_ID, type Location } from '@/lib/locations'
 import { NextRequest, NextResponse } from 'next/server'
+import { alertDeskChat } from '@/lib/chat-desk-alert'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -36,23 +37,23 @@ import { claimsCompletedCancellation, trialBookingClaim } from '@/lib/ai/reply-g
 type ReplyLang = 'en' | 'zh-Hant' | 'zh-Hans'
 const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited' | 'moreOptions', Record<ReplyLang, string>> = {
   fallback: {
-    en: 'Thanks for your message! A member of our team will get back to you shortly.',
-    'zh-Hant': '謝謝您的訊息！我們的團隊成員會盡快回覆您。',
-    'zh-Hans': '谢谢您的消息！我们的团队成员会尽快回复您。',
+    en: 'Thanks for your message! A member of our team will reply here today (messages after 9 PM: the next morning).',
+    'zh-Hant': '謝謝您的訊息！我們的團隊成員會在今天回覆您（晚上 9 點後的訊息：隔天早上）。',
+    'zh-Hans': '谢谢您的消息！我们的团队成员会在今天回复您（晚上 9 点后的消息：隔天早上）。',
   },
   // It used to say "nothing has been changed on your account", which is not
   // something this route has checked -- and was false when the lesson really
   // had been cancelled on an earlier turn (found 2026-10-15). Now it says only
   // what is known: it cannot confirm it, and a person will.
   cancelGuard: {
-    en: "I can't confirm that cancellation from here, so please don't treat the lesson as cancelled yet. A team member has been notified and will check your account and follow up shortly.",
-    'zh-Hant': '我這邊無法確認這次取消，請先不要把這堂課當作已取消。我們已通知團隊成員，會查看您的帳戶並盡快與您聯繫。',
-    'zh-Hans': '我这边无法确认这次取消，请先不要把这节课当作已取消。我们已通知团队成员，会查看您的账户并尽快与您联系。',
+    en: "I can't confirm that cancellation from here, so please don't treat the lesson as cancelled yet. A team member has been notified and will check your account and reply here today.",
+    'zh-Hant': '我這邊無法確認這次取消，請先不要把這堂課當作已取消。我們已通知團隊成員，今天會查看您的帳戶並在這裡回覆您。',
+    'zh-Hans': '我这边无法确认这次取消，请先不要把这节课当作已取消。我们已通知团队成员，今天会查看您的账户并在这里回复您。',
   },
   trialGuard: {
-    en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will follow up shortly.',
-    'zh-Hant': '剛剛沒能為您保留這個時段，所以沒有預約，也沒有收取任何費用。我們已通知團隊成員，會盡快與您聯繫。',
-    'zh-Hans': '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，会尽快与您联系。',
+    en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will reply here today.',
+    'zh-Hant': '剛剛沒能為您保留這個時段，所以沒有預約，也沒有收取任何費用。我們已通知團隊成員，今天會在這裡回覆您。',
+    'zh-Hans': '刚刚没能为您保留这个时段，所以没有预约，也没有收取任何费用。我们已通知团队成员，今天会在这里回复您。',
   },
   rateLimited: {
     en: 'You have sent a lot of messages in a short time, so automatic replies are paused for now. A team member has been notified and will reply to you here.',
@@ -433,6 +434,13 @@ export async function POST(req: NextRequest) {
     }
     if (escalated) upd.unread_by_admin = true
     await svc.from('chat_threads').update(upd).eq('id', thread_id)
+    // A hand-off to a person tells the desk by email and text (owner,
+    // 2026-10-22), at most once per conversation every 30 minutes.
+    if (escalated) {
+      const { data: th } = await svc.from('chat_threads').select('escalation_summary').eq('id', thread_id).maybeSingle()
+      const last = String((th as any)?.escalation_summary || '').split('\n\n').pop() || ''
+      await alertDeskChat(svc, { threadId: thread_id, parentFirstName: parent?.first_name, reason: last.replace(/^\[[^\]]*\]\s*/, '') })
+    }
   }
 
   // The per-parent fence (PARENT_PER_HOUR / PARENT_PER_DAY), after the claim so
@@ -1156,7 +1164,7 @@ export async function POST(req: NextRequest) {
       const stamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
       const merged = ((t?.escalation_summary ? t.escalation_summary + '\n\n' : '') + `[${stamp}] ` + summary).slice(-4000)
       await svc.from('chat_threads').update({ escalation_summary: merged }).eq('id', thread_id)
-      return { acknowledged: true, note: 'A team member has been notified about THIS request and will follow up in this chat. Tell the parent this specific request was passed to the team, then ask if there is anything else you can help with right now. You remain available for other questions.' }
+      return { acknowledged: true, note: 'A team member has been notified about THIS request (email and text) and will reply in this chat the same day; after 9 PM Pacific, the next morning. Tell the parent this specific request was passed to the team, then ask if there is anything else you can help with right now. You remain available for other questions.' }
     }
 
     return { error: 'Unknown tool.' }

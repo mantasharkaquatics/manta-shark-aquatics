@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent, serviceClient } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
+import { alertDeskChat } from '@/lib/chat-desk-alert'
 
 // The writes a signed-in family's chat widget makes to its own thread row,
 // done here with the service role instead of from the browser (found
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest) {
 
   if (input.action === 'flag') {
     await svc.from('chat_threads').update({ unread_by_admin: true }).eq('id', thread.id)
+    // The assistant could not answer: the desk hears of it as of a hand-off
+    // (lib/chat-desk-alert.ts, at most once per 30 minutes per conversation).
+    await alertDeskChat(svc, { threadId: thread.id, parentFirstName: (parent as any).first_name, reason: 'The assistant could not answer their last message.' })
     return NextResponse.json({ ok: true })
   }
 
