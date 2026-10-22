@@ -187,6 +187,8 @@ export default function AccountPage() {
   )
 
   const full = students.length >= MAX_STUDENTS
+  // Chinese sentences and brackets take no spaces between them.
+  const zh = locale.startsWith('zh')
 
   return (
     <div className="ac-root">
@@ -215,7 +217,7 @@ export default function AccountPage() {
                 // swimmer below). Both edit in the same safety dialog.
                 ...(safety ? [{
                   label: t('safety.contact.title'), edit: 'safety' as const, wide: true, missing: !safety.contact,
-                  value: safety.contact ? `${safety.contact.name}${safety.contact.relation ? `（${safety.contact.relation}）` : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered'),
+                  value: safety.contact ? `${safety.contact.name}${safety.contact.relation ? (zh ? `（${safety.contact.relation}）` : ` (${safety.contact.relation})`) : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered'),
                 }] : []),
               ] as { label: string; value?: string; edit?: 'email' | 'phone' | 'safety'; wide?: boolean; missing?: boolean }[]).map(item => (
                 <div key={item.label} style={item.wide ? { gridColumn: '1 / -1' } : undefined}>
@@ -285,7 +287,7 @@ export default function AccountPage() {
                         <b>{s.full_name}</b>
                         <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
                         {h && (
-                          <small style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', marginTop: 4, ...(!h.answered ? { color: '#b4321f' } : {}) }}>
+                          <small style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', marginTop: 4, ...(!h.answered ? { color: '#b4321f' } : {}) }}>
                             {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('safety.medical.none')}
                           </small>
                         )}
@@ -298,7 +300,7 @@ export default function AccountPage() {
                 })}
               </div>
             )}
-            <p className="ac-note">{t('account.contactSchool')} {t('safety.who')}</p>
+            <p className="ac-note">{t('account.contactSchool')}{zh ? '' : ' '}{t('safety.who')}</p>
 
             {!showAddForm || full ? (
               <>
