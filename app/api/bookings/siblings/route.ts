@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
   if ((kids || []).length !== 2) return NextResponse.json({ error: 'Swimmer not found', code: 'student' }, { status: 404 })
 
   // Each lesson goes through the same code as a single booking, called
-  // directly (not over HTTP, which lost the sign-in in production).
+  // directly. Over HTTP it went to NEXT_PUBLIC_APP_URL, by every sign the bare domain,
+  // whose redirect to www dropped the cookie: nobody was signed in.
   const book = async (l: any) => {
     const r = await createBooking(ctx, { course_type_id: l.course_type_id, coach_id: l.coach_id, session_date: l.date, start_time: String(l.time).slice(0, 5), student_id: l.student_id, quiet: true })
       .catch(err => { console.error('[siblings] booking threw', err); return null })

@@ -483,7 +483,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
+  /* The assistant calls the family's own API routes with the family's
+     cookie, so it must call the host the family is on. NEXT_PUBLIC_APP_URL
+     looks to be the bare domain, which redirects to www, and fetch drops the cookie
+     on a redirect to another host: the routes then saw nobody signed in and
+     the assistant answered "system error" (found live 2026-10-22, asking it
+     for group classes). */
+  const origin = req.nextUrl.origin
   const cookieHeader = req.headers.get('cookie') || ''
   let escalate = false
   let cancelSucceededThisTurn = false

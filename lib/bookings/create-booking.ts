@@ -21,8 +21,9 @@ import { bandRange } from '@/lib/zone-colors'
 
 /* One parent booking: /api/bookings/create, and the sibling route for each of
    its two lessons. Moved out of the route (2026-10-22) so the sibling route
-   calls it directly: calling the route over HTTP with the browser's cookie
-   answered "Unauthorized" in production and booked nothing. */
+   calls it directly: calling the route over HTTP at NEXT_PUBLIC_APP_URL (by
+   every sign the bare domain, which redirects to www and so lost the cookie) answered
+   "Unauthorized" in production and booked nothing. */
 export type ParentCtx = NonNullable<Awaited<ReturnType<typeof requireParent>>>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
