@@ -28,6 +28,7 @@ export type EmailType =
   | 'booking_confirmed'
   | 'contact_change_code'
   | 'contact_verify_code'
+  | 'level_certificate'
   | 'contact_change_notice'
   | 'trial_payment_link'
   | 'booking_rescheduled'

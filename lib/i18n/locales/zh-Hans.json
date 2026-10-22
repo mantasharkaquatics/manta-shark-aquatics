@@ -2171,5 +2171,19 @@
   "account.contact.err.code_expired": "验证码已过期，请重新发送。",
   "account.contact.err.too_many_attempts": "输入错误太多次，请重新发送验证码。",
   "account.contact.err.request_used": "请重新发送验证码。",
-  "account.contact.err.generic": "发生错误，请再试一次。"
+  "account.contact.err.generic": "发生错误，请再试一次。",
+  "cert.pageTitle": "{name} · 等级 {n} 证书",
+  "cert.print": "打印 / 存成 PDF",
+  "cert.title": "晋级证书",
+  "cert.presented": "特颁此证书予",
+  "cert.body": "恭喜晋升至等级 {n} · {name}",
+  "cert.date": "日期",
+  "cert.coach": "教练",
+  "cert.school": "游泳学校",
+  "mail.cert.subject": "🏅 {name} 晋升到等级 {n}！",
+  "mail.cert.title": "🏅 晋级了！",
+  "mail.cert.body": "恭喜！{student} 已经晋升到<strong>等级 {n} · {level}</strong>。晋级证书已经准备好，可以查看、打印或存成 PDF。",
+  "mail.cert.button": "查看证书",
+  "mail.cert.note": "之后也随时可以在「我的页面」打开。",
+  "dash.certificate": "晋级证书"
 }

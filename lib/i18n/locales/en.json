@@ -2171,5 +2171,19 @@
   "account.contact.err.code_expired": "That code has expired. Please send a new one.",
   "account.contact.err.too_many_attempts": "Too many wrong codes. Please send a new one.",
   "account.contact.err.request_used": "Please send a new code.",
-  "account.contact.err.generic": "Something went wrong. Please try again."
+  "account.contact.err.generic": "Something went wrong. Please try again.",
+  "cert.pageTitle": "{name} · Level {n} certificate",
+  "cert.print": "Print / Save as PDF",
+  "cert.title": "Certificate of Achievement",
+  "cert.presented": "This certificate is proudly presented to",
+  "cert.body": "for moving up to Level {n} · {name}",
+  "cert.date": "Date",
+  "cert.coach": "Coach",
+  "cert.school": "Swim School",
+  "mail.cert.subject": "🏅 {name} moved up to Level {n}!",
+  "mail.cert.title": "🏅 A new level!",
+  "mail.cert.body": "Congratulations! {student} has moved up to <strong>Level {n} · {level}</strong>. Their certificate is ready to view, print or save.",
+  "mail.cert.button": "View certificate",
+  "mail.cert.note": "You can open it again any time from your dashboard.",
+  "dash.certificate": "Certificate"
 }

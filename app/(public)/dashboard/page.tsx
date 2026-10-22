@@ -156,15 +156,16 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-bar i { display: block; height: 100%; background: #f7b733; border-radius: 3px; transition: width .3s ease }
 .msa-mcard-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; color: rgba(255,255,255,0.7) }
 .msa-mcard-meta b { color: #f7b733 }
-.msa-mcard-btns { display: flex; gap: 8px; margin-top: 14px }
+.msa-mcard-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px }
 .msa-mcard-credit { margin-top: 12px; border: 1px solid rgba(94,214,150,0.45); background: rgba(94,214,150,0.12);
   border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
 .msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
   border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: #e6eeff; text-align: left; cursor: pointer }
 @media (hover: hover) { .msa-mcard-report:hover { background: rgba(159,184,230,0.22) } }
-.msa-mcard-btns button { flex: 1; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
-  color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s }
-@media (hover: hover) { .msa-mcard-btns button:hover { background: rgba(255,255,255,0.2) } }
+.msa-mcard-btns button, .msa-mcard-btns a { flex: 1 1 0; min-width: 28%; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
+  color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s;
+  display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; box-sizing: border-box }
+@media (hover: hover) { .msa-mcard-btns button:hover, .msa-mcard-btns a:hover { background: rgba(255,255,255,0.2) } }
 .msa-mcard-here { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px;
   border: 0; border-radius: 12px; padding: 12px; background: #f09800; color: #12254a; font-family: inherit;
   font-size: 14px; font-weight: 900; cursor: pointer; transition: background .15s }
@@ -1800,6 +1801,18 @@ export default function DashboardPage() {
   // Which stage a family has opened on a student's card, keyed by student id.
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
   const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
+  // Each swimmer's latest level-up certificate (owner, 2026-10-22).
+  const [certs, setCerts] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let live = true
+    fetch('/api/parent/certificates', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!live || !Array.isArray(d?.certificates)) return
+      const m: Record<string, string> = {}
+      for (const c of d.certificates as { id: string; studentId: string }[]) if (!m[c.studentId]) m[c.studentId] = c.id
+      setCerts(m)
+    }).catch(() => {})
+    return () => { live = false }
+  }, [])
   const [reportFor, setReportFor] = useState<Student | null>(null)
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
   // The first read has finished (with or without reports): a ?report= link
@@ -3344,6 +3357,11 @@ export default function DashboardPage() {
                             <button className="tap-auto" onClick={() => setReportFor(student)}>
                               {t('assess.report.button')}
                             </button>
+                          )}
+                          {certs[student.id] && (
+                            <a className="tap-auto" href={`/api/certificates/${certs[student.id]}`} target="_blank" rel="noopener noreferrer">
+                              🏅 {t('dash.certificate')}
+                            </a>
                           )}
                         </div>
                       </>

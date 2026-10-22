@@ -28,7 +28,7 @@ export const FAMILY_TYPES: ReadonlySet<EmailType> = new Set<EmailType>([
   'partner_invite_expired', 'partner_invite_withdrawn', 'partner_invite_unlinked', 'partner_invite_failed',
   'partner_reschedule_requested', 'partner_reschedule_not_moved', 'partner_absent_lesson_continues',
   'invoice', 'refund_issued', 'referral_reward', 'fixed_class_ended', 'payment_reversed',
-  'contact_change_code', 'contact_verify_code', 'contact_change_notice',
+  'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'level_certificate',
 ])
 
 const SITE = 'https://www.mantasharkaquatics.net'
@@ -471,6 +471,18 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
           + `<div style="text-align:center; margin: 24px 0;"><span style="display:inline-block; font-size: 32px; letter-spacing: 8px; font-weight: 700; color:#1a2744; background:#f1f1f1; padding: 14px 24px; border-radius: 8px;">${esc(p.code)}</span></div>`
           + para(t('mail.code.note'), 'color:#666; font-size: 13px;'), false),
       }
+
+    case 'level_certificate': {
+      // A promotion the school approved (lib/certificates.ts).
+      const lv = Number(p.level)
+      return {
+        subject: t('mail.cert.subject', { name: p.studentName || '', n: lv }),
+        html: shell(t('mail.cert.title'),
+          para(t('mail.cert.body', { student, n: lv, level: esc(t(`level.${lv}.name`)) }))
+          + button(p.linkUrl || `${SITE}/dashboard`, t('mail.cert.button'), '#f09800', '#12254a')
+          + para(t('mail.cert.note'), 'color: #666; font-size: 13px; margin-top: 16px;')),
+      }
+    }
 
     case 'contact_verify_code':
       // The family is changing their email themselves (owner, 2026-10-22):

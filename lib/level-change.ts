@@ -4,6 +4,7 @@ import { allRows, allRowsIn } from './db-paging'
 import { getTodayLA, getNowMinutesLA } from './date'
 import { tierFor, TEAM_SQUAD_CAP, type TierBand } from './team-tiers'
 import { alertAdmin } from './admin-alert'
+import { isPromotion, sendCertificate } from './certificates'
 
 /** A booked 1-on-4 lesson whose class band no longer holds the swimmer's level. */
 export type OutOfBandLesson = { booking_id: string; date: string; start_time: string; level_min: number; level_max: number }
@@ -85,6 +86,9 @@ export async function setStudentLevel(
       return null
     }),
   ])
+  // A move up from a level the swimmer already had earns a certificate,
+  // emailed to the family (owner, 2026-10-22). Best effort.
+  if (isPromotion(record)) await sendCertificate(svc, record.id)
   return { ok: true, record, outOfBand, squad }
 }
 
