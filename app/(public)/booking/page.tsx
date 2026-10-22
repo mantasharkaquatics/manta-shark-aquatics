@@ -2470,7 +2470,7 @@ export default function BookingPage() {
               ))}
             </div>
             {!isReschedule && !makeUp && students.filter(s => s.current_level != null).length >= 2 && (
-              <button type="button" onClick={() => setSiblingMode(true)}
+              <button type="button" onClick={() => { setSiblingMode(true); window.scrollTo(0, 0) }}
                 style={{ marginTop: '14px', width: '100%', textAlign: 'left', padding: '14px 18px', borderRadius: '14px', border: '1.5px dashed #b8c8e0', background: '#f6f9fd', cursor: 'pointer' }}>
                 <span style={{ display: 'block', fontSize: '15px', fontWeight: 800, color: NAVY }}>👫 {t('sib.entry')}</span>
                 <span style={{ display: 'block', fontSize: '13px', color: '#56647d', marginTop: '3px', lineHeight: 1.5 }}>{t('sib.entryHint')}</span>

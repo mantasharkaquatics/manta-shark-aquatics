@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { refundBookingPoints } from '@/lib/bookings/refund'
 import { sendBookingConfirmation } from '@/lib/bookings/confirm-mail'
+import { createBooking } from '@/lib/bookings/create-booking'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,9 @@ export const dynamic = 'force-dynamic'
 
    POST { lessons: [{ student_id, course_type_id, coach_id, date, time }, x2] }
 
-   Each lesson is booked through /api/bookings/create -- every rule a single
-   booking meets, the points, the holds -- quietly. All or nothing: when the
+   Each lesson is booked by createBooking (lib/bookings/create-booking.ts,
+   the code behind /api/bookings/create) -- every rule a single booking
+   meets, the points, the holds -- quietly. All or nothing: when the
    second cannot be booked, the first is cancelled and its points go straight
    back, and the family is told why. Both confirmation emails go once both
    are in. */
@@ -32,13 +34,11 @@ export async function POST(req: NextRequest) {
   const { data: kids } = await svc.from('students').select('id').eq('parent_id', parent.id).in('id', [a.student_id, b.student_id])
   if ((kids || []).length !== 2) return NextResponse.json({ error: 'Swimmer not found', code: 'student' }, { status: 404 })
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
-  const cookie = req.headers.get('cookie') || ''
+  // Each lesson goes through the same code as a single booking, called
+  // directly (not over HTTP, which lost the sign-in in production).
   const book = async (l: any) => {
-    const r = await fetch(`${origin}/api/bookings/create`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', cookie },
-      body: JSON.stringify({ course_type_id: l.course_type_id, coach_id: l.coach_id, session_date: l.date, start_time: String(l.time).slice(0, 5), student_id: l.student_id, quiet: true }),
-    }).catch(() => null)
+    const r = await createBooking(ctx, { course_type_id: l.course_type_id, coach_id: l.coach_id, session_date: l.date, start_time: String(l.time).slice(0, 5), student_id: l.student_id, quiet: true })
+      .catch(err => { console.error('[siblings] booking threw', err); return null })
     const d = r ? await r.json().catch(() => ({})) : {}
     return r?.ok && d.booking_id ? { ok: true as const, id: d.booking_id as string } : { ok: false as const, error: d.error || 'Booking failed. Please try again.', code: d.code }
   }
