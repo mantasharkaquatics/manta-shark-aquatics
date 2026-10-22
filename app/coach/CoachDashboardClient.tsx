@@ -9,6 +9,7 @@ import { STAGES } from '@/lib/levels'
 import { MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
 import { isRealBooking } from './real-booking'
 import { getNowMinutesLA } from '@/lib/date'
+import { formatPhone } from '@/lib/safety-info'
 
 
 type Student = {
@@ -17,6 +18,8 @@ type Student = {
   current_level: string | null
   current_stage?: number | null
   profile_photo_url?: string
+  /** Medical notes and the family's emergency contact (app/coach/page.tsx). */
+  safety?: { medical: string | null; answered: boolean; contact: { name: string; relation: string; phone: string } | null } | null
 }
 
 type Booking = {
@@ -240,6 +243,9 @@ export default function CoachDashboardClient({
                         <div>
                           <p className="text-white text-sm font-medium">{booking.students?.full_name}</p>
                           <p className="text-gray-400 text-xs">{booking.students?.current_level ? t('coach.level', { n: booking.students.current_level }) : t('coach.progress.unassigned')}</p>
+                          {booking.students?.safety?.medical && (
+                            <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-400/40">{t('coach.safety.flag')}</span>
+                          )}
                         </div>
                         <span className="ml-auto text-gray-500 text-xs">{t('coach.today.viewProgress')}</span>
                       </button>
@@ -279,6 +285,20 @@ export default function CoachDashboardClient({
                     <p className="text-gray-400 text-sm">{selectedStudent.current_level ? t(levelNameKey(selectedStudent.current_level)) : (levelName || t('coach.progress.unassigned'))}</p>
                   </div>
                 </div>
+                {/* Safety first, above the skills (owner, 2026-10-22). */}
+                {selectedStudent.safety && (
+                  <div className={`mt-3 rounded-lg p-3 border text-sm ${selectedStudent.safety.medical ? 'bg-red-500/10 border-red-400/40' : 'bg-white/5 border-[#1e3a6e]'}`}>
+                    <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${selectedStudent.safety.medical ? 'text-red-300' : 'text-gray-400'}`}>{t('coach.safety.medical')}</p>
+                    <p className="text-white whitespace-pre-wrap">{selectedStudent.safety.medical || (selectedStudent.safety.answered ? t('coach.safety.none') : t('coach.safety.notAnswered'))}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-3 mb-1">{t('coach.safety.contact')}</p>
+                    {selectedStudent.safety.contact ? (
+                      <p className="text-white">
+                        {selectedStudent.safety.contact.name}{selectedStudent.safety.contact.relation ? ` (${selectedStudent.safety.contact.relation})` : ''} ·{' '}
+                        <a href={`tel:${selectedStudent.safety.contact.phone}`} className="text-[#c9a84c] underline">{formatPhone(selectedStudent.safety.contact.phone)}</a>
+                      </p>
+                    ) : <p className="text-gray-400">{t('coach.safety.notAnswered')}</p>}
+                  </div>
+                )}
                 {allComplete && (
                   <div className="mt-3 bg-[#c9a84c]/20 border border-[#c9a84c]/50 rounded-lg p-3 flex items-center gap-2">
                     <span>🏆</span>

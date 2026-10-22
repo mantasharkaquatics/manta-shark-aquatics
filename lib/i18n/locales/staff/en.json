@@ -1690,5 +1690,16 @@
   "admin.members.holderByName": "(by name match; untick if not)",
   "admin.members.studentsSaved": "Saved {n} swimmer(s).",
   "admin.members.noStudentChanges": "Nothing changed.",
-  "admin.bday.kind.new": "New swimmer"
+  "admin.bday.kind.new": "New swimmer",
+  "coach.safety.flag": "Medical / allergy",
+  "coach.safety.medical": "Medical & allergies",
+  "coach.safety.none": "None known",
+  "coach.safety.notAnswered": "Not given yet",
+  "coach.safety.contact": "Emergency contact",
+  "admin.safety.title": "Safety information",
+  "admin.safety.missing": "Missing",
+  "admin.safety.notAnswered": "Not given yet",
+  "admin.safety.none": "No known medical conditions or allergies",
+  "admin.safety.contact": "Emergency contact",
+  "admin.safety.loadFailed": "Could not load safety information."
 }

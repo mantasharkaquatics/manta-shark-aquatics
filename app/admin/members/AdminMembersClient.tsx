@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import StudentNotesPanel from '@/components/StudentNotesPanel'
+import AdminSafetyInfo from '@/components/AdminSafetyInfo'
 import AlertModal from '@/components/AlertModal'
 import RefundPanel from './RefundPanel'
 import { createClient } from '@/lib/supabase/client'
@@ -977,6 +978,9 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                       </div>
                     </div>
                   </div>
+
+                  {/* Medical answers and the emergency contact (owner, 2026-10-22). */}
+                  <AdminSafetyInfo parentId={parent.id} />
 
                   {/* Tokens */}
                   <ParentPointsSection parentId={parent.id} />

@@ -1,5 +1,6 @@
 'use client'
 import ZellePay from '@/components/ZellePay'
+import { SafetyEditor } from '@/components/SafetyFields'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { createContext, useCallback, useContext, useEffect, useState, useRef, useSyncExternalStore } from 'react'
@@ -280,7 +281,7 @@ const GOLD = BRAND.blue
 const AMBER = BRAND.amber
 
 
-interface Parent { id: string; first_name: string; last_name: string; email: string }
+interface Parent { id: string; first_name: string; last_name: string; email: string; phone?: string | null }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string; trial_used_at: string | null }
 interface SkillProgress {
   skill_id: string
@@ -1891,6 +1892,16 @@ export default function DashboardPage() {
   }, [monthlyReports, monthlyRead, students])
   const [recordsPage, setRecordsPage] = useState(0)
   const [pointsOpen, setPointsOpen] = useState(false)
+  // Safety information still missing (owner, 2026-10-22): a banner until each
+  // swimmer has answered the medical question and an emergency contact is on
+  // file. Asked after paint; a failed read shows nothing.
+  const [safetyMissing, setSafetyMissing] = useState(false)
+  const [safetyOpen, setSafetyOpen] = useState(false)
+  useEffect(() => {
+    if (!parent?.id) return
+    fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setSafetyMissing(!!d.missing) }).catch(() => {})
+  }, [parent?.id, students.length])
   // Opened from the "refer a friend" line: scroll the sheet to that card.
   const [referralFocus, setReferralFocus] = useState(false)
   // The low-balance email's button lands here with ?points=1 (lib/low-balance.ts),
@@ -3193,6 +3204,20 @@ export default function DashboardPage() {
       </header>
 
 <div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) clamp(40px,5vw,64px)' }}>
+
+        {safetyMissing && (
+          <section role="region" aria-labelledby="safety-banner-h" style={{ marginBottom: '24px', background: '#fff7e6', border: '1px solid #f3dfb4', borderRadius: '14px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 18px' }}>
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+              <h2 id="safety-banner-h" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: NAVY }}>{t('safety.banner.title')}</h2>
+              <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#56647d', lineHeight: 1.6 }}>{t('safety.banner.body')}</p>
+            </div>
+            <button type="button" onClick={() => setSafetyOpen(true)}
+              style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer' }}>
+              {t('safety.banner.cta')}
+            </button>
+          </section>
+        )}
+        {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={m => setSafetyMissing(m)} />}
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>

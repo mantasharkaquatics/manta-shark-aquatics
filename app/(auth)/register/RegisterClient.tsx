@@ -1,5 +1,7 @@
 'use client'
 
+import { MedicalQuestion, EmergencyContactFields, safetyErrorKey } from '@/components/SafetyFields'
+import { contactProblem, medicalToStore, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -206,7 +208,9 @@ export default function RegisterClient() {
 
   // `me`: "this swimmer is me" (F15). Offered only for an adult swimmer
   // (lib/account-holder.ts), and only one per family: ticking one unticks the rest.
-  const [students, setStudents] = useState([{ fullName: '', dateOfBirth: '', me: false }])
+  // medical: the safety question each swimmer must answer (owner, 2026-10-22).
+  const [students, setStudents] = useState<{ fullName: string; dateOfBirth: string; me: boolean; medical: MedicalAnswer | null }[]>([{ fullName: '', dateOfBirth: '', me: false, medical: null }])
+  const [emergency, setEmergency] = useState<EmergencyContact>({ name: '', relation: '', phone: '' })
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [waiverAccepted, setWaiverAccepted] = useState(false)
   const [mediaAccepted, setMediaAccepted] = useState(false)
@@ -320,7 +324,7 @@ export default function RegisterClient() {
   }
 
   function addStudent() {
-    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '', me: false }])
+    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '', me: false, medical: null }])
   }
 
   function updateStudent(i: number, field: string, value: string) {
@@ -461,6 +465,13 @@ export default function RegisterClient() {
     // silence when the birthday was left blank.
     if (students.some(s => s.fullName.trim() && !s.dateOfBirth)) { setError(t('register.err.studentDob')); return }
     if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
+    // Safety information (owner, 2026-10-22): every swimmer answers the
+    // medical question, and the family names an emergency contact who is not
+    // the parent's own number. The server checks the same.
+    const unanswered = students.find(s => s.fullName.trim() && medicalToStore(s.medical) === undefined)
+    if (unanswered) { setError(t('safety.err.medicalFor', { name: unanswered.fullName.trim() })); return }
+    const contactErr = contactProblem(emergency, phone)
+    if (contactErr) { setError(t(safetyErrorKey(contactErr))); return }
     setLoading(true); setError('')
     // The login first, from the browser, so the session cookies are set
     // exactly as before. Once it exists the page is in "finish" mode: a retry
@@ -506,7 +517,8 @@ export default function RegisterClient() {
           media_release_accepted: mediaAccepted, newsletter_subscribed: newsletter,
           preferred_language: locale,
           students: students.filter(s => s.fullName.trim()).map(s => ({ full_name: s.fullName.trim(), date_of_birth: s.dateOfBirth,
-            is_account_holder: s.me && isAdultOn(s.dateOfBirth, getTodayLA()) })),
+            is_account_holder: s.me && isAdultOn(s.dateOfBirth, getTodayLA()), medical: s.medical })),
+          emergency_contact: emergency,
           // Best effort on the server: a code that fails must not block the
           // account. lib/referrals re-checks everything.
           referral_code: referralCode.trim() && referral?.valid ? referralCode.trim() : null,
@@ -804,6 +816,8 @@ export default function RegisterClient() {
                       <span className="text-sm text-[#16294a]">{t('register.isMe')}</span>
                     </label>
                   )}
+                  <MedicalQuestion id={`reg-med-${i}`} name={s.fullName.trim()} value={s.medical}
+                    onChange={v => setStudents(students.map((x, j) => (j === i ? { ...x, medical: v } : x)))} />
                 </div>
               </div>
             ))}
@@ -812,6 +826,9 @@ export default function RegisterClient() {
                 {t('register.addStudent')}
               </button>
             )}
+            <div className="border border-[#d5e0ef] rounded-xl p-4">
+              <EmergencyContactFields id="reg-emergency" value={emergency} onChange={setEmergency} />
+            </div>
             <div className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}

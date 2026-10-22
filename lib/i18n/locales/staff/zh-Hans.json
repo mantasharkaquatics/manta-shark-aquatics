@@ -1690,5 +1690,16 @@
   "admin.members.holderByName": "（依姓名判断；不是的话请取消勾选）",
   "admin.members.studentsSaved": "已储存 {n} 位学生。",
   "admin.members.noStudentChanges": "没有变更。",
-  "admin.bday.kind.new": "新学员"
+  "admin.bday.kind.new": "新学员",
+  "coach.safety.flag": "疾病 / 过敏",
+  "coach.safety.medical": "疾病与过敏",
+  "coach.safety.none": "无已知状况",
+  "coach.safety.notAnswered": "家长尚未填写",
+  "coach.safety.contact": "紧急联系人",
+  "admin.safety.title": "安全信息",
+  "admin.safety.missing": "未填完",
+  "admin.safety.notAnswered": "家长尚未填写",
+  "admin.safety.none": "没有已知的疾病或过敏",
+  "admin.safety.contact": "紧急联系人",
+  "admin.safety.loadFailed": "无法加载安全信息。"
 }

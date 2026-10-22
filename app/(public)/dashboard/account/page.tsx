@@ -9,6 +9,8 @@ import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
+import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
+import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 
 interface Parent {
   id: string; first_name: string; last_name: string; email: string; phone: string
@@ -35,6 +37,13 @@ export default function AccountPage() {
   // "This swimmer is me" (F15): offered for an adult only; the server makes
   // this swimmer the family's one account holder and clears the others.
   const [newMe, setNewMe] = useState(false)
+  // The new swimmer's answer to the safety question (owner, 2026-10-22).
+  const [newMedical, setNewMedical] = useState<MedicalAnswer | null>(null)
+  // What is on file for the family's safety (lib/safety-info.ts).
+  type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]; missing: boolean }
+  const [safety, setSafety] = useState<Safety | null>(null)
+  const [safetyOpen, setSafetyOpen] = useState(false)
+  const loadSafety = () => fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSafety(d) }).catch(() => {})
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -42,7 +51,7 @@ export default function AccountPage() {
      2026-10-15). Not closable while the swimmer is being added. */
   const confirmBox = useDialogFocus(confirmingAdd, () => { if (!adding) setConfirmingAdd(false) })
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(); loadSafety() }, [])
   /* The "add a swimmer" card on the home page lands here with ?add=1, and the
      form should already be open -- a parent who came to add a child should not
      have to find the button a second time. */
@@ -120,7 +129,7 @@ export default function AccountPage() {
     try {
       res = await fetch('/api/parent/students', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob, is_account_holder: newMe && isAdultOn(newDob, todayLA()) }),
+        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob, is_account_holder: newMe && isAdultOn(newDob, todayLA()), medical: newMedical }),
       })
       j = await res.json().catch(() => ({}))
     } catch { res = null }
@@ -129,6 +138,7 @@ export default function AccountPage() {
         : j.code === 'LIMIT' ? t('account.limitReached', { n: MAX_STUDENTS })
         : j.code === 'DOB_FUTURE' ? t('register.err.dobFuture')
         : j.code === 'DOB' ? t('register.err.studentDob')
+        : j.code === 'MEDICAL' ? t('safety.err.medical')
         // A name the server will not take (the field stops at 120 characters,
         // so this is rare) or its own failure: English text with no key
         // (found 2026-10-15).
@@ -142,10 +152,12 @@ export default function AccountPage() {
     setNewName('')
     setNewDob('')
     setNewMe(false)
+    setNewMedical(null)
     setShowAddForm(false)
     setConfirmingAdd(false)
     setAdding(false)
     await fetchAll()
+    loadSafety()
   }
 
   /* In the parent's language. A birthday is a date with no time, so it is
@@ -207,6 +219,37 @@ export default function AccountPage() {
             </button>
           </section>
 
+          {/* Safety information (owner, 2026-10-22): each swimmer's medical
+              answer and the family's emergency contact. Coaches see it. */}
+          <section className="ac-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <p className="ac-label" style={{ margin: 0 }}>{t('safety.modal.title')}</p>
+              <button type="button" className="ac-btn line" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => setSafetyOpen(true)}>
+                {safety?.missing ? t('safety.banner.cta') : t('safety.edit')}
+              </button>
+            </div>
+            {safety?.missing && <div className="ac-err" style={{ marginTop: 10 }}>{t('safety.banner.body')}</div>}
+            {safety && (
+              <div className="ac-stack" style={{ gap: 8, marginTop: 12 }}>
+                {safety.students.map(s => (
+                  <div key={s.id} className="ac-item">
+                    <div>
+                      <b>{s.full_name}</b>
+                      <small style={{ whiteSpace: 'pre-wrap' }}>{!s.answered ? t('safety.notAnswered') : s.medical_notes || t('safety.medical.none')}</small>
+                    </div>
+                  </div>
+                ))}
+                <div className="ac-item">
+                  <div>
+                    <b>{t('safety.contact.title')}</b>
+                    <small>{safety.contact ? `${safety.contact.name}${safety.contact.relation ? ` (${safety.contact.relation})` : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered')}</small>
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="ac-note">{t('safety.who')}</p>
+          </section>
+
           {/* Swimmers (read-only, add-only) */}
           <section className="ac-card">
             <p className="ac-label">{t('account.students')}</p>
@@ -257,14 +300,17 @@ export default function AccountPage() {
                     <span style={{ fontSize: 14, color: '#16294a', lineHeight: 1.5 }}>{t('register.isMe')}</span>
                   </label>
                 )}
+                <div style={{ marginBottom: 14 }}>
+                  <MedicalQuestion id="ac-med" name={newName.trim()} value={newMedical} onChange={setNewMedical} />
+                </div>
                 {/* role="alert": a failure closes the confirm, so nothing else says it failed. */}
                 {addError && <div className="ac-err" role="alert" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
                 <div className="ac-pair">
                   <button type="button" className="ac-btn line"
-                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setAddError(null) }}>
+                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setNewMedical(null); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
-                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob}>
+                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob || medicalToStore(newMedical) === undefined}>
                     {t('account.submit')}
                   </button>
                 </div>
@@ -274,6 +320,8 @@ export default function AccountPage() {
 
         </div>
       </div>
+
+      {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={() => loadSafety()} />}
 
       {confirmingAdd && (
         <div className="ac-back-drop" onClick={() => !adding && setConfirmingAdd(false)}>

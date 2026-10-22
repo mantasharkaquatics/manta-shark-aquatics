@@ -9,6 +9,8 @@ import { isLocale } from '@/lib/i18n'
 import { sendEmail } from '@/lib/email'
 import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
+import { contactProblem, medicalToStore } from '@/lib/safety-info'
+import { saveContact, saveMedical } from '@/lib/safety-info-server'
 
 export const runtime = 'nodejs'
 
@@ -94,8 +96,16 @@ export async function POST(req: NextRequest) {
   const phone = rawPhone ? normalizePhone(rawPhone) : ''
   const today = getTodayLA()
   const students = (Array.isArray(body.students) ? body.students : [])
-    .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '', me: s?.is_account_holder === true }))
+    .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '', me: s?.is_account_holder === true,
+      medical: medicalToStore(s?.medical) }))
     .filter((s: { full_name: string | null }) => s.full_name)
+  // Safety information (owner, 2026-10-22): every swimmer answers the medical
+  // question and the family names an emergency contact who is not the parent.
+  const emergency = body.emergency_contact
+  const emergencyProblem = contactProblem(emergency, rawPhone)
+  if (emergencyProblem) return NextResponse.json({ error: 'Invalid emergency contact', code: 'CONTACT_' + emergencyProblem.toUpperCase() }, { status: 400 })
+  if (students.some((s: { medical: string | null | undefined }) => s.medical === undefined))
+    return NextResponse.json({ error: 'Answer the medical question for every swimmer', code: 'MEDICAL' }, { status: 400 })
   if (!firstName || !lastName || !rawPhone || phone.replace(/\D/g, '').length < 10 || !address1 || !city || !state || !zip
     || body.terms_accepted !== true || body.waiver_accepted !== true
     || students.length === 0 || students.length > MAX_STUDENTS
@@ -179,11 +189,22 @@ export async function POST(req: NextRequest) {
 
   // The account exists from here on: a swimmer that fails to save is
   // reported, not fatal -- the page opens My Account with the add form.
-  const { data: made, error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string }, i: number) => ({
+  const { data: made, error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string; medical: string | null }, i: number) => ({
     parent_id: parent.id, full_name: s.full_name, date_of_birth: s.date_of_birth,
-    current_level: null, is_active: true, sort_order: i + 1,
+    current_level: null, is_active: true, sort_order: i + 1, medical_notes: s.medical,
   }))).select('id, sort_order')
   if (stuErr) console.error('[complete-registration] students insert failed', stuErr)
+
+  // The emergency contact and the "answered" stamps, on their own after the
+  // inserts (lib/safety-info-server), so a database without the new columns
+  // still registers the family. A failure only means the dashboard asks again.
+  if (!(await saveContact(svc, parent.id, emergency))) console.error('[complete-registration] emergency contact not saved', parent.id)
+  if (!stuErr && made) {
+    for (const r of made as { id: string; sort_order: number }[]) {
+      const s = students[r.sort_order - 1]
+      if (s) await saveMedical(svc, parent.id, r.id, s.medical ?? null)
+    }
+  }
 
   // "This swimmer is me" (F15): the first ticked swimmer who is an adult, and
   // only one; every other new swimmer is written as NOT the account holder,

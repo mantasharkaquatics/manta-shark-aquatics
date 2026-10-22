@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
+import { medicalToStore } from '@/lib/safety-info'
+import { saveMedical } from '@/lib/safety-info-server'
 
 export const runtime = 'nodejs'
 
@@ -34,12 +36,15 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
 
-  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown; is_account_holder?: unknown } | null
+  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown; is_account_holder?: unknown; medical?: any } | null
   const fullName = typeof body?.full_name === 'string' ? body.full_name.trim().replace(/\s+/g, ' ') : ''
   const dob = typeof body?.date_of_birth === 'string' ? body.date_of_birth.trim() : ''
   if (!fullName || fullName.length > 120) return NextResponse.json({ error: 'Missing or invalid name', code: 'NAME' }, { status: 400 })
   if (!isRealDate(dob) || dob < '1900-01-01') return NextResponse.json({ error: 'Missing or invalid date of birth', code: 'DOB' }, { status: 400 })
   if (dob > getTodayLA()) return NextResponse.json({ error: 'The date of birth is in the future', code: 'DOB_FUTURE' }, { status: 400 })
+  // The safety question (owner, 2026-10-22): "none" or what it is.
+  const medical = medicalToStore(body?.medical)
+  if (medical === undefined) return NextResponse.json({ error: 'Answer the medical question', code: 'MEDICAL' }, { status: 400 })
 
   const countActive = async () => {
     const { count, error } = await svc.from('students').select('id', { count: 'exact', head: true })
@@ -66,6 +71,7 @@ export async function POST(req: NextRequest) {
     is_active: true,
     added_by_parent: true,
     sort_order: sortOrder,
+    medical_notes: medical,
   }).select('id').single()
   if (error || !row) {
     console.error('[parent/students] insert failed', error)
@@ -90,6 +96,9 @@ export async function POST(req: NextRequest) {
   // left to the name guess. On its own after the insert, so a database
   // without the column yet (docs/migration-account-holder-swimmer.sql) still
   // adds the swimmer; the answer is then simply not stored.
+  // The "answered" stamp, on its own (lib/safety-info-server).
+  await saveMedical(svc, parent.id, row.id, medical)
+
   const me = body?.is_account_holder === true && isAdultOn(dob, getTodayLA())
   const holder = await recordNewSwimmers(svc, parent.id, [row.id], me ? row.id : null)
   if (holder === 'error') console.error('[parent/students] account holder not stored', row.id)

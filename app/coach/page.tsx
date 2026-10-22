@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { safetyForStudents } from '@/lib/safety-info-server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import CoachDashboardClient from './CoachDashboardClient'
@@ -122,5 +123,15 @@ export default async function CoachDashboardPage() {
 
   // loadFailed: a failed read said "no classes today" -- a coach could take
   // that at face value and go home (found 2026-10-08).
-  return <CoachDashboardClient coach={coach} todaySessions={visibleToday} today={today} offIds={offIds} loadFailed={!!sessionsError} />
+  // Medical notes and the family's emergency contact (owner, 2026-10-22):
+  // the coach in the water has to know. Read with the service role -- the
+  // parents row is not the coach's to read -- and only for today's swimmers.
+  const safety = await safetyForStudents(serviceClient(),
+    visibleToday.flatMap((s: any) => (s.bookings || []).map((b: any) => b.students?.id)).filter(Boolean))
+  const withSafety = visibleToday.map((s: any) => ({
+    ...s,
+    bookings: (s.bookings || []).map((b: any) => (b.students ? { ...b, students: { ...b.students, safety: safety[b.students.id] || null } } : b)),
+  }))
+
+  return <CoachDashboardClient coach={coach} todaySessions={withSafety} today={today} offIds={offIds} loadFailed={!!sessionsError} />
 }
