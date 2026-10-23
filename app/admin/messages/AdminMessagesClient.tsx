@@ -49,6 +49,7 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
   }
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const replyRef = useRef<HTMLTextAreaElement>(null)
   const selectedThreadRef = useRef<any>(null)
 
   useEffect(() => { loadThreads() }, [])
@@ -227,6 +228,7 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
     setSendError(null)
     const body = input.trim()
     setInput('')
+    if (replyRef.current) replyRef.current.style.height = 'auto'
     // Checked (found 2026-10-08): a refused or dropped insert used to lose the
     // typed reply with no word, while the thread's preview and mode were
     // updated as if it had gone. Now the text comes back and nothing else moves.
@@ -385,7 +387,7 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
                       borderRadius: msg.sender_type === 'parent' ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
                       background: msg.sender_type === 'admin' ? GOLD : msg.sender_type === 'ai' ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.08)',
                       color: msg.sender_type === 'admin' ? NAVY : '#fff',
-                      fontSize: '13px', lineHeight: 1.5,
+                      fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
                       border: msg.sender_type === 'ai' ? '1px solid rgba(201,168,76,0.35)' : 'none',
                     }}>
                       {msg.sender_type === 'ai' && (
@@ -405,15 +407,23 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
                 <div role="alert" style={{ padding: '8px 24px', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', fontSize: '12px', flexShrink: 0 }}>{sendError}</div>
               )}
               <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px', background: NAVY, flexShrink: 0 }}>
-                <input
+                {/* Enter adds a line; only the Send button sends (owner,
+                    2026-10-23: a reply went out half-typed on Enter). */}
+                <textarea
+                  ref={replyRef}
                   value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  rows={1}
+                  onChange={e => {
+                    setInput(e.target.value)
+                    e.target.style.height = 'auto'
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`
+                  }}
                   onClick={e => e.stopPropagation()}
                   placeholder={t('admin.messages.replyPlaceholder')}
                   style={{
                     flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none',
+                    resize: 'none', lineHeight: 1.5, fontFamily: 'inherit', maxHeight: '160px', overflowY: 'auto',
                   }}
                 />
                 <button onClick={(e) => { e.stopPropagation(); sendMessage() }} disabled={!input.trim() || sending} style={{
