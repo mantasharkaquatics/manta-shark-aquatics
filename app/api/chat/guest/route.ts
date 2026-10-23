@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createHash, randomUUID } from 'crypto'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
+import { closuresForAi } from '@/lib/closures'
 import { getTodayLA } from '@/lib/date'
 import { readJson, badRequest } from '@/lib/http'
 import { translate, isLocale } from '@/lib/i18n/all'
@@ -178,6 +179,7 @@ export async function POST(req: NextRequest) {
       dateLine: `Current date (local, Southern California): ${getTodayLA()}.`,
       // The same POOLS list a signed-in family's assistant gets.
       pools: activeLocations(await getLocations(svc)),
+      closuresLine: await closuresForAi(svc),
     })
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

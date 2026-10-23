@@ -36,6 +36,7 @@ export type EmailType =
   | 'booking_rescheduled'
   | 'booking_cancelled'
   | 'block_cancellation_notice'
+  | 'team_practice_cancelled'
   | 'reminder_24h'
   | 'partner_booking_invite'
   | 'partner_booking_confirmed'
@@ -155,6 +156,11 @@ export interface EmailPayload {
   /** waitlist_offer: when the hold ends, so the email can write it in the
    *  family's language (deadline is the English text, kept for the SMS). */
   deadlineAt?: string
+  /** block_cancellation_notice / team_practice_cancelled for a pool closure
+   *  (lib/closures.ts): why the pool is closed -- a preset key, or the desk's
+   *  own words when the key is 'other'. */
+  closureReasonKey?: string
+  closureReasonText?: string
   /** guest_chat_reply: what the desk wrote to the visitor. */
   replyText?: string
   lang?: string

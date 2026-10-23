@@ -9,6 +9,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { buildKnowledgeBlock } from '@/lib/ai/knowledge'
 import { buildSystemPromptParts } from '@/lib/ai/system-prompt'
+import { closuresForAi } from '@/lib/closures'
 import { TOPUP_PRESETS, presetLessons } from '@/lib/points'
 import { walletSummary } from '@/lib/points-wallet'
 import { getTodayLA, getNowMinutesLA, formatTime12h, formatDateLA, minutesUntil, SLOT_STEP_MINUTES } from '@/lib/date'
@@ -1241,6 +1242,7 @@ export async function POST(req: NextRequest) {
       knowledge,
       pools: pools.active,
       usualPoolsJson,
+      closuresLine: await closuresForAi(svc),
     })
     // Prompt caching: static part (rules + POLICIES + knowledge) carries cache_control,
     // cached together with the tools prefix; dynamic part (time/parent/snapshot) is not cached.

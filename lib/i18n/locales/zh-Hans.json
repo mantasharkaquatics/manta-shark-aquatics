@@ -2312,5 +2312,21 @@
   "faq.q.lifeguard": "上课时有救生员吗？",
   "faq.a.lifeguard": "我们的教练都持有救生员证照。所有课程都是私人课或小班制，教练整堂课都专注在学员身上。",
   "faq.q.sick": "孩子生病可以请假吗？",
-  "faq.a.sick": "可以。孩子发烧、呕吐、腹泻、咳嗽流鼻涕，或身上有伤口、疹子时，请在家休息。腹泻好了之后请等两周再下水，这是美国疾控中心对泳池的建议。请假方式和平常一样：开课前 24 小时以上，单堂课取消会退回点数，固定班按「请假」换补课券。24 小时内突然生病，请发消息给我们：有医生证明，点数会退回，也不会用掉当月宽限；没有证明，每位学员有一次同样的通融。"
+  "faq.a.sick": "可以。孩子发烧、呕吐、腹泻、咳嗽流鼻涕，或身上有伤口、疹子时，请在家休息。腹泻好了之后请等两周再下水，这是美国疾控中心对泳池的建议。请假方式和平常一样：开课前 24 小时以上，单堂课取消会退回点数，固定班按「请假」换补课券。24 小时内突然生病，请发消息给我们：有医生证明，点数会退回，也不会用掉当月宽限；没有证明，每位学员有一次同样的通融。",
+  "closure.banner.text": "{when}，泳池停课（{reason}）。这段时间的课已取消，点数已退回您的账户。",
+  "closure.banner.textPool": "{when}，{pool} 泳池停课（{reason}）。这段时间的课已取消，点数已退回您的账户。",
+  "closure.banner.hide": "隐藏这则公告",
+  "closure.reason.weather": "天气原因",
+  "closure.reason.power": "停电",
+  "closure.reason.water": "泳池水质或设备问题",
+  "closure.reason.venue": "场地方临时关闭",
+  "mail.closure.subject": "泳池停课 – {course}，{date} 已取消",
+  "mail.closure.title": "泳池停课通知",
+  "mail.closure.body": "很抱歉，泳池临时停课（{reason}），以下课程已经取消。",
+  "mail.closure.after": "这节课请不要到泳池。欢迎到“我的页面”重新预约其他有空的时段。造成不便，非常抱歉。",
+  "mail.teamClosure.subject": "泳队练习取消 – {date}",
+  "mail.teamClosure.title": "泳队练习取消",
+  "mail.teamClosure.body": "很抱歉，泳池临时停课（{reason}），{student} 以下的泳队练习取消。",
+  "mail.teamClosure.after": "这次练习请不要到泳池。造成不便，非常抱歉。",
+  "mail.row.team": "泳队"
 }

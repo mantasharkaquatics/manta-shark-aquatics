@@ -15,6 +15,8 @@ export type SystemPromptOptions = {
   pools?: Pick<Location, 'id' | 'name' | 'address'>[]
   /** live, more than one pool: {swimmer name: usual pool name} (/api/locations). */
   usualPoolsJson?: string
+  /** Pools the desk has closed (lib/closures.ts closuresForAi); '' = none. */
+  closuresLine?: string
 }
 
 // Where the school teaches, for the DYNAMIC part. The pool list is data from
@@ -123,6 +125,7 @@ export function buildSystemPromptParts(o: SystemPromptOptions): { staticPart: st
   else d.push(`The parent you are chatting with is ${o.parentName}.`)
   d.push('')
   d.push(...poolLines(o.pools))
+  if (o.closuresLine) { d.push(''); d.push(o.closuresLine) }
   if (o.mode === 'live' && o.usualPoolsJson) {
     d.push('USUAL POOL of each swimmer (the pool of their latest lesson; a swimmer not listed has no lessons yet):')
     d.push(o.usualPoolsJson)

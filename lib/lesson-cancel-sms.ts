@@ -53,3 +53,37 @@ export async function textLessonCancelled(svc: SupabaseClient, opts: {
     return false
   }
 }
+
+/**
+ * Text one family that the pool is closed (owner, 2026-10-23; lib/closures.ts):
+ * one message for all their cancelled lessons (kind 'lesson') or Swim Team
+ * practices (kind 'team'), sent when the earliest of them starts within 48
+ * hours. Same consent rule as textLessonCancelled. `reason` is English.
+ */
+export async function textClosure(svc: SupabaseClient, opts: {
+  parentId: string; who: string; items: { date: string; start: string }[]; reason: string; kind: 'lesson' | 'team'
+}): Promise<boolean> {
+  try {
+    const soon = opts.items.filter(i => cancelNeedsText(i.date, i.start))
+      .sort((a, b) => `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`))
+    if (!soon.length) return false
+    const { data: p } = await svc.from('parents').select('first_name, phone, terms_version').eq('id', opts.parentId).maybeSingle()
+    const parent = p as { first_name?: string | null; phone?: string | null; terms_version?: string | null } | null
+    if (!parent?.phone) return false
+    if (!parent.terms_version || parent.terms_version < SMS_TERMS_FROM) return false
+    const dayOf = (d: string) => d === getTodayLA() ? 'today'
+      : 'on ' + new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+    const first = soon[0]
+    const more = opts.items.length > 1
+    const who = opts.who.trim() || 'your swimmer'
+    const what = opts.kind === 'team'
+      ? `${who}'s Swim Team practice ${dayOf(first.date)} at ${formatTime12h(first.start)}${more ? ' (and the other practices in that time)' : ''} is cancelled`
+      : `we cancelled ${who}'s lesson ${dayOf(first.date)} at ${formatTime12h(first.start)}${more ? ' and the other lessons in that time' : ''}`
+    const msg = `Hi ${parent.first_name || 'there'}, Manta Shark Aquatics here. The pool is closed (${opts.reason}), so ${what}. Please don't come to the pool. Details are in your email and on your dashboard.${SMS_COMPLIANCE_SUFFIX}`
+    const r = await sendSms(parent.phone, msg)
+    return r.ok && !!r.sid
+  } catch (e) {
+    console.error('textClosure failed for parent', opts.parentId, e instanceof Error ? e.message : '')
+    return false
+  }
+}

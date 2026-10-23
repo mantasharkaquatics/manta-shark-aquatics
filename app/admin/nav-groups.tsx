@@ -33,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/zones', labelKey: 'admin.nav.zones', desc: 'Coach time slots', icon: <svg {...S}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg> },
       { href: '/admin/locations', labelKey: 'admin.nav.locations', desc: 'Pools, and which are open to families', icon: <svg {...S}><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg> },
       { href: '/admin/time-off', labelKey: 'admin.nav.timeOff', desc: 'Coach absences', icon: <svg {...S}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M9 16h6" /></svg> },
+      { href: '/admin/closures', labelKey: 'admin.nav.closures', desc: 'Close a pool: cancel, refund and tell everyone at once', icon: <svg {...S}><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg> },
     ],
   },
   {

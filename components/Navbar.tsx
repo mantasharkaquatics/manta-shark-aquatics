@@ -8,6 +8,7 @@ import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
 import { myParentId } from '@/lib/my-parent'
+import ClosureBanner from '@/components/ClosureBanner'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
    pixels inside the window, the name set as a wordmark instead of the round logo,
@@ -46,8 +47,10 @@ const css = `
   /* --nav-space: the room a page leaves at its top for the bar.
      --nav-cover: how far down the bar reaches -- sticky things on a page (the
      levels and FAQ side menus, the booking week header) sit below it. */
-  :root { --nav-space: 90px; --nav-cover: 86px; }
-  @media (max-width: 1099px) { :root { --nav-space: 76px; --nav-cover: 74px; } }
+  /* --closure-h: the pool-closed banner under the bar (components/ClosureBanner),
+     0px when there is none. */
+  :root { --nav-space: calc(90px + var(--closure-h, 0px)); --nav-cover: calc(86px + var(--closure-h, 0px)); }
+  @media (max-width: 1099px) { :root { --nav-space: calc(76px + var(--closure-h, 0px)); --nav-cover: calc(74px + var(--closure-h, 0px)); } }
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
@@ -529,6 +532,7 @@ export default function Navbar() {
             </div>
           </div>
         )}
+        <ClosureBanner />
       </nav>
     </>
   )

@@ -293,3 +293,24 @@ Admin > Messages can recall a desk or AI reply up to 24 hours old
 - A visitor's reply email is held 2 minutes by Resend (`sendEmailWithId` with
   `scheduledAt`, id kept in `chat_messages.email_id`); a recall in that time
   cancels it. After that the email is out and the desk is told so.
+
+# A pool can be closed in one step (owner, 2026-10-23)
+
+Admin > Closures (lib/closures.ts, docs/migration-pool-closures.sql). The
+desk picks a pool, a day / several days / part of one day, and a reason
+(preset, translated -- or its own words, sent as typed).
+
+- **Blocking reuses coach_time_off.** A closure adds 'admin_block' rows with
+  `closure_id` for every coach's hours at that pool, so every path that
+  already respects time off (booking page, AI, desk tools) offers nothing in
+  it. A coach also at another pool that day is blocked only at this one.
+  "Open booking again" deletes those rows; the lessons stay cancelled.
+- **Cancelling is a school cancellation** (`cancelled_by_school`): points and
+  vouchers back in full, no allowance spent, paid assessments stay owed,
+  lessons already over left alone. One email per lesson
+  (`block_cancellation_notice` with `closureReasonKey`), one text per family
+  when a lesson is within 48 hours (`textClosure`). Swim Team families with a
+  practice there get `team_practice_cancelled`; the fee does not change.
+- **Everyone sees it:** components/ClosureBanner under the nav bar on every
+  page (via /api/closures, cached 60s) until the closure ends or the desk
+  hides it; the AI gets the active closures in its dynamic context.

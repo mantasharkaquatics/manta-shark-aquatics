@@ -2312,5 +2312,21 @@
   "faq.q.lifeguard": "Is there a lifeguard during lessons?",
   "faq.a.lifeguard": "Our coaches are certified lifeguards. Every lesson is private or a small group, so the coach's attention stays on the swimmers the whole time.",
   "faq.q.sick": "My child is sick. Can we take leave?",
-  "faq.a.sick": "Yes. Please keep your child home with a fever, vomiting, diarrhea, a cough or runny nose, or an open wound or rash. After diarrhea, please wait two weeks before swimming again; this is the CDC's advice for pools. Taking leave works the usual way: more than 24 hours before the lesson, cancel a single lesson and the points come back, or tap “Take leave” on a fixed-class lesson for a make-up voucher. If your child falls ill within 24 hours, message us: with a doctor's note the points come back and this month's grace is not used; without a note, each swimmer can have this once."
+  "faq.a.sick": "Yes. Please keep your child home with a fever, vomiting, diarrhea, a cough or runny nose, or an open wound or rash. After diarrhea, please wait two weeks before swimming again; this is the CDC's advice for pools. Taking leave works the usual way: more than 24 hours before the lesson, cancel a single lesson and the points come back, or tap “Take leave” on a fixed-class lesson for a make-up voucher. If your child falls ill within 24 hours, message us: with a doctor's note the points come back and this month's grace is not used; without a note, each swimmer can have this once.",
+  "closure.banner.text": "{when}: the pool is closed ({reason}). Lessons in that time are cancelled and the points are back in your account.",
+  "closure.banner.textPool": "{when}: the {pool} pool is closed ({reason}). Lessons in that time are cancelled and the points are back in your account.",
+  "closure.banner.hide": "Hide this notice",
+  "closure.reason.weather": "bad weather",
+  "closure.reason.power": "power outage",
+  "closure.reason.water": "pool water or equipment issue",
+  "closure.reason.venue": "notice from the venue",
+  "mail.closure.subject": "Pool Closed – {course} on {date} Cancelled",
+  "mail.closure.title": "Pool Closure Notice",
+  "mail.closure.body": "We're sorry — the pool is closed ({reason}), so the following lesson has been cancelled.",
+  "mail.closure.after": "Please don't come to the pool for this lesson. You're welcome to rebook any available time on your dashboard. We apologize for the inconvenience.",
+  "mail.teamClosure.subject": "Swim Team Practice Cancelled – {date}",
+  "mail.teamClosure.title": "Swim Team Practice Cancelled",
+  "mail.teamClosure.body": "We're sorry — the pool is closed ({reason}), so {student}'s Swim Team practice below is cancelled.",
+  "mail.teamClosure.after": "Please don't come to the pool for this practice. We apologize for the inconvenience.",
+  "mail.row.team": "Team"
 }

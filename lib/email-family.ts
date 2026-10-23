@@ -23,7 +23,7 @@ type T = (key: string, vars?: Record<string, string | number>) => string
 
 export const FAMILY_TYPES: ReadonlySet<EmailType> = new Set<EmailType>([
   'booking_confirmed', 'booking_series_confirmed', 'booking_rescheduled', 'booking_cancelled',
-  'block_cancellation_notice', 'reminder_24h', 'trial_payment_link',
+  'block_cancellation_notice', 'team_practice_cancelled', 'reminder_24h', 'trial_payment_link',
   'partner_booking_invite', 'partner_booking_confirmed', 'partner_booking_rejected',
   'partner_invite_expired', 'partner_invite_withdrawn', 'partner_invite_unlinked', 'partner_invite_failed',
   'partner_reschedule_requested', 'partner_reschedule_not_moved', 'partner_absent_lesson_continues',
@@ -184,6 +184,14 @@ export function withCalendarNote(html: string, L: Locale): string {
   return at >= 0 ? html.slice(0, at) + calendarNote(L) + html.slice(at) : html + calendarNote(L)
 }
 
+/** Why the pool is closed, in the family's language: a preset reason, or the
+ *  desk's own words (sent as typed). */
+function closureReason(t: T, p: Pick<EmailPayload, 'closureReasonKey' | 'closureReasonText'>): string {
+  return p.closureReasonKey && p.closureReasonKey !== 'other'
+    ? t('closure.reason.' + p.closureReasonKey)
+    : esc(p.closureReasonText || '')
+}
+
 export async function familyEmail(p: EmailPayload, L: Locale, ctx: FamilyCtx): Promise<{ subject: string; html: string; attachments?: MailAttachment[] } | null> {
   const r = await familyEmailBody(p, L, ctx)
   if (!r) return null
@@ -271,6 +279,16 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
       }
       if (p.type === 'block_cancellation_notice') {
         const refund = rk === 'none' ? '' : rk === 'voucher' ? t('mail.block.refundVoucher') : t('mail.block.refundPoints')
+        // The pool is closed (lib/closures.ts, owner 2026-10-23): the reason
+        // instead of "the coach is unavailable".
+        if (p.closureReasonKey) {
+          return {
+            subject: t('mail.closure.subject', { course, date }),
+            html: shell(t('mail.closure.title'),
+              para([t('mail.closure.body', { reason: closureReason(t, p) }), refund].filter(Boolean).join(sep))
+              + lessonTable() + para(t('mail.closure.after'), 'margin-top: 16px;')),
+          }
+        }
         return {
           subject: t('mail.cancel.subject', { course, date }),
           html: shell(t('mail.block.title'),
@@ -300,6 +318,17 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
           + para(readyLine, 'color: #c9a84c; font-weight: 600;')),
       }
     }
+
+    case 'team_practice_cancelled':
+      // A Swim Team practice at a closed pool (lib/closures.ts). The monthly
+      // fee does not change (owner, 2026-10-23), and the email does not raise it.
+      return {
+        subject: t('mail.teamClosure.subject', { date }),
+        html: shell(t('mail.teamClosure.title'),
+          para(t('mail.teamClosure.body', { reason: closureReason(t, p), student: swimmer }))
+          + table(R.student() + row(t('mail.row.team'), esc(course)) + R.date() + R.time() + locRow)
+          + para(t('mail.teamClosure.after'), 'margin-top: 16px;')),
+      }
 
     case 'partner_absent_lesson_continues':
       return {
