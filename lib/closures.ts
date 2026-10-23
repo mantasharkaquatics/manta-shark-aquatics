@@ -135,6 +135,8 @@ export async function activeClosures(svc: SupabaseClient, opts: { forBanner?: bo
 }
 
 /** One line per active closure for the AI's dynamic context, or ''. */
+const withDay = (d: string) => `${new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${d}`
+
 export async function closuresForAi(svc: SupabaseClient): Promise<string> {
   const list = await activeClosures(svc)
   if (!list.length) return ''
@@ -142,7 +144,9 @@ export async function closuresForAi(svc: SupabaseClient): Promise<string> {
   const name = (id: string) => pools.find(p => p.id === id)?.name || id
   return [
     'POOL CLOSURES (the school closed the pool; every lesson in that time is cancelled and the points are back in the family\'s account; nothing can be booked in it). If a parent asks about a lesson or a visit then, tell them not to come:',
-    ...list.map(c => `- ${name(c.location_id)}: ${c.start_date === c.end_date ? c.start_date : `${c.start_date} to ${c.end_date}`}${c.start_time ? ` ${formatTime12h(c.start_time)} - ${formatTime12h(c.end_time)}` : ' (all day)'}; reason: ${reasonEnglish(c)}`),
+    // With the weekday spelled out: tested live 2026-10-23, the AI turned
+    // 2026-11-06 into "Thursday" on its own (it is a Friday).
+    ...list.map(c => `- ${name(c.location_id)}: ${c.start_date === c.end_date ? withDay(c.start_date) : `${withDay(c.start_date)} to ${withDay(c.end_date)}`}${c.start_time ? ` ${formatTime12h(c.start_time)} - ${formatTime12h(c.end_time)}` : ' (all day)'}; reason: ${reasonEnglish(c)}`),
   ].join('\n')
 }
 
