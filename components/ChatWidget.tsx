@@ -217,12 +217,22 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
      the node so no extra render is needed. */
   const heardRef = useRef<Set<string>>(new Set())
   const liveRef = useRef<HTMLDivElement>(null)
+  const spokenRef = useRef<string | null>(null)
   useEffect(() => {
+    // The desk recalled the reply last read out (owner, 2026-10-23): its text
+    // leaves the hidden region too, so no trace of it stays on the page.
+    if (spokenRef.current && liveRef.current && !messages.some(m => m.id === spokenRef.current)) {
+      liveRef.current.textContent = ''
+      spokenRef.current = null
+    }
     const school = messages.filter(m => (m.sender_type === 'ai' || m.sender_type === 'admin') && m.id && !heardRef.current.has(m.id))
     if (!school.length) return
     school.forEach(m => heardRef.current.add(m.id))
     const m = school[school.length - 1]
-    if (open && liveRef.current) liveRef.current.textContent = `${t(m.sender_type === 'ai' ? 'chat.fromAi' : 'chat.fromDesk')}: ${m.body}`
+    if (open && liveRef.current) {
+      liveRef.current.textContent = `${t(m.sender_type === 'ai' ? 'chat.fromAi' : 'chat.fromDesk')}: ${m.body}`
+      spokenRef.current = m.id
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, open])
 
