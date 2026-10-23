@@ -16,7 +16,7 @@ export type FaqCategory = { id: string; items: readonly string[] }
 export const FAQ: readonly FaqCategory[] = [
   {
     id: 'first',
-    items: ['start', 'age', 'adaptive', 'bring', 'diaper', 'pool', 'watch', 'coachSafety', 'crying'],
+    items: ['start', 'age', 'adaptive', 'bring', 'diaper', 'pool', 'changing', 'parking', 'watch', 'supervision', 'coachSafety', 'lifeguard', 'crying'],
   },
   {
     id: 'lessons',
@@ -24,7 +24,7 @@ export const FAQ: readonly FaqCategory[] = [
   },
   {
     id: 'booking',
-    items: ['fixedWhat', 'single14', 'cancel', 'late', 'voucher', 'renew', 'moveSlot', 'pair24', 'pairOther', 'assessCancel', 'weather'],
+    items: ['fixedWhat', 'single14', 'cancel', 'late', 'sick', 'voucher', 'renew', 'moveSlot', 'pair24', 'pairOther', 'assessCancel', 'weather'],
   },
   {
     id: 'money',

@@ -2302,5 +2302,15 @@
   "chat.guestEmail.subject": "Manta Shark Aquatics replied to your message",
   "chat.guestEmail.title": "We replied",
   "chat.guestEmail.note": "You can reply to this email, or continue in the chat on our website.",
-  "chat.guestEmail.button": "Open the chat"
+  "chat.guestEmail.button": "Open the chat",
+  "faq.q.parking": "Where do we park?",
+  "faq.a.parking": "Park on the street around the pool. Please don't park in the driveway, and never on a red curb.",
+  "faq.q.changing": "Are there changing rooms and showers?",
+  "faq.a.changing": "There are changing rooms and restrooms. There are no showers for now.",
+  "faq.q.supervision": "Do I need to stay during the lesson? Who looks after my child afterwards?",
+  "faq.a.supervision": "Please have a parent or guardian stay on site for the whole lesson; you can watch from the side. Before the lesson, wait with your child until the coach takes over, and pick your child up as soon as the lesson ends, because the coach has another lesson right after. Please go with your child to the restroom and when changing, and keep any brothers or sisters with an adult.",
+  "faq.q.lifeguard": "Is there a lifeguard during lessons?",
+  "faq.a.lifeguard": "Our coaches are certified lifeguards. Every lesson is private or a small group, so the coach's attention stays on the swimmers the whole time.",
+  "faq.q.sick": "My child is sick. Can we take leave?",
+  "faq.a.sick": "Yes. Please keep your child home with a fever, vomiting, diarrhea, a cough or runny nose, or an open wound or rash. After diarrhea, please wait two weeks before swimming again; this is the CDC's advice for pools. Taking leave works the usual way: more than 24 hours before the lesson, cancel a single lesson and the points come back, or tap “Take leave” on a fixed-class lesson for a make-up voucher. If your child falls ill within 24 hours, message us: with a doctor's note the points come back and this month's grace is not used; without a note, each swimmer can have this once."
 }
