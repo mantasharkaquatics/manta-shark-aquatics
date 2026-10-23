@@ -2343,5 +2343,10 @@
   "followup.summer.title": "今年夏天也一起來游泳吧",
   "followup.summer.body": "{names} 去年夏天和我們一起游泳。今年暑期時段已經開放預約，越早預約，越容易每週固定同一個時段。",
   "followup.summer.button": "預約暑期課程",
-  "followup.test.parent": "家長"
+  "followup.test.parent": "家長",
+  "dash.newTag": "新",
+  "dash.newReports": "{name} 有 {n} 份新的上課報告",
+  "dash.newReportsOne": "{name} 有 1 份新的上課報告",
+  "dash.newReportsView": "查看",
+  "dash.newCountAria": "{n} 份新報告"
 }

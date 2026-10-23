@@ -158,6 +158,11 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 11.5px; color: rgba(255,255,255,0.7) }
 .msa-mcard-meta b { color: #f7b733 }
 .msa-mcard-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px }
+.msa-new-dot { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+  border-radius: 9px; background: #e05a4a; color: #fff; font-size: 11px; font-weight: 800; line-height: 1; vertical-align: 1px }
+.msa-newrep { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 12px; padding: 12px 14px; border: 1px solid #f3c9c2;
+  border-radius: 12px; background: #fff5f3; color: #16294a; font-size: 14px; text-align: left; cursor: pointer }
+.msa-newrep b { color: #b4321f; font-size: 13px; white-space: nowrap }
 .msa-mcard-credit { margin-top: 12px; border: 1px solid rgba(94,214,150,0.45); background: rgba(94,214,150,0.12);
   border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
 .msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
@@ -284,7 +289,9 @@ const AMBER = BRAND.amber
 
 
 interface Parent { id: string; first_name: string; last_name: string; email: string; phone?: string | null }
-interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string; trial_used_at: string | null }
+interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string; trial_used_at: string | null
+  /** When the family last opened this swimmer's lesson records (docs/migration-reports-seen.sql); null = never. */
+  reports_seen_at?: string | null }
 interface SkillProgress {
   skill_id: string
   skill_name: string
@@ -293,6 +300,9 @@ interface SkillProgress {
 }
 interface ProgressRecord {
   session_date: string
+  /** When a manager approved the report: newer than the swimmer's
+   *  reports_seen_at = a new report (owner, 2026-10-23). */
+  reviewed_at?: string | null
   lesson_key?: string
   start_time?: string
   course_name?: string
@@ -482,6 +492,13 @@ const STATUS_COLORS: Record<string, string> = {
   pending: GOLD,
 }
 
+/* The red count on a "Lesson records" button: new reports (owner, 2026-10-23). */
+function NewDot({ n }: { n: number }) {
+  const t = useT()
+  if (n <= 0) return null
+  return <span className="msa-new-dot" aria-label={t('dash.newCountAria', { n })}>{n}</span>
+}
+
 // QR Modal Component
 /* One swimmer's lessons, in one list.
  *
@@ -496,10 +513,13 @@ const STATUS_COLORS: Record<string, string> = {
  * does not line up takes the only unmatched lesson on its date. Anything still
  * left over is listed on its own rather than dropped -- losing a coach's note
  * would be worse than showing a lesson twice. */
-function RecordsSheet({ student, past, records, page, setPage, onClose }: {
+function RecordsSheet({ student, past, records, newSince, page, setPage, onClose }: {
   student: Student
   past: Booking[]
   records: ProgressRecord[]
+  /** The family's last look before this one: reports approved after it are
+   *  tagged New. undefined = tag nothing. */
+  newSince?: string | null
   page: number
   setPage: (n: number) => void
   onClose: () => void
@@ -569,6 +589,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
             const hasDetail = !!r.rec && (!!r.rec.note || r.rec.skills.length > 0)
             const underReview = !r.rec && !!b && pendingReports.some(p => p.date === r.date && (!p.start || hm(p.start) === hm(r.start)))
             const isOpen = !!open[r.key]
+            const isNew = newSince !== undefined && !!r.rec?.reviewed_at && (newSince === null || r.rec.reviewed_at > newSince)
             return (
               <div key={r.key} style={{ border: '1px solid #e3ebf6', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
                 <button className="tap-auto" disabled={!hasDetail} aria-expanded={hasDetail ? isOpen : undefined}
@@ -585,6 +606,7 @@ function RecordsSheet({ student, past, records, page, setPage, onClose }: {
                       {r.coach ? ` · ${t('dash.withCoach', { name: r.coach })}` : ''}
                     </span>
                   </span>
+                  {isNew && <span style={{ fontSize: '10px', fontWeight: 800, color: '#fff', background: '#e05a4a', borderRadius: '10px', padding: '2px 8px', flexShrink: 0 }}>{t('dash.newTag')}</span>}
                   {r.rec?.note && <span style={{ fontSize: '10px', fontWeight: 700, color: GOLD, flexShrink: 0 }}>{t('dash.coachNote')}</span>}
                   {underReview && <span style={{ fontSize: '10px', fontWeight: 700, color: '#56647d', background: '#eef2f8', borderRadius: '10px', padding: '2px 8px', flexShrink: 0, whiteSpace: 'nowrap' }}>{t('dash.reportUnderReview')}</span>}
                   {badge && (
@@ -1999,6 +2021,25 @@ export default function DashboardPage() {
     try { const u = new URL(window.location.href); u.searchParams.delete('report'); window.history.replaceState(null, '', u.toString()) } catch {}
   }, [monthlyReports, monthlyRead, students])
   const [recordsPage, setRecordsPage] = useState(0)
+  /* New lesson reports (owner, 2026-10-23): approved after the family last
+     opened that swimmer's records. seenNow holds the marks made on this
+     visit, so the red dot goes the moment the records open; recordsNewSince
+     is the mark from before, so the open sheet can still tag what was new. */
+  const [seenNow, setSeenNow] = useState<Record<string, string>>({})
+  const [recordsNewSince, setRecordsNewSince] = useState<string | null | undefined>(undefined)
+  const newReportCount = (st: Student) => {
+    const seen = seenNow[st.id] ?? st.reports_seen_at ?? null
+    return (studentProgressMap[st.id]?.records || []).filter(r => r.reviewed_at && (seen === null || r.reviewed_at > seen)).length
+  }
+  const openRecords = (st: Student) => {
+    setRecordsNewSince(newReportCount(st) > 0 ? (seenNow[st.id] ?? st.reports_seen_at ?? null) : undefined)
+    setRecordsFor(st)
+    setRecordsPage(0)
+    if (newReportCount(st) > 0) {
+      setSeenNow(m => ({ ...m, [st.id]: new Date().toISOString() }))
+      fetch('/api/parent/reports-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: st.id }) }).catch(() => {})
+    }
+  }
   const [pointsOpen, setPointsOpen] = useState(false)
   // Safety information still missing (owner, 2026-10-22): a banner until each
   // swimmer has answered the medical question and an emergency contact is on
@@ -2386,7 +2427,7 @@ export default function DashboardPage() {
              fell back to 0% (found 2026-10-08). id keeps the pages from
              overlapping. */
           return await allRows(() => supabase.from('progress_history')
-            .select('student_id, session_date, snapshot, lesson_key, class_session_id')
+            .select('student_id, session_date, snapshot, lesson_key, class_session_id, reviewed_at')
             .in('student_id', ids)
             .eq('status', 'approved')
             .order('session_date', { ascending: false })
@@ -2709,7 +2750,7 @@ export default function DashboardPage() {
     const { data: histRows } = await histPromise
 
     // Group all records by student
-    const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number>; lesson_key: string | null; class_session_id: string | null }[]> = {}
+    const allByStudent: Record<string, { session_date: string; snapshot: Record<string, number>; lesson_key: string | null; class_session_id: string | null; reviewed_at: string | null }[]> = {}
     for (const row of histRows || []) {
       const sid = row.student_id
       if (!allByStudent[sid]) allByStudent[sid] = []
@@ -2718,6 +2759,7 @@ export default function DashboardPage() {
         snapshot: row.snapshot || {},
         lesson_key: row.lesson_key || null,
         class_session_id: row.class_session_id || null,
+        reviewed_at: row.reviewed_at || null,
       })
     }
 
@@ -2859,6 +2901,7 @@ export default function DashboardPage() {
         const isTrial = !!hist.class_session_id && trialLesson.has(`${sid}|${hist.class_session_id}`)
         return {
           session_date: hist.session_date,
+          reviewed_at: hist.reviewed_at,
           lesson_key: hist.lesson_key || hist.class_session_id || hist.session_date,
           start_time: info?.start_time || '',
           course_name: isTrial ? tProg('common.assessment') : (info?.course_name || ''),
@@ -3104,6 +3147,7 @@ export default function DashboardPage() {
           student={recordsFor}
           past={pastBookings.filter(b => b.student_id === recordsFor.id)}
           records={studentProgressMap[recordsFor.id]?.records || []}
+          newSince={recordsNewSince}
           page={recordsPage}
           setPage={setRecordsPage}
           onClose={() => setRecordsFor(null)}
@@ -3338,6 +3382,13 @@ export default function DashboardPage() {
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
           <h2 className="msa-sec-h">{t('dash.mySwimmers')}</h2>
+          {students.filter(s => newReportCount(s) > 0).map(s => (
+            <button key={s.id} type="button" className="tap-auto msa-newrep" onClick={() => openRecords(s)}>
+              <span aria-hidden="true">📋</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{t(newReportCount(s) === 1 ? 'dash.newReportsOne' : 'dash.newReports', { name: s.full_name, n: newReportCount(s) })}</span>
+              <b>{t('dash.newReportsView')} ›</b>
+            </button>
+          ))}
           <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
             {students.map((student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
@@ -3377,7 +3428,7 @@ export default function DashboardPage() {
                       {monthlyLine}
                       {pastBookings.some(b => b.student_id === student.id) && (
                         <div className="msa-mcard-btns">
-                          <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>{t('dash.records')}</button>
+                          <button className="tap-auto" onClick={() => openRecords(student)}>{t('dash.records')}<NewDot n={newReportCount(student)} /></button>
                         </div>
                       )}
                     </>
@@ -3413,8 +3464,8 @@ export default function DashboardPage() {
                             onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
                             {t('dash.skillTree')}
                           </button>
-                          <button className="tap-auto" onClick={() => { setRecordsFor(student); setRecordsPage(0) }}>
-                            {t('dash.records')}
+                          <button className="tap-auto" onClick={() => openRecords(student)}>
+                            {t('dash.records')}<NewDot n={newReportCount(student)} />
                           </button>
                           {report && (
                             <button className="tap-auto" onClick={() => setReportFor(student)}>

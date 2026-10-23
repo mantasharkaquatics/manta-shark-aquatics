@@ -2343,5 +2343,10 @@
   "followup.summer.title": "See you in the pool this summer?",
   "followup.summer.body": "{names} swam with us last summer. Summer times are now open, and the earlier you book, the easier it is to keep the same time every week.",
   "followup.summer.button": "Book summer lessons",
-  "followup.test.parent": "Alex"
+  "followup.test.parent": "Alex",
+  "dash.newTag": "New",
+  "dash.newReports": "{name} has {n} new lesson reports",
+  "dash.newReportsOne": "{name} has a new lesson report",
+  "dash.newReportsView": "View",
+  "dash.newCountAria": "{n} new"
 }
