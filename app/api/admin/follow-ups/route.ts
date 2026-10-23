@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 import { getTodayLA } from '@/lib/date'
-import { assessmentsWithoutBooking, lapsedFamilies, lastSummer, sendSummerReminders, summerFamilies } from '@/lib/follow-ups'
+import { assessmentsWithoutBooking, lapsedFamilies, lastSummer, sendSummerReminders, sendTestFollowUp, summerFamilies } from '@/lib/follow-ups'
+import { isLocale } from '@/lib/i18n/all'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,9 @@ export const maxDuration = 300
 
    GET ?days=45                          -> { assess, lapsed, summerYear, today }
    POST { action: 'summer_preview', year } -> who the summer email would reach
-   POST { action: 'summer_send', year }    -> send it (once per family per year) */
+   POST { action: 'summer_send', year }    -> send it (once per family per year)
+   POST { action: 'test', kind, lang }     -> a [TEST] copy to the signed-in admin's own email
+                                             (kind: assess3 | assess14 | summer) */
 
 const DAY_CHOICES = [30, 45, 60, 90]
 
@@ -39,6 +42,17 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await readJson(req)
   if (!b) return badRequest()
+  if (b.action === 'test') {
+    const to = auth.user.email
+    if (!to || !['assess3', 'assess14', 'summer'].includes(b.kind) || !isLocale(b.lang)) return badRequest()
+    try {
+      const ok = await sendTestFollowUp(auth.svc, b.kind, b.lang, to)
+      return ok ? NextResponse.json({ ok: true, to }) : NextResponse.json({ error: 'Email not sent', code: 'failed' }, { status: 502 })
+    } catch (e) {
+      console.error('[admin/follow-ups test]', e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: 'unavailable', code: 'unavailable' }, { status: 503 })
+    }
+  }
   const year = Number(b.year)
   const thisYear = Number(getTodayLA().slice(0, 4))
   if (!Number.isInteger(year) || year < 2024 || year > thisYear) return NextResponse.json({ error: 'Invalid year', code: 'year' }, { status: 400 })

@@ -1809,5 +1809,10 @@
   "admin.followUps.summerSendNow": "確定寄出",
   "admin.followUps.summerResult": "已寄 {sent} 封 · {already} 個之前寄過 · {off} 個未訂閱 · {failed} 封失敗",
   "admin.followUps.err.load": "名單讀取失敗。",
-  "admin.followUps.err.failed": "沒有成功，請再試一次。"
+  "admin.followUps.err.failed": "沒有成功，請再試一次。",
+  "admin.followUps.test.assess3": "測試：第 3 天信",
+  "admin.followUps.test.assess14": "測試：第 14 天信",
+  "admin.followUps.test.summer": "測試：暑期提醒",
+  "admin.followUps.test.send": "寄測試信給我",
+  "admin.followUps.test.sent": "已寄到 {to}"
 }

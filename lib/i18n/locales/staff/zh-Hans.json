@@ -1809,5 +1809,10 @@
   "admin.followUps.summerSendNow": "确定发出",
   "admin.followUps.summerResult": "已发 {sent} 封 · {already} 个之前发过 · {off} 个未订阅 · {failed} 封失败",
   "admin.followUps.err.load": "名单读取失败。",
-  "admin.followUps.err.failed": "没有成功，请再试一次。"
+  "admin.followUps.err.failed": "没有成功，请再试一次。",
+  "admin.followUps.test.assess3": "测试：第 3 天信",
+  "admin.followUps.test.assess14": "测试：第 14 天信",
+  "admin.followUps.test.summer": "测试：暑期提醒",
+  "admin.followUps.test.send": "发测试信给我",
+  "admin.followUps.test.sent": "已发到 {to}"
 }

@@ -2342,5 +2342,6 @@
   "followup.summer.subject": "Summer swim lessons are open for booking",
   "followup.summer.title": "See you in the pool this summer?",
   "followup.summer.body": "{names} swam with us last summer. Summer times are now open, and the earlier you book, the easier it is to keep the same time every week.",
-  "followup.summer.button": "Book summer lessons"
+  "followup.summer.button": "Book summer lessons",
+  "followup.test.parent": "Alex"
 }

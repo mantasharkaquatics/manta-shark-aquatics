@@ -286,6 +286,32 @@ export async function sendSummerReminders(svc: Svc, year: number) {
   return out
 }
 
+/** A test copy to a member of staff (Admin > Follow-ups): marked [TEST], in
+ *  the language picked, with no record kept and an unsubscribe link that
+ *  names no family. The assessment emails use a real swimmer from the list
+ *  (or the newest assessment) so the figures are real. */
+export async function sendTestFollowUp(svc: Svc, kind: 'assess3' | 'assess14' | 'summer', lang: Locale, to: string): Promise<boolean> {
+  const today = getTodayLA()
+  let a: AssessFollow | undefined = (await assessmentsWithoutBooking(svc, today))[0]
+  if (!a) {
+    const { data: r } = await svc.from('student_assessments')
+      .select('id, student_id, parent_id, assessed_on, confirmed_at, recommended_course, weekly_frequency, credit_deadline, credit_status')
+      .not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false }).limit(1).maybeSingle()
+    const { data: s } = r ? await svc.from('students').select('full_name').eq('id', (r as any).student_id).maybeSingle() : { data: null }
+    a = {
+      assessmentId: (r as any)?.id || 'test', studentId: (r as any)?.student_id || 'test', studentName: (s as any)?.full_name || 'Alex',
+      parentId: 'test', family: '', parentFirst: '', email: to, phone: null, lang, subscribed: true,
+      confirmedOn: today, daysSince: 3, course: (r as any)?.recommended_course || '1on1', frequency: (r as any)?.weekly_frequency || '1',
+      creditDeadline: (r as any)?.credit_deadline || addDays(today, 57), creditStatus: (r as any)?.credit_status || 'pending', assessedOn: (r as any)?.assessed_on || today, sent: [],
+    }
+  }
+  const sample: AssessFollow = { ...a, parentId: 'test', lang, parentFirst: getT(lang)('followup.test.parent') }
+  const mail = kind === 'summer'
+    ? renderSummer({ parentId: 'test', family: '', email: to, lang, subscribed: true, swimmers: [sample.studentName], sent: false }, sample.parentFirst)
+    : await renderAssessFollowUp(svc, sample, kind === 'assess3' ? 3 : 14, today)
+  return sendRawEmail({ to, subject: '[TEST] ' + mail.subject, html: mail.html })
+}
+
 /** The summer the button defaults to: this year's once September has come,
  *  otherwise last year's. */
 export function lastSummer(today = getTodayLA()): number {

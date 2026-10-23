@@ -1809,5 +1809,10 @@
   "admin.followUps.summerSendNow": "Send now",
   "admin.followUps.summerResult": "{sent} sent · {already} already had it · {off} not subscribed · {failed} failed",
   "admin.followUps.err.load": "The list could not be loaded.",
-  "admin.followUps.err.failed": "That did not work. Try again."
+  "admin.followUps.err.failed": "That did not work. Try again.",
+  "admin.followUps.test.assess3": "Test: day-3 email",
+  "admin.followUps.test.assess14": "Test: day-14 email",
+  "admin.followUps.test.summer": "Test: summer email",
+  "admin.followUps.test.send": "Send a test to me",
+  "admin.followUps.test.sent": "Sent to {to}"
 }

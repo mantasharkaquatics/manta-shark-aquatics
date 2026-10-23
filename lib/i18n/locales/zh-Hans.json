@@ -2342,5 +2342,6 @@
   "followup.summer.subject": "暑期游泳课开放预约了",
   "followup.summer.title": "今年夏天也一起来游泳吧",
   "followup.summer.body": "{names} 去年夏天和我们一起游泳。今年暑期时段已经开放预约，越早预约，越容易每周固定同一个时段。",
-  "followup.summer.button": "预约暑期课程"
+  "followup.summer.button": "预约暑期课程",
+  "followup.test.parent": "家长"
 }

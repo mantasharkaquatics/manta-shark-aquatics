@@ -28,6 +28,9 @@ export default function FollowUpsClient() {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ sent: number; alreadySent: number; notSubscribed: number; failed: number } | null>(null)
+  const [testKind, setTestKind] = useState<'assess3' | 'assess14' | 'summer'>('assess3')
+  const [testLang, setTestLang] = useState<string>(locale)
+  const [testSent, setTestSent] = useState<string | null>(null)
 
   const load = useCallback(async (d: number) => {
     const r = await fetch(`/api/admin/follow-ups?days=${d}`, { cache: 'no-store' }).catch(() => null)
@@ -46,6 +49,11 @@ export default function FollowUpsClient() {
     setBusy(false)
     if (!r || !r.ok) { setAlertMsg(t('admin.followUps.err.failed')); return null }
     return r.json()
+  }
+  async function sendTest() {
+    setTestSent(null)
+    const j = await post({ action: 'test', kind: testKind, lang: testLang })
+    if (j) setTestSent(j.to)
   }
   async function preview() {
     setResult(null); setConfirming(false)
@@ -71,6 +79,18 @@ export default function FollowUpsClient() {
       <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />
       <h1 className="text-2xl font-bold text-white">{t('admin.nav.followUps')}</h1>
       <p className="text-gray-400 text-sm mt-1 max-w-2xl">{t('admin.followUps.intro')}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <select value={testKind} onChange={e => { setTestKind(e.target.value as typeof testKind); setTestSent(null) }} className="rounded-lg bg-[#0d1529] border border-[#1e3a6e] text-white p-2 text-sm">
+          <option value="assess3">{t('admin.followUps.test.assess3')}</option>
+          <option value="assess14">{t('admin.followUps.test.assess14')}</option>
+          <option value="summer">{t('admin.followUps.test.summer')}</option>
+        </select>
+        <select value={testLang} onChange={e => { setTestLang(e.target.value); setTestSent(null) }} className="rounded-lg bg-[#0d1529] border border-[#1e3a6e] text-white p-2 text-sm">
+          <option value="zh-Hant">繁體中文</option><option value="en">English</option><option value="zh-Hans">简体中文</option>
+        </select>
+        <button disabled={busy} onClick={sendTest} className="px-3 py-2 rounded-lg border border-[#c9a84c] text-[#c9a84c] text-sm font-semibold disabled:opacity-50">{t('admin.followUps.test.send')}</button>
+        {testSent && <span role="status" className="text-emerald-300 text-sm">{t('admin.followUps.test.sent', { to: testSent })}</span>}
+      </div>
 
       <section className="mt-8">
         <h2 className="text-white font-semibold">{t('admin.followUps.assessTitle', { n: data.assess.length })}</h2>
