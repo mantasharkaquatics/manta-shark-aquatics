@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireCron } from '@/lib/cron-auth'
 import { sweepLowBalance } from '@/lib/low-balance'
 import { sendEmail } from '@/lib/email'
+import { sendAssessmentFollowUps } from '@/lib/follow-ups'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -31,14 +32,24 @@ export async function GET(req: NextRequest) {
       })
     }, { dry })
 
+    // The same 9:00 run sends the day-3 / day-14 reminders after a Swim
+    // Assessment with nothing booked (lib/follow-ups.ts, owner 2026-10-23), so
+    // no second cron job is needed. Its failure never fails the low-balance run.
+    let followUps: unknown = null
+    try { followUps = await sendAssessmentFollowUps(svc, { dry }) } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('assessment follow-ups failed:', msg)
+      followUps = { error: msg }
+    }
+
     if (dry && result.dry?.length) {
       const ids = result.dry.map(d => d.parentId)
       const { data: ps } = await svc.from('parents').select('id, first_name').in('id', ids)
       const name = new Map((ps || []).map((p: any) => [p.id, p.first_name || '?']))
-      return NextResponse.json({ ...result, dry: result.dry.map(d => ({ family: name.get(d.parentId) || '?', weeksLeft: d.weeksLeft })) })
+      return NextResponse.json({ ...result, dry: result.dry.map(d => ({ family: name.get(d.parentId) || '?', weeksLeft: d.weeksLeft })), followUps })
     }
-    console.log('low-balance:', JSON.stringify(result))
-    return NextResponse.json(result, { status: result.failed ? 207 : 200 })
+    console.log('low-balance:', JSON.stringify(result), 'follow-ups:', JSON.stringify(followUps))
+    return NextResponse.json({ ...result, followUps }, { status: result.failed ? 207 : 200 })
   } catch (e: any) {
     console.error('low-balance failed:', e?.message || e)
     return NextResponse.json({ error: e?.message || 'failed' }, { status: 500 })

@@ -314,3 +314,18 @@ desk picks a pool, a day / several days / part of one day, and a reason
 - **Everyone sees it:** components/ClosureBanner under the nav bar on every
   page (via /api/closures, cached 60s) until the closure ends or the desk
   hides it; the AI gets the active closures in its dynamic context.
+
+# Follow-ups: families who could slip away (owner, 2026-10-23)
+
+lib/follow-ups.ts, Admin > Follow-ups, docs/migration-family-notices.sql.
+
+- **After a Swim Assessment with nothing booked:** an email on day 3 and
+  day 14 after the report is confirmed (recommendation, assessment credit
+  left, book button). Sent by the daily 9:00 low-balance cron, which calls
+  `sendAssessmentFollowUps`; a step more than 4 days late is skipped.
+- **Not seen for a while:** listed for the desk only. No automatic email
+  (owner: some families come only in summer).
+- **Summer registration:** sent only when the owner presses the button,
+  once per family per year.
+- All three are marketing mail: newsletter subscribers only, unsubscribe link
+  and postal address, one `family_notices` row per email so none goes twice.

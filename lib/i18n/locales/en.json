@@ -2328,5 +2328,19 @@
   "mail.teamClosure.title": "Swim Team Practice Cancelled",
   "mail.teamClosure.body": "We're sorry — the pool is closed ({reason}), so {student}'s Swim Team practice below is cancelled.",
   "mail.teamClosure.after": "Please don't come to the pool for this practice. We apologize for the inconvenience.",
-  "mail.row.team": "Team"
+  "mail.row.team": "Team",
+  "followup.assess.subject3": "{name}'s Swim Assessment: what's next",
+  "followup.assess.title3": "Ready for {name}'s first lesson?",
+  "followup.assess.body3": "Thank you for bringing {name} to the Swim Assessment. The coach recommended {rec}. Booking the first lesson soon makes it easier to keep the same time every week.",
+  "followup.assess.subject14": "{days} days left on {name}'s assessment credit",
+  "followup.assess.subject14plain": "{name}'s next step after the Swim Assessment",
+  "followup.assess.title14": "{name}'s spot in the pool is waiting",
+  "followup.assess.body14": "It has been two weeks since {name}'s Swim Assessment. The coach recommended {rec}.",
+  "followup.assess.credit": "Take {n} lessons by {date} and the assessment fee comes back to your account as {points} points ({done} of {n} so far).",
+  "followup.assess.button": "Book a lesson",
+  "followup.assess.buttonTeam": "Join the Swim Team",
+  "followup.summer.subject": "Summer swim lessons are open for booking",
+  "followup.summer.title": "See you in the pool this summer?",
+  "followup.summer.body": "{names} swam with us last summer. Summer times are now open, and the earlier you book, the easier it is to keep the same time every week.",
+  "followup.summer.button": "Book summer lessons"
 }

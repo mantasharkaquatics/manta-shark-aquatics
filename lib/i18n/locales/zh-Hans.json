@@ -2328,5 +2328,19 @@
   "mail.teamClosure.title": "泳队练习取消",
   "mail.teamClosure.body": "很抱歉，泳池临时停课（{reason}），{student} 以下的泳队练习取消。",
   "mail.teamClosure.after": "这次练习请不要到泳池。造成不便，非常抱歉。",
-  "mail.row.team": "泳队"
+  "mail.row.team": "泳队",
+  "followup.assess.subject3": "{name} 的游泳评估：下一步",
+  "followup.assess.title3": "准备好开始 {name} 的第一节课了吗？",
+  "followup.assess.body3": "谢谢您带 {name} 来做游泳评估。教练建议：{rec}。早一点预约第一节课，比较容易每周固定同一个时段。",
+  "followup.assess.subject14": "{name} 的评估费折抵还剩 {days} 天",
+  "followup.assess.subject14plain": "{name} 游泳评估后的下一步",
+  "followup.assess.title14": "{name} 的泳道还在等您",
+  "followup.assess.body14": "{name} 做完游泳评估已经两周了。教练建议：{rec}。",
+  "followup.assess.credit": "在 {date} 前上满 {n} 节课，评估费会以 {points} 点退回您的账户（目前 {done}/{n} 节）。",
+  "followup.assess.button": "预约课程",
+  "followup.assess.buttonTeam": "加入泳队",
+  "followup.summer.subject": "暑期游泳课开放预约了",
+  "followup.summer.title": "今年夏天也一起来游泳吧",
+  "followup.summer.body": "{names} 去年夏天和我们一起游泳。今年暑期时段已经开放预约，越早预约，越容易每周固定同一个时段。",
+  "followup.summer.button": "预约暑期课程"
 }
