@@ -67,7 +67,7 @@ async function threadFor(svc: any, key: unknown) {
 
 async function listMessages(svc: any, threadId: string) {
   const { data } = await svc.from('chat_messages').select('id, sender_type, body, metadata, created_at')
-    .eq('thread_id', threadId).order('created_at', { ascending: true }).limit(200)
+    .eq('thread_id', threadId).is('recalled_at', null).order('created_at', { ascending: true }).limit(200)
   return data || []
 }
 
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
   let reply = ''
   let meta: Record<string, unknown> | null = null
   try {
-    let hq = svc.from('chat_messages').select('sender_type, body').eq('thread_id', threadId)
+    let hq = svc.from('chat_messages').select('sender_type, body').eq('thread_id', threadId).is('recalled_at', null)
       .order('created_at', { ascending: false }).limit(HISTORY)
     if (thread!.ai_context_from) hq = hq.gte('created_at', thread!.ai_context_from)
     const { data: hist } = await hq

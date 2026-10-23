@@ -277,3 +277,19 @@ phone. Text messages still go to the main account's phone only.
 - **My Account** has the photo/video consent switch and "request account
   deletion" (/api/parent/account). Deletion is a request the desk settles
   (points, lessons, team) before deleting; only the main account can ask.
+
+# Recalled chat messages (owner, 2026-10-23)
+
+Admin > Messages can recall a desk or AI reply up to 24 hours old
+(/api/admin/chat-recall, docs/migration-chat-recall.sql). The row stays with
+`recalled_at` / `recalled_by`; the desk sees it folded, the family sees nothing.
+
+- Families read chat_messages through RLS, and the policy skips recalled rows.
+  **Every server read (service role) of a conversation a family, a visitor or
+  the AI will see must add `.is('recalled_at', null)`** -- the guest chat, the
+  AI's history and the unread-reply email already do.
+- An open family chat drops it on a `recall` broadcast on `chat:<thread id>`;
+  the guest chat drops it on its 15-second poll.
+- A visitor's reply email is held 2 minutes by Resend (`sendEmailWithId` with
+  `scheduledAt`, id kept in `chat_messages.email_id`); a recall in that time
+  cancels it. After that the email is out and the desk is told so.

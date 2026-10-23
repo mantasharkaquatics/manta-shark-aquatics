@@ -17,10 +17,13 @@ const HISTORY_LIMIT = 200
 // visitor chats, families who had not written in a while -- could not be
 // opened at all. "Load more" reads the next page.
 const THREAD_PAGE = 100
+// A desk or AI reply can be recalled for this long (owner, 2026-10-23).
+const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
 // adminId is no longer read here: the desk's reply is stamped with the
 // signed-in admin by app/api/admin/chat-message (2026-10-15).
-export default function AdminMessagesClient({ adminName }: { adminId: string; adminName: string }) {
+export default function AdminMessagesClient({ adminName, adminNames = {} }: { adminId: string; adminName: string; adminNames?: Record<string, string> }) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -35,6 +38,17 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
   const [sendError, setSendError] = useState<string | null>(null)
   const [hasMoreThreads, setHasMoreThreads] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(false)
+  /* Recall (owner, 2026-10-23; /api/admin/chat-recall): a desk or AI reply up
+     to 24 hours old. Here it stays, folded under "Recalled"; the family sees
+     nothing. confirmRecall is the message asking "recall this?", openRecalled
+     the folded ones opened to read. */
+  const [confirmRecall, setConfirmRecall] = useState<string | null>(null)
+  const [recalling, setRecalling] = useState<string | null>(null)
+  const [openRecalled, setOpenRecalled] = useState<Set<string>>(new Set())
+  const [notice, setNotice] = useState<string | null>(null)
+  // "Recall" disappears once a message passes 24 hours; checked each minute.
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => { const id = setInterval(() => setNowMs(Date.now()), 60000); return () => clearInterval(id) }, [])
 
   async function setThreadMode(mode: 'ai' | 'human') {
     if (!selectedThread || switchingMode) return
@@ -102,6 +116,15 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
           }
           return [th, ...prev.slice(0, i), ...prev.slice(i + 1)]
         })
+        refetchThreadSoon(msg.thread_id)
+      })
+      // Another admin recalled a message: fold it here too.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
+        const msg = payload.new as any
+        if (!msg?.recalled_at) return
+        if (selectedThreadRef.current?.id === msg.thread_id) {
+          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, recalled_at: msg.recalled_at, recalled_by: msg.recalled_by } : m))
+        }
         refetchThreadSoon(msg.thread_id)
       })
       .subscribe()
@@ -191,6 +214,8 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
     selectedThreadRef.current = thread
     setSelectedThread(thread)
     setMessages([])
+    setConfirmRecall(null)
+    setNotice(null)
     setHasOlder(false)
     setSendError(null)
     setMobileView('chat')
@@ -219,6 +244,29 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
     const thread = threads.find(th => th.id === current.id)
     if (thread?.unread_by_admin) {
       await markRead(current.id)
+    }
+  }
+
+  async function recallMessage(id: string) {
+    setRecalling(id)
+    setSendError(null)
+    setNotice(null)
+    try {
+      const r = await fetch('/api/admin/chat-recall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: id }) })
+      const d = await r.json().catch(() => ({} as any))
+      if (!r.ok && d.code !== 'already') {
+        setSendError(t(d.code === 'too_old' ? 'admin.messages.recallTooOld' : 'admin.messages.recallFailed'))
+        return
+      }
+      if (d.recalled_at) setMessages(prev => prev.map(m => m.id === id ? { ...m, recalled_at: d.recalled_at, recalled_by: d.recalled_by } : m))
+      if (d.email === 'sent') setNotice(t('admin.messages.recallEmailSent'))
+      setConfirmRecall(null)
+      const current = selectedThreadRef.current
+      if (current) fetchThreadRow(current.id)
+    } catch {
+      setSendError(t('admin.messages.recallFailed'))
+    } finally {
+      setRecalling(null)
     }
   }
 
@@ -380,31 +428,76 @@ export default function AdminMessagesClient({ adminName }: { adminId: string; ad
                     {loadingOlder ? '...' : t('admin.messages.loadEarlier')}
                   </button>
                 )}
-                {messages.map(msg => (
-                  <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-start' : 'flex-end' }}>
+                {messages.map(msg => {
+                  const recalled = !!msg.recalled_at
+                  const opened = openRecalled.has(msg.id)
+                  const recalledLine = recalled && t(adminNames[msg.recalled_by] ? 'admin.messages.recalledBy' : 'admin.messages.recalled', { name: adminNames[msg.recalled_by] || '', time: clock(msg.recalled_at) })
+                  const toggleOpen = () => setOpenRecalled(prev => { const n = new Set(prev); if (n.has(msg.id)) n.delete(msg.id); else n.add(msg.id); return n })
+                  // Folded: one quiet line where the message was.
+                  if (recalled && !opened) return (
+                    <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleOpen() }} style={{
+                        background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '12px',
+                        padding: '6px 12px', color: 'rgba(255,255,255,0.55)', fontSize: '12px', cursor: 'pointer',
+                      }}>
+                        ↩ {recalledLine} · {t('admin.messages.recallShow')}
+                      </button>
+                    </div>
+                  )
+                  const canRecall = (msg.sender_type === 'admin' || msg.sender_type === 'ai') && !recalled && !msg._local
+                    && nowMs - Date.parse(msg.created_at) < RECALL_WINDOW_MS
+                  const asking = confirmRecall === msg.id
+                  return (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender_type === 'parent' ? 'flex-start' : 'flex-end', gap: '4px' }}>
                     <div style={{
                       maxWidth: '70%', padding: '10px 14px',
                       borderRadius: msg.sender_type === 'parent' ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
                       background: msg.sender_type === 'admin' ? GOLD : msg.sender_type === 'ai' ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.08)',
                       color: msg.sender_type === 'admin' ? NAVY : '#fff',
                       fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
-                      border: msg.sender_type === 'ai' ? '1px solid rgba(201,168,76,0.35)' : 'none',
+                      border: recalled ? '1px dashed rgba(255,255,255,0.35)' : msg.sender_type === 'ai' ? '1px solid rgba(201,168,76,0.35)' : 'none',
+                      opacity: recalled ? 0.5 : 1,
                     }}>
                       {msg.sender_type === 'ai' && (
                         <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
                       )}
                       {msg.body}
                       <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
-                        {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {clock(msg.created_at)}
                       </div>
                     </div>
+                    {recalled && (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); toggleOpen() }} style={{ background: 'transparent', border: 'none', padding: '2px 4px', color: 'rgba(255,255,255,0.55)', fontSize: '11px', cursor: 'pointer' }}>
+                        ↩ {recalledLine} · {t('admin.messages.recallHide')}
+                      </button>
+                    )}
+                    {canRecall && !asking && (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRecall(msg.id) }} style={{ background: 'transparent', border: 'none', padding: '2px 4px', color: 'rgba(255,255,255,0.45)', fontSize: '11px', cursor: 'pointer' }}>
+                        {t('admin.messages.recall')}
+                      </button>
+                    )}
+                    {canRecall && asking && (
+                      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>{t('admin.messages.recallConfirm')}</span>
+                        <button type="button" disabled={recalling === msg.id} onClick={() => setConfirmRecall(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '4px 10px', color: '#fff', fontSize: '12px', cursor: 'pointer' }}>
+                          {t('admin.messages.recallKeep')}
+                        </button>
+                        <button type="button" disabled={recalling === msg.id} onClick={() => recallMessage(msg.id)} style={{ background: RED, border: 'none', borderRadius: '8px', padding: '4px 12px', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                          {recalling === msg.id ? '…' : t('admin.messages.recall')}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  )
+                })}
                 <div ref={bottomRef} />
               </div>
 
               {sendError && (
                 <div role="alert" style={{ padding: '8px 24px', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', fontSize: '12px', flexShrink: 0 }}>{sendError}</div>
+              )}
+              {notice && (
+                <div role="status" style={{ padding: '8px 24px', background: 'rgba(201,168,76,0.15)', color: GOLD, fontSize: '12px', flexShrink: 0 }}>{notice}</div>
               )}
               <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px', background: NAVY, flexShrink: 0 }}>
                 {/* Enter adds a line; only the Send button sends (owner,

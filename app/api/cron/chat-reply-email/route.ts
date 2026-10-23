@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
   const { data: replies, error: rErr } = await svc.from('chat_messages')
     .select('thread_id, created_at')
     .eq('sender_type', 'admin')
+    .is('recalled_at', null) // recalled before the 10 minutes: no email
     .gte('created_at', since).lte('created_at', cutoff)
     .order('created_at', { ascending: true })
     .limit(1000)
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
     // Where this batch starts: the first desk reply after the read mark (it
     // may be older than the look-back, so it is asked for on its own).
     let first = svc.from('chat_messages').select('created_at')
-      .eq('thread_id', th.id).eq('sender_type', 'admin')
+      .eq('thread_id', th.id).eq('sender_type', 'admin').is('recalled_at', null)
     if (th.parent_last_read_at) first = first.gt('created_at', th.parent_last_read_at)
     const { data: f } = await first.order('created_at', { ascending: true }).limit(1).maybeSingle()
     if (!f) continue

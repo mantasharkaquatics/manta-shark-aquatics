@@ -221,6 +221,16 @@ async function poolOfLine(line: string | undefined): Promise<Location | null> {
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
+  return (await sendEmailWithId(payload)) !== null
+}
+
+/**
+ * sendEmail, returning Resend's id for the email (null: not sent). With
+ * scheduledAt, Resend holds the email until then, and cancelEmail(id) can
+ * still stop it -- a visitor's desk reply waits 2 minutes so a recalled
+ * reply is never delivered (owner, 2026-10-23).
+ */
+export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt?: string } = {}): Promise<string | null> {
   const { type, to, parentName, studentName, coachName, date, time, amount, code, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
   let subject = ''
@@ -489,13 +499,13 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
 
   if (!subject || !html) {
     console.error('sendEmail: unknown type', type)
-    return false
+    return null
   }
 
   try {
     // Resend reports an API failure in its result, not by throwing. Checked
     // since 2026-10-06, so a false here really means "not sent".
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
       replyTo: CONTACT_EMAIL,
       to,
@@ -504,12 +514,13 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       ...(text ? { text } : {}),
       ...(attachments ? { attachments } : {}),
       ...(cc.length ? { cc } : {}),
+      ...(opts.scheduledAt ? { scheduledAt: opts.scheduledAt } : {}),
     })
     if (error) throw error
-    return true
+    return data?.id || ''
   } catch (err) {
     console.error('Email error:', err)
-    return false
+    return null
   }
 }
 
@@ -532,6 +543,18 @@ export async function sendRawEmail(msg: { to: string; subject: string; html: str
     return true
   } catch (err) {
     console.error('Email error:', err)
+    return false
+  }
+}
+
+/** Stops an email sent with scheduledAt that has not gone out yet. True if it was stopped. */
+export async function cancelEmail(id: string): Promise<boolean> {
+  try {
+    const { error } = await resend.emails.cancel(id)
+    if (error) throw error
+    return true
+  } catch (err) {
+    console.error('Email cancel error:', err)
     return false
   }
 }

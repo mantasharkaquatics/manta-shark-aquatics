@@ -1714,5 +1714,15 @@
   "admin.members.deletionRequested": "Account deletion requested",
   "admin.members.deletionHint": "Settle unused points, upcoming lessons and any Swim Team subscription with the family, then delete the account.",
   "admin.messages.guestNamed": "{name} (visitor)",
-  "admin.messages.guestContact": "{email} · {phone} · Your replies are also emailed to them."
+  "admin.messages.guestContact": "{email} · {phone} · Each reply is emailed to them 2 minutes after you send it; recall it before then and no email goes out.",
+  "admin.messages.recall": "Recall",
+  "admin.messages.recallConfirm": "Recall this message? The customer will no longer see it.",
+  "admin.messages.recallKeep": "Keep it",
+  "admin.messages.recalled": "Recalled · {time}",
+  "admin.messages.recalledBy": "Recalled by {name} · {time}",
+  "admin.messages.recallShow": "Show",
+  "admin.messages.recallHide": "Hide",
+  "admin.messages.recallFailed": "The message was not recalled. Check the connection and try again.",
+  "admin.messages.recallTooOld": "Only messages from the last 24 hours can be recalled.",
+  "admin.messages.recallEmailSent": "Recalled from the chat, but the email to the visitor had already gone out and cannot be recalled."
 }

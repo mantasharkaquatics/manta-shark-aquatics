@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
-import { sendEmail } from '@/lib/email'
+import { sendEmailWithId } from '@/lib/email'
 
 // A desk reply from Admin > Messages, written with the service role
 // (2026-10-15, audit F39). Admin Messages used to insert it from the browser,
@@ -14,6 +14,7 @@ import { sendEmail } from '@/lib/email'
 // POST { thread_id, body } -> { ok, message }
 
 const MAX_LEN = 4000
+const GUEST_EMAIL_DELAY_MS = 2 * 60 * 1000
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -41,12 +42,17 @@ export async function POST(req: NextRequest) {
   // 2026-10-22; /api/chat/guest/contact): every reply goes to them by email
   // too, since they may never open the chat again. Families get the
   // unread-reply email instead (app/api/cron/chat-reply-email).
+  // Owner, 2026-10-23: the visitor's email waits 2 minutes (Resend holds it),
+  // so a reply recalled in that time is never delivered
+  // (/api/admin/chat-recall cancels it by the id kept on the message).
   let emailed: boolean | undefined
   if (!thread.parent_id && thread.guest_email) {
-    emailed = await sendEmail({
+    const id = await sendEmailWithId({
       type: 'guest_chat_reply', to: thread.guest_email, parentName: thread.guest_name || '',
       lang: thread.guest_lang || 'en', replyText: body,
-    }).catch(() => false)
+    }, { scheduledAt: new Date(Date.now() + GUEST_EMAIL_DELAY_MS).toISOString() }).catch(() => null)
+    emailed = id !== null
+    if (id) await svc.from('chat_messages').update({ email_id: id }).eq('id', message.id)
   }
   return NextResponse.json({ ok: true, message, emailed })
 }

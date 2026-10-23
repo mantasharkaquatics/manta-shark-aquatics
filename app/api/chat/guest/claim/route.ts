@@ -45,7 +45,7 @@ async function readState(svc: any, threadId: string): Promise<{ mark: string | n
   const { data, error } = await svc.from('chat_threads').select('parent_last_read_at').eq('id', threadId).maybeSingle()
   if (error || !data) return null
   const mark: string | null = data.parent_last_read_at ?? null
-  let q = svc.from('chat_messages').select('created_at').eq('thread_id', threadId).eq('sender_type', 'admin')
+  let q = svc.from('chat_messages').select('created_at').eq('thread_id', threadId).eq('sender_type', 'admin').is('recalled_at', null)
   if (mark) q = q.gt('created_at', mark)
   const { data: first } = await q.order('created_at', { ascending: true }).limit(1).maybeSingle()
   return { mark, capAt: first?.created_at ?? null }

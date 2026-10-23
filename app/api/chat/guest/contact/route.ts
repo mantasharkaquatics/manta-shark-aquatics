@@ -86,6 +86,6 @@ export async function POST(req: NextRequest) {
   await alertDeskChat(svc, { threadId: thread.id, parentFirstName: `${name} (visitor)`, reason: [text, `Email: ${email}`, phone ? `Phone: ${phone}` : ''].filter(Boolean).join(' · ') })
 
   const { data: messages } = await svc.from('chat_messages').select('id, sender_type, body, metadata, created_at')
-    .eq('thread_id', thread.id).order('created_at', { ascending: true }).limit(200)
+    .eq('thread_id', thread.id).is('recalled_at', null).order('created_at', { ascending: true }).limit(200)
   return NextResponse.json({ key, messages: messages || [] })
 }

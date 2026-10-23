@@ -381,6 +381,7 @@ export async function POST(req: NextRequest) {
     .from('chat_messages')
     .select('id, sender_type, body, metadata, created_at')
     .eq('thread_id', thread_id)
+    .is('recalled_at', null) // a recalled reply is gone for the family, and for the AI
     .order('created_at', { ascending: false })
     .limit(12)
   // Hand-back-to-AI cutoff: earlier conversation (human-service segment) is invisible to the AI, like a fresh conversation

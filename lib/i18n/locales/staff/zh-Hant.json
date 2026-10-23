@@ -1714,5 +1714,15 @@
   "admin.members.deletionRequested": "申請刪除帳戶",
   "admin.members.deletionHint": "先和家長處理還沒用完的點數、之後的課程和泳隊訂閱，再刪除帳戶。",
   "admin.messages.guestNamed": "{name}（訪客）",
-  "admin.messages.guestContact": "{email} · {phone} · 您的回覆也會寄到對方信箱。"
+  "admin.messages.guestContact": "{email} · {phone} · 您的回覆會在 2 分鐘後寄到對方信箱，在那之前收回就不會寄出。",
+  "admin.messages.recall": "收回",
+  "admin.messages.recallConfirm": "確定收回這則訊息？客戶那邊會完全看不到。",
+  "admin.messages.recallKeep": "不收回",
+  "admin.messages.recalled": "已收回 · {time}",
+  "admin.messages.recalledBy": "{name} 已收回 · {time}",
+  "admin.messages.recallShow": "顯示原文",
+  "admin.messages.recallHide": "收起",
+  "admin.messages.recallFailed": "沒有收回成功，請檢查網路後再試一次。",
+  "admin.messages.recallTooOld": "只能收回 24 小時內的訊息。",
+  "admin.messages.recallEmailSent": "聊天視窗裡已經收回，但寄給訪客的 email 已經寄出，無法收回。"
 }

@@ -240,6 +240,21 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
      and the channel below is live on every page. A reply left unread for 10
      minutes is also emailed (app/api/cron/chat-reply-email). Found, never
      created: a thread is only made when the family opens the chat. */
+  // The dot: what the school has written since the family last read.
+  // Before the migration there is no read mark to count from: no dot.
+  async function countUnread(th: { id: string; lastRead: string | null; readKnown: boolean }, alive: () => boolean = () => true) {
+    if (!th.readKnown) return
+    let q = supabase.from('chat_messages').select('id', { count: 'exact', head: true })
+      .eq('thread_id', th.id).in('sender_type', ['admin', 'ai'])
+    if (th.lastRead) q = q.gt('created_at', th.lastRead)
+    const { count, error } = await q
+    if (alive() && !error && !(openRef.current && visibleRef.current)) setUnread(count || 0)
+  }
+  async function recountUnread() {
+    const th = await findThread()
+    if (th) await countUnread(th)
+  }
+
   useEffect(() => {
     if (guest) return
     let alive = true
@@ -248,13 +263,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       if (!alive || !th) return
       setThreadId(prev => prev ?? th.id)
       setMode(th.mode)
-      // Before the migration there is no read mark to count from: no dot.
-      if (!th.readKnown) return
-      let q = supabase.from('chat_messages').select('id', { count: 'exact', head: true })
-        .eq('thread_id', th.id).in('sender_type', ['admin', 'ai'])
-      if (th.lastRead) q = q.gt('created_at', th.lastRead)
-      const { count, error } = await q
-      if (alive && !error && !(openRef.current && visibleRef.current)) setUnread(count || 0)
+      await countUnread(th, () => alive)
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,6 +286,16 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
         if (from === 'admin') setMode('human')
         else if (from === 'system') setMode('ai')
         if (!(openRef.current && visibleRef.current) && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
+      })
+      // The desk recalled a reply (owner, 2026-10-23; /api/admin/chat-recall):
+      // it leaves the screen without a trace. Read back from the database the
+      // row is already hidden from this family.
+      .on('broadcast', { event: 'recall' }, ({ payload }) => {
+        const id = (payload as { id?: string } | null)?.id
+        if (!id) return
+        setMessages(prev => prev.filter(m => m.id !== id))
+        // It may have been counted in the dot: count again.
+        if (!(openRef.current && visibleRef.current)) recountUnread()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
