@@ -21,7 +21,7 @@ import { readJson, badRequest } from '@/lib/http'
 const MAX_LEN = 800
 
 export async function POST(req: NextRequest) {
-  const auth = await requireParent()
+  const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { parent, svc } = auth
   const input = await readJson(req)

@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 // language the page is being read in (?lang=). The numbers come from the frozen
 // `data`; the text and the coach notes come back translated.
 export async function GET(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const svc = ctx.svc
   const lang = toLocale(req.nextUrl.searchParams.get('lang'))
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
  *  to write a question, and it used to reach no one unless a manager happened
  *  to open that month's reports. */
 export async function POST(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const body = await readJson(req)
   if (!body) return badRequest()

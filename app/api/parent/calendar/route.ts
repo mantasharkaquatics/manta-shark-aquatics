@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
    the booking emails carry, so adding it twice, or adding it here and then
    getting a "lesson moved" or "cancelled" email, still leaves one event. */
 export async function GET(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
   const id = req.nextUrl.searchParams.get('booking') || ''

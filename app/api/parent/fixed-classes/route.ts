@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 // The family's fixed classes that still have lessons to come: the dashboard
 // line for each, and the class page (續報 / 換時段) behind it.
 export async function GET() {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
   try {

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     .from('admins').select('id').eq('auth_user_id', user.id).single()
   let parent_id = requestedParentId
   if (!adminRow) {
-    const { data: callerParent } = await familyOf(supabase, user.id, 'id')
+    const { data: callerParent } = await familyOf(supabase, user.id, 'id', { viewer: true })
     if (!callerParent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     parent_id = callerParent.id
   }

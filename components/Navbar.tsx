@@ -7,7 +7,7 @@ import { useT, useLocale, useSetLocale, rememberExplicitLocale, readExplicitLoca
 import { LOCALES, isLocale, type Locale } from '@/lib/i18n'
 import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
-import { myParentId } from '@/lib/my-parent'
+import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import ClosureBanner from '@/components/ClosureBanner'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
@@ -193,6 +193,8 @@ export default function Navbar() {
   const [firstName, setFirstName] = useState('')
   const [fullName, setFullName] = useState('')
   const [parentId, setParentId] = useState<string | null>(null)
+  // A view-only family member (owner, 2026-10-23) books nothing: no Book button.
+  const [viewOnly, setViewOnly] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
@@ -213,9 +215,10 @@ export default function Navbar() {
     async function applyUser(userId: string | undefined) {
       // parentId too: with the effect now living for the whole mount, a
       // sign-out must not leave the old family's id for changeLocale to write to.
-      if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); setParentId(null); return }
+      if (!userId) { setIsLoggedIn(false); setFirstName(''); setFullName(''); setParentId(null); setViewOnly(false); return }
       setIsLoggedIn(true)
-      const familyId = await myParentId(supabase, userId)
+      const [familyId, role] = await Promise.all([myParentId(supabase, userId), myFamilyRole(supabase)])
+      setViewOnly(role === 'viewer')
       if (!familyId) return
       const { data: parent } = await supabase
         .from('parents')
@@ -344,7 +347,7 @@ export default function Navbar() {
   // the Dashboard itself, where "go home" would do nothing and the next thing
   // they want is to book (owner's call, 2026-09-28).
   const cta = authLoading ? null : isLoggedIn ? (
-    bare === '/dashboard' ? (
+    bare === '/dashboard' ? (viewOnly ? null :
       <Link href="/booking" className="rn-cta">
         <span className="rn-full">{t('quick.book')}</span><span className="rn-short">{t('nav.bookShort')}</span>
       </Link>

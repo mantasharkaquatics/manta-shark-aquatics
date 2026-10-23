@@ -14,7 +14,7 @@ import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
-import { myParentId } from '@/lib/my-parent'
+import { myParentId, myFamilyRole } from '@/lib/my-parent'
 
 interface Parent {
   id: string; auth_user_id?: string | null; first_name: string; last_name: string; email: string; phone: string
@@ -53,6 +53,9 @@ export default function AccountPage() {
   // Signed in as the family's second guardian, not the main account (owner,
   // 2026-10-22): the account's email and phone are the main account's to change.
   const [isGuardian, setIsGuardian] = useState(false)
+  // A view-only family member (owner, 2026-10-23) sees the account and
+  // changes nothing on it.
+  const [viewOnly, setViewOnly] = useState(false)
   const loadSafety = () => fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSafety(d) }).catch(() => {})
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -61,7 +64,7 @@ export default function AccountPage() {
      2026-10-15). Not closable while the swimmer is being added. */
   const confirmBox = useDialogFocus(confirmingAdd, () => { if (!adding) setConfirmingAdd(false) })
 
-  useEffect(() => { fetchAll(); loadSafety() }, [])
+  useEffect(() => { fetchAll() }, [])
   /* The "add a swimmer" card on the home page lands here with ?add=1, and the
      form should already be open -- a parent who came to add a child should not
      have to find the button a second time. */
@@ -75,7 +78,9 @@ export default function AccountPage() {
     // orphan account or an expired session on "Loading…" for ever (found
     // 2026-10-05). Send them where dashboard/page.tsx sends them.
     if (!user) { router.replace('/login'); return }
-    const familyId = await myParentId(supabase, user.id)
+    const [familyId, role] = await Promise.all([myParentId(supabase, user.id), myFamilyRole(supabase)])
+    setViewOnly(role === 'viewer')
+    if (role !== 'viewer') loadSafety()
     const { data: parentData } = familyId
       ? await supabase.from('parents').select('*').eq('id', familyId).single()
       : { data: null }
@@ -225,7 +230,7 @@ export default function AccountPage() {
                   <div className="ac-k">{item.label}</div>
                   <div className="ac-v" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ minWidth: 0, overflowWrap: 'anywhere', ...(item.missing ? { color: '#b4321f' } : {}) }}>{item.value}</span>
-                    {item.edit && (item.edit === 'safety' || !isGuardian) && (
+                    {item.edit && !viewOnly && (item.edit === 'safety' || !isGuardian) && (
                       <button type="button" className="tap-auto" onClick={() => {
                         if (item.edit === 'safety') { setSafetyOpen(true); return }
                         setContactSaved(null); setContactEdit(item.edit!)
@@ -239,7 +244,7 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
-            {isGuardian && <p className="ac-note" style={{ marginTop: 10 }}>{t('account.guardian.mainOnly')}</p>}
+            {isGuardian && <p className="ac-note" style={{ marginTop: 10 }}>{t(viewOnly ? 'account.guardian.viewerOnly' : 'account.guardian.mainOnly')}</p>}
             {contactSaved && <div className="ac-okmsg" role="status" style={{ marginTop: 10 }}>✓ {contactSaved}</div>}
             {contactEdit && (
               <ContactChange field={contactEdit} onClose={() => setContactEdit(null)}
@@ -254,7 +259,7 @@ export default function AccountPage() {
           <GuardianSection mainName={`${parent?.first_name || ''} ${parent?.last_name || ''}`.trim()} />
 
           {/* Newsletter */}
-          <section className="ac-card ac-row">
+          {!viewOnly && <section className="ac-card ac-row">
             <div>
               <b>{t('account.newsletter')}</b>
               <small>{t('account.newsletterDesc')}</small>
@@ -264,7 +269,7 @@ export default function AccountPage() {
               onClick={toggleNewsletter} disabled={newsletterSaving} className="tap-auto ac-toggle">
               <span />
             </button>
-          </section>
+          </section>}
 
           {/* Swimmers (add-only) with each one's health answer (owner,
               2026-10-22: one card instead of a separate safety card). */}
@@ -303,7 +308,7 @@ export default function AccountPage() {
             )}
             <p className="ac-note">{t('account.contactSchool')}{zh ? '' : ' '}{t('safety.who')}</p>
 
-            {!showAddForm || full ? (
+            {viewOnly ? null : !showAddForm || full ? (
               <>
                 <button type="button" className="ac-add" onClick={() => setShowAddForm(true)} disabled={full}>
                   + {t('account.addSwimmer')}
@@ -350,7 +355,7 @@ export default function AccountPage() {
             )}
           </section>
 
-          <AccountPrivacy />
+          {!viewOnly && <AccountPrivacy />}
 
         </div>
       </div>

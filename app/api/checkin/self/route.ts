@@ -29,7 +29,7 @@ async function ownStudentIds(svc: any, parentId: string): Promise<string[]> {
 }
 
 export async function GET() {
-  const auth = await requireParent()
+  const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   // Enabled = at least one pool has coordinates.
   if ((await getCheckInVenues(auth.svc)).length === 0) return NextResponse.json({ enabled: false, students: {} })
@@ -40,7 +40,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireParent()
+  const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await readJson(req)

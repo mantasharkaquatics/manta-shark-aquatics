@@ -25,7 +25,7 @@ import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import SiblingBooking from './SiblingBooking'
-import { myParentId } from '@/lib/my-parent'
+import { myParentId, myFamilyRole } from '@/lib/my-parent'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -711,8 +711,10 @@ export default function BookingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const familyId = await myParentId(supabase, user.id)
-      if (!familyId) { router.push('/dashboard'); return }
+      const [familyId, role] = await Promise.all([myParentId(supabase, user.id), myFamilyRole(supabase)])
+      // A view-only family member books nothing (owner, 2026-10-23); their
+      // dashboard says who does.
+      if (!familyId || role === 'viewer') { router.push('/dashboard'); return }
       const parent = { id: familyId }
       setParentId(parent.id)
 

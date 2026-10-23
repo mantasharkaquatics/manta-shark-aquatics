@@ -26,7 +26,7 @@ export async function GET() {
   if (show || anyDetails) {
     const user = await getAuthUser()
     if (user) {
-      const { data: parent } = await familyOf(svc, user.id, 'id')
+      const { data: parent } = await familyOf(svc, user.id, 'id', { viewer: true })
       if (parent) {
         const { data: kids } = await svc.from('students').select('id').eq('parent_id', parent.id)
         const ids = (kids || []).map((k: any) => k.id)

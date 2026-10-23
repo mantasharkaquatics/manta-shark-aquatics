@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
    scores and note stay unreadable until approved (progress_history's
    browser rule, docs/migration-fix5-E.sql). */
 export async function GET(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
   const studentId = req.nextUrl.searchParams.get('student') || ''

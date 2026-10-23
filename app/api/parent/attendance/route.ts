@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await familyOf(supabase, user.id, 'id')
+  const { data: parent } = await familyOf(supabase, user.id, 'id', { viewer: true })
 
   if (!parent) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 // dashboard's student cards. ?lang= is the language the page is being read in:
 // the coach's note and the recommendation line come back in it.
 export async function GET(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   try {
     const lang = toLocale(req.nextUrl.searchParams.get('lang'))

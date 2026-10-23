@@ -37,31 +37,48 @@ export async function requireAdmin() {
 }
 
 /* The family a signed-in person belongs to: as its main account (parents.
-   auth_user_id) or as a live second guardian (parent_guardians, owner
-   2026-10-22: same rights as the main account). Returns the parents row with
-   the columns asked for, shaped like a supabase read so call sites can swap
-   `.from('parents')...eq('auth_user_id', id).single()` for it. `guardianId` is
-   set when the person is a guardian, not the main account. Before
-   docs/migration-guardians.sql runs, the guardian read fails and only main
-   accounts resolve, as before. */
+   auth_user_id) or as a live guardian (parent_guardians). Returns the parents
+   row with the columns asked for, shaped like a supabase read so call sites
+   can swap `.from('parents')...eq('auth_user_id', id).single()` for it.
+   `guardianId` is set when the person is a guardian, not the main account.
+
+   `role` (owner, 2026-10-23): 'main', 'full' (a second guardian with the main
+   account's rights) or 'viewer' (a family member who may only look: the
+   schedule and the swimmers' learning, no points or payments, no booking,
+   cancelling or account changes). A viewer gets NO family from here unless
+   the caller passes { viewer: true } -- every route is closed to them by
+   default and opened one by one where looking is all it does. Before
+   docs/migration-guardian-roles.sql runs there is no role column and every
+   guardian is 'full', as before. */
+export type FamilyRole = 'main' | 'full' | 'viewer'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function familyOf(svc: any, authUserId: string, cols = 'id'): Promise<{ data: any | null; guardianId: string | null }> {
+export async function familyOf(svc: any, authUserId: string, cols = 'id', opts: { viewer?: boolean } = {}): Promise<{ data: any | null; guardianId: string | null; role: FamilyRole | null }> {
+  const none = { data: null, guardianId: null, role: null }
   const { data: own } = await svc.from('parents').select(cols).eq('auth_user_id', authUserId).maybeSingle()
-  if (own) return { data: own, guardianId: null }
-  const { data: g, error } = await svc.from('parent_guardians').select('id, parent_id')
+  if (own) return { data: own, guardianId: null, role: 'main' }
+  let { data: g, error } = await svc.from('parent_guardians').select('id, parent_id, role')
     .eq('auth_user_id', authUserId).is('removed_at', null).maybeSingle()
-  if (error || !g) return { data: null, guardianId: null }
+  if (error) {
+    // No role column yet: every guardian has full rights.
+    ;({ data: g, error } = await svc.from('parent_guardians').select('id, parent_id')
+      .eq('auth_user_id', authUserId).is('removed_at', null).maybeSingle())
+  }
+  if (error || !g) return none
+  const role: FamilyRole = g.role === 'viewer' ? 'viewer' : 'full'
+  if (role === 'viewer' && !opts.viewer) return none
   const { data: fam } = await svc.from('parents').select(cols).eq('id', g.parent_id).maybeSingle()
-  return { data: fam || null, guardianId: fam ? g.id : null }
+  return fam ? { data: fam, guardianId: g.id, role } : none
 }
 
-export async function requireParent() {
+/** The signed-in family. A view-only member is turned away (null) unless the
+ *  route passes { viewer: true }; see familyOf. */
+export async function requireParent(opts: { viewer?: boolean } = {}) {
   const user = await getAuthUser()
   if (!user) return null
   const svc = serviceClient()
-  const { data: parent, guardianId } = await familyOf(svc, user.id, 'id, email, first_name')
-  if (!parent) return null
-  return { user, parent: parent as { id: string; email: string | null; first_name: string | null }, svc, guardianId }
+  const { data: parent, guardianId, role } = await familyOf(svc, user.id, 'id, email, first_name', opts)
+  if (!parent || !role) return null
+  return { user, parent: parent as { id: string; email: string | null; first_name: string | null }, svc, guardianId, role }
 }
 
 // is_active is the off-boarding switch. The PIN login has always honoured it,

@@ -24,7 +24,7 @@ export async function POST() {
   // Only parents have a last_activity_at to stamp. An admin or a coach browsing
   // the public pages is not an error -- this used to answer 404, which filled
   // the log with what looked like a broken endpoint every two minutes per tab.
-  const { data: parent } = await familyOf(svc, user.id, 'id')
+  const { data: parent } = await familyOf(svc, user.id, 'id', { viewer: true })
   if (!parent) return new NextResponse(null, { status: 204 })
 
   const { error } = await svc

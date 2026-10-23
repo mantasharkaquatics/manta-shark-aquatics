@@ -242,6 +242,11 @@ async function getTrialSlots(svc: any, date: string, coachId: string | undefined
 // Static, like every tool description: it sits in the cached prefix.
 const LOCATION_INPUT = 'Optional pool id from POOLS (the value in brackets). Only when POOLS lists more than one pool: limits the result to that pool. Omitted = every pool; each time then names its pool.'
 
+/* The tools a view-only family member's questions may use: looking up their
+   lessons and swimmers, and handing over to the desk. No points, no
+   booking, cancelling, moving or payment links. */
+const VIEWER_TOOLS = new Set(['get_upcoming_lessons', 'get_lesson_history', 'get_my_students', 'escalate_to_human'])
+
 const TOOLS = [
   {
     name: 'get_my_points',
@@ -369,7 +374,12 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await familyOf(svc, user.id, 'id, email, first_name, preferred_language')
+  const { data: parent, role } = await familyOf(svc, user.id, 'id, email, first_name, preferred_language', { viewer: true })
+  // A view-only family member (owner, 2026-10-23) may ask questions, but the
+  // assistant does nothing for them: it only looks things up, and anything
+  // that books, cancels, moves or pays is for the main account.
+  const viewer = role === 'viewer'
+  const tools = viewer ? TOOLS.filter(t => VIEWER_TOOLS.has(t.name)) : TOOLS
   if (!parent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: thread } = await svc
@@ -785,6 +795,7 @@ export async function POST(req: NextRequest) {
 
   // ---------- tool executor ----------
   async function runTool(name: string, input: any): Promise<any> {
+    if (viewer && !VIEWER_TOOLS.has(name)) return { error: 'This family member can only view. Booking, cancelling, rescheduling, points and payments are for the main account holder.' }
     if (name === 'get_my_points') {
       const w = await walletSummary(svc, parent!.id)
       // Arrears (found 2026-10-15): after a bank return or a dispute the
@@ -1185,7 +1196,7 @@ export async function POST(req: NextRequest) {
     for (const st of tmStuds || []) tmNameById[st.id] = st.full_name
     const tmIds = (tmStuds || []).map((st: any) => st.id)
     let teamSnapshot: any[] = []
-    if (tmIds.length) {
+    if (tmIds.length && !viewer) {
       const { data: tms } = await svc.from('team_memberships')
         .select('student_id, status, cancels_at, expires_at, stripe_subscription_id, team_tiers(name)')
         .in('student_id', tmIds).neq('status', 'cancelled')
@@ -1246,9 +1257,14 @@ export async function POST(req: NextRequest) {
     })
     // Prompt caching: static part (rules + POLICIES + knowledge) carries cache_control,
     // cached together with the tools prefix; dynamic part (time/parent/snapshot) is not cached.
+    const viewerName = String(user.user_metadata?.first_name || '').trim()
+    const viewerLine = viewer ? [
+      `IMPORTANT: The person writing is not the main account holder but a view-only family member${viewerName ? ` (${viewerName})` : ''}. They can see the lessons, schedule and the swimmers' progress, and nothing else.`,
+      `You cannot book, cancel, reschedule, or make any payment or top-up link for them, and you must not tell them the points balance or anything about payments. When they ask for any of that, say kindly that the main account holder${parent.first_name ? ` (${parent.first_name})` : ''} needs to do it, from their own login or by contacting the front desk. Answering questions, explaining lessons and policies, and reading their lessons are fine.`,
+    ].join('\n') : ''
     const system = [
       { type: 'text' as const, text: staticPart, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: dynamicPart },
+      { type: 'text' as const, text: viewerLine ? dynamicPart + '\n' + viewerLine : dynamicPart },
     ]
 
     const merged: { role: 'user' | 'assistant'; content: any }[] = []
@@ -1273,7 +1289,7 @@ export async function POST(req: NextRequest) {
           'x-api-key': process.env.ANTHROPIC_API_KEY!,
           'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify({ model: MODEL, max_tokens: 1000, system, messages: merged, tools: TOOLS }),
+        body: JSON.stringify({ model: MODEL, max_tokens: 1000, system, messages: merged, tools }),
       })
       if (!res.ok) throw new Error(`anthropic status ${res.status}`)
       const data = await res.json()

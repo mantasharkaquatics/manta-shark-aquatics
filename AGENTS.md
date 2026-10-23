@@ -262,6 +262,31 @@ phone. Text messages still go to the main account's phone only.
 - Removing a guardian deletes their login (banned if that fails), so access
   ends at once and the address can be used again.
 
+## View-only family members (owner, 2026-10-23)
+
+`parent_guardians.role` is 'full' (the one second guardian above) or
+'viewer' (up to two; `MAX_BY_ROLE` in lib/guardians.ts;
+docs/migration-guardian-roles.sql). A viewer sees the schedule and the
+swimmers' learning (records, reports, learning map, monthly report,
+certificates, team practice times), may chat, give monthly-report feedback,
+use the suggestion box and check a swimmer in. No points, payments,
+receipts, booking, cancelling, moving, partner invitations or account
+changes.
+
+- **Closed by default.** `familyOf()` and `requireParent()` return no family
+  for a viewer unless the route passes `{ viewer: true }`. A new parent route
+  stays closed to viewers unless all it does is show the schedule or
+  learning; open it deliberately. `role` on the result says who it is.
+- Pages: `myFamilyRole()` (lib/my-parent.ts, the `my_family_role()` RPC)
+  hides what a viewer cannot do; the dashboard root gets `.msa-viewer`, which
+  hides every `.msa-lesson-actions`. The server refuses regardless.
+- RLS: points, credits, invoices and the parents UPDATE use
+  `my_paying_parent_id()` (main + full only). Lessons, swimmers, reports and
+  chat keep `my_parent_id()`.
+- Email: `guardianCopies()` copies a viewer only on `VIEWER_COPY` (lesson
+  and learning mail). The AI chat gives a viewer only `VIEWER_TOOLS`
+  (look-ups and the desk) and tells them the main account books and pays.
+
 # Tier 3 (owner, 2026-10-22): cards, visitors, account self-service
 
 - **Saved cards.** Checkout for points and the Swim Assessment passes the

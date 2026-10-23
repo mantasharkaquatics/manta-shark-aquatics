@@ -63,7 +63,7 @@ async function markGuestRead(svc: any, threadId: string, lastAt: string | null, 
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireParent()
+  const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { parent, svc } = auth
   const body = await readJson(req)

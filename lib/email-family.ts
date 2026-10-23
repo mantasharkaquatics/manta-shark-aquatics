@@ -38,11 +38,25 @@ const NO_GUARDIAN_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
   'contact_change_code', 'contact_verify_code', 'contact_change_notice', 'guardian_invite',
 ])
 
+/* What a view-only family member is copied on (owner, 2026-10-23: "只收上課
+   相關的信"): their swimmers' lessons -- booked, moved, cancelled, the
+   reminder, closures -- and their learning: the assessment report, the
+   monthly report and certificates. Nothing about points, payments, receipts,
+   refunds or the account. */
+const VIEWER_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
+  'booking_confirmed', 'booking_series_confirmed', 'booking_rescheduled', 'booking_cancelled',
+  'block_cancellation_notice', 'team_practice_cancelled', 'reminder_24h', 'fixed_class_moved',
+  'partner_booking_confirmed', 'partner_absent_lesson_continues',
+  'assessment_report', 'monthly_report', 'level_certificate',
+])
+
 /**
- * The second guardians who get a copy of this family email (owner,
- * 2026-10-22: "all notices"). The family is the one whose main address the
+ * The guardians who get a copy of this family email: a full-rights guardian
+ * gets every family notice (owner, 2026-10-22), a view-only member only the
+ * lesson ones (VIEWER_COPY). The family is the one whose main address the
  * email goes to. Before docs/migration-guardians.sql runs the read fails and
- * nobody is copied.
+ * nobody is copied; before docs/migration-guardian-roles.sql there are no
+ * roles and every guardian counts as full.
  */
 export async function guardianCopies(payload: Pick<EmailPayload, 'type' | 'to'>): Promise<string[]> {
   if (NO_GUARDIAN_COPY.has(payload.type)) return []
@@ -52,10 +66,15 @@ export async function guardianCopies(payload: Pick<EmailPayload, 'type' | 'to'>)
     const to = String(payload.to || '').trim().toLowerCase()
     const { data: fam } = await svc.from('parents').select('id').eq('email', to).limit(1).maybeSingle()
     if (!fam) return []
-    const { data: g, error } = await svc.from('parent_guardians').select('email')
+    const live = (cols: string) => svc.from('parent_guardians').select(cols)
       .eq('parent_id', (fam as { id: string }).id).is('removed_at', null).not('auth_user_id', 'is', null)
+    let { data: g, error } = await live('email, role')
+    if (error) ({ data: g, error } = await live('email'))
     if (error) return []
-    return [...new Set(((g || []) as { email: string }[]).map(r => r.email.trim().toLowerCase()).filter(e => e && e !== to))]
+    const rows = (g || []) as unknown as { email: string; role?: string }[]
+    const lessonMail = VIEWER_COPY.has(payload.type)
+    return [...new Set(rows.filter(r => r.role !== 'viewer' || lessonMail)
+      .map(r => r.email.trim().toLowerCase()).filter(e => e && e !== to))]
   } catch { return [] }
 }
 
@@ -568,18 +587,22 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
       }
     }
 
-    case 'guardian_invite':
+    case 'guardian_invite': {
       // The main account added a second guardian (owner, 2026-10-22). The
       // link sets their password on the same page families reset it on.
+      // A view-only family member (2026-10-23) is told what they can see,
+      // and that booking and payments stay with the main account.
+      const v = p.guardianRole === 'viewer'
       return {
         subject: t('mail.guardian.subject', { name: p.inviterName || '' }),
-        html: shell(t('mail.guardian.title'),
-          para(t('mail.guardian.body', { name: `<strong>${esc(p.inviterName)}</strong>` }))
-          + para(t('mail.guardian.can'))
+        html: shell(t(v ? 'mail.guardian.titleViewer' : 'mail.guardian.title'),
+          para(t(v ? 'mail.guardian.bodyViewer' : 'mail.guardian.body', { name: `<strong>${esc(p.inviterName)}</strong>` }))
+          + para(t(v ? 'mail.guardian.canViewer' : 'mail.guardian.can', { name: esc(p.inviterName) }))
           + button(p.resetUrl || `${SITE}/login`, t('mail.guardian.button'))
           + para(t('mail.guardian.signin', { email: `<strong>${esc(p.to)}</strong>` }))
           + para(t('mail.guardian.note', { name: esc(p.inviterName) }), 'color:#666; font-size: 13px;'), false),
       }
+    }
 
     case 'contact_verify_code':
       // The family is changing their email themselves (owner, 2026-10-22):

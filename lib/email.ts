@@ -71,8 +71,14 @@ export type EmailType =
   | 'chat_reply'
   | 'guest_chat_reply'
 
+const GUARDIAN_COPY_OTHER: ReadonlySet<EmailType> = new Set<EmailType>([
+  'assessment_report', 'monthly_report', 'fixed_class_moved', 'fixed_class_renewal', 'voucher_expiring', 'low_balance',
+])
+
 export interface EmailPayload {
   type: EmailType
+  // guardian_invite: 'viewer' for a view-only family member (owner, 2026-10-23).
+  guardianRole?: 'full' | 'viewer'
   to: string
   parentName?: string
   studentName?: string
@@ -502,6 +508,11 @@ export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt
     if (attachments.some(f => f.contentType.endsWith('REQUEST'))) html = withCalendarNote(html, L)
     if (!attachments.length) attachments = undefined
   }
+
+  // The family's lesson-and-learning emails that are drawn outside
+  // familyEmail() still reach the guardians (owner, 2026-10-23: a view-only
+  // family member gets the monthly report; guardianCopies decides who).
+  if (GUARDIAN_COPY_OTHER.has(type)) cc = await guardianCopies(payload)
 
   if (!subject || !html) {
     console.error('sendEmail: unknown type', type)

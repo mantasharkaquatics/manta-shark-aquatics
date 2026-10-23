@@ -23,7 +23,10 @@ export async function GET(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: parent } = await familyOf(svc, user.id, 'id')
+  // A view-only family member sees the practice schedule, not the plan's
+  // price, its paid-through date or its receipts (owner, 2026-10-23).
+  const { data: parent, role } = await familyOf(svc, user.id, 'id', { viewer: true })
+  const viewer = role === 'viewer'
   if (!parent) return NextResponse.json({ error: 'Parent not found' }, { status: 403 })
 
   const { data: students } = await svc
@@ -63,6 +66,14 @@ export async function GET(req: Request) {
   for (const s of students || []) nameById[s.id] = s.full_name
 
   const memberships = await Promise.all(tms.map(async (m: any) => {
+    if (viewer) {
+      return {
+        id: m.id, student_id: m.student_id, team_tier_id: m.team_tier_id || null,
+        student_name: nameById[m.student_id] || '',
+        tier_name: Array.isArray(m.team_tiers) ? m.team_tiers[0]?.name : m.team_tiers?.name,
+        status: m.status, started_at: m.started_at, view_only: true,
+      }
+    }
     let invoices: { date: string; period_end: string | null; url: string | null }[] = []
     const { data: invRows } = await svc
       .from('invoices')

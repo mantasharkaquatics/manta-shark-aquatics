@@ -7,7 +7,11 @@
    emails are copied to them (guardianCopies in lib/email-family.ts). Text
    messages still go to the main account's phone only.
 
-   Only the main account invites or removes them. One guardian per family.
+   Only the main account invites or removes them, and picks each one's role
+   when inviting (owner, 2026-10-23): one 'full' guardian with the main
+   account's rights, and up to two 'viewer' family members who only see the
+   schedule and the swimmers' learning (familyOf in lib/api-auth.ts keeps
+   them out of everything else; they get only the lesson emails).
    Removing one deletes their login (it was made for this family only), so
    access ends at once and the address is free to be used again. */
 
@@ -18,15 +22,19 @@ export type GuardianView = {
   email: string
   invited_at: string
   signed_in: boolean
+  role: GuardianRole
 }
 
-export const MAX_GUARDIANS = 1
+export type GuardianRole = 'full' | 'viewer'
+export const MAX_BY_ROLE: Record<GuardianRole, number> = { full: 1, viewer: 2 }
 
 /** The family's live guardians, with whether each has signed in yet. */
 export async function familyGuardians(svc: any, parentId: string): Promise<GuardianView[] | null> {
-  const { data, error } = await svc.from('parent_guardians')
-    .select('id, first_name, last_name, email, invited_at, auth_user_id')
+  const read = (cols: string) => svc.from('parent_guardians').select(cols)
     .eq('parent_id', parentId).is('removed_at', null).order('invited_at')
+  let { data, error } = await read('id, first_name, last_name, email, invited_at, auth_user_id, role')
+  // Before docs/migration-guardian-roles.sql: no roles, everyone is full.
+  if (error) ({ data, error } = await read('id, first_name, last_name, email, invited_at, auth_user_id'))
   if (error) return null
   return Promise.all((data || []).map(async (g: any) => {
     let signedIn = false
@@ -34,13 +42,13 @@ export async function familyGuardians(svc: any, parentId: string): Promise<Guard
       const { data: u } = await svc.auth.admin.getUserById(g.auth_user_id)
       signedIn = !!u?.user?.last_sign_in_at
     }
-    return { id: g.id, first_name: g.first_name, last_name: g.last_name, email: g.email, invited_at: g.invited_at, signed_in: signedIn }
+    return { id: g.id, first_name: g.first_name, last_name: g.last_name, email: g.email, invited_at: g.invited_at, signed_in: signedIn, role: g.role === 'viewer' ? 'viewer' : 'full' }
   }))
 }
 
 /** A set-password link for the guardian's login, sent as the invitation in
  *  the family's language. */
-export async function sendGuardianInvite(svc: any, appOrigin: string, g: { email: string; first_name: string | null }, family: { first_name: string | null; last_name: string | null; preferred_language: string | null }): Promise<boolean> {
+export async function sendGuardianInvite(svc: any, appOrigin: string, g: { email: string; first_name: string | null; role?: GuardianRole }, family: { first_name: string | null; last_name: string | null; preferred_language: string | null }): Promise<boolean> {
   const { data: link, error } = await svc.auth.admin.generateLink({ type: 'recovery', email: g.email })
   const token = link?.properties?.hashed_token
   if (error || !token) { console.error('[guardian] invite link not made', error); return false }
@@ -49,6 +57,7 @@ export async function sendGuardianInvite(svc: any, appOrigin: string, g: { email
     type: 'guardian_invite', to: g.email, lang: family.preferred_language || 'en',
     parentName: g.first_name || '',
     inviterName: `${family.first_name || ''} ${family.last_name || ''}`.trim(),
+    guardianRole: g.role || 'full',
     resetUrl: `${appOrigin}/reset-password?token_hash=${encodeURIComponent(token)}`,
   }).catch(() => false)
 }

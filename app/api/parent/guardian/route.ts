@@ -3,15 +3,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { emailHasAccount } from '@/lib/account-exists'
 import { looksLikeEmail, normalizeEmail } from '@/lib/staff-accounts'
-import { familyGuardians, removeGuardian, sendGuardianInvite, MAX_GUARDIANS } from '@/lib/guardians'
+import { familyGuardians, removeGuardian, sendGuardianInvite, MAX_BY_ROLE, type GuardianRole } from '@/lib/guardians'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/* The family's second guardian (lib/guardians.ts, owner 2026-10-22).
+/* The family's guardians and view-only members (lib/guardians.ts, owner
+   2026-10-22 and 2026-10-23).
 
-   GET                                     -> { me: 'main' | 'guardian', guardians, available }
-   POST { first_name, last_name, email }   -> invite (main account only)
+   GET                                          -> { me: 'main' | 'guardian', myRole, guardians, available, max }
+   POST { first_name, last_name, email, role }  -> invite (main account only); role 'full' | 'viewer'
    PATCH { id, action: 'resend' }          -> send the invitation again
    DELETE ?id=                             -> remove them (main account only)
 
@@ -23,15 +24,16 @@ const origin = (req: NextRequest) => process.env.NEXT_PUBLIC_APP_URL || req.next
 const RESEND_GAP_MS = 60_000
 
 export async function GET() {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const guardians = await familyGuardians(ctx.svc, ctx.parent.id)
   return NextResponse.json({
     me: ctx.guardianId ? 'guardian' : 'main',
+    myRole: ctx.role,
     myGuardianId: ctx.guardianId,
     guardians: guardians || [],
     available: guardians !== null,
-    max: MAX_GUARDIANS,
+    max: MAX_BY_ROLE,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -55,18 +57,19 @@ export async function POST(req: NextRequest) {
   const first = String(b?.first_name || '').trim().slice(0, 60)
   const last = String(b?.last_name || '').trim().slice(0, 60)
   const email = normalizeEmail(b?.email)
+  const role: GuardianRole = b?.role === 'viewer' ? 'viewer' : 'full'
   if (!first || !last || !email) return bad('missing_fields', 'Name and email are required')
   if (!looksLikeEmail(email)) return bad('bad_email', 'Not an email address')
 
   const current = await familyGuardians(svc, parent.id)
   if (current === null) return bad('unavailable', 'Not available yet', 503)
-  if (current.length >= MAX_GUARDIANS) return bad('limit', 'This account already has a second guardian', 409)
+  if (current.filter(g => g.role === role).length >= MAX_BY_ROLE[role]) return bad('limit', 'No room left for this role', 409)
   const taken = await emailHasAccount(svc, email)
   if (taken === null) return bad('server', 'Lookup failed', 500)
   if (taken) return bad('email_taken', 'That email already has an account', 409)
 
   const { data: created, error: authErr } = await svc.auth.admin.createUser({
-    email, email_confirm: true, user_metadata: { first_name: first, last_name: last, guardian: true },
+    email, email_confirm: true, user_metadata: { first_name: first, last_name: last, guardian: true, view_only: role === 'viewer' },
   })
   if (authErr || !created?.user) {
     const dup = /already|registered|exists/i.test(authErr?.message || '')
@@ -74,13 +77,16 @@ export async function POST(req: NextRequest) {
   }
   const { data: row, error: rowErr } = await svc.from('parent_guardians').insert({
     parent_id: parent.id, auth_user_id: created.user.id, email, first_name: first, last_name: last,
+    // Left to the column's default ('full') unless asked, so a full guardian
+    // can still be invited before docs/migration-guardian-roles.sql runs.
+    ...(role === 'viewer' ? { role } : {}),
   }).select('id').single()
   if (rowErr || !row) {
     await svc.auth.admin.deleteUser(created.user.id) // nothing half-made
     return bad(rowErr?.code === '23505' ? 'email_taken' : 'server', 'Guardian not added', rowErr?.code === '23505' ? 409 : 500)
   }
   const fam = await familyRow(svc, parent.id)
-  const invited = await sendGuardianInvite(svc, origin(req), { email, first_name: first }, fam)
+  const invited = await sendGuardianInvite(svc, origin(req), { email, first_name: first, role }, fam)
   return NextResponse.json({ ok: true, id: row.id, invited })
 }
 
@@ -90,6 +96,8 @@ export async function PATCH(req: NextRequest) {
   const { svc, parent } = m.ctx
   const b = await req.json().catch(() => null) as any
   if (b?.action !== 'resend') return bad('bad_request', 'Invalid request')
+  const list = await familyGuardians(svc, parent.id)
+  const known = (list || []).find(x => x.id === String(b.id || ''))
   const { data: g } = await svc.from('parent_guardians').select('id, email, first_name, auth_user_id')
     .eq('id', String(b.id || '')).eq('parent_id', parent.id).is('removed_at', null).maybeSingle()
   if (!g || !g.auth_user_id) return bad('not_found', 'Not found', 404)
@@ -97,7 +105,7 @@ export async function PATCH(req: NextRequest) {
   const lastSent = (u?.user as any)?.recovery_sent_at
   if (lastSent && Date.now() - new Date(lastSent).getTime() < RESEND_GAP_MS) return bad('too_soon', 'Wait a minute before sending again', 429)
   const fam = await familyRow(svc, parent.id)
-  const invited = await sendGuardianInvite(svc, origin(req), g, fam)
+  const invited = await sendGuardianInvite(svc, origin(req), { ...g, role: known?.role || 'full' }, fam)
   return invited ? NextResponse.json({ ok: true }) : bad('server', 'Could not send the email', 502)
 }
 

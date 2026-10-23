@@ -33,7 +33,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
-import { myParentId } from '@/lib/my-parent'
+import { myParentId, myFamilyRole } from '@/lib/my-parent'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -163,6 +163,9 @@ ${REPORT_SHEET_CSS}
 .msa-newrep { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 12px; padding: 12px 14px; border: 1px solid #f3c9c2;
   border-radius: 12px; background: #fff5f3; color: #16294a; font-size: 14px; text-align: left; cursor: pointer }
 .msa-newrep b { color: #b4321f; font-size: 13px; white-space: nowrap }
+.msa-viewer .msa-lesson-actions { display: none !important }
+.msa-viewnote { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 24px; padding: 14px 16px; border: 1px solid #c9d8ee;
+  border-radius: 14px; background: #eef4fc; color: #16294a; font-size: 14px; line-height: 1.6 }
 .msa-mcard-credit { margin-top: 12px; border: 1px solid rgba(94,214,150,0.45); background: rgba(94,214,150,0.12);
   border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
 .msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
@@ -1524,7 +1527,7 @@ function WaitlistCard() {
 /** Two pool ids are the same pool (a row read before the migration has none = the default pool). */
 const samePool = (a?: string | null, b?: string | null) => (a || DEFAULT_LOCATION_ID) === (b || DEFAULT_LOCATION_ID)
 
-function TeamCard({ memberships }: { memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string; location_id?: string | null }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
+function TeamCard({ memberships, viewer = false }: { viewer?: boolean; memberships: { id: string; student_name: string; tier_name: string; team_tier_id?: string; monthly_price_cents?: number; status: string; cancels_at?: string | null; expires_at?: string | null; is_prepaid?: boolean; weekly_slots?: { weekday: number; start_time: string; end_time: string; coach_name: string; location_id?: string | null }[]; invoices?: { date: string; period_end: string | null; url: string | null }[] }[] }) {
   const locale = useLocale()
   const [portalLoading, setPortalLoading] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -1572,7 +1575,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{m.student_name}</div>
-              <div style={{ fontSize: '11px', color: '#56647d' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name} · {m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
+              <div style={{ fontSize: '11px', color: '#56647d' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name}{viewer ? '' : ' · '}{viewer ? '' : m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
               <div style={{ fontSize: '11px', color: '#56647d' }}>{t('team.unlimited')}</div>
               {(m.weekly_slots || []).length > 0 && (
                 <div style={{ marginTop: '8px' }}>
@@ -1594,7 +1597,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            {!viewer && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
             {m.is_prepaid ? (() => {
               const exp = m.expires_at ? new Date(m.expires_at) : null
               const expired = exp ? exp.getTime() < Date.now() : false
@@ -1610,7 +1613,7 @@ function TeamCard({ memberships }: { memberships: { id: string; student_name: st
               {portalLoading === m.id ? '...' : t('team.manage')}
             </button>
             )}
-            </div>
+            </div>}
           </div>
           {(m.invoices || []).length > 0 && (
             <div style={{ marginTop: '10px' }}>
@@ -1657,6 +1660,11 @@ export default function DashboardPage() {
   const locale = useLocale()
   const t = useT()
   const [parent, setParent] = useState<Parent | null>(null)
+  /* A view-only family member (owner, 2026-10-23): the schedule and the
+     swimmers' learning, without points, payments or anything that books,
+     cancels or moves a lesson. The server refuses those either way. */
+  const [viewer, setViewer] = useState(false)
+  const [mainName, setMainName] = useState('')
   const [students, setStudents] = useState<Student[]>([])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
@@ -2383,7 +2391,7 @@ export default function DashboardPage() {
     // here -- or anyone whose session has expired -- just watched it turn.
     if (!user) { router.replace('/login'); return }
 
-    const familyId = await myParentId(supabase, user.id)
+    const [familyId, role] = await Promise.all([myParentId(supabase, user.id), myFamilyRole(supabase)])
     const { data: parentData } = familyId
       ? await supabase.from('parents').select('*').eq('id', familyId).single()
       : { data: null }
@@ -2401,10 +2409,11 @@ export default function DashboardPage() {
     }
     // A second guardian (owner, 2026-10-22) is greeted by their own name,
     // kept on their login; everything else on the page is the family's.
+    const familyFirst = String(parentData.first_name || '')
     if (parentData.auth_user_id && parentData.auth_user_id !== user.id && user.user_metadata?.first_name) {
       parentData.first_name = String(user.user_metadata.first_name)
     }
-    if (latest()) setParent(parentData)
+    if (latest()) { setViewer(role === 'viewer'); setMainName(familyFirst); setParent(parentData) }
 
     const today = getTodayLA()
     if (withProgress) lastLoad.current = { at: Date.now(), day: today }
@@ -3138,7 +3147,7 @@ export default function DashboardPage() {
 
   return (
     <PoolsCtx.Provider value={pools}>
-    <div style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
+    <div className={viewer ? 'msa-viewer' : undefined} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -3164,7 +3173,7 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <PointsCard w={wallet} onBuy={() => { window.location.href = '/plans#buy' }} zelle={students.some(s => s.current_level != null)} />
               <ReferralCard focus={referralFocus} />
-              {teamMemberships.length > 0 && <TeamCard memberships={teamMemberships} />}
+              {teamMemberships.length > 0 && <TeamCard memberships={teamMemberships} viewer={viewer} />}
             </div>
           </div>
         </div>
@@ -3179,7 +3188,7 @@ export default function DashboardPage() {
               <b>{t('team.title')}</b>
               <button className="msa-sheet-x" onClick={() => setTeamSheet(null)} aria-label={t('common.close')}>✕</button>
             </div>
-            <TeamCard memberships={teamMemberships.filter((m: any) => m.student_id === teamSheet)} />
+            <TeamCard viewer={viewer} memberships={teamMemberships.filter((m: any) => m.student_id === teamSheet)} />
           </div>
         </div>
       )}
@@ -3364,7 +3373,13 @@ export default function DashboardPage() {
 
 <div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) clamp(40px,5vw,64px)' }}>
 
-        {safetyMissing && (
+        {viewer && (
+          <div className="msa-viewnote" role="note">
+            <span aria-hidden="true">👀</span>
+            <span>{t('dash.viewer.note', { name: mainName })}</span>
+          </div>
+        )}
+        {safetyMissing && !viewer && (
           <section role="region" aria-labelledby="safety-banner-h" style={{ marginBottom: '24px', background: '#fff7e6', border: '1px solid #f3dfb4', borderRadius: '14px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 18px' }}>
             <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <h2 id="safety-banner-h" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: NAVY }}>{t('safety.banner.title')}</h2>
@@ -3377,7 +3392,7 @@ export default function DashboardPage() {
           </section>
         )}
         {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={m => setSafetyMissing(m)} />}
-        <WaitlistCard />
+        {!viewer && <WaitlistCard />}
 
         {/* STUDENTS */}
         <section style={{ marginBottom: '36px' }}>
@@ -3498,7 +3513,7 @@ export default function DashboardPage() {
                 footer link. A parent looking to add one looks next to the
                 children they already have. Gone at the limit the account page
                 enforces. */}
-            {students.length < MAX_SWIMMERS && (
+            {students.length < MAX_SWIMMERS && !viewer && (
               <Link href="/dashboard/account?add=1" className="msa-addkid">
                 <span className="msa-addkid-plus">+</span>
                 <span>{t('account.addSwimmer')}</span>
@@ -3510,7 +3525,7 @@ export default function DashboardPage() {
               children they are doing them for. Points open a sheet with the
               whole card -- balance, history, swim team -- so none of it
               is lost, it just stops taking a screen of its own. */}
-          <div className="msa-act">
+          {!viewer && <div className="msa-act">
             <button className="tap-auto msa-act-book" onClick={() => { window.location.href = '/booking' }}>
               + {t('quick.book')}
             </button>
@@ -3534,7 +3549,7 @@ export default function DashboardPage() {
                 <b>· {t('dash.topUp')} ›</b>
               </button>
             )}
-          </div>
+          </div>}
           {(fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0) && (
             <>
               <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
@@ -3557,11 +3572,11 @@ export default function DashboardPage() {
                             })}</b>
                             {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })}<PoolLink id={f.locationId} prefix=" · " /> · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
                           </span>
-                          <span className="msa-plan-btn">
+                          {!viewer && <span className="msa-plan-btn">
                             <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
                               {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
                             </Link>
-                          </span>
+                          </span>}
                         </div>
                       ))}
                       {g.vouchers.length > 0 && (
@@ -3583,7 +3598,7 @@ export default function DashboardPage() {
                         const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
                         const expDate = exp ? exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) : ''
                         const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < Date.now()))
-                        const failed = !m.is_prepaid && m.status === 'past_due'
+                        const failed = !viewer && !m.is_prepaid && m.status === 'past_due'
                         const line = failed ? t('dash.plan.teamPastDue')
                           : m.is_prepaid ? (exp ? t(lapsed ? 'team.expired' : 'team.paidThru', { date: expDate }) : t('team.prepaid'))
                           : m.cancels_at ? t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })
@@ -3597,7 +3612,7 @@ export default function DashboardPage() {
                               <span className={failed || lapsed ? 'msa-plan-bad' : undefined}>{line}</span>
                             </span>
                             <span className="msa-plan-btn">
-                              <button className="tap-auto" onClick={() => setTeamSheet(m.student_id)}>{t('team.manage')} ›</button>
+                              <button className="tap-auto" onClick={() => setTeamSheet(m.student_id)}>{t(viewer ? 'voucher.lineLink' : 'team.manage')} ›</button>
                             </span>
                           </div>
                         )
@@ -3611,7 +3626,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Pending partner bookings notice */}
-        {pendingPartnerBookings.length > 0 && (
+        {pendingPartnerBookings.length > 0 && !viewer && (
           <section ref={invitesRef} style={{ marginBottom: '28px', scrollMarginTop: '100px' }}>
             <h2 className="msa-sec-h">⏳ {t('dash.invite.section')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -3909,7 +3924,8 @@ export default function DashboardPage() {
                           { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
                           { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
                           ...(poolShown(pools, b.location_id) ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
-                          { label: t('dash.sheet.payment'), value: funding },
+                          // Not for a view-only family member: no points (2026-10-23).
+                          ...(viewer ? [] : [{ label: t('dash.sheet.payment'), value: funding }]),
                         ].map(row => (
                           <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
                             <span style={{ fontSize: '13px', color: '#56647d' }}>{row.label}</span>
@@ -4199,7 +4215,7 @@ export default function DashboardPage() {
                         <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: '#56647d', fontSize: '11px', fontWeight: 600, alignSelf: 'flex-start' }}>
                           ⏳ {t('dash.pend.checking')}
                         </div>
-                      ) : booking.status === 'pending_payment' ? (
+                      ) : booking.status === 'pending_payment' && !viewer ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
@@ -4391,11 +4407,11 @@ export default function DashboardPage() {
             referral card -- without a visible way in almost nobody finds the
             offer); the suggestion box (owner, 2026-09-30: any time, managers only). */}
         <nav className="msa-more" aria-label={t('dash.more.label')}>
-          <Link href="/dashboard/partnerships" className="msa-more-row">
+          {!viewer && <Link href="/dashboard/partnerships" className="msa-more-row">
             <span className="msa-more-ico" aria-hidden="true">👥</span>
             <span className="msa-more-text">{t('dash.partnerPrompt')}</span>
             <span className="msa-more-link">{t('quick.partnerships')} ›</span>
-          </Link>
+          </Link>}
           {wallet && (
             <button className="tap-auto msa-more-row" onClick={() => { setReferralFocus(true); setPointsOpen(true) }}>
               <span className="msa-more-ico" aria-hidden="true">🎁</span>

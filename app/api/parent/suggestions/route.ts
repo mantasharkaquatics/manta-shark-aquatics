@@ -12,7 +12,7 @@ const PER_DAY = 5
 // anonymous -- the manager needs to know whom to get back to -- and the form
 // does not raise the question at all.
 export async function POST(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const body = await readJson(req)
   if (!body) return badRequest()

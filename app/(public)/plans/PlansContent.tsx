@@ -19,6 +19,7 @@ import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { useFamilyStatus } from '@/lib/use-family-status'
+import { myFamilyRole } from '@/lib/my-parent'
 import ZellePay from '@/components/ZellePay'
 
 // The pricing page under the points system. Every number here is read from
@@ -234,6 +235,12 @@ function TopUp({ signedIn, anyAssessed }: { signedIn: boolean | null; anyAssesse
       // and after signing up they still could not buy -- the checkout answers
       // NEEDS_ASSESSMENT. The signed-out block says what to do instead.
       setGuestClicked(true)
+      setBusy(false)
+      return
+    }
+    // A view-only family member pays for nothing (owner, 2026-10-23).
+    if (await myFamilyRole(supabase) === 'viewer') {
+      setError(t('viewer.cantPay'))
       setBusy(false)
       return
     }

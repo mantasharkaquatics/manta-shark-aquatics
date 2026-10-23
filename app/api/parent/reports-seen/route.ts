@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
    POST { student_id } -> { ok }. Needs docs/migration-reports-seen.sql. */
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireParent()
+  const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await readJson(req)
   const id = typeof b?.student_id === 'string' ? b.student_id : ''
