@@ -2365,5 +2365,7 @@
   "mail.guardian.canViewer": "You'll be able to see the lesson schedule and the swimmers' progress and reports, and you'll get the lesson emails. Booking, cancelling and payments stay with {name}.",
   "tree.map3d.me": "{name} is here · Stage {n}",
   "tree.map3d.aria": "Seven steps, one per level. Pick a level to see its skills.",
-  "tree.map3d.hint": "Tap a step to see that level's skills"
+  "tree.map3d.hint": "Tap a step to see that level's skills",
+  "tree.statLine": "Level {level} · Stage {stage} · {done}/{total} skills · {pct}%",
+  "tree.keyButton": "What the colours mean"
 }

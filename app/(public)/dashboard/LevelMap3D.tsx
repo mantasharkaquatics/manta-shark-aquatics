@@ -395,5 +395,5 @@ const MAP3D_CSS = `
   border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
 .mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
   background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
-@media (max-width: 640px) { .mst3d { height: 300px; margin: 10px 14px 0 } }
+@media (max-width: 640px) { .mst3d { height: 165px; flex: none; margin: 6px 14px 0 } .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px } .mst3d-me { font-size: 11px; padding: 4px 9px } }
 `

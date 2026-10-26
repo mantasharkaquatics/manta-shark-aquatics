@@ -303,6 +303,46 @@ const CSS = `
   .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
   .mst-nm { font-size: 10px }
 }
+
+/* A family on a phone (owner, 2026-10-26): the whole map on one screen, no
+   scrolling. The four numbers become one line beside the name, the 3D
+   staircase is half height (LevelMap3D), the legend folds into a "?" button,
+   the skill detail only slides up when a skill is tapped, and the board's
+   rows take whatever height is left (fit() below). */
+.mst-lvrow { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; flex-wrap: wrap }
+.mst-lvrow b { font-size: 14px; font-weight: 800; color: #12254a }
+.mst-lvrow span { font-size: 11.5px; color: #56647d }
+.mst-help { display: none; margin-left: auto; width: 28px; height: 28px; min-height: 0; border-radius: 50%; border: 1px solid #c9d8ee;
+  background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 }
+.mst-statline { display: none }
+.mst-sheet-shade { display: none }
+@media (max-width: 640px) {
+  .mst-panel.fam { display: flex; flex-direction: column; height: 100%; max-height: 100dvh }
+  .mst-panel.fam .mst-head { padding: 10px 56px 8px 14px; flex: none }
+  .mst-panel.fam .mst-x { top: 8px; right: 10px }
+  .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
+  .mst-panel.fam .mst-name { font-size: 18px !important; margin: 0 !important }
+  .mst-panel.fam .mst-statline { display: block; font-size: 12px; color: #56647d; margin-top: 2px; font-variant-numeric: tabular-nums }
+  .mst-panel.fam .mst-statline b { color: #12254a; font-weight: 800 }
+  .mst-panel.fam .mst-lvrow { padding: 8px 14px 0; flex-wrap: nowrap; flex: none }
+  .mst-panel.fam .mst-lvrow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .mst-panel.fam .mst-help { display: block; flex: none }
+  .mst-panel.fam .mst-key { display: none }
+  .mst-panel.fam .mst-key.open { display: flex; position: absolute; z-index: 30; right: 14px; left: 14px; top: 100%; margin-top: 6px;
+    background: #fff; border: 1px solid #e3ebf6; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(18,37,74,.18) }
+  .mst-panel.fam .mst-scroll { margin-top: 6px; flex: none }
+  .mst-panel.fam .mst-detail { display: none }
+  .mst-panel.fam .mst-detail.open { display: block; position: fixed; left: 0; right: 0; bottom: 0; margin: 0; z-index: 40;
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: #fff;
+    box-shadow: 0 -12px 30px rgba(18,37,74,.2); animation: mstUp .2s ease-out }
+  .mst-panel.fam .mst-sheet-shade.open { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(18,37,74,.25) }
+  .mst-panel.fam .mst-sheet-x { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; min-height: 0; border: none;
+    border-radius: 8px; background: #eef3f9; color: #56647d; font-size: 15px; cursor: pointer }
+}
+@keyframes mstUp { from { transform: translateY(100%) } to { transform: none } }
+@media (prefers-reduced-motion: reduce) { .mst-panel.fam .mst-detail.open { animation: none } }
+.mst-sheet-x { display: none }
+@media (max-width: 640px) { .mst-panel.fam .mst-sheet-x { display: block } }
 `
 
 export default function SkillTree({
@@ -323,6 +363,7 @@ export default function SkillTree({
      back if the browser cannot draw it (no WebGL). */
   const want3d = !forCoach && !allPassed
   const [map3d, setMap3d] = useState<'wait' | 'on' | 'off'>(want3d ? 'wait' : 'off')
+  const [keyOpen, setKeyOpen] = useState(false)
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
 
@@ -465,6 +506,21 @@ export default function SkillTree({
         box.style.setProperty('--cw', cw + 'px')
         box.style.setProperty('--sz', Math.min(maxSz, cw - 8) + 'px')
       }
+      /* A family on a phone sees the map on one screen (owner, 2026-10-26):
+         the rows share out the height left under the staircase, never taller
+         than the usual row and never so short the names collide. */
+      box.style.removeProperty('--rh')
+      const panel = box.closest('.mst-panel.fam') as HTMLElement | null
+      if (panel && rows > 1 && window.matchMedia('(max-width: 640px)').matches) {
+        const cs2 = getComputedStyle(box)
+        const room = panel.getBoundingClientRect().bottom - box.getBoundingClientRect().top - 12
+        const vpad = parseFloat(cs2.paddingTop) + parseFloat(cs2.paddingBottom)
+        const pad = parseFloat(cs2.getPropertyValue('--pad')) || 0
+        const sz = parseFloat(cs2.getPropertyValue('--sz')) || 44
+        const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
+        const rh = Math.floor((room - vpad - pad - sz - 40) / (rows - 1))
+        box.style.setProperty('--rh', Math.max(74, Math.min(maxRh, rh)) + 'px')
+      }
     }
     const draw = () => {
       fit()
@@ -522,7 +578,9 @@ export default function SkillTree({
     ro.observe(box)
     window.addEventListener('resize', draw)
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
-  }, [inLv, needs, cols, rows])
+    // map3d: the staircase arriving above moves the board down, and on a
+    // phone the rows are sized to the room left under it.
+  }, [inLv, needs, cols, rows, map3d])
 
   /* Which stages of each level are earned, for the dots on the 3D platforms:
      the same every-skill-at-100 rule as the ribbons beside the board. */
@@ -534,19 +592,31 @@ export default function SkillTree({
   const done = skills?.filter(s => s.state === 'done').length ?? 0
   const lvDone = inLv.filter(s => s.state === 'done').length
   const color = LEVEL_COLORS[String(lv)] || GOLD
+  const keyItems = (
+    <>
+      <span><i style={{ color: '#1f9d62' }} />{t('tree.state.done')}</span>
+      <span><i style={{ color: '#f09800' }} />{t('tree.state.active')}</span>
+      <span><i style={{ color: '#2050a0' }} />{t('tree.state.open')}</span>
+      <span><i style={{ color: '#8794ab', boxShadow: 'inset 0 0 0 1.5px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
+      <span><i style={{ color: '#c3ccd9' }} />{t('tree.state.locked')}</span>
+    </>
+  )
 
   return (
     <div ref={dialogRef} className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
       onClick={onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="mst-panel" onClick={e => e.stopPropagation()}>
+      <div className={'mst-panel' + (want3d ? ' fam' : '')} onClick={e => { e.stopPropagation(); setKeyOpen(false) }}>
         <div className="mst-head">
           <button className="mst-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-          <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
+          <div className="mst-eyebrow" style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
+          <div className="mst-name" style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
             {studentName}
+          </div>
+          <div className="mst-statline">
+            {t('tree.statLine', { level: currentLevel, stage: currentStage, done, total: total || '—', pct: total ? Math.round((100 * done) / total) : 0 })}
           </div>
           <div className="mst-stats">
             <div className="mst-stat">
@@ -589,9 +659,13 @@ export default function SkillTree({
               />
             )}
             {want3d && map3d === 'on' && (
-              <p className="mst-meta" style={{ paddingTop: 12, fontSize: 14, fontWeight: 800, color: '#12254a' }}>
-                L{lv} · {t(levelNameKey(lv))}
-              </p>
+              <div className="mst-lvrow">
+                <b>L{lv} · {t(levelNameKey(lv))}</b>
+                <span>{t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}</span>
+                <button type="button" className="mst-help" aria-expanded={keyOpen} aria-label={t('tree.keyButton')}
+                  onClick={e => { e.stopPropagation(); setKeyOpen(o => !o) }}>?</button>
+                {keyOpen && <div className="mst-key open" onClick={e => e.stopPropagation()}>{keyItems}</div>}
+              </div>
             )}
             {map3d !== 'on' && (
             <div className="mst-tabs" role="tablist">
@@ -604,9 +678,11 @@ export default function SkillTree({
             </div>
             )}
 
-            <p className="mst-meta">
-              {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
-            </p>
+            {!(want3d && map3d === 'on') && (
+              <p className="mst-meta">
+                {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
+              </p>
+            )}
 
             <div className="mst-scroll" style={{ ['--cols' as any]: cols }}>
               {([1, 2, 3] as const).filter(st => st <= rows).map(st => (
@@ -704,15 +780,13 @@ export default function SkillTree({
               </div>
             </div>
 
-            <div className="mst-key">
-              <span><i style={{ color: '#1f9d62' }} />{t('tree.state.done')}</span>
-              <span><i style={{ color: '#f09800' }} />{t('tree.state.active')}</span>
-              <span><i style={{ color: '#2050a0' }} />{t('tree.state.open')}</span>
-              <span><i style={{ color: '#8794ab', boxShadow: 'inset 0 0 0 1.5px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
-              <span><i style={{ color: '#c3ccd9' }} />{t('tree.state.locked')}</span>
-            </div>
+            <div className="mst-key">{keyItems}</div>
 
-            <div className="mst-detail">
+            {want3d && sel && <div className="mst-sheet-shade open" onClick={() => setSel(null)} />}
+            <div className={'mst-detail' + (sel ? ' open' : '')}>
+              {want3d && sel && (
+                <button type="button" className="mst-sheet-x" onClick={() => setSel(null)} aria-label={t('common.close')}>✕</button>
+              )}
               {!sel && <p className="mst-dd" style={{ opacity: .6 }}>{t('tree.pickHint')}</p>}
               {sel && (
                 <>
