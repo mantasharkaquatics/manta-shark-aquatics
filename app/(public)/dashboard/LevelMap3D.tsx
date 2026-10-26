@@ -420,7 +420,7 @@ const MAP3D_CSS = `
   background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
 .mst3d-chip { display: none }
 @media (max-width: 640px) {
-  .mst3d { height: clamp(160px, 28vh, 215px); flex: none; margin: 6px 14px 0 }
+  .mst3d { height: clamp(150px, 25vh, 200px); flex: none; margin: 6px 14px 0 }
   .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px }
   .mst3d-me { font-size: 11px; padding: 4px 9px; z-index: 3 }
   .mst3d-chip { display: block; position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;

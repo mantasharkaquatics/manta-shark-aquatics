@@ -184,7 +184,7 @@ const CSS = `
   padding: var(--sp) 14px 12px calc(14px + var(--rail)) }
 .mst-board { position: relative; z-index: 1; margin: 0 auto;
   width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
-  height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
+  height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + var(--tail, 40px)) }
 .mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
   overflow: visible }
 .mst-w { fill: none; stroke: #c9d8ee; stroke-width: 2 }
@@ -319,8 +319,20 @@ const CSS = `
 .mst-statline { display: none }
 .mst-sheet-shade { display: none }
 @media (max-width: 640px) {
-  .mst-panel.fam { display: flex; flex-direction: column; height: 100%; max-height: 100dvh; overscroll-behavior: contain }
-  .mst-panel.fam .mst-head { padding: 10px 56px 8px 14px; flex: none }
+  /* A sheet from the bottom with the page showing dimmed above it, like the
+     lesson records (owner, 2026-10-26). Its height follows its content up to
+     88% of the visible screen; fit() shares that height out among the rows. */
+  .mst-back.fam { align-items: flex-end; backdrop-filter: none; background: rgba(18,37,74,0.45) }
+  .mst-panel.fam { display: flex; flex-direction: column; height: auto; max-height: 88vh; max-height: 88dvh; overscroll-behavior: contain;
+    border-radius: 18px 18px 0 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); animation: mstUp .22s ease-out;
+    --rh: 96px; --pad: 10px; --tail: 30px }
+  /* Shorter stage rows (owner, 2026-10-26): less empty room above the first
+     row and under the last, and a smaller ribbon beside each stage, so three
+     rows fit under the staircase without scrolling. */
+  .mst-panel.fam .mst-rail { gap: 2px }
+  .mst-panel.fam .mst-rail svg { height: 20px; width: auto }
+  .mst-panel.fam .mst-rail b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+  .mst-panel.fam .mst-head { padding: 12px 56px 8px 16px; flex: none; border-radius: 18px 18px 0 0 }
   .mst-panel.fam .mst-x { top: 8px; right: 10px }
   .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
   .mst-panel.fam .mst-name { font-size: 18px !important; margin: 0 !important }
@@ -342,7 +354,7 @@ const CSS = `
     border-radius: 8px; background: #eef3f9; color: #56647d; font-size: 15px; cursor: pointer }
 }
 @keyframes mstUp { from { transform: translateY(100%) } to { transform: none } }
-@media (prefers-reduced-motion: reduce) { .mst-panel.fam .mst-detail.open { animation: none } }
+@media (prefers-reduced-motion: reduce) { .mst-panel.fam, .mst-panel.fam .mst-detail.open { animation: none } }
 .mst-sheet-x { display: none }
 @media (max-width: 640px) { .mst-panel.fam .mst-sheet-x { display: block } }
 `
@@ -523,12 +535,18 @@ export default function SkillTree({
       const panel = box.closest('.mst-panel.fam') as HTMLElement | null
       if (panel && rows > 1 && window.matchMedia('(max-width: 640px)').matches) {
         const cs2 = getComputedStyle(box)
-        const room = panel.getBoundingClientRect().bottom - box.getBoundingClientRect().top - 12
+        /* The sheet is as tall as its content, at most its max-height (88% of
+           the visible screen): measure from the sheet's top to the board,
+           and give the rows what is left of that. */
+        const ps = getComputedStyle(panel)
+        const above = box.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop
+        const room = parseFloat(ps.maxHeight) - above - parseFloat(ps.paddingBottom) - 8
         const vpad = parseFloat(cs2.paddingTop) + parseFloat(cs2.paddingBottom)
         const pad = parseFloat(cs2.getPropertyValue('--pad')) || 0
         const sz = parseFloat(cs2.getPropertyValue('--sz')) || 44
         const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
-        const rh = Math.floor((room - vpad - pad - sz - 40) / (rows - 1))
+        const tail = parseFloat(cs2.getPropertyValue('--tail')) || 40
+        const rh = Math.floor((room - vpad - pad - sz - tail) / (rows - 1))
         box.style.setProperty('--rh', Math.max(66, Math.min(maxRh, rh)) + 'px')
       }
     }
@@ -613,7 +631,7 @@ export default function SkillTree({
   )
 
   return (
-    <div ref={dialogRef} className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
+    <div ref={dialogRef} className={'mst-back' + (want3d ? ' fam' : '')} role="dialog" aria-modal="true" aria-label={t('tree.title')}
       onClick={onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className={'mst-panel' + (want3d ? ' fam' : '')} onClick={e => { e.stopPropagation(); setKeyOpen(false) }}>
