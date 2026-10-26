@@ -24,6 +24,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
 type Props = {
   currentLevel: number
@@ -54,14 +56,18 @@ let ANISO = 4
    the letters are not stretched, and as large as the face allows. A name
    with spaces breaks between words; a Chinese name of four characters or
    more goes on two lines when that makes it bigger. */
-function faceTexture(name: string, h: number, bg: string, ink: string) {
+function faceTexture(name: string, h: number, bg: [string, string], ink: string) {
   /* Drawn at 1.6x and scaled down, so the letters stay sharp on a phone's
      dense screen (owner, 2026-10-26: blurry). */
-  const K = 1.6, W = 320, H = Math.round(W * h / (SW - 0.06))
+  const K = 2, W = 320, H = Math.round(W * h / (SW - 0.06))
   const c = document.createElement('canvas'); c.width = W * K; c.height = H * K
   const g = c.getContext('2d')!
   g.scale(K, K)
-  g.fillStyle = bg; g.fillRect(0, 0, W, H)
+  /* A soft light-to-shade wash down the face, like a lit panel, rather than
+     one flat colour (owner, 2026-10-26: "more premium"). */
+  const wash = g.createLinearGradient(0, 0, 0, H)
+  wash.addColorStop(0, bg[0]); wash.addColorStop(1, bg[1])
+  g.fillStyle = wash; g.fillRect(0, 0, W, H)
   g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
   const PAD = 26, MAXH = Math.min(H - 2 * PAD, 230)
   const sizeFor = (lines: string[]) => {
@@ -89,6 +95,19 @@ function faceTexture(name: string, h: number, bg: string, ink: string) {
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = ANISO
+  return t
+}
+
+/* A soft contact shadow under the whole staircase: a blurred dark band laid
+   on the floor, the way a product photo grounds an object. */
+function contactTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 256
+  const g = c.getContext('2d')!
+  g.shadowColor = 'rgba(18,37,74,0.55)'; g.shadowBlur = 60; g.shadowOffsetX = 2000
+  g.fillStyle = '#000'
+  g.beginPath(); g.roundRect(-2000 + 90, 70, 1024 - 180, 116, 58); g.fill()
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
   return t
 }
 
@@ -202,54 +221,76 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     const pageFont = getComputedStyle(canvas).fontFamily
     if (pageFont) FONT = pageFont
     ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 4)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    /* The phone's full pixel density (an iPhone is 3x; it was capped at 2,
+       which drew the picture soft and stretched it up). */
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 3))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.toneMapping = THREE.NeutralToneMapping
     const scene = new THREE.Scene()
+    // A studio's soft reflections, for a little sheen on the steps.
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const room = new RoomEnvironment()
+    const envTex = pmrem.fromScene(room, 0.04).texture
+    room.dispose()
+    scene.environment = envTex
+    scene.environmentIntensity = 0.55
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)
     /* Turned only a little (owner, 2026-10-26: it was turned too far): about
        14 degrees round and 17 down, so the fronts face the reader. */
     camera.position.set(-2.6, 5.2, 12)
     camera.lookAt(0.3, 1.3, 0)
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xc9d6e6, 2.4))
-    const sun = new THREE.DirectionalLight(0xffffff, 2.6)
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xc9d6e6, 1.5))
+    const sun = new THREE.DirectionalLight(0xffffff, 2.3)
     // Straight over the viewer's shoulder: the shadows fall behind the stairs.
     sun.position.set(-0.5, 12, 9)
     sun.castShadow = true
-    sun.shadow.mapSize.set(1024, 1024)
+    sun.shadow.mapSize.set(2048, 2048)
+    sun.shadow.radius = 4
     Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 })
     sun.shadow.bias = -0.0005
     scene.add(sun)
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.12 }))
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.1 }))
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true
     scene.add(ground)
+    const contact = new THREE.Mesh(new THREE.PlaneGeometry(N * SW + 1.6, SD + 1.4),
+      new THREE.MeshBasicMaterial({ map: contactTexture(), transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }))
+    contact.rotation.x = -Math.PI / 2; contact.position.set(0, 0.002, 0.05)
+    scene.add(contact)
 
-    type Step = { mesh: THREE.Mesh; x: number; h: number; tiles: THREE.Mesh[]; edge: THREE.LineSegments }
+    type Step = { mesh: THREE.Mesh; x: number; h: number; tiles: THREE.Mesh[]; edge: THREE.Mesh }
     const steps: Step[] = []
     for (let lv = 1; lv <= N; lv++) {
       const done = lv < currentLevel, cur = lv === currentLevel, h = stepH(lv), x = (lv - 4) * SW
-      const ink = done ? '#6b4300' : cur ? '#ffffff' : '#56647d'
-      const front = new THREE.MeshStandardMaterial({
-        map: faceTexture(nameRef.current(lv), h, done ? '#f6c25a' : cur ? '#2050a0' : '#f3f6fb', ink), roughness: 0.7 })
-      const side = new THREE.MeshStandardMaterial({ color: done ? 0xe7aa3c : cur ? 0x1a4386 : 0xdde4ee, roughness: 0.7 })
-      const topM = new THREE.MeshStandardMaterial({ color: done ? C.amber : cur ? 0xffffff : 0xfafbfd, roughness: 0.55 })
-      const geo = new THREE.BoxGeometry(SW - 0.06, h, SD)
+      const ink = done ? '#5a3800' : cur ? '#ffffff' : '#4a5a76'
+      /* Satin, slightly rounded steps that catch the light along their edges
+         (owner, 2026-10-26: "more premium"). Finished = warm amber, the
+         swimmer's level = deep blue with a clear-coat, ahead = porcelain. */
+      const face: [string, string] = done ? ['#ffc95c', '#f2a91f'] : cur ? ['#2d63bd', '#1b4690'] : ['#ffffff', '#eef2f8']
+      const finish = { roughness: cur ? 0.32 : 0.5, clearcoat: cur || done ? 0.6 : 0.25, clearcoatRoughness: 0.35 }
+      const front = new THREE.MeshPhysicalMaterial({ map: faceTexture(nameRef.current(lv), h, face, ink), ...finish })
+      const side = new THREE.MeshPhysicalMaterial({ color: done ? 0xe39a17 : cur ? 0x173d80 : 0xdfe6f0, ...finish })
+      const topM = new THREE.MeshPhysicalMaterial({ color: done ? 0xffb733 : cur ? 0xf7faff : 0xfdfdfe, ...finish })
+      const geo = new RoundedBoxGeometry(SW - 0.06, h, SD, 4, 0.06)
       const mesh = new THREE.Mesh(geo, [side, side, topM, side, front, side])
       mesh.position.set(x, h / 2, 0)
       mesh.castShadow = mesh.receiveShadow = true
       mesh.userData.level = lv
       scene.add(mesh)
-      // the picked step's outline
-      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: C.navy }))
+      /* The picked step's outline: a navy shell just larger than the step,
+         seen from inside, so it shows as an even rim round the rounded box. */
+      const rim = 0.026
+      const edge = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: C.navy, side: THREE.BackSide, toneMapped: false }))
+      edge.scale.set((SW - 0.06 + 2 * rim) / (SW - 0.06), (h + 2 * rim) / h, (SD + 2 * rim) / SD)
       edge.visible = false
       mesh.add(edge)
       const tiles: THREE.Mesh[] = []
       if (cur) for (let st = 1; st <= 3; st++) {
         const got = !!stagesDone[lv - 1]?.[st - 1]
         const now = !got && (st === 1 || !!stagesDone[lv - 1]?.[st - 2])
-        const tile = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, SD * 0.6),
-          new THREE.MeshStandardMaterial({ color: got ? C.amber : now ? 0x9fc6ff : 0xdbe4ef, roughness: 0.4 }))
+        const tile = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.06, SD * 0.6, 2, 0.025),
+          new THREE.MeshPhysicalMaterial({ color: got ? 0xffb733 : now ? 0x8fbcff : 0xd5deea, roughness: 0.35, clearcoat: 0.6 }))
         tile.castShadow = true
         scene.add(tile); tiles.push(tile)
       }
@@ -393,6 +434,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         const list = Array.isArray(mat) ? mat : mat ? [mat] : []
         list.forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose() })
       })
+      envTex.dispose(); pmrem.dispose()
       renderer.dispose()
     }
     // Built once per swimmer and level state; the picked level is read from a ref.
@@ -431,22 +473,30 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
 const MAP3D_CSS = `
 .mst3d { position: relative; height: 340px; margin: 12px 20px 0; border-radius: 14px; overflow: hidden;
-  border: 1px solid #e3ebf6; background: linear-gradient(180deg, #ffffff 0%, #f1f5fa 100%) }
+  border: 1px solid #e3ebf6;
+  background: radial-gradient(120% 90% at 55% 30%, #ffffff 0%, #f5f8fc 55%, #e8eef6 100%) }
 .mst3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y }
 .mst3d-layer { position: absolute; inset: 0; pointer-events: none }
 .mst3d-step { position: absolute; left: 0; top: 0; min-height: 0; min-width: 0; padding: 0; margin: 0; border: 0;
   background: transparent; cursor: pointer; pointer-events: auto; border-radius: 4px; will-change: transform }
 .mst3d-step:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
 .mst3d-me { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12.5px; font-weight: 800; padding: 5px 11px;
-  border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
+  border-radius: 999px; line-height: 1.2; background: linear-gradient(180deg, #1d3766, #12254a); color: #fff; letter-spacing: .2px;
+  box-shadow: 0 6px 16px rgba(18,37,74,.28), inset 0 1px 0 rgba(255,255,255,.14); will-change: transform }
+.mst3d-me::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; margin-left: -4px;
+  background: #12254a; transform: rotate(45deg); border-radius: 1px }
 .mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
-  background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
+  background: rgba(255,255,255,.75); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px) }
 .mst3d-chip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;
-  height: 38px; min-height: 0; min-width: 0; padding: 0; margin: 0; border-radius: 10px; border: 2px solid #c9d8ee;
-  background: #fff; color: #12254a; font: inherit; font-size: 16px; font-weight: 800; line-height: 1;
-  box-shadow: 0 2px 6px rgba(18,37,74,.12); will-change: transform }
-.mst3d-chip.done { background: #f09800; border-color: #f09800; color: #12254a }
-.mst3d-chip.cur { background: #2050a0; border-color: #2050a0; color: #fff }
+  height: 38px; min-height: 0; min-width: 0; padding: 0; margin: 0; border-radius: 10px; border: 1px solid #d3deec;
+  background: linear-gradient(180deg, #ffffff, #f1f5fa); color: #12254a; font: inherit; font-size: 16px; font-weight: 800;
+  line-height: 1; letter-spacing: .3px; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(18,37,74,.10); will-change: transform; transition: box-shadow .15s }
+.mst3d-chip.done { background: linear-gradient(180deg, #ffc24d, #f09800); border-color: #e39200; color: #3a2600;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 3px 8px rgba(160,100,0,.2) }
+.mst3d-chip.cur { background: linear-gradient(180deg, #2f66c2, #1b4690); border-color: #1b4690; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 4px 10px rgba(27,70,144,.3) }
 .mst3d-chip.sel { border-color: #12254a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
 .mst3d-chip.cur.sel { border-color: #f7b733; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
 @media (hover: hover) { .mst3d-chip:hover { border-color: #2050a0 } }
