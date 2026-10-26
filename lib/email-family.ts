@@ -576,14 +576,17 @@ async function familyEmailBody(p: EmailPayload, L: Locale, ctx: FamilyCtx): Prom
     }
 
     case 'level_certificate': {
-      // A promotion the school approved (lib/certificates.ts).
+      // A promotion the school approved (lib/certificates.ts). The
+      // certificate celebrates the level passed (level); nextLevel is where
+      // the swimmer goes now.
       const lv = Number(p.level)
+      const next = Number(p.nextLevel) || lv + 1
       return {
         subject: t('mail.cert.subject', { name: p.studentName || '', n: lv }),
         html: shell(t('mail.cert.title'),
-          para(t('mail.cert.body', { student, n: lv, level: esc(t(`level.${lv}.name`)) }))
+          para(t('mail.cert.body', { student, n: lv, level: esc(t(`level.${lv}.name`)), next }))
           + button(p.linkUrl || `${SITE}/dashboard`, t('mail.cert.button'), '#f09800', '#12254a')
-          + para(t('mail.cert.note'), 'color: #666; font-size: 13px; margin-top: 16px;')),
+          + para(t('mail.cert.note', { student: esc(p.studentName || '') }), 'color: #666; font-size: 13px; margin-top: 16px;')),
       }
     }
 

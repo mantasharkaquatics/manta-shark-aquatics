@@ -173,6 +173,7 @@ export interface EmailPayload {
   // assessment_report (written in the family's language): the level the
   // swimmer was placed in, what the school recommends, and the credit deadline.
   level?: number
+  nextLevel?: number
   course?: string
   frequency?: string
   reason?: string

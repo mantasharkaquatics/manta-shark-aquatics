@@ -91,7 +91,13 @@ ${REPORT_SHEET_CSS}
    between the bar and the lesson list. */
 /* Two classes: .msa-sec-h comes later in this sheet and sets margin: 0 0 14px,
    which a single-class rule here would lose to. */
-.msa-sec-h.msa-plans-h { margin-top: 28px }
+.msa-plansum { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 16px; padding: 12px 16px; background: #fff;
+  border: 1px solid #d3deec; border-radius: 16px; font-family: inherit; font-size: 12.5px; line-height: 1.45; color: #3f4d66; text-align: left; cursor: pointer }
+@media (hover: hover) { .msa-plansum:hover { border-color: #c9d8ee; background: #fbfcfe } }
+.msa-plansum:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
+.msa-plansum-chev { flex: 0 0 auto; font-size: 20px; font-weight: 900; color: #9aa7bd; transition: transform .15s }
+.msa-plansum-chev.on { transform: rotate(90deg) }
+.msa-plansum + .msa-plans { margin-top: 12px }
 /* One card per child (owner, 2026-10-03): with three children each holding
    a fixed class and vouchers, one card per plan made six or seven boxes and
    a phone had to swipe through them. Now the number of cards is the number
@@ -125,16 +131,16 @@ ${REPORT_SHEET_CSS}
 /* The optional things -- book with another family, refer a friend, the
    suggestion box -- as one list at the foot of the page. Each row is a
    single tap target. */
-.msa-more { margin: 8px 0 0; background: #fff; border: 1px solid #d3deec; border-radius: 16px; overflow: hidden }
-.msa-more-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 18px; background: none;
-  border: 0; border-top: 1px solid #e8eef7; font-family: inherit; font-size: 13.5px; color: #3f4d66; text-align: left;
-  text-decoration: none; cursor: pointer }
-.msa-more-row:first-child { border-top: 0 }
-@media (hover: hover) { .msa-more-row:hover { background: #f5f8fd } }
-.msa-more-ico { width: 22px; text-align: center; flex-shrink: 0 }
-.msa-more-text { flex: 1; min-width: 0 }
-.msa-more-link { color: #2050a0; font-weight: 800; white-space: nowrap }
+.msa-more { margin: 8px 0 0; display: flex; justify-content: center; gap: 8px }
+.msa-more-row { flex: 0 1 140px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px;
+  background: none; border: 0; border-radius: 14px; font-family: inherit; text-align: center; text-decoration: none; cursor: pointer }
+@media (hover: hover) { .msa-more-row:hover { background: #fff } }
+.msa-more-row:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
+.msa-more-ico { width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #d3deec; display: grid; place-items: center; font-size: 19px }
+.msa-more-link { color: #2050a0; font-size: 13px; font-weight: 800; line-height: 1.3 }
+.msa-more-text { color: #56647d; font-size: 11.5px; line-height: 1.3; margin-top: -4px }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
+.msa-act.solo { grid-template-columns: 1fr }
 .msa-act-book { background: #f09800; color: #12254a; border: none; border-radius: 999px; padding: 16px;
   font-size: 16px; font-weight: 900; cursor: pointer; transition: background .15s }
 @media (hover: hover) { .msa-act-book:hover { background: #d98900 } }
@@ -176,13 +182,11 @@ ${REPORT_SHEET_CSS}
   pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--lv) 55%, transparent), transparent) }
 .msa-mcard > * { position: relative }
 .msa-mcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
-.msa-mcard-brand { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: rgba(255,255,255,0.6); padding-top: 2px }
 .msa-mcard-qr { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 0; border-radius: 999px;
   background: #fff; color: #12254a; padding: 7px 12px; font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer }
 @media (hover: hover) { .msa-mcard-qr:hover { background: #fff3dc } }
 .msa-mcard-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; line-height: 1.15;
-  margin: 4px 0 2px; overflow-wrap: anywhere }
-.msa-mcard-age { font-size: 12.5px; color: rgba(255,255,255,0.68) }
+  margin: 0; min-width: 0; overflow-wrap: anywhere }
 .msa-mcard-lv { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 12px;
   background: rgba(255,255,255,0.12); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; font-weight: 800 }
 .msa-mcard-lv i { width: 9px; height: 9px; border-radius: 50%; background: var(--lv); flex-shrink: 0 }
@@ -201,9 +205,6 @@ ${REPORT_SHEET_CSS}
   border-radius: 14px; background: #eef4fc; color: #16294a; font-size: 14px; line-height: 1.6 }
 .msa-mcard-credit { margin-top: 12px; border: 1px solid rgba(94,214,150,0.45); background: rgba(94,214,150,0.12);
   border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #d6f5e3; line-height: 1.45 }
-.msa-mcard-report { display: block; width: 100%; margin-top: 12px; border: 1px solid rgba(159,184,230,0.45); background: rgba(159,184,230,0.14);
-  border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: #e6eeff; text-align: left; cursor: pointer }
-@media (hover: hover) { .msa-mcard-report:hover { background: rgba(159,184,230,0.22) } }
 .msa-mcard-btns button, .msa-mcard-btns a { flex: 1 1 0; min-width: 28%; border: 0; border-radius: 10px; padding: 10px 6px; background: rgba(255,255,255,0.12);
   color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: background .15s;
   display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; box-sizing: border-box }
@@ -280,17 +281,22 @@ ${REPORT_SHEET_CSS}
 
   /* One card at a time, with the next one's edge showing so it is obvious
      the row moves. The negative margin lets it run to the screen edge. */
-  .msa-act { grid-template-columns: 1fr }
-  .msa-low { grid-column: 1; justify-self: center }
-  .msa-act-pts { justify-content: space-between }
+  /* Booking and points side by side (owner, 2026-10-26: version 1). */
+  .msa-act { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px }
+  .msa-act.solo { grid-template-columns: 1fr }
+  .msa-low { grid-column: 1 / -1; justify-self: center }
+  .msa-act-book { border-radius: 16px; padding: 12px 8px; font-size: 15px }
+  .msa-act-pts { border-radius: 16px; flex-wrap: wrap; justify-content: flex-start; align-content: center; gap: 2px 6px; padding: 8px 12px; text-align: left }
+  .msa-act-pts.low { padding: 7px 11px }
+  .msa-act-pts > span:first-child { flex-basis: 100% }
+  .msa-act-pts b { font-size: 17px }
+  .msa-act-pts .msa-gift { font-size: 11px; padding: 1px 7px }
+  .msa-act-pts em { font-size: 12px }
   .msa-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
               padding: 2px clamp(20px,5vw,48px) 30px; margin: 0 calc(-1 * clamp(20px,5vw,48px)) -20px;
               scrollbar-width: none }
   .msa-rail::-webkit-scrollbar { display: none }
   .msa-rail > * { scroll-snap-align: center; flex: 0 0 92% }
-  .msa-more-row { flex-wrap: wrap; row-gap: 2px }
-  .msa-more-text { flex-basis: calc(100% - 34px) }
-  .msa-more-link { margin-left: 34px }
   .msa-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px }
   .msa-dot { width: 6px; height: 6px; border-radius: 50%; background: #b9c6da; transition: width .18s, background .18s }
   .msa-dot-on { width: 18px; border-radius: 3px; background: #2050a0 }
@@ -415,31 +421,6 @@ function upcomingLocale(current: Locale): Locale {
     const tags = navigator.languages?.length ? navigator.languages : [navigator.language]
     return matchLocaleTags(tags) ?? current
   } catch { return current }
-}
-
-// Birthdays are plain calendar dates, compared with today's LA date as plain
-// parts (found 2026-10-05). new Date('YYYY-MM-DD') is UTC midnight, which in
-// California is the evening before, so the age went up a day early.
-function ymdParts(s: string): [number, number, number] {
-  const [y, m, d] = s.slice(0, 10).split('-').map(Number)
-  return [y, m, d]
-}
-
-function getAge(dob: string): number {
-  const [by, bm, bd] = ymdParts(dob)
-  const [ty, tm, td] = ymdParts(getTodayLA())
-  let age = ty - by
-  const m = tm - bm
-  if (m < 0 || (m === 0 && td < bd)) age--
-  return age
-}
-
-function getAgeMonths(dob: string): number {
-  const [by, bm, bd] = ymdParts(dob)
-  const [ty, tm, td] = ymdParts(getTodayLA())
-  let months = (ty - by) * 12 + (tm - bm)
-  if (td < bd) months--
-  return months < 0 ? 0 : months
 }
 
 function getInitials(name: string): string {
@@ -1943,6 +1924,26 @@ export default function DashboardPage() {
   // can be settled, found or not.
   const [monthlyRead, setMonthlyRead] = useState(false)
   const [monthlyFor, setMonthlyFor] = useState<{ student: Student; id: string } | null>(null)
+  /* Monthly reports opened on this device, so a new one carries a 1 on the
+     card until it is read (owner, 2026-10-26). Per device, like the
+     celebrations: there is no read mark on the server. */
+  const MONTHLY_SEEN = 'msa_monthly_seen'
+  const [monthlySeen, setMonthlySeen] = useState<string[]>([])
+  useEffect(() => {
+    try { const raw = localStorage.getItem(MONTHLY_SEEN); if (raw) setMonthlySeen(JSON.parse(raw)) } catch { /* none */ }
+  }, [])
+  const openMonthly = (student: Student, id: string) => {
+    setMonthlyFor({ student, id })
+    setMonthlySeen(list => {
+      if (list.includes(id)) return list
+      const next = [...list, id].slice(-60)
+      try { localStorage.setItem(MONTHLY_SEEN, JSON.stringify(next)) } catch { /* fine */ }
+      return next
+    })
+  }
+  // 我的方案 folded into one line (owner, 2026-10-26); null = not touched
+  // yet, which opens it when something there needs the family.
+  const [plansOpen, setPlansOpen] = useState<boolean | null>(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
   // Make-up vouchers, and which children have used this month's grace -- the
   // two facts every lesson's leave/cancel button depends on.
@@ -2064,7 +2065,7 @@ export default function DashboardPage() {
     reportLink.current = null
     const r = monthlyReports.find(x => x.id === want)
     const st = r ? students.find(x => x.id === r.studentId) : undefined
-    if (r && st) { reportOpening.current = true; setMonthlyFor({ student: st, id: r.id }) }
+    if (r && st) { reportOpening.current = true; openMonthly(st, r.id) }
     try { const u = new URL(window.location.href); u.searchParams.delete('report'); window.history.replaceState(null, '', u.toString()) } catch {}
   }, [monthlyReports, monthlyRead, students])
   const [recordsPage, setRecordsPage] = useState(0)
@@ -3406,7 +3407,6 @@ export default function DashboardPage() {
           <h1>
             {t('dash.greeting.' + greeting)}<em style={{ fontStyle: locale.startsWith('zh') ? 'normal' : 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
           </h1>
-          <p style={{ fontSize: '15px', color: '#56647d', margin: '6px 0 0' }}>{t('dash.summary')}</p>
         </div>
       </header>
 
@@ -3448,21 +3448,23 @@ export default function DashboardPage() {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
-              const age = student.date_of_birth ? getAge(student.date_of_birth) : null
-              const ageMonths = student.date_of_birth && age === 0 ? getAgeMonths(student.date_of_birth) : null
-              /* The newest monthly report sits on the card as one line; the
-                 sheet it opens has the earlier months. */
+              /* The newest monthly report is one of the card's buttons
+                 (owner, 2026-10-26: the card had too much on it); the sheet
+                 it opens has the earlier months. A 1 until it is opened on
+                 this device. */
               const monthly = monthlyReports.filter(m => m.studentId === student.id)
-              const monthlyLine = monthly.length > 0 && (
-                <button className="tap-auto msa-mcard-report" onClick={() => setMonthlyFor({ student, id: monthly[0].id })}>
-                  📊 {t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'long', timeZone: 'UTC' }) })}
+              const monthlyBtn = monthly.length > 0 && (
+                <button className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
+                  {t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}
+                  <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
                 </button>
               )
-              const ageLabel = age === null ? t('dash.ageUnknown') : age >= 1 ? t('dash.age', { n: age }) : ageMonths !== null && ageMonths >= 1 ? t(ageMonths === 1 ? 'dash.ageMonth' : 'dash.ageMonths', { n: ageMonths }) : t('dash.ageNewborn')
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
+                  {/* Name and check-in on one line (owner, 2026-10-26: the
+                      "MANTA SHARK · SWIMMER" line and the age came off). */}
                   <div className="msa-mcard-top">
-                    <span className="msa-mcard-brand">MANTA SHARK · SWIMMER</span>
+                    <div className="msa-mcard-name">{student.full_name}</div>
                     {/* Check-in sits on the card it belongs to: a family with two
                         swimmers is on the pool deck, holding a towel. */}
                     <button className="tap-auto msa-mcard-qr" onClick={() => setQrStudent(student)} aria-label={t('dash.viewQr')}>
@@ -3470,19 +3472,16 @@ export default function DashboardPage() {
                       {t('dash.checkIn')}
                     </button>
                   </div>
-                  <div className="msa-mcard-name">{student.full_name}</div>
-                  <div className="msa-mcard-age">
-                    {ageLabel}
-                    {student.gender === 'male' ? ' · 👦' : student.gender === 'female' ? ' · 👧' : ''}
-                  </div>
 
                   {!hasLevel && (
                     <>
                       <span className="msa-mcard-lv"><i />{t('dash.pendingAssessment')}</span>
-                      {monthlyLine}
-                      {pastBookings.some(b => b.student_id === student.id) && (
+                      {(pastBookings.some(b => b.student_id === student.id) || monthlyBtn) && (
                         <div className="msa-mcard-btns">
-                          <button className="tap-auto" onClick={() => openRecords(student)}>{t('dash.records')}<NewDot n={newReportCount(student)} /></button>
+                          {pastBookings.some(b => b.student_id === student.id) && (
+                            <button className="tap-auto" onClick={() => openRecords(student)}>{t('dash.records')}<NewDot n={newReportCount(student)} /></button>
+                          )}
+                          {monthlyBtn}
                         </div>
                       )}
                     </>
@@ -3530,7 +3529,6 @@ export default function DashboardPage() {
                             </div>
                           )
                         })()}
-                        {monthlyLine}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
                             🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
@@ -3544,6 +3542,7 @@ export default function DashboardPage() {
                           <button className="tap-auto" onClick={() => openRecords(student)}>
                             {t('dash.records')}<NewDot n={newReportCount(student)} />
                           </button>
+                          {monthlyBtn}
                           {report && (
                             <button className="tap-auto" onClick={() => setReportFor(student)}>
                               {t('assess.report.button')}
@@ -3582,7 +3581,7 @@ export default function DashboardPage() {
               children they are doing them for. Points open a sheet with the
               whole card -- balance, history, swim team -- so none of it
               is lost, it just stops taking a screen of its own. */}
-          {!viewer && <div className="msa-act">
+          {!viewer && <div className={'msa-act' + (wallet ? '' : ' solo')}>
             <button className="tap-auto msa-act-book" onClick={() => { window.location.href = '/booking' }}>
               + {t('quick.book')}
             </button>
@@ -3607,10 +3606,35 @@ export default function DashboardPage() {
               </button>
             )}
           </div>}
-          {(fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0) && (
+          {(fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0) && (() => {
+            /* One line that says what is there (owner, 2026-10-26: version 1,
+               "fold it"); the cards open under it. Something the family has
+               to act on -- a fixed class to renew, a failed or lapsed swim
+               team -- is counted in red and opens it to start with. */
+            const teamBad = (m: any) => (!viewer && !m.is_prepaid && m.status === 'past_due')
+              || (!!m.is_prepaid && (m.status === 'expired' || (!!m.expires_at && new Date(m.expires_at).getTime() < Date.now())))
+            const attention = fixedClasses.filter(f => f.renewOpen).length + teamMemberships.filter(teamBad).length
+            const open = plansOpen ?? attention > 0
+            const firstVoucher = vouchers.map(v => v.expiresOn).sort()[0]
+            const parts: string[] = []
+            if (fixedClasses.length) parts.push(t(fixedClasses.length === 1 ? 'dash.plans.sumFixedOne' : 'dash.plans.sumFixed', { n: fixedClasses.length }))
+            if (teamMemberships.length) parts.push(t('dash.plans.sumTeam', { n: teamMemberships.length }))
+            if (vouchers.length) parts.push(t(vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: vouchers.length }))
+            return (
             <>
-              <h2 className="msa-sec-h msa-plans-h">{t('dash.plans.title')}</h2>
-              <div className="msa-plans">
+              <button type="button" className="tap-auto msa-plansum" aria-expanded={open} aria-controls="msa-plans-list"
+                onClick={() => setPlansOpen(!open)}>
+                <span className="msa-plan-ic" aria-hidden="true">📌</span>
+                <span className="msa-plan-tx">
+                  <b>{t('dash.plans.title')}</b>
+                  {parts.join(' · ')}
+                  {firstVoucher && <span className={firstVoucher <= plusDays(getTodayLA(), 7) ? 'msa-plan-soon' : undefined}>
+                    {' · '}{t(vouchers.length === 1 ? 'dash.plan.expires' : 'dash.plan.firstExpires', { date: shortDate(firstVoucher) })}</span>}
+                  {attention > 0 && <span className="msa-plan-bad">{' · '}{t('dash.plans.attention', { n: attention })}</span>}
+                </span>
+                <span className={'msa-plansum-chev' + (open ? ' on' : '')} aria-hidden="true">›</span>
+              </button>
+              {open && <div className="msa-plans" id="msa-plans-list">
                 {planGroups.map(g => {
                   const soon = plusDays(getTodayLA(), 7)
                   return (
@@ -3677,9 +3701,10 @@ export default function DashboardPage() {
                     </div>
                   )
                 })}
-              </div>
+              </div>}
             </>
-          )}
+            )
+          })()}
         </section>
 
         {/* Pending partner bookings notice */}
@@ -4513,22 +4538,22 @@ export default function DashboardPage() {
             referral card -- without a visible way in almost nobody finds the
             offer); the suggestion box (owner, 2026-09-30: any time, managers only). */}
         <nav className="msa-more" aria-label={t('dash.more.label')}>
+          {/* A row of three small buttons (owner, 2026-10-26), not three
+              full-width rows. */}
           {!viewer && <Link href="/dashboard/partnerships" className="msa-more-row">
             <span className="msa-more-ico" aria-hidden="true">👥</span>
-            <span className="msa-more-text">{t('dash.partnerPrompt')}</span>
-            <span className="msa-more-link">{t('quick.partnerships')} ›</span>
+            <span className="msa-more-link">{t('quick.partnerships')}</span>
           </Link>}
           {wallet && (
             <button className="tap-auto msa-more-row" onClick={() => { setReferralFocus(true); setPointsOpen(true) }}>
               <span className="msa-more-ico" aria-hidden="true">🎁</span>
-              <span className="msa-more-text">{t('ref.prompt')}</span>
-              <span className="msa-more-link">{t('ref.promptLink', { n: REFERRAL_POINTS })} ›</span>
+              <span className="msa-more-link">{t('dash.more.refer')}</span>
+              <span className="msa-more-text">{t('dash.more.referBonus', { n: REFERRAL_POINTS })}</span>
             </button>
           )}
           <button className="tap-auto msa-more-row" onClick={() => setSuggestOpen(true)}>
             <span className="msa-more-ico" aria-hidden="true">💬</span>
-            <span className="msa-more-text">{t('suggest.prompt')}</span>
-            <span className="msa-more-link">{t('suggest.link')} ›</span>
+            <span className="msa-more-link">{t('suggest.link')}</span>
           </button>
         </nav>
 

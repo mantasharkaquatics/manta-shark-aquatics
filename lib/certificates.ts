@@ -2,6 +2,7 @@
 import { createHash } from 'crypto'
 import { getT, toLocale, dateTag, type Locale } from './i18n/all'
 import { sendEmail } from './email'
+import { LEVEL_COLORS } from './levels'
 
 /* Level-up certificates (owner, 2026-10-22, tier 2).
 
@@ -50,10 +51,11 @@ export async function readCertificate(svc: any, id: string): Promise<(Certificat
     promotion is a level_upgrades row that moved a swimmer up. */
 export async function allCertificates(svc: any): Promise<{ rows: AdminCertificate[]; needsSql: boolean }> {
   let needsSql = false
-  let { data, error } = await svc.from('level_upgrades')
+  const first = await svc.from('level_upgrades')
     .select('id, student_id, from_level, to_level, upgraded_at, certificate_given_at')
     .not('from_level', 'is', null).order('upgraded_at', { ascending: false }).limit(1000)
-  if (error) {
+  let data = first.data
+  if (first.error) {
     // docs/migration-certificate-given.sql not run yet: everything reads as not handed over.
     needsSql = true
     ;({ data } = await svc.from('level_upgrades').select('id, student_id, from_level, to_level, upgraded_at')
@@ -93,7 +95,7 @@ export async function sendCertificate(svc: any, upgradeId: string): Promise<void
     if (!p?.email) return
     await sendEmail({
       type: 'level_certificate', to: p.email, parentName: p.first_name || '', lang: p.preferred_language || undefined,
-      studentName: c.studentName, level: c.toLevel, linkUrl: `https://www.mantasharkaquatics.net/api/certificates/${c.id}`,
+      studentName: c.studentName, level: c.fromLevel, nextLevel: c.toLevel, linkUrl: `https://www.mantasharkaquatics.net/api/certificates/${c.id}`,
     })
   } catch (e) {
     console.error('certificate email failed for', upgradeId, e instanceof Error ? e.message : '')
@@ -106,39 +108,60 @@ const esc = (v: unknown) => String(v ?? '')
 export const PRINT_JS = "document.getElementById('print').addEventListener('click',function(){window.print()})"
 export const PRINT_JS_HASH = createHash('sha256').update(PRINT_JS).digest('base64')
 
-/** The certificate page. */
+/** The certificate page (owner, 2026-10-26: design C, "playful"). It
+    celebrates the level the swimmer PASSED (fromLevel): a move from 2 to 3
+    reads "passed Level 2", in Level 2's colour, with its three stages as
+    three stars. Letter landscape; the same page prints at the desk and opens
+    from the family's email. No web fonts: the CSP allows none. */
 export function certificateHtml(c: Certificate, lang: string | null | undefined): string {
   const L: Locale = toLocale(lang || 'en')
   const t = getT(L)
   const date = new Date(c.date + 'T12:00:00Z').toLocaleDateString(dateTag(L), { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
-  const levelName = t(`level.${c.toLevel}.name`)
+  const n = c.fromLevel
+  const color = LEVEL_COLORS[String(n)] || '#f0c419'
+  const levelText = `${t('levels.levelN', { n })} · ${t(`level.${n}.name`)}`
+  // Long names step down so they stay on one or two lines.
+  const len = [...c.studentName].length
+  const nameSize = len > 28 ? 4 : len > 18 ? 5.2 : 6.6
+  const petals = Array.from({ length: 12 }, (_, i) =>
+    `<circle cx="${(50 + 38 * Math.cos(i * Math.PI / 6)).toFixed(1)}" cy="${(50 + 38 * Math.sin(i * Math.PI / 6)).toFixed(1)}" r="13"/>`).join('')
+  const star = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 20.9l1.6-7L2 9.2l7.1-.6z" fill="#f0c419" stroke="#d99a00" stroke-width="1"/></svg>`
+  const bubbles = [[2, 10, 5], [3.4, 4, 40], [1.6, 6, 70], [2.6, 94, 12], [1.4, 96, 46], [3, 93, 66], [1.8, 30, 3], [2.2, 62, 2.5], [1.2, 80, 4]]
+    .map(([w, l, tp]) => `<i class="bub" style="width:${w}cqw;height:${w}cqw;left:${l}%;top:${tp}%"></i>`).join('')
   return `<!DOCTYPE html>
 <html lang="${L}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(t('cert.pageTitle', { name: c.studentName, n: c.toLevel }))}</title>
+<title>${esc(t('cert.pageTitle', { name: c.studentName, n }))}</title>
 <style>
   @page { size: letter landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #e9eef6; font-family: Georgia, 'Times New Roman', 'Songti TC', 'Noto Serif TC', serif; color: #12254a; padding: 16px; }
+  body { background: #e9eef6; font-family: -apple-system, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; color: #12254a; padding: 16px; }
   .toolbar { max-width: 1000px; margin: 0 auto 12px; display: flex; justify-content: flex-end; }
   .toolbar button { font: 700 14px -apple-system, 'Segoe UI', Arial, sans-serif; color: #fff; background: #12254a; border: 0; border-radius: 10px; padding: 12px 20px; min-height: 44px; cursor: pointer; }
-  .toolbar button:focus-visible { outline: 3px solid #c9a84c; outline-offset: 2px; }
-  .cert { max-width: 1000px; aspect-ratio: 11 / 8.5; margin: 0 auto; background: #fffdf7; position: relative; padding: 5.5%; box-shadow: 0 6px 30px rgba(18,37,74,.12); }
-  .frame { position: absolute; inset: 2.6%; border: 3px solid #12254a; }
-  .frame::after { content: ''; position: absolute; inset: 8px; border: 1px solid #c9a84c; }
-  .inner { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
-  .logo { width: 13%; min-width: 64px; height: auto; }
-  .eyebrow { font: 700 clamp(10px, 1.4vw, 14px) -apple-system, 'Segoe UI', Arial, sans-serif; letter-spacing: .32em; text-transform: uppercase; color: #a8822e; }
-  h1 { font-size: clamp(26px, 5vw, 52px); font-weight: 400; letter-spacing: .02em; margin-top: .2em; }
-  .lead { font-size: clamp(13px, 1.7vw, 18px); color: #56647d; font-style: italic; }
-  .name { font-size: clamp(30px, 6vw, 64px); line-height: 1.1; border-bottom: 1px solid #c9a84c; padding: 0 .6em .12em; overflow-wrap: anywhere; }
-  .level { font-size: clamp(15px, 2.3vw, 24px); }
-  .level b { color: #a8822e; font-weight: 700; }
-  .foot { width: 100%; padding: 0 6%; display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; font-size: clamp(10px, 1.3vw, 14px); color: #56647d; }
-  .sig { min-width: 32%; text-align: center; }
-  .sig div:first-child { font-family: Georgia, serif; font-size: clamp(13px, 1.8vw, 18px); color: #12254a; border-bottom: 1px solid #9aa6ba; padding-bottom: 4px; margin-bottom: 4px; min-height: 1.5em; }
+  .toolbar button:focus-visible { outline: 3px solid #f0c419; outline-offset: 2px; }
+  .cert { max-width: 1000px; aspect-ratio: 11 / 8.5; margin: 0 auto; position: relative; overflow: hidden; container-type: inline-size;
+    background: linear-gradient(180deg, #bfe3fb 0%, #7cc4f0 55%, #3d93d4 100%); box-shadow: 0 6px 30px rgba(18,37,74,.14); }
+  .bub { position: absolute; border-radius: 50%; border: .25cqw solid rgba(255,255,255,.75); background: rgba(255,255,255,.2); }
+  .wave { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 22%; }
+  .card { position: absolute; inset: 8% 9% 8%; background: #fff; border-radius: 3cqw; box-shadow: 0 1.5cqw 4cqw rgba(18,37,74,.22); text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3cqw 5cqw 7cqw; }
+  .ribbon { position: absolute; left: 50%; top: -2.6cqw; transform: translateX(-50%); background: #f0c419; color: #3a2600; font-weight: 900; font-size: 2.3cqw;
+    padding: 1cqw 4.5cqw; border-radius: 1cqw; box-shadow: 0 .6cqw 0 #b8860b; white-space: nowrap; letter-spacing: .1em; }
+  .brand { position: absolute; left: 0; right: 0; top: 4.2cqw; font-weight: 900; letter-spacing: .32em; font-size: 1.25cqw; color: #2050a0; }
+  .rosette { width: 13cqw; height: 13cqw; margin-top: 2cqw; }
+  .big { font-weight: 900; font-size: 2.6cqw; margin-top: 1.2cqw; color: #2050a0; letter-spacing: .2em; }
+  .name { font-family: Georgia, 'Times New Roman', 'Songti TC', 'Noto Serif TC', serif; font-weight: 700; font-size: ${nameSize}cqw; line-height: 1.08; margin-top: .4cqw; overflow-wrap: anywhere; }
+  .lvl { font-size: 2.5cqw; font-weight: 900; margin-top: 1.2cqw; }
+  .lvl b { color: #e08a00; }
+  .stars { display: flex; gap: 1cqw; margin-top: 1.2cqw; }
+  .stars svg { width: 2.8cqw; height: 2.8cqw; }
+  .foot { position: absolute; left: 5cqw; right: 5cqw; bottom: 2.8cqw; display: flex; justify-content: space-between; align-items: flex-end; font-size: 1.25cqw; color: #56647d; font-weight: 700; }
+  .foot div { border-top: .15cqw solid #c9d6ea; padding-top: .6cqw; min-width: 16cqw; text-align: left; }
+  .foot div b { display: block; font-size: 1.9cqw; color: #12254a; margin-top: .2cqw; }
+  .foot div + div { margin-right: 16cqw; }
+  .masc { position: absolute; right: 3.5cqw; bottom: 5.5cqw; width: 15cqw; transform: rotate(-8deg); filter: drop-shadow(0 .8cqw 1cqw rgba(18,37,74,.25)); }
   @media print {
     body { background: #fff; padding: 0; }
     .toolbar { display: none; }
@@ -149,21 +172,22 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
 <body>
   <div class="toolbar"><button type="button" id="print">${esc(t('cert.print'))}</button></div>
   <main class="cert">
-    <div class="frame" aria-hidden="true"></div>
-    <div class="inner">
-      <img class="logo" src="/logo.png" alt="Manta Shark Aquatics" width="120" height="120">
-      <div>
-        <div class="eyebrow">Manta Shark Aquatics</div>
-        <h1>${esc(t('cert.title'))}</h1>
-      </div>
-      <p class="lead">${esc(t('cert.presented'))}</p>
+    ${bubbles}
+    <svg class="wave" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 150 0 300 80 450 40 S 750 0 900 40 S 1000 60 1000 60 V100 H0Z" fill="#2b7fc4"/></svg>
+    <div class="card">
+      <div class="ribbon">${esc(t('cert.title'))}</div>
+      <div class="brand">MANTA SHARK AQUATICS</div>
+      <svg class="rosette" viewBox="0 0 100 100" role="img" aria-label="${esc(levelText)}"><g fill="${color}">${petals}<circle cx="50" cy="50" r="38"/></g><circle cx="50" cy="50" r="31" fill="#fff8dc"/><circle cx="50" cy="50" r="26" fill="${color}"/><text x="50" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="8" fill="#fff" letter-spacing="1">${esc(t('cert.badge'))}</text><text x="50" y="70" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="28" fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1">${n}</text></svg>
+      <div class="big">${esc(t('cert.congrats'))}</div>
       <div class="name">${esc(c.studentName)}</div>
-      <p class="level">${t('cert.body', { n: `<b>${c.toLevel}</b>`, name: `<b>${esc(levelName)}</b>` })}</p>
+      <div class="lvl">${t('cert.body', { level: `<b>${esc(levelText)}</b>` })}</div>
+      <div class="stars">${star}${star}${star}</div>
       <div class="foot">
-        <div class="sig"><div>${esc(date)}</div>${esc(t('cert.date'))}</div>
-        <div class="sig"><div>${esc(c.coach || 'Manta Shark Aquatics')}</div>${esc(c.coach ? t('cert.coach') : t('cert.school'))}</div>
+        <div>${esc(t('cert.date'))}<b>${esc(date)}</b></div>
+        <div>${esc(c.coach ? t('cert.coach') : t('cert.school'))}<b>${esc(c.coach || 'Manta Shark Aquatics')}</b></div>
       </div>
     </div>
+    <img class="masc" src="/mascot.png" alt="" aria-hidden="true">
   </main>
   <script>${PRINT_JS}</script>
 </body>
