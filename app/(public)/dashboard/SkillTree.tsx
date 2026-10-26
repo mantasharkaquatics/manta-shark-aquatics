@@ -817,11 +817,12 @@ export default function SkillTree({
                 <>
                   <h3>{tDb(locale, 'skills', sel.id, sel.name)}</h3>
                   <p className="dm">
-                    {t(levelNameKey(sel.level))} · {t('dash.stageN', { n: sel.stage })} ·{' '}
-                    {/* A checkpoint belongs to the stage but is not part of its
-                        theme, so it says what it is rather than borrowing the
-                        stage's name. */}
-                    {sel.apart ? t('tree.stageTest') : t(stageNameKey(sel.level, sel.stage))}
+                    {t(levelNameKey(sel.level))} · {t('dash.stageN', { n: sel.stage })}
+                    {/* No stage name here (owner, 2026-10-26): "水中行走 · 臉下水
+                        與吐氣" read as if it described the skill. The name sits
+                        beside the stage's ribbon on the map. A checkpoint still
+                        says what it is. */}
+                    {sel.apart && <> · {t('tree.stageTest')}</>}
                   </p>
                   <span className="mst-band" style={{ color: MASTERY_COLOR[masteryOf(sel.percent)] }}>
                     {t(masteryKey(masteryOf(sel.percent)))}
