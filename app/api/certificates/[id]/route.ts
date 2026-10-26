@@ -20,16 +20,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const c = await readCertificate(svc, id)
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const [{ data: parent }, { data: admin }] = await Promise.all([
-    familyOf(svc, user.id, 'id, preferred_language', { viewer: true }),
+    familyOf(svc, user.id, 'id', { viewer: true }),
     svc.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle(),
   ])
   if (!admin && parent?.id !== c.parentId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  let lang = parent?.preferred_language
-  if (admin && !lang) {
-    const { data: fam } = await svc.from('parents').select('preferred_language').eq('id', c.parentId).maybeSingle()
-    lang = fam?.preferred_language
-  }
-  return new NextResponse(certificateHtml(c, lang), {
+  return new NextResponse(certificateHtml(c), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'private, no-store',

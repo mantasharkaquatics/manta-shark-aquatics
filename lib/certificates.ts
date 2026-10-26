@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createHash } from 'crypto'
-import { getT, toLocale, dateTag, type Locale } from './i18n/all'
+import { getT } from './i18n/all'
 import { sendEmail } from './email'
 import { LEVEL_COLORS } from './levels'
 
@@ -14,7 +14,7 @@ import { LEVEL_COLORS } from './levels'
    2026-10-26): the desk prints it from Admin > Certificates and hands it
    to the swimmer, then marks it given.
 
-   The page is /api/certificates/<id>: in the family's language, printable on
+   The page is /api/certificates/<id>: always in English (owner, 2026-10-26), printable on
    one landscape page, with a Print / Save as PDF button. */
 
 export type Certificate = { id: string; studentId: string; studentName: string; fromLevel: number; toLevel: number; date: string; coach: string | null }
@@ -112,12 +112,17 @@ export const PRINT_JS_HASH = createHash('sha256').update(PRINT_JS).digest('base6
     celebrates the level the swimmer PASSED (fromLevel): a move from 2 to 3
     reads "passed Level 2", in Level 2's colour. The school's full logo (with
     its name) sits in the bottom corner; nothing else decorates the card
-    (owner: no stars, no logo in the middle). Letter landscape; the same page prints at the desk and opens
-    from the family's email. No web fonts: the CSP allows none. */
-export function certificateHtml(c: Certificate, lang: string | null | undefined): string {
-  const L: Locale = toLocale(lang || 'en')
-  const t = getT(L)
-  const date = new Date(c.date + 'T12:00:00Z').toLocaleDateString(dateTag(L), { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    (owner: no stars, no logo in the middle). Letter landscape; the same page
+    prints at the desk and opens from the family's email. No web fonts: the
+    CSP allows none.
+
+    Always in English, whatever language the family reads (owner,
+    2026-10-26: "certificates are English only"). Like the legal pages, the
+    words live here rather than in the locale files; only the level name
+    comes from en.json, so it matches the rest of the site. */
+export function certificateHtml(c: Certificate): string {
+  const t = getT('en')
+  const date = new Date(c.date + 'T12:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
   const n = c.fromLevel
   const color = LEVEL_COLORS[String(n)] || '#f0c419'
   const levelText = `${t('levels.levelN', { n })} · ${t(`level.${n}.name`)}`
@@ -129,11 +134,11 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
   const bubbles = [[2, 10, 5], [3.4, 4, 40], [1.6, 6, 70], [2.6, 94, 12], [1.4, 96, 46], [3, 93, 66], [1.8, 30, 3], [2.2, 62, 2.5], [1.2, 80, 4]]
     .map(([w, l, tp]) => `<i class="bub" style="width:${w}cqw;height:${w}cqw;left:${l}%;top:${tp}%"></i>`).join('')
   return `<!DOCTYPE html>
-<html lang="${L}">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(t('cert.pageTitle', { name: c.studentName, n }))}</title>
+<title>${esc(c.studentName)} · Level ${n} certificate</title>
 <style>
   @page { size: letter landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -167,19 +172,19 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
 </style>
 </head>
 <body>
-  <div class="toolbar"><button type="button" id="print">${esc(t('cert.print'))}</button></div>
+  <div class="toolbar"><button type="button" id="print">Print / Save as PDF</button></div>
   <main class="cert">
     ${bubbles}
     <svg class="wave" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 150 0 300 80 450 40 S 750 0 900 40 S 1000 60 1000 60 V100 H0Z" fill="#2b7fc4"/></svg>
     <div class="card">
-      <div class="ribbon">${esc(t('cert.title'))}</div>
-      <svg class="rosette" viewBox="0 0 100 100" role="img" aria-label="${esc(levelText)}"><g fill="${color}">${petals}<circle cx="50" cy="50" r="38"/></g><circle cx="50" cy="50" r="31" fill="#fff8dc"/><circle cx="50" cy="50" r="26" fill="${color}"/><text x="50" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="8" fill="#fff" letter-spacing="1">${esc(t('cert.badge'))}</text><text x="50" y="70" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="28" fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1">${n}</text></svg>
-      <div class="big">${esc(t('cert.congrats'))}</div>
+      <div class="ribbon">Certificate of Achievement</div>
+      <svg class="rosette" viewBox="0 0 100 100" role="img" aria-label="${esc(levelText)}"><g fill="${color}">${petals}<circle cx="50" cy="50" r="38"/></g><circle cx="50" cy="50" r="31" fill="#fff8dc"/><circle cx="50" cy="50" r="26" fill="${color}"/><text x="50" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="8" fill="#fff" letter-spacing="1">LEVEL</text><text x="50" y="70" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="28" fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1">${n}</text></svg>
+      <div class="big">Congratulations</div>
       <div class="name">${esc(c.studentName)}</div>
-      <div class="lvl">${t('cert.body', { level: `<b>${esc(levelText)}</b>` })}</div>
+      <div class="lvl">has passed <b>${esc(levelText)}</b>!</div>
       <div class="foot">
-        <div>${esc(t('cert.date'))}<b>${esc(date)}</b></div>
-        <div>${esc(c.coach ? t('cert.coach') : t('cert.school'))}<b>${esc(c.coach || 'Manta Shark Aquatics')}</b></div>
+        <div>Date<b>${esc(date)}</b></div>
+        <div>${c.coach ? 'Coach' : 'Swim School'}<b>${esc(c.coach || 'Manta Shark Aquatics')}</b></div>
       </div>
     </div>
     <img class="logo" src="/logo-wide.png" alt="Manta Shark Aquatics" width="601" height="321">
