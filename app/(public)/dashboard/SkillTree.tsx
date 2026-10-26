@@ -30,6 +30,7 @@ import { placeLevel, routeWires } from '@/lib/tree-layout'
 import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import { makeShareCard } from '@/lib/share-card'
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -285,6 +286,70 @@ const CSS = `
    the rows it would sit on the lines that drop into the row below -- but as a
    narrow column: ribbon on top, name wrapped under it. The board gets the rest
    of the width, so it fits without sideways scrolling. */
+/* Families (owner, 2026-10-26): skill tree / badge wall switch, the route
+   map in place of the level tabs, the badge wall and its sheet. */
+.mst-views { display: inline-flex; margin: 12px 20px 0; background: #f1f4f8; border-radius: 12px; padding: 3px }
+.mst-views button { border: 0; background: none; border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 800; color: #56647d; cursor: pointer; min-height: 0 }
+.mst-views button[aria-pressed=true] { background: #12254a; color: #fff }
+.mst-views small { font-size: 12px; opacity: .75; margin-left: 2px }
+.mst-route { display: grid; grid-template-columns: repeat(8, 1fr); row-gap: 14px; padding: 16px 20px 4px }
+.mst-stn { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: none; padding: 0;
+  font: inherit; color: #12254a; cursor: pointer; min-height: 0 }
+.mst-stn::after { content: ''; position: absolute; top: 19px; left: calc(50% + 22px); width: calc(100% - 44px); height: 6px; border-radius: 3px; background: #dfe7f1; z-index: 0 }
+.mst-stn.done::after { background: #f09800 }
+.mst-stn.fin::after { display: none }
+.mst-stn .dot { position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 50%; border: 4px solid #dfe7f1; background: #fff;
+  display: grid; place-items: center; font-weight: 900; font-size: 16px; color: #8a97ab }
+.mst-stn.done .dot { background: #f09800; border-color: #f09800; color: #3a2600 }
+.mst-stn.now .dot { background: #2050a0; border-color: #bcd2f2; color: #fff; box-shadow: 0 0 0 6px rgba(32,80,160,.15); animation: mstPulse 2s ease-in-out infinite }
+@keyframes mstPulse { 50% { box-shadow: 0 0 0 11px rgba(32,80,160,.05) } }
+.mst-stn.sel .dot { outline: 3px solid #12254a; outline-offset: 3px }
+.mst-stn.fin .dot { border-style: dashed; font-size: 18px }
+.mst-stn .nm { font-size: 14px; font-weight: 800; text-align: center; line-height: 1.25 }
+.mst-stn.later .nm { color: #56647d }
+.mst-stn.sel .nm { color: #2050a0; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px }
+.mst-stn .s3 { display: flex; gap: 4px }
+.mst-stn .s3 i { width: 8px; height: 8px; border-radius: 50%; background: #dfe7f1 }
+.mst-stn .s3 i.g { background: #f09800 }
+.mst-stn .s3 i.c { background: #2050a0 }
+.mst-stn:focus-visible .dot { outline: 3px solid #f7b733; outline-offset: 3px }
+.mst-lvname { display: block; font-size: 16px; font-weight: 900; color: #12254a; margin-bottom: 2px }
+.mst-badges { padding: 14px 20px 26px; max-width: 560px }
+.mst-bsum { display: flex; align-items: center; gap: 14px; margin: 0 0 14px }
+.mst-bsum b { font-size: 30px; font-weight: 900; color: #c97d00; white-space: nowrap }
+.mst-bsum span { font-size: 14px; color: #56647d; line-height: 1.45 }
+.mst-brow { display: grid; grid-template-columns: 64px repeat(3, 1fr); gap: 8px; align-items: center; margin-bottom: 12px }
+.mst-brow .lv { font-weight: 900; font-size: 15px; text-align: center; line-height: 1.2; color: #12254a }
+.mst-brow .lv small { display: block; font-size: 12px; font-weight: 700; color: #56647d }
+.mst-badge { border: 0; background: none; padding: 4px 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; cursor: pointer; border-radius: 12px; min-height: 0 }
+.mst-badge span { font-size: 12.5px; font-weight: 700; color: #56647d; text-align: center; line-height: 1.25 }
+.mst-badge.got span { color: #12254a }
+.mst-badge.now svg { animation: mstGlow 1.8s ease-in-out infinite }
+@keyframes mstGlow { 50% { transform: scale(1.07) } }
+.mst-badge:focus-visible { outline: 3px solid #f7b733 }
+.mst-bshade { position: fixed; inset: 0; z-index: 1300; background: rgba(18,37,74,.35) }
+.mst-bsheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1301; max-width: 480px; margin: 0 auto; background: #fff; border-radius: 22px 22px 0 0;
+  padding: 20px 20px calc(22px + env(safe-area-inset-bottom)); box-shadow: 0 -16px 40px rgba(18,37,74,.25); max-height: 92dvh; overflow-y: auto;
+  text-align: center; animation: mstUp .22s ease-out }
+@keyframes mstUp { from { transform: translateY(100%) } to { transform: none } }
+.mst-bsheet h3 { font-size: 20px; margin: 10px 0 6px; color: #12254a }
+.mst-bsheet p { font-size: 15px; color: #56647d; line-height: 1.6; margin: 0 }
+.mst-bx { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; min-height: 0; border: 0; border-radius: 50%; background: #eef3f9; color: #56647d; font-size: 16px; cursor: pointer }
+.mst-bbig { display: flex; justify-content: center; padding-top: 6px }
+.mst-card { width: 100%; max-width: 320px; border-radius: 14px; box-shadow: 0 12px 30px rgba(18,37,74,.25) }
+.mst-bbtns { display: flex; flex-direction: column; gap: 10px; margin-top: 16px }
+.mst-bbtns button, .mst-bbtns a { display: block; border: 1.5px solid #e3ebf6; background: #fff; color: #12254a; border-radius: 14px; padding: 13px; font: inherit;
+  font-size: 16px; font-weight: 800; text-decoration: none; cursor: pointer; min-height: 48px }
+.mst-bbtns .amb { background: linear-gradient(180deg, #ffbe3d, #f09800); border-color: #f09800; color: #3a2600 }
+@media (prefers-reduced-motion: reduce) { .mst-stn.now .dot, .mst-badge.now svg, .mst-bsheet { animation: none } }
+
+@media (max-width: 640px) {
+  .mst-route { grid-template-columns: repeat(4, 1fr); padding: 14px 14px 4px }
+  .mst-stn:nth-child(4)::after { display: none }
+  .mst-views { margin: 10px 14px 0 }
+  .mst-badges { padding: 12px 14px 24px }
+}
+
 @media (max-width: 640px) {
   .mst-panel { --cw: 88px; --rh: 124px; --sz: 44px; --rkb: 2px; --lane: 12px; --pad: 30px;
     --rail: 54px; --sp: 14px; --hd: 0px }
@@ -314,6 +379,13 @@ export default function SkillTree({
   const [lv, setLv] = useState(Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL))
   const [sel, setSel] = useState<TreeSkill | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  /* Families get the route map in place of the level tabs, and a badge wall
+     beside the skill tree (owner, 2026-10-26). Coaches and the admin
+     curriculum page keep the tabs. */
+  const family = !forCoach && !allPassed
+  const [view, setView] = useState<'tree' | 'badges'>('tree')
+  const [badge, setBadge] = useState<{ level: number; stage: number } | null>(null)
+  const [card, setCard] = useState<string | null>(null)
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
 
@@ -519,6 +591,24 @@ export default function SkillTree({
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
   }, [inLv, needs, cols, rows])
 
+  /* Which of the 21 stage ribbons are earned: every skill in the stage at
+     100, the same rule as the ribbons beside the rows. */
+  const earned = useMemo(() => {
+    const out: Record<string, boolean> = {}
+    for (let L = 1; L <= MAX_LEVEL; L++) for (let st = 1; st <= 3; st++) {
+      out[`${L}.${st}`] = stageEarned((skills || [])
+        .filter(x => x.level === L && x.stage === st && !x.apart).map(x => x.percent))
+    }
+    return out
+  }, [skills])
+  const earnedCount = Object.values(earned).filter(Boolean).length
+  /* The ribbon being worked for: the first one not earned yet. */
+  const nextBadge = (() => {
+    for (let L = 1; L <= MAX_LEVEL; L++) for (let st = 1; st <= 3; st++) if (!earned[`${L}.${st}`]) return { level: L, stage: st }
+    return null
+  })()
+  const levelState = (n: number) => n < currentLevel ? 'done' : n === currentLevel ? 'now' : 'later'
+
   const total = skills?.length ?? 0
   const done = skills?.filter(s => s.state === 'done').length ?? 0
   const lvDone = inLv.filter(s => s.state === 'done').length
@@ -563,6 +653,44 @@ export default function SkillTree({
 
         {skills && (
           <>
+            {family && (
+              <div className="mst-views" role="group" aria-label={t('tree.title')}>
+                <button type="button" className="tap-auto" aria-pressed={view === 'tree'} onClick={() => setView('tree')}>{t('tree.view.tree')}</button>
+                <button type="button" className="tap-auto" aria-pressed={view === 'badges'} onClick={() => setView('badges')}>
+                  {t('tree.view.badges')} <small>{earnedCount}/21</small>
+                </button>
+              </div>
+            )}
+
+            {family && view === 'tree' && (
+              /* The route: one station per level, the line walked so far in
+                 amber, the swimmer's station glowing, three dots for the
+                 stages under each name. Tapping a station picks the level. */
+              <div className="mst-route" role="tablist" aria-label={t('tree.route.aria')}>
+                {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => {
+                  const s = levelState(n)
+                  return (
+                    <button key={n} type="button" role="tab" aria-selected={n === lv}
+                      className={'tap-auto mst-stn ' + s + (n === lv ? ' sel' : '')}
+                      aria-label={`L${n} ${t(levelNameKey(n))}, ${t('tree.route.' + s)}`}
+                      onClick={() => { setLv(n); setSel(null) }}>
+                      <span className="dot">{n}</span>
+                      <span className="nm">{t(levelNameKey(n))}</span>
+                      <span className="s3" aria-hidden="true">
+                        {[1, 2, 3].map(st => (
+                          <i key={st} className={earned[`${n}.${st}`] ? 'g' : (s === 'now' && st === currentStage) ? 'c' : ''} />
+                        ))}
+                      </span>
+                    </button>
+                  )
+                })}
+                <div className="mst-stn fin" aria-hidden="true">
+                  <span className="dot">🏁</span><span className="nm">{t('tree.route.finish')}</span>
+                </div>
+              </div>
+            )}
+
+            {!family && (
             <div className="mst-tabs" role="tablist">
               {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
                 <button key={n} className="mst-tab" role="tab" aria-selected={n === lv}
@@ -571,8 +699,11 @@ export default function SkillTree({
                 </button>
               ))}
             </div>
+            )}
 
+            {view === 'tree' && (<>
             <p className="mst-meta">
+              {family && <b className="mst-lvname">L{lv} · {t(levelNameKey(lv))}</b>}
               {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
             </p>
 
@@ -736,6 +867,80 @@ export default function SkillTree({
                 </>
               )}
             </div>
+            </>)}
+
+            {family && view === 'badges' && (
+              /* The 21 ribbons as a collection (owner, 2026-10-26): earned
+                 ones in colour, the one being worked for gently pulsing, the
+                 rest greyed with their names still there. */
+              <div className="mst-badges">
+                <p className="mst-bsum">
+                  <b>{earnedCount} / 21</b>
+                  <span>
+                    {t('tree.badges.count')}
+                    {nextBadge && <><br />{t('tree.badges.next', { name: t(stageNameKey(nextBadge.level, nextBadge.stage)) })}</>}
+                  </span>
+                </p>
+                {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
+                  <div key={n} className="mst-brow">
+                    <div className="lv">L{n}<small>{t(levelNameKey(n))}</small></div>
+                    {[1, 2, 3].map(st => {
+                      const got = earned[`${n}.${st}`]
+                      const now = !got && nextBadge?.level === n && nextBadge?.stage === st
+                      return (
+                        <button key={st} type="button" className={'tap-auto mst-badge' + (got ? ' got' : now ? ' now' : '')}
+                          aria-label={`L${n} ${t('tree.stageN', { n: st })} ${t(stageNameKey(n, st))}, ${t(got ? 'tree.badges.got' : now ? 'tree.badges.now' : 'tree.badges.later')}`}
+                          onClick={() => { setBadge({ level: n, stage: st }); setCard(null) }}>
+                          <StageRibbon level={n} stage={st} size={44} earned={got || now} label="" />
+                          <span>{t(stageNameKey(n, st))}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {badge && (
+              <>
+                <div className="mst-bshade" onClick={() => setBadge(null)} />
+                <div className="mst-bsheet" role="dialog" aria-modal="true"
+                  aria-label={`L${badge.level} ${t(stageNameKey(badge.level, badge.stage))}`}>
+                  <button type="button" className="tap-auto mst-bx" aria-label={t('common.close')} onClick={() => setBadge(null)}>✕</button>
+                  {(() => {
+                    const got = earned[`${badge.level}.${badge.stage}`]
+                    const now = !got && nextBadge?.level === badge.level && nextBadge?.stage === badge.stage
+                    const what = `${t('levels.levelN', { n: badge.level })} ${t(levelNameKey(badge.level))} · ${t(stageNameKey(badge.level, badge.stage))}`
+                    return (
+                      <>
+                        {card
+                          ? <img className="mst-card" src={card} alt={what} />
+                          : <div className="mst-bbig"><StageRibbon level={badge.level} stage={badge.stage} size={84} earned={got || now} label="" /></div>}
+                        <h3>L{badge.level} · {t('tree.stageN', { n: badge.stage })} · {t(stageNameKey(badge.level, badge.stage))}</h3>
+                        <p>{t(got ? 'tree.badges.gotLong' : now ? 'tree.badges.nowLong' : 'tree.badges.laterLong')}</p>
+                        <div className="mst-bbtns">
+                          {got && !card && (
+                            <button type="button" className="tap-auto amb" onClick={async () => {
+                              setCard(await makeShareCard(badge.level, badge.stage, {
+                                passed: t('share.passed', { n: badge.stage }),
+                                bravo: t('share.bravo', { name: studentName }),
+                                what,
+                              }))
+                            }}>{t('share.make')}</button>
+                          )}
+                          {card && (
+                            <a className="amb" href={card} download={`${studentName}-L${badge.level}-${badge.stage}.png`}>{t('share.save')}</a>
+                          )}
+                          <button type="button" className="tap-auto" onClick={() => { setLv(badge.level); setView('tree'); setSel(null); setBadge(null) }}>
+                            {t('tree.badges.openLevel')}
+                          </button>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

@@ -26,6 +26,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import SiblingBooking from './SiblingBooking'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
+import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -2236,10 +2237,7 @@ export default function BookingPage() {
     // shows, so the centre sat well below the middle (found 2026-10-15).
     <div style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
-        <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
-        <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
-          style={{ display: 'block', margin: '0 auto 16px', borderRadius: '50%', objectFit: 'cover', animation: 'msaPulse 1.6s ease-in-out infinite' }} />
-        <div style={{ fontSize: '15px', color: '#56647d' }}>{t('booking.loading')}</div>
+        <MascotLoading text={t('booking.loading')} />
       </div>
     </div>
   )
@@ -3198,8 +3196,8 @@ export default function BookingPage() {
                     </>
                   )
                 })()) : shownTimeSlots.length === 0 ? (
-                  <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
-                    <p style={{ color: '#56647d', fontSize: '15px' }}>{slotsLoading ? t('booking.loading') : t('booking.noSlots')}</p>
+                  <div style={{ background: '#fff', borderRadius: '12px', padding: '8px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
+                    {slotsLoading ? <MascotLoading text={t('booking.loading')} /> : <MascotEmpty small text={t('booking.noSlots')} />}
                   </div>
                 ) : (
                   <>
@@ -3973,6 +3971,8 @@ export default function BookingPage() {
                 </a>
               </span>
             </div>
+            {/* The mascot's tip before the last tap (owner, 2026-10-26). */}
+            <div style={{ margin: '0 0 14px' }}><MascotTip>{t('booking.tip.bring')}</MascotTip></div>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => { setStep(3); setRecurPlan([]) }} style={{
                 flex: 1, padding: '14px', background: '#fff',

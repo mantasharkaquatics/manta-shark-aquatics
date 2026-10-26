@@ -22,12 +22,15 @@ import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
+import HOME_PRACTICE from '@/lib/home-practice.json'
+import { MascotEmpty } from '@/components/MascotHelper'
 import type { MonthlyReport } from './MonthlyReportSheet'
 
 // Opened from a button, never on first paint: fetched the first time a family
 // opens them rather than with the page (2026-10-05). The skill map alone is
 // ~740 lines; the QR library loads the same way, inside QRModal.
 const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
+const Celebration = dynamic(() => import('./Celebration'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
@@ -41,6 +44,42 @@ import { myParentId, myFamilyRole } from '@/lib/my-parent'
    colour the component computes; anything that changes with width is a class. */
 const MOBILE_CSS = `
 ${REPORT_SHEET_CSS}
+
+/* The child's next step on the card (owner, 2026-10-26). */
+.msa-mcard-next { margin-top: 12px; border-radius: 14px; background: rgba(255,255,255,0.08) }
+.msa-mcard-next button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; background: none; color: #fff;
+  font-family: inherit; text-align: left; cursor: pointer }
+.msa-mcard-next button + button { border-top: 1px solid rgba(255,255,255,0.1) }
+.msa-mcard-next .ic { width: 30px; height: 30px; flex: none; border-radius: 9px; background: rgba(255,255,255,0.14); display: grid; place-items: center; font-size: 15px }
+.msa-mcard-next .tx { flex: 1; min-width: 0 }
+.msa-mcard-next .k { display: block; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.65) }
+.msa-mcard-next .v { display: block; font-size: 15px; font-weight: 800; line-height: 1.3 }
+.msa-mcard-next .go { color: rgba(255,255,255,0.6); font-size: 18px }
+@media (hover: hover) { .msa-mcard-next button:hover { background: rgba(255,255,255,0.06) } }
+.msa-home { background: #fff; border: 1px solid #e3ebf6; border-radius: 14px; padding: 16px }
+.msa-home .k { font-size: 13px; font-weight: 700; color: #56647d }
+.msa-home h3 { margin: 6px 0 8px; font-size: 20px; color: #12254a }
+.msa-home p { margin: 0; font-size: 16px; line-height: 1.65; color: #34435e }
+.msa-home .safe { margin-top: 12px; font-size: 14px; color: #8a5a00; background: #fff6e3; border-radius: 10px; padding: 9px 12px }
+
+/* The week view of the upcoming lessons (owner, 2026-10-26): a card per
+   day, big times, swipe sideways, this week and next. */
+.msa-week { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch }
+.msa-week::-webkit-scrollbar { display: none }
+.msa-wday { flex: 0 0 min(300px, 80%); scroll-snap-align: start; background: #fff; border: 1px solid #e3ebf6; border-radius: 18px; padding: 14px; min-height: 180px }
+.msa-wday.today { border: 2px solid #2050a0; box-shadow: 0 8px 22px rgba(32,80,160,.12) }
+.msa-wday.past { opacity: .6 }
+.msa-wday-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px }
+.msa-wday-h b { font-size: 21px; font-weight: 900; color: #12254a }
+.msa-wday-h span { font-size: 15px; color: #56647d }
+.msa-wday-h em { margin-left: auto; font-style: normal; font-size: 12.5px; font-weight: 800; color: #fff; background: #2050a0; padding: 3px 10px; border-radius: 999px }
+.msa-wnone { text-align: center; color: #8794ab; font-size: 15px; padding: 34px 0; margin: 0 }
+.msa-wles { display: block; width: 100%; text-align: left; border: 0; background: #eef4fb; border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; font: inherit; color: #12254a }
+.msa-wles .tm { display: block; font-size: 25px; font-weight: 900; letter-spacing: -.01em; line-height: 1.1 }
+.msa-wles .tm small { font-size: 14px; font-weight: 700; color: #56647d; margin-left: 4px }
+.msa-wles .who { display: block; font-size: 16px; font-weight: 800; margin-top: 3px }
+.msa-wles .what { display: block; font-size: 14px; color: #56647d; margin-top: 2px; line-height: 1.4 }
+.msa-wles:focus-visible { outline: 3px solid #f7b733 }
 
 /* Every :hover below sits in @media (hover: hover): on a phone a tapped
    card or button kept its hover colour and read as selected (AGENTS.md). */
@@ -577,11 +616,7 @@ function RecordsSheet({ student, past, records, newSince, page, setPage, onClose
           <b>{t('dash.recordsOf', { name: student.full_name })}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
         </div>
-        {rows.length === 0 && (
-          <p style={{ fontSize: '13px', color: '#56647d', textAlign: 'center', padding: '24px 0', margin: 0 }}>
-            {t('dash.noRecordsYet')}
-          </p>
-        )}
+        {rows.length === 0 && <MascotEmpty small text={t('dash.noRecordsYet')} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {shown.map(r => {
             const b = r.b
@@ -1684,7 +1719,7 @@ export default function DashboardPage() {
   const [teamSheet, setTeamSheet] = useState<string | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
-  const [lessonView, setLessonView] = useState<'list' | 'month'>('list')
+  const [lessonView, setLessonView] = useState<'list' | 'week' | 'month'>('list')
   const [lessonDetail, setLessonDetail] = useState<Booking | null>(null)
   const [daySheet, setDaySheet] = useState<string | null>(null)
   const firstName = (n?: string) => (n || '').split(',')[0].trim().split(' ')[0]
@@ -1883,6 +1918,28 @@ export default function DashboardPage() {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 })
   }
   const [studentProgressMap, setStudentProgressMap] = useState<Record<string, StudentProgress>>({})
+  /* A stage passed since this phone last looked (owner, 2026-10-26): the
+     celebration plays once for it. Remembered per device, by swimmer, level
+     and stage. The first time a device sees the dashboard it only records
+     what is already passed -- old ribbons are not celebrated all at once. */
+  const [celebrate, setCelebrate] = useState<{ name: string; level: number; stage: number }[]>([])
+  useEffect(() => {
+    if (!students.length || !Object.keys(studentProgressMap).length) return
+    const KEY = 'msa_celebrated'
+    let seen: string[] | null = null
+    try { const raw = localStorage.getItem(KEY); seen = raw ? JSON.parse(raw) : null } catch { return }
+    const now: { id: string; name: string; level: number; stage: number }[] = []
+    for (const st of students) {
+      const lvl = Number(st.current_level)
+      const prog = studentProgressMap[st.id]
+      if (!lvl || !prog || prog.stages.length !== 3) continue
+      for (const sp of prog.stages) if (sp.complete) now.push({ id: `${st.id}:${lvl}.${sp.stage}`, name: st.full_name, level: lvl, stage: sp.stage })
+    }
+    const fresh = seen ? now.filter(x => !seen!.includes(x.id)) : []
+    const all = [...new Set([...(seen || []), ...now.map(x => x.id)])].slice(-300)
+    try { localStorage.setItem(KEY, JSON.stringify(all)) } catch { /* no memory: no celebration either */ }
+    if (fresh.length) setCelebrate(fresh.map(({ name, level, stage }) => ({ name, level, stage })))
+  }, [students, studentProgressMap])
   // Which stage a family has opened on a student's card, keyed by student id.
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
   const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
@@ -2076,6 +2133,9 @@ export default function DashboardPage() {
   }, [recordsFor, pointsOpen])
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
+  /* The "practise at home" sheet a child card opens (owner, 2026-10-26). */
+  const [homeFor, setHomeFor] = useState<{ student: string; skillId: string; skillName: string } | null>(null)
+  const homeBox = useDialogFocus(!!homeFor)
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
   // Esc closes the dialog on top, as it already did for the records and points
   // sheets. Without it the only ways out were the X or a click on the backdrop,
@@ -3468,6 +3528,42 @@ export default function DashboardPage() {
                           <span>{t(stageNameKey(lvl, curStage))}</span>
                           <b>{curPct}%</b>
                         </div>
+                        {(() => {
+                          /* The child's next step, on the card (owner, 2026-10-26,
+                             version A): the next lesson, and one thing to practise
+                             at home for the skill being worked on -- the one in
+                             the current stage closest to passing. */
+                          const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
+                          const next = upcomingBookings.filter(b => mine(b) && b.status !== 'cancelled')
+                            .sort((a, b) => (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
+                          const open = prog.stageSkills.filter(x => x.stage === curStage && x.percent < 100)
+                          const working = open.length ? open.reduce((a, x) => (x.percent > a.percent ? x : a), open[0]) : null
+                          const tip = working ? (HOME_PRACTICE as unknown as Record<string, Record<string, [string, string]>>)[working.skill_id]?.[locale] : null
+                          if (!next && !tip) return null
+                          const today = getTodayLA()
+                          const tomorrow = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
+                          const when = next ? (next.session_date === today ? t('dash.week.today') : next.session_date === tomorrow ? t('dash.next.tomorrow')
+                            : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
+                          return (
+                            <div className="msa-mcard-next">
+                              {next && (
+                                <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
+                                  <span className="ic" aria-hidden="true">📅</span>
+                                  <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
+                                    <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
+                                  <span className="go" aria-hidden="true">›</span>
+                                </button>
+                              )}
+                              {tip && working && (
+                                <button type="button" className="tap-auto" onClick={() => setHomeFor({ student: student.full_name, skillId: working.skill_id, skillName: tDb(locale, 'skills', working.skill_id, working.skill_name) })}>
+                                  <span className="ic" aria-hidden="true">🏠</span>
+                                  <span className="tx"><span className="k">{t('dash.next.home')}</span><span className="v">{tip[0]}</span></span>
+                                  <span className="go" aria-hidden="true">›</span>
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })()}
                         {monthlyLine}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
@@ -3726,12 +3822,12 @@ export default function DashboardPage() {
             <h2 className="msa-sec-h" style={{ margin: 0 }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
-                {(['list', 'month'] as const).map(v => (
+                {(['list', 'week', 'month'] as const).map(v => (
                   <button key={v} onClick={() => setLessonView(v)}
                     style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                       background: lessonView === v ? NAVY : '#fff',
                       color: lessonView === v ? '#fff' : '#56647d' }}>
-                    {v === 'list' ? t('dash.viewList') : t('dash.viewMonth')}</button>
+                    {v === 'list' ? t('dash.viewList') : v === 'week' ? t('dash.viewWeek') : t('dash.viewMonth')}</button>
                 ))}
               </div>
             </div>
@@ -3887,72 +3983,60 @@ export default function DashboardPage() {
                     </div>
                   )
                 })()}
-                {lessonDetail && (() => {
-                  const b = lessonDetail
-                  const past = !!(b.session_date && b.session_date < todayDs)
-                  const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
-                  const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn')
-                    : b.status === 'pending_partner' ? t(isInviteToMe(b) ? 'dash.up.awaitingYou' : 'dash.status.pending_partner') : t('status.confirmed')
-                  const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD
-                  // A merged 60-minute card carries the first half's row only; both halves
-                  // are charged alike, so the lesson cost is twice that (found
-                  // 2026-10-05: the sheet said 65 points for a 130-point hour).
-                  // A make-up is paid with a voucher; its row stores 0 points, so
-                  // it read "0 points" (found 2026-10-07).
-                  // A card that holds two children (a sibling 1-on-2, or both in one
-                  // 1-on-4) is every seat on it, as the cancel dialog and the ledger
-                  // line count it -- it showed one seat (found 2026-10-15).
-                  const seats = b._group ? b._group.filter(x => x.status !== 'cancelled' && x.points_charged != null) : null
-                  const seatPts = seats ? (seats.length > 0 ? seats.reduce((a, x) => a + (x.points_charged ?? 0), 0) : null) : b.points_charged
-                  const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : seatPts != null ? t('points.unit', { n: seatPts * (b._hour ? 2 : 1) }) : '—'
+              </div>
+            )
+          })() : lessonView === 'week' ? (() => {
+            /* The week view (owner, 2026-10-26): one card per day, big times,
+               swipe sideways; this week and next, opening on today. Tapping a
+               lesson opens the same detail as the month view; leave and moves
+               stay on the list's cards. */
+            const todayDs = getTodayLA()
+            const d0 = new Date(todayDs + 'T12:00:00')
+            const monday = new Date(d0); monday.setDate(d0.getDate() - ((d0.getDay() + 6) % 7))
+            const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d.toISOString().slice(0, 10) })
+            const all = [...pastBookings, ...upcomingBookings]
+            const tH = (v?: string) => { if (!v) return ['', '']; const [h, m] = String(v).slice(0, 5).split(':').map(Number); return [`${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')}`, h >= 12 ? 'PM' : 'AM'] }
+            return (
+              <div className="msa-week" ref={el => { if (el && !el.dataset.placed) { el.dataset.placed = '1'; const k = days.indexOf(todayDs); const c = el.children[k] as HTMLElement | undefined; if (c) el.scrollLeft = c.offsetLeft - el.offsetLeft - 2 } }}>
+                {days.map(ds => {
+                  const dt = new Date(ds + 'T12:00:00')
+                  const rows = all.filter(b => b.session_date === ds && b.status !== 'cancelled').sort((a, b) => a.start_time.localeCompare(b.start_time))
+                  const isToday = ds === todayDs, isPast = ds < todayDs
                   return (
-                    <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                      <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                          <div>
-                            <div id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
-                            {b.level_min != null && b.level_max != null && (
-                              <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
-                            )}
-                          </div>
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
-                        </div>
-                        {[
-                          // Row labels were hard-coded English (found 2026-10-05).
-                          { label: t('booking.sum.swimmer'), value: b.student_name || '—' },
-                          { label: t('booking.sum.date'), value: dateStr },
-                          { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
-                          { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
-                          ...(poolShown(pools, b.location_id) ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
-                          // Not for a view-only family member: no points (2026-10-23).
-                          ...(viewer ? [] : [{ label: t('dash.sheet.payment'), value: funding }]),
-                        ].map(row => (
-                          <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
-                            <span style={{ fontSize: '13px', color: '#56647d' }}>{row.label}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#16294a', textAlign: 'right' }}>{row.value}</span>
-                          </div>
-                        ))}
-                        <PoolDetails id={b.location_id} />
-                        {/* Same event as the booking emails' calendar file (owner, 2026-10-22). */}
-                        {!past && b.status === 'confirmed' && b.id && (
-                          <a href={`/api/parent/calendar?booking=${encodeURIComponent(b.id)}`}
-                            style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
-                            {t('dash.addToCalendar')}
-                          </a>
-                        )}
-                        <button onClick={() => setLessonDetail(null)}
-                          style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
+                    <div key={ds} className={'msa-wday' + (isToday ? ' today' : '') + (isPast ? ' past' : '')}>
+                      <div className="msa-wday-h">
+                        <b>{dt.toLocaleDateString(intlOf(locale), { weekday: 'short' })}</b>
+                        <span>{dt.toLocaleDateString(intlOf(locale), { month: 'numeric', day: 'numeric' })}</span>
+                        {isToday && <em>{t('dash.week.today')}</em>}
                       </div>
+                      {rows.length === 0
+                        ? <p className="msa-wnone">{t('dash.week.none')}</p>
+                        : rows.map((b, j) => {
+                          const [hm, ap] = tH(b.start_time)
+                          const names = b._group ? b._group.map(x => x.student_name).filter(Boolean).join(', ') : b.student_name
+                          return (
+                            <button key={b.id + j} type="button" className="tap-auto msa-wles" onClick={() => setLessonDetail(b)}>
+                              <span className="tm">{hm}<small>{ap}</small></span>
+                              <span className="who" style={{ color: swimmerColor(b.student_name) }}>{names || '—'}</span>
+                              <span className="what">{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name)}{b.coach_name ? ` · ${t('dash.up.coach', { name: b.coach_name })}` : ''}<PoolLink id={b.location_id} prefix=" · " plain /></span>
+                            </button>
+                          )
+                        })}
                     </div>
                   )
-                })()}
+                })}
               </div>
             )
           })() : upcomingBookings.length === 0 ? (
-            <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '32px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', marginBottom: '10px' }}>📅</div>
-              <p style={{ fontSize: '14px', color: '#56647d', margin: 0 }}>{t('dash.noUpcoming')}</p>
+            <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '14px' }}>
+              <MascotEmpty text={t('dash.noUpcoming')}>
+                {!viewer && (
+                  <button type="button" className="tap-auto" onClick={() => { window.location.href = '/booking' }}
+                    style={{ marginTop: '4px', padding: '12px 22px', borderRadius: '12px', border: 'none', background: NAVY, color: '#fff', fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
+                    {t('quick.book')}
+                  </button>
+                )}
+              </MascotEmpty>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -4376,6 +4460,67 @@ export default function DashboardPage() {
               })()}
             </div>
           )}
+          {/* The lesson detail: opened from the month and the week views. */}
+          {lessonDetail && (() => {
+            const b = lessonDetail
+            const past = !!(b.session_date && b.session_date < getTodayLA())
+            const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
+            const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn')
+              : b.status === 'pending_partner' ? t(isInviteToMe(b) ? 'dash.up.awaitingYou' : 'dash.status.pending_partner') : t('status.confirmed')
+            const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD
+            // A merged 60-minute card carries the first half's row only; both halves
+            // are charged alike, so the lesson cost is twice that (found
+            // 2026-10-05: the sheet said 65 points for a 130-point hour).
+            // A make-up is paid with a voucher; its row stores 0 points, so
+            // it read "0 points" (found 2026-10-07).
+            // A card that holds two children (a sibling 1-on-2, or both in one
+            // 1-on-4) is every seat on it, as the cancel dialog and the ledger
+            // line count it -- it showed one seat (found 2026-10-15).
+            const seats = b._group ? b._group.filter(x => x.status !== 'cancelled' && x.points_charged != null) : null
+            const seatPts = seats ? (seats.length > 0 ? seats.reduce((a, x) => a + (x.points_charged ?? 0), 0) : null) : b.points_charged
+            const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : seatPts != null ? t('points.unit', { n: seatPts * (b._hour ? 2 : 1) }) : '—'
+            return (
+              <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div>
+                      <div id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
+                      {b.level_min != null && b.level_max != null && (
+                        <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                  </div>
+                  {[
+                    // Row labels were hard-coded English (found 2026-10-05).
+                    { label: t('booking.sum.swimmer'), value: b.student_name || '—' },
+                    { label: t('booking.sum.date'), value: dateStr },
+                    { label: t('booking.sum.time'), value: `${(() => { const f = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }; return `${f(b.start_time)} – ${f(b.end_time)}` })()}` },
+                    { label: t('booking.sum.coach'), value: b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : '—' },
+                    ...(poolShown(pools, b.location_id) ? [{ label: t('dash.pool.label'), value: <PoolLink id={b.location_id} /> as React.ReactNode }] : []),
+                    // Not for a view-only family member: no points (2026-10-23).
+                    ...(viewer ? [] : [{ label: t('dash.sheet.payment'), value: funding }]),
+                  ].map(row => (
+                    <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid #e3ebf6' }}>
+                      <span style={{ fontSize: '13px', color: '#56647d' }}>{row.label}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#16294a', textAlign: 'right' }}>{row.value}</span>
+                    </div>
+                  ))}
+                  <PoolDetails id={b.location_id} />
+                  {/* Same event as the booking emails' calendar file (owner, 2026-10-22). */}
+                  {!past && b.status === 'confirmed' && b.id && (
+                    <a href={`/api/parent/calendar?booking=${encodeURIComponent(b.id)}`}
+                      style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
+                      {t('dash.addToCalendar')}
+                    </a>
+                  )}
+                  <button onClick={() => setLessonDetail(null)}
+                    style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
+                </div>
+              </div>
+            )
+          })()}
           {lessonView === 'list' && (() => {
             const dates = [...new Set(upcomingBookings.map(b => b.session_date))]
             const totalDays = dates.length
@@ -4432,6 +4577,28 @@ export default function DashboardPage() {
       </div>
       <style>{MOBILE_CSS}</style>
       {suggestOpen && <SuggestionSheet onClose={() => setSuggestOpen(false)} />}
+      {celebrate.length > 0 && (
+        <Celebration key={celebrate[0].name + celebrate[0].level + celebrate[0].stage} {...celebrate[0]}
+          onClose={() => setCelebrate(q => q.slice(1))} />
+      )}
+      {homeFor && (() => {
+        const tip = (HOME_PRACTICE as unknown as Record<string, Record<string, [string, string]>>)[homeFor.skillId]?.[locale]
+        if (!tip) return null
+        return (
+          <div className="msa-sheet-back" onClick={() => setHomeFor(null)}>
+            <div ref={homeBox} className="msa-sheet" role="dialog" aria-modal="true" aria-labelledby="home-tip-h" onClick={e => e.stopPropagation()}>
+              <div className="msa-sheet-head"><b id="home-tip-h">🏠 {t('dash.next.home')}</b>
+                <button className="tap-auto msa-sheet-x" onClick={() => setHomeFor(null)} aria-label={t('common.close')}>✕</button></div>
+              <div className="msa-home">
+                <div className="k">{t('dash.next.homeFor', { name: homeFor.student, skill: homeFor.skillName })}</div>
+                <h3>{tip[0]}</h3>
+                <p>{tip[1]}</p>
+                <p className="safe">{t('dash.next.safety')}</p>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {monthlyFor && (
         <MonthlyReportSheet studentName={monthlyFor.student.full_name} initialId={monthlyFor.id}
           reports={monthlyReports.filter(m => m.studentId === monthlyFor.student.id)}
