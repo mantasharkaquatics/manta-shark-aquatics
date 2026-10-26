@@ -146,7 +146,7 @@ const CSS = `
    bands, amber = in progress, solid green = passed, blue ring = can start.
    The old navy version tinted each band with the level's ribbon colour, which
    on Level 1 turned the whole board a muddy red. */
-.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(18,37,74,0.55);
+.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(18,37,74,0.55); overscroll-behavior: contain;
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #fff; color: #16294a;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -317,7 +317,7 @@ const CSS = `
 .mst-statline { display: none }
 .mst-sheet-shade { display: none }
 @media (max-width: 640px) {
-  .mst-panel.fam { display: flex; flex-direction: column; height: 100%; max-height: 100dvh }
+  .mst-panel.fam { display: flex; flex-direction: column; height: 100%; max-height: 100dvh; overscroll-behavior: contain }
   .mst-panel.fam .mst-head { padding: 10px 56px 8px 14px; flex: none }
   .mst-panel.fam .mst-x { top: 8px; right: 10px }
   .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
@@ -366,6 +366,14 @@ export default function SkillTree({
   const [keyOpen, setKeyOpen] = useState(false)
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
+  /* The page behind stays still while the map is open: on a phone a swipe on
+     the map scrolled the dashboard underneath (owner, 2026-10-26). */
+  useEffect(() => {
+    const html = document.documentElement, body = document.body
+    const was = [html.style.overflow, body.style.overflow, body.style.overscrollBehavior]
+    html.style.overflow = 'hidden'; body.style.overflow = 'hidden'; body.style.overscrollBehavior = 'none'
+    return () => { html.style.overflow = was[0]; body.style.overflow = was[1]; body.style.overscrollBehavior = was[2] }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -519,7 +527,7 @@ export default function SkillTree({
         const sz = parseFloat(cs2.getPropertyValue('--sz')) || 44
         const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
         const rh = Math.floor((room - vpad - pad - sz - 40) / (rows - 1))
-        box.style.setProperty('--rh', Math.max(74, Math.min(maxRh, rh)) + 'px')
+        box.style.setProperty('--rh', Math.max(66, Math.min(maxRh, rh)) + 'px')
       }
     }
     const draw = () => {

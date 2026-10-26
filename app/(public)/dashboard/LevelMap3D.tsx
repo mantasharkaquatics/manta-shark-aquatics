@@ -46,13 +46,17 @@ const stepH = (lv: number) => 0.8 + 0.28 * (lv - 1)
 /* The page's own font stack (next/font gives the faces generated names, so it
    is read off the page rather than written here). */
 let FONT = '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+let ANISO = 4
 
 /* The front of a step: its number and name, drawn at the face's own aspect so
    the letters are not stretched, shrunk or wrapped to fit the width. */
 function faceTexture(tag: string, name: string, h: number, bg: string, ink: string) {
-  const W = 320, H = Math.round(W * h / (SW - 0.06))
-  const c = document.createElement('canvas'); c.width = W; c.height = H
+  /* Drawn at 1.6x and scaled down, so the letters stay sharp on a phone's
+     dense screen (owner, 2026-10-26: blurry). */
+  const K = 1.6, W = 320, H = Math.round(W * h / (SW - 0.06))
+  const c = document.createElement('canvas'); c.width = W * K; c.height = H * K
   const g = c.getContext('2d')!
+  g.scale(K, K)
   g.fillStyle = bg; g.fillRect(0, 0, W, H)
   g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
   g.font = `800 84px ${FONT}`
@@ -71,7 +75,7 @@ function faceTexture(tag: string, name: string, h: number, bg: string, ink: stri
   lines.forEach((l, i) => g.fillText(l, W / 2, 140 + i * (size + 8)))
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
-  t.anisotropy = 4
+  t.anisotropy = ANISO
   return t
 }
 
@@ -158,6 +162,7 @@ function makeMascot() {
 export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick, onReady, levelName, levelTag, meLabel, ariaLabel, hint }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
   const meRef = useRef<HTMLDivElement | null>(null)
   const selRef = useRef(selected)
   const pickRef = useRef(onPick)
@@ -183,6 +188,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const pageFont = getComputedStyle(canvas).fontFamily
     if (pageFont) FONT = pageFont
+    ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 4)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -278,6 +284,13 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
           b.style.transform = `translate(${Math.min(a.x, c.x)}px, ${Math.min(a.y, c.y)}px)`
           b.style.width = Math.abs(c.x - a.x) + 'px'
           b.style.height = Math.abs(c.y - a.y) + 'px'
+        }
+        /* On a phone the printed face is too small to read or to hit: a clear
+           "L1" button sits on each step's front instead (owner, 2026-10-26). */
+        const chip = chipRefs.current[i]
+        if (chip) {
+          const m = toScreen(new THREE.Vector3(s.x, s.mesh.position.y + s.h / 2 - 0.32, SD / 2))
+          chip.style.transform = `translate(${m.x}px, ${m.y}px) translate(-50%, -50%)`
         }
       })
       const topY = cs.mesh.position.y + cs.h / 2
@@ -376,6 +389,16 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
             className="tap-auto mst3d-step" aria-pressed={i + 1 === selected}
             aria-label={`${levelTag(i + 1)} ${levelName(i + 1)}`} onClick={() => onPick(i + 1)} />
         ))}
+        {Array.from({ length: N }, (_, i) => {
+          const lv = i + 1
+          return (
+            <button key={'c' + i} type="button" ref={el => { chipRefs.current[i] = el }} tabIndex={-1} aria-hidden="true"
+              className={'tap-auto mst3d-chip' + (lv < currentLevel ? ' done' : lv === currentLevel ? ' cur' : '') + (lv === selected ? ' sel' : '')}
+              onClick={() => onPick(lv)}>
+              {levelTag(lv)}
+            </button>
+          )
+        })}
         <div ref={meRef} className="mst3d-me" aria-hidden="true">{meLabel}</div>
       </div>
       <p className="mst3d-hint">{hint}</p>
@@ -395,5 +418,18 @@ const MAP3D_CSS = `
   border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
 .mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
   background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
-@media (max-width: 640px) { .mst3d { height: 165px; flex: none; margin: 6px 14px 0 } .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px } .mst3d-me { font-size: 11px; padding: 4px 9px } }
+.mst3d-chip { display: none }
+@media (max-width: 640px) {
+  .mst3d { height: clamp(160px, 28vh, 215px); flex: none; margin: 6px 14px 0 }
+  .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px }
+  .mst3d-me { font-size: 11px; padding: 4px 9px; z-index: 3 }
+  .mst3d-chip { display: block; position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;
+    min-width: 36px; min-height: 30px; padding: 0 6px; margin: 0; border-radius: 9px; border: 2px solid #c9d8ee;
+    background: #fff; color: #12254a; font: inherit; font-size: 14px; font-weight: 800; line-height: 26px;
+    box-shadow: 0 2px 6px rgba(18,37,74,.15); will-change: transform }
+  .mst3d-chip.done { background: #f09800; border-color: #f09800; color: #12254a }
+  .mst3d-chip.cur { background: #2050a0; border-color: #2050a0; color: #fff }
+  .mst3d-chip.sel { border-color: #12254a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
+  .mst3d-chip.cur.sel { border-color: #f7b733; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
+}
 `
