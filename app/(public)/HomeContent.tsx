@@ -113,6 +113,8 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
         .h-adapt p { color: rgba(255,255,255,.82); font-size: 16px; line-height: 1.65; margin: 10px 0 0; max-width: 60ch; }
         .h-head { max-width: 640px; margin-bottom: 40px; }
         .h-head h2 { font-size: 38px; line-height: 1.15; margin-top: 10px; }
+        /* Chinese headings break at the comma, not mid-phrase ("看 / 得見"). */
+        .h-why .h-head h2:lang(zh-Hant), .h-why .h-head h2:lang(zh-Hans) { word-break: keep-all; }
         .h-head p { color: ${BRAND.mute}; font-size: 16px; line-height: 1.65; margin: 12px 0 0; }
 
         .h-progs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -141,20 +143,31 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
         .h-pt p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; }
 
         /* What a parent sees after a lesson: a picture of the real student card. */
-        .h-phone { background: ${BRAND.navyDeep}; border-radius: 28px; padding: 18px; max-width: 360px; margin: 0 auto; box-shadow: 0 30px 60px rgba(17,29,56,0.25); }
-        .h-pcard { background: ${NAVY}; border-radius: 16px; padding: 18px; color: #fff; border-top: 3px solid #e05a4a; }
-        .h-pcard .n { display: flex; gap: 10px; align-items: center; }
-        .h-pcard .av { width: 38px; height: 38px; border-radius: 50%; background: #e05a4a; display: grid; place-items: center; font-weight: 800; }
-        .h-pcard .lv { font-weight: 700; margin-top: 14px; }
-        .h-pcard .st { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
-        .h-bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; margin: 12px 0 6px; overflow: hidden; }
-        .h-bar i { display: block; height: 100%; width: 67%; background: ${AMBER}; }
-        .h-pcard .pc { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.5); }
-        .h-skills { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
-        .h-skills span { font-size: 11px; padding: 4px 8px; border-radius: 6px; background: rgba(143,220,194,0.12); color: #8fdcc2; }
-        .h-skills span.o { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); }
-        .h-noteb { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-top: 14px; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.8); }
-        .h-noteb small { display: block; color: ${YELLOW}; font-weight: 700; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; }
+        .h-phone { background: ${BRAND.navyDeep}; border-radius: 30px; padding: 14px; max-width: 370px; margin: 0 auto; box-shadow: 0 30px 60px rgba(17,29,56,0.25); }
+        .h-pscreen { background: #f4f7fb; border-radius: 20px; padding: 14px; }
+        .h-pcard { position: relative; overflow: hidden; border-radius: 18px; padding: 16px; color: #fff; background: linear-gradient(145deg, #1d3f7c, #12254a 65%); }
+        .h-pcard::after { content: ''; position: absolute; right: -60px; bottom: -70px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(closest-side, rgba(240,196,25,0.28), transparent); pointer-events: none; }
+        .h-pcard > * { position: relative; z-index: 1; }
+        .h-pcard .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .h-pcard .eb { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: rgba(255,255,255,0.6); padding-top: 2px; }
+        .h-pcard .qr { background: #fff; color: ${NAVY}; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+        .h-pcard .nm { font-family: var(--font-display), 'PingFang TC', serif; font-size: 24px; font-weight: 900; margin-top: 4px; }
+        .h-pcard .st { font-size: 12px; color: rgba(255,255,255,0.68); }
+        .h-pcard .lv { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; background: rgba(255,255,255,0.12); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 800; }
+        .h-pcard .lv i { width: 8px; height: 8px; border-radius: 50%; background: #f0c419; }
+        .h-bar { height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; margin: 12px 0 6px; overflow: hidden; }
+        .h-bar i { display: block; height: 100%; width: 66%; background: #f7b733; border-radius: 3px; }
+        .h-pcard .pc { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.72); }
+        .h-pcard .pc b { color: #f7b733; }
+        .h-pcard .nx { margin-top: 10px; border-radius: 12px; background: rgba(255,255,255,0.08); }
+        .h-pcard .nx > div { display: flex; gap: 10px; align-items: center; padding: 9px 11px; font-size: 14px; font-weight: 800; }
+        .h-pcard .nx > div + div { border-top: 1px solid rgba(255,255,255,0.1); }
+        .h-pcard .nx small { display: block; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.65); }
+        .h-pcard .ic { width: 28px; height: 28px; flex: none; border-radius: 8px; background: rgba(255,255,255,0.14); display: grid; place-items: center; font-size: 14px; }
+        .h-pcard .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .h-pcard .two span { background: rgba(255,255,255,0.12); border-radius: 10px; padding: 9px 6px; text-align: center; font-size: 12.5px; font-weight: 800; }
+        .h-noteb { background: #fff; border-radius: 14px; padding: 12px; margin-top: 12px; font-size: 13px; line-height: 1.55; color: ${NAVY}; }
+        .h-noteb small { display: block; color: #a86800; font-weight: 800; margin-bottom: 4px; font-size: 11.5px; letter-spacing: 0.5px; }
         .h-cap { text-align: center; font-size: 12px; color: ${BRAND.mute}; margin-top: 14px; }
 
         .h-qs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -294,7 +307,7 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
                 <h2>{t('home.why.title')}</h2>
               </div>
               <div className="h-pts">
-                {[['7', 1], ['✓', 2], ['✎', 3]].map(([icon, n]) => (
+                {[['7', 1], ['🎖', 2], ['✎', 3]].map(([icon, n]) => (
                   <div className="h-pt" key={n}>
                     <i aria-hidden>{icon}</i>
                     <div>
@@ -309,24 +322,24 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
               </p>
             </div>
             <div>
-              <div className="h-phone" aria-hidden>
+              <div className="h-phone" aria-hidden><div className="h-pscreen">
+                {/* The child card a family sees in their account (owner,
+                    2026-10-26: version B's words with version A's picture). */}
                 <div className="h-pcard">
-                  <div className="n">
-                    <div className="av">E</div>
-                    <div><b>Ethan</b><div className="st">{t('home.preview.age')}</div></div>
-                  </div>
-                  <div className="lv">{t('levels.levelN', { n: 3 })} · {t('level.3.name')}</div>
-                  <div className="st">{t('dash.stageN', { n: 2 })} · {t('stage.3.2.name')}</div>
+                  <div className="top"><span className="eb">MANTA SHARK · SWIMMER</span><span className="qr">▦ {t('dash.checkIn')}</span></div>
+                  <div className="nm">Ethan</div>
+                  <div className="st">{t('home.preview.age')}</div>
+                  <div className="lv"><i />{t('levels.levelN', { n: 3 })} · {t('level.3.name')} · {t('dash.stageN', { n: 2 })}</div>
                   <div className="h-bar"><i /></div>
-                  <div className="pc"><span>{t('dash.stageCompletion')}</span><span>{t('home.preview.count')}</span></div>
-                  <div className="h-skills">
-                    <span>{t('home.preview.skill1')} ✓</span>
-                    <span>{t('home.preview.skill2')} ✓</span>
-                    <span className="o">{t('home.preview.skill3')}</span>
+                  <div className="pc"><span>{t('stage.3.2.name')}</span><b>66%</b></div>
+                  <div className="nx">
+                    <div><span className="ic">📅</span><span><small>{t('dash.next.lesson')}</small>{t('home.preview.next')}</span></div>
+                    <div><span className="ic">🏠</span><span><small>{t('dash.next.home')}</small>{t('home.preview.homeTip')}</span></div>
                   </div>
-                  <div className="h-noteb"><small>{t('home.preview.noteLabel')}</small>{t('home.preview.note')}</div>
+                  <div className="two"><span>{t('dash.skillTree')}</span><span>{t('dash.records')}</span></div>
                 </div>
-              </div>
+                <div className="h-noteb"><small>{t('home.preview.noteLabel')}</small>{t('home.preview.note')}</div>
+              </div></div>
               <p className="h-cap">{t('home.preview.caption')}</p>
             </div>
           </div>
