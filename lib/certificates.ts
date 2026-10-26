@@ -110,8 +110,9 @@ export const PRINT_JS_HASH = createHash('sha256').update(PRINT_JS).digest('base6
 
 /** The certificate page (owner, 2026-10-26: design C, "playful"). It
     celebrates the level the swimmer PASSED (fromLevel): a move from 2 to 3
-    reads "passed Level 2", in Level 2's colour, with its three stages as
-    three stars. Letter landscape; the same page prints at the desk and opens
+    reads "passed Level 2", in Level 2's colour. The school's full logo (with
+    its name) sits in the bottom corner; nothing else decorates the card
+    (owner: no stars, no logo in the middle). Letter landscape; the same page prints at the desk and opens
     from the family's email. No web fonts: the CSP allows none. */
 export function certificateHtml(c: Certificate, lang: string | null | undefined): string {
   const L: Locale = toLocale(lang || 'en')
@@ -125,7 +126,6 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
   const nameSize = len > 28 ? 4 : len > 18 ? 5.2 : 6.6
   const petals = Array.from({ length: 12 }, (_, i) =>
     `<circle cx="${(50 + 38 * Math.cos(i * Math.PI / 6)).toFixed(1)}" cy="${(50 + 38 * Math.sin(i * Math.PI / 6)).toFixed(1)}" r="13"/>`).join('')
-  const star = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 20.9l1.6-7L2 9.2l7.1-.6z" fill="#f0c419" stroke="#d99a00" stroke-width="1"/></svg>`
   const bubbles = [[2, 10, 5], [3.4, 4, 40], [1.6, 6, 70], [2.6, 94, 12], [1.4, 96, 46], [3, 93, 66], [1.8, 30, 3], [2.2, 62, 2.5], [1.2, 80, 4]]
     .map(([w, l, tp]) => `<i class="bub" style="width:${w}cqw;height:${w}cqw;left:${l}%;top:${tp}%"></i>`).join('')
   return `<!DOCTYPE html>
@@ -149,19 +149,16 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
     display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3cqw 5cqw 7cqw; }
   .ribbon { position: absolute; left: 50%; top: -2.6cqw; transform: translateX(-50%); background: #f0c419; color: #3a2600; font-weight: 900; font-size: 2.3cqw;
     padding: 1cqw 4.5cqw; border-radius: 1cqw; box-shadow: 0 .6cqw 0 #b8860b; white-space: nowrap; letter-spacing: .1em; }
-  .brand { position: absolute; left: 0; right: 0; top: 4.2cqw; font-weight: 900; letter-spacing: .32em; font-size: 1.25cqw; color: #2050a0; }
-  .rosette { width: 13cqw; height: 13cqw; margin-top: 2cqw; }
+  .rosette { width: 12cqw; height: 12cqw; }
   .big { font-weight: 900; font-size: 2.6cqw; margin-top: 1.2cqw; color: #2050a0; letter-spacing: .2em; }
   .name { font-family: Georgia, 'Times New Roman', 'Songti TC', 'Noto Serif TC', serif; font-weight: 700; font-size: ${nameSize}cqw; line-height: 1.08; margin-top: .4cqw; overflow-wrap: anywhere; }
   .lvl { font-size: 2.5cqw; font-weight: 900; margin-top: 1.2cqw; }
   .lvl b { color: #e08a00; }
-  .stars { display: flex; gap: 1cqw; margin-top: 1.2cqw; }
-  .stars svg { width: 2.8cqw; height: 2.8cqw; }
   .foot { position: absolute; left: 5cqw; right: 5cqw; bottom: 2.8cqw; display: flex; justify-content: space-between; align-items: flex-end; font-size: 1.25cqw; color: #56647d; font-weight: 700; }
   .foot div { border-top: .15cqw solid #c9d6ea; padding-top: .6cqw; min-width: 16cqw; text-align: left; }
   .foot div b { display: block; font-size: 1.9cqw; color: #12254a; margin-top: .2cqw; }
-  .foot div + div { margin-right: 16cqw; }
-  .masc { position: absolute; right: 3.5cqw; bottom: 5.5cqw; width: 15cqw; transform: rotate(-8deg); filter: drop-shadow(0 .8cqw 1cqw rgba(18,37,74,.25)); }
+  .foot div + div { margin-right: 22cqw; }
+  .logo { position: absolute; right: 10.5cqw; bottom: 8.6cqw; width: 18cqw; height: auto; }
   @media print {
     body { background: #fff; padding: 0; }
     .toolbar { display: none; }
@@ -176,18 +173,16 @@ export function certificateHtml(c: Certificate, lang: string | null | undefined)
     <svg class="wave" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 150 0 300 80 450 40 S 750 0 900 40 S 1000 60 1000 60 V100 H0Z" fill="#2b7fc4"/></svg>
     <div class="card">
       <div class="ribbon">${esc(t('cert.title'))}</div>
-      <div class="brand">MANTA SHARK AQUATICS</div>
       <svg class="rosette" viewBox="0 0 100 100" role="img" aria-label="${esc(levelText)}"><g fill="${color}">${petals}<circle cx="50" cy="50" r="38"/></g><circle cx="50" cy="50" r="31" fill="#fff8dc"/><circle cx="50" cy="50" r="26" fill="${color}"/><text x="50" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="8" fill="#fff" letter-spacing="1">${esc(t('cert.badge'))}</text><text x="50" y="70" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="28" fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width="1">${n}</text></svg>
       <div class="big">${esc(t('cert.congrats'))}</div>
       <div class="name">${esc(c.studentName)}</div>
       <div class="lvl">${t('cert.body', { level: `<b>${esc(levelText)}</b>` })}</div>
-      <div class="stars">${star}${star}${star}</div>
       <div class="foot">
         <div>${esc(t('cert.date'))}<b>${esc(date)}</b></div>
         <div>${esc(c.coach ? t('cert.coach') : t('cert.school'))}<b>${esc(c.coach || 'Manta Shark Aquatics')}</b></div>
       </div>
     </div>
-    <img class="masc" src="/mascot.png" alt="" aria-hidden="true">
+    <img class="logo" src="/logo-wide.png" alt="Manta Shark Aquatics" width="601" height="321">
   </main>
   <script>${PRINT_JS}</script>
 </body>
