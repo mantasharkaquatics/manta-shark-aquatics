@@ -30,44 +30,6 @@ import { placeLevel, routeWires } from '@/lib/tree-layout'
 import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
-import dynamic from 'next/dynamic'
-
-/* The families' 3D overview of the seven levels (owner, 2026-10-26). Its own
-   chunk: three.js loads only when a family opens the map. */
-const LevelMap3D = dynamic(() => import('./LevelMap3D'), {
-  ssr: false,
-  // The box is there at once, the same size, so nothing jumps when it draws.
-  loading: () => <div className="mst3d-ph" />,
-})
-
-/* The curriculum (levels, skills, what needs what) is the same for every
-   family, so it is read once per visit and kept. The dashboard asks for it,
-   and for the 3D code, while the page is idle (prefetchLearningMap), so the
-   map opens straight away instead of waiting on three downloads in a row
-   (owner, 2026-10-26: the staircase appeared late). */
-type CurriculumRows = [any[] | null, any[] | null, any[] | null]
-const FAMILY_COLS = 'id, name, stage, sort_order, level_id, is_standalone, col_override'
-const COACH_COLS = 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone, col_override'
-function readCurriculum(supabase: ReturnType<typeof createClient>, cols: string): Promise<CurriculumRows> {
-  return Promise.all([
-    supabase.from('levels').select('id, level_number'),
-    supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
-    supabase.from('skill_prerequisites').select('skill_id, requires_id'),
-  ]).then(([a, b, c]) => [a.data, b.data, c.data] as CurriculumRows)
-}
-let familyRows: Promise<CurriculumRows> | null = null
-function familyCurriculum(supabase: ReturnType<typeof createClient>) {
-  if (!familyRows) {
-    familyRows = readCurriculum(supabase, FAMILY_COLS)
-      .then(r => { if (!r[0] || !r[1]) familyRows = null; return r })
-      .catch(e => { familyRows = null; throw e })
-  }
-  return familyRows
-}
-export function prefetchLearningMap() {
-  import('./LevelMap3D').catch(() => {})
-  familyCurriculum(createClient()).catch(() => {})
-}
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -179,7 +141,7 @@ const CSS = `
    bands, amber = in progress, solid green = passed, blue ring = can start.
    The old navy version tinted each band with the level's ribbon colour, which
    on Level 1 turned the whole board a muddy red. */
-.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(18,37,74,0.55); overscroll-behavior: contain;
+.mst-back { position: fixed; inset: 0; z-index: 1200; background: rgba(18,37,74,0.55);
   backdrop-filter: blur(3px); display: flex; align-items: stretch; justify-content: center }
 .mst-panel { position: relative; width: 100%; max-width: 1180px; background: #fff; color: #16294a;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -217,7 +179,7 @@ const CSS = `
   padding: var(--sp) 14px 12px calc(14px + var(--rail)) }
 .mst-board { position: relative; z-index: 1; margin: 0 auto;
   width: calc(var(--cols) * var(--cw) + 2 * var(--lane));
-  height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + var(--tail, 40px)) }
+  height: calc(var(--pad) + (var(--rows) - 1) * var(--rh) + var(--sz) + 40px) }
 .mst-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
   overflow: visible }
 .mst-w { fill: none; stroke: #c9d8ee; stroke-width: 2 }
@@ -336,92 +298,6 @@ const CSS = `
   .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
   .mst-nm { font-size: 10px }
 }
-
-/* A family on a phone (owner, 2026-10-26): the whole map on one screen, no
-   scrolling. The four numbers become one line beside the name, the 3D
-   staircase is half height (LevelMap3D), the legend folds into a "?" button,
-   the skill detail only slides up when a skill is tapped, and the board's
-   rows take whatever height is left (fit() below). */
-.mst-lvrow { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; flex-wrap: wrap }
-.mst-lvrow b { font-size: 14px; font-weight: 800; color: #12254a }
-.mst-lvrow span { font-size: 11.5px; color: #56647d }
-/* A round button (owner, 2026-10-26: it came out oval -- the site-wide 44px
-   minimum height for staff buttons stretched it; tap-auto opts out). */
-.mst-help { display: none; margin-left: auto; width: 32px; height: 32px; min-height: 0; aspect-ratio: 1; text-align: center; border-radius: 50%; border: 1px solid #c9d8ee;
-  background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 15px; line-height: 30px; cursor: pointer; padding: 0 }
-.mst-statline { display: none }
-/* Families (older parents too, owner 2026-10-26): a size up on every screen. */
-.mst-panel.fam .mst-nm { font-size: 12px }
-.mst-panel.fam .mst-rail b { font-size: 13px }
-/* Stands in for the 3D box while its code arrives: same size, same ground. */
-.mst3d-ph { height: 340px; margin: 12px 20px 0; border-radius: 14px; border: 1px solid #e3ebf6;
-  background: radial-gradient(120% 90% at 55% 30%, #ffffff 0%, #f5f8fc 55%, #e8eef6 100%) }
-@media (max-width: 640px) { .mst3d-ph { height: clamp(170px, 27vh, 220px); flex: none; margin: 6px 14px 0 } }
-.mst-sheet-shade { display: none }
-@media (max-width: 640px) {
-  /* A sheet from the bottom with the page showing dimmed above it, like the
-     lesson records (owner, 2026-10-26). Its height follows its content up to
-     92% of the visible screen; fit() shares that height out among the rows. */
-  .mst-back.fam { align-items: flex-end; backdrop-filter: none; background: rgba(18,37,74,0.45) }
-  .mst-panel.fam { display: flex; flex-direction: column; height: auto; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain;
-    border-radius: 18px 18px 0 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); animation: mstUp .22s ease-out;
-    --rh: 120px; --pad: 10px; --tail: 22px; --sz: 42px }
-  /* Shorter stage rows (owner, 2026-10-26): less empty room above the first
-     row and under the last, and a smaller ribbon beside each stage, so three
-     rows fit under the staircase without scrolling. */
-  /* Each stage's name is a heading across the top of its band (owner,
-     2026-10-26: in the narrow left column "Freestyle and Backstroke Take
-     Shape" ran to five lines and out of its band). The column is gone, so
-     the skills get its width too. A line dropping into a row passes behind
-     the heading, which wears its band's colour. --hd is the heading's height
-     (fit() grows it when a long name wraps); --pad holds row 1's heading. */
-  .mst-panel.fam { --rail: 0px; --hd: 22px; --pad: 32px }
-  .mst-panel.fam .mst-rail { left: 8px; right: auto; width: auto; max-width: calc(100% - 16px); transform: none;
-    flex-direction: row; align-items: center; gap: 6px; text-align: left; z-index: 2;
-    top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) - var(--hd) - 4px);
-    padding: 2px 8px 2px 2px; border-radius: 8px; background: #f6f9fd }
-  .mst-panel.fam .mst-rail.even { background: #fff }
-  .mst-panel.fam .mst-rail svg { height: 18px; width: auto }
-  .mst-panel.fam .mst-rail > span { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px }
-  .mst-panel.fam .mst-rail b { font-size: 13px; max-width: none; line-height: 1.3 }
-  .mst-panel.fam .mst-rail span span { order: -1; display: inline; font-size: 12px; margin: 0; color: #56647d; font-weight: 700 }
-  /* Bigger letters for the skills and the level line (owner, 2026-10-26:
-     older parents). */
-  /* A long word in a narrow column (Level 6 has six) breaks with a hyphen
-     rather than running into its neighbour. */
-  .mst-panel.fam .mst-nm { font-size: 12px; line-height: 1.25; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere }
-  .mst-panel.fam .mst-lvrow b { font-size: 15px }
-  .mst-panel.fam .mst-lvrow span { font-size: 12.5px }
-  /* Name and the one-line summary side by side: one line of height saved
-     for the bigger letters below. */
-  .mst-panel.fam .mst-head { padding: 12px 56px 10px 16px; flex: none; border-radius: 18px 18px 0 0;
-    display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; row-gap: 2px }
-  .mst-panel.fam .mst-x { top: 8px; right: 10px }
-  .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
-  .mst-panel.fam .mst-name { font-size: 18px !important; margin: 0 !important }
-  .mst-panel.fam .mst-statline { display: block; font-size: 13px; color: #56647d; margin-top: 0; font-variant-numeric: tabular-nums }
-  .mst-panel.fam .mst-statline b { color: #12254a; font-weight: 800 }
-  /* A long level name wraps; the skill count drops under it instead of
-     being cut off ("Skills passed..."), and the "?" keeps the right edge. */
-  .mst-panel.fam .mst-lvrow { padding: 8px 56px 0 14px; flex-wrap: wrap; row-gap: 0; column-gap: 8px; flex: none; align-items: baseline; min-height: 40px }
-  .mst-panel.fam .mst-lvrow .mst-help { position: absolute; right: 14px; top: 6px }
-  .mst-panel.fam .mst-help { display: block; flex: none }
-  .mst-panel.fam .mst-key { display: none }
-  .mst-panel.fam .mst-key.open { display: flex; position: absolute; z-index: 30; right: 14px; left: 14px; top: 100%; margin-top: 6px;
-    background: #fff; border: 1px solid #e3ebf6; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(18,37,74,.18) }
-  .mst-panel.fam .mst-scroll { margin-top: 6px; flex: none }
-  .mst-panel.fam .mst-detail { display: none }
-  .mst-panel.fam .mst-detail.open { display: block; position: fixed; left: 0; right: 0; bottom: 0; margin: 0; z-index: 40;
-    border-radius: 16px 16px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: #fff;
-    box-shadow: 0 -12px 30px rgba(18,37,74,.2); animation: mstUp .2s ease-out }
-  .mst-panel.fam .mst-sheet-shade.open { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(18,37,74,.25) }
-  .mst-panel.fam .mst-sheet-x { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; min-height: 0; border: none;
-    border-radius: 8px; background: #eef3f9; color: #56647d; font-size: 15px; cursor: pointer }
-}
-@keyframes mstUp { from { transform: translateY(100%) } to { transform: none } }
-@media (prefers-reduced-motion: reduce) { .mst-panel.fam, .mst-panel.fam .mst-detail.open { animation: none } }
-.mst-sheet-x { display: none }
-@media (max-width: 640px) { .mst-panel.fam .mst-sheet-x { display: block } }
 `
 
 export default function SkillTree({
@@ -438,30 +314,20 @@ export default function SkillTree({
   const [lv, setLv] = useState(Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL))
   const [sel, setSel] = useState<TreeSkill | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
-  /* Families get the 3D overview in place of the level tabs; the tabs come
-     back if the browser cannot draw it (no WebGL). */
-  const want3d = !forCoach && !allPassed
-  const [map3d, setMap3d] = useState<'wait' | 'on' | 'off'>(want3d ? 'wait' : 'off')
-  const [keyOpen, setKeyOpen] = useState(false)
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
-  /* The page behind stays still while the map is open: on a phone a swipe on
-     the map scrolled the dashboard underneath (owner, 2026-10-26). */
-  useEffect(() => {
-    const html = document.documentElement, body = document.body
-    const was = [html.style.overflow, body.style.overflow, body.style.overscrollBehavior]
-    html.style.overflow = 'hidden'; body.style.overflow = 'hidden'; body.style.overscrollBehavior = 'none'
-    return () => { html.style.overflow = was[0]; body.style.overflow = was[1]; body.style.overscrollBehavior = was[2] }
-  }, [])
 
   useEffect(() => {
     let alive = true
     ;(async () => {
-      let rows: CurriculumRows
-      try {
-        rows = forCoach ? await readCurriculum(supabase, COACH_COLS) : await familyCurriculum(supabase)
-      } catch { rows = [null, null, null] }
-      const [levRows, skRows, preRows] = rows
+      const cols = forCoach
+        ? 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone, col_override'
+        : 'id, name, stage, sort_order, level_id, is_standalone, col_override'
+      const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
+        supabase.from('levels').select('id, level_number'),
+        supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
+        supabase.from('skill_prerequisites').select('skill_id, requires_id'),
+      ])
       if (!alive) return
       if (!levRows || !skRows) { setFailed(true); return }
 
@@ -594,52 +460,6 @@ export default function SkillTree({
         box.style.setProperty('--cw', cw + 'px')
         box.style.setProperty('--sz', Math.min(maxSz, cw - 8) + 'px')
       }
-      /* A family on a phone sees the map on one screen (owner, 2026-10-26):
-         the rows share out the height left under the staircase, never taller
-         than the usual row and never so short the names collide. */
-      box.style.removeProperty('--rh')
-      box.style.removeProperty('--hd')
-      box.style.removeProperty('--tail')
-      box.style.removeProperty('--pad')
-      const panel = box.closest('.mst-panel.fam') as HTMLElement | null
-      if (panel && rows > 1 && window.matchMedia('(max-width: 640px)').matches) {
-        const cs2 = getComputedStyle(box)
-        /* A stage heading that wraps to two lines gets a taller strip. */
-        const railH = Math.max(0, ...Array.from(box.querySelectorAll<HTMLElement>('.mst-rail')).map(e => e.offsetHeight))
-        const hd0 = parseFloat(cs2.getPropertyValue('--hd')) || 0
-        if (railH + 2 > hd0) {
-          box.style.setProperty('--hd', Math.ceil(railH + 2) + 'px')
-          box.style.setProperty('--pad', Math.ceil(railH + 12) + 'px')
-        }
-        /* The sheet is as tall as its content, at most its max-height (92% of
-           the visible screen): measure from the sheet's top to the board,
-           and give the rows what is left of that. */
-        const ps = getComputedStyle(panel)
-        const above = box.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop
-        const room = parseFloat(ps.maxHeight) - above - parseFloat(ps.paddingBottom) - 8
-        const vpad = parseFloat(cs2.paddingTop) + parseFloat(cs2.paddingBottom)
-        const pad = parseFloat(cs2.getPropertyValue('--pad')) || 0
-        const sz = parseFloat(cs2.getPropertyValue('--sz')) || 44
-        const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
-        /* Room under the last row for its names (two or three lines in
-           English) or for the stand-apart tile, measured. */
-        const lastNames = Array.from(box.querySelectorAll<HTMLElement>('.mst-tile:not(.apart)'))
-          .filter(el => Number(getComputedStyle(el).getPropertyValue('--r')) === rows)
-          .map(el => (el.querySelector('.mst-nm') as HTMLElement | null)?.offsetHeight || 0)
-        const apartH = (box.querySelector('.mst-tile.apart') as HTMLElement | null)?.offsetHeight || 0
-        const tail = Math.max(parseFloat(cs2.getPropertyValue('--tail')) || 22,
-          Math.ceil(Math.max(0, ...lastNames) + 12), apartH ? apartH - (parseFloat(cs2.getPropertyValue('--sz')) || 44) + 10 : 0)
-        box.style.setProperty('--tail', tail + 'px')
-        const rh = Math.floor((room - vpad - pad - sz - tail) / (rows - 1))
-        /* Never so short that a name runs into the row below (owner,
-           2026-10-26: English names on two or three lines were covered): the
-           tallest name, measured, plus room for a line under it. On a very
-           short screen the sheet then scrolls a little instead. */
-        const nmH = Math.max(0, ...Array.from(box.querySelectorAll<HTMLElement>('.mst-tile:not(.apart) .mst-nm')).map(e => e.offsetHeight))
-        const hd = parseFloat(cs2.getPropertyValue('--hd')) || 0
-        const rhMin = Math.max(66, Math.ceil(sz + 6 + nmH + 10 + hd))
-        box.style.setProperty('--rh', Math.max(rhMin, Math.min(maxRh, rh)) + 'px')
-      }
     }
     const draw = () => {
       fit()
@@ -652,7 +472,6 @@ export default function SkillTree({
       if (svg) svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`)
       const lane = parseFloat(cs.getPropertyValue('--lane')) || 0
       const pad = parseFloat(cs.getPropertyValue('--pad')) || 0
-      const hd = parseFloat(cs.getPropertyValue('--hd')) || 0
       const spots = Object.fromEntries(inLv.map(s => [s.id, { row: s.row, col: s.col }]))
       const edges = inLv.filter(s => !s.apart).flatMap(s => (needs[s.id] || [])
         .filter(q => spots[q] && !inLv.find(x => x.id === q)?.apart)
@@ -665,7 +484,6 @@ export default function SkillTree({
       const blocked: Record<number, Array<[number, number]>> = {}
       const startY: Record<string, number> = {}
       const heads: Record<number, [number, number]> = {}
-      const nameBottom: Record<number, number> = {}
       for (const el of Array.from(board.querySelectorAll<HTMLElement>('.mst-tile'))) {
         const row = Number(getComputedStyle(el).getPropertyValue('--r')) || 0
         const put = (l: number, r: number) => { (blocked[row] ||= []).push([l, r]) }
@@ -679,7 +497,6 @@ export default function SkillTree({
           if (t.width) put(t.left - base.left - 5, t.right - base.left + 5)
           // The line leaves from under the name, never through it.
           if (t.height && el.dataset.id) startY[el.dataset.id] = t.bottom - base.top + 4
-          if (t.height) nameBottom[row] = Math.max(nameBottom[row] || 0, t.bottom - base.top)
         }
       }
       // On a phone the stage names sit in each row's top channel.
@@ -690,7 +507,7 @@ export default function SkillTree({
           heads[row] = [b.left - base.left - 6, b.right - base.left + 6]
         }
       }
-      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads, nameBottom, hd })
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
@@ -700,45 +517,25 @@ export default function SkillTree({
     ro.observe(box)
     window.addEventListener('resize', draw)
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
-    // map3d: the staircase arriving above moves the board down, and on a
-    // phone the rows are sized to the room left under it.
-  }, [inLv, needs, cols, rows, map3d])
-
-  /* Which stages of each level are earned, for the dots on the 3D platforms:
-     the same every-skill-at-100 rule as the ribbons beside the board. */
-  const stagesDone = useMemo(() => Array.from({ length: MAX_LEVEL }, (_, i) =>
-    [1, 2, 3].map(st => stageEarned((skills || [])
-      .filter(s => s.level === i + 1 && s.stage === st && !s.apart).map(s => s.percent)))), [skills])
+  }, [inLv, needs, cols, rows])
 
   const total = skills?.length ?? 0
   const done = skills?.filter(s => s.state === 'done').length ?? 0
   const lvDone = inLv.filter(s => s.state === 'done').length
   const color = LEVEL_COLORS[String(lv)] || GOLD
-  const keyItems = (
-    <>
-      <span><i style={{ color: '#1f9d62' }} />{t('tree.state.done')}</span>
-      <span><i style={{ color: '#f09800' }} />{t('tree.state.active')}</span>
-      <span><i style={{ color: '#2050a0' }} />{t('tree.state.open')}</span>
-      <span><i style={{ color: '#8794ab', boxShadow: 'inset 0 0 0 1.5px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
-      <span><i style={{ color: '#c3ccd9' }} />{t('tree.state.locked')}</span>
-    </>
-  )
 
   return (
-    <div ref={dialogRef} className={'mst-back' + (want3d ? ' fam' : '')} role="dialog" aria-modal="true" aria-label={t('tree.title')}
+    <div ref={dialogRef} className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
       onClick={onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className={'mst-panel' + (want3d ? ' fam' : '')} onClick={e => { e.stopPropagation(); setKeyOpen(false) }}>
+      <div className="mst-panel" onClick={e => e.stopPropagation()}>
         <div className="mst-head">
           <button className="mst-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-          <div className="mst-eyebrow" style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
+          <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>
-          <div className="mst-name" style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
             {studentName}
-          </div>
-          <div className="mst-statline">
-            {t('tree.statLine', { level: currentLevel, stage: currentStage, done, total: total || '—', pct: total ? Math.round((100 * done) / total) : 0 })}
           </div>
           <div className="mst-stats">
             <div className="mst-stat">
@@ -766,31 +563,6 @@ export default function SkillTree({
 
         {skills && (
           <>
-            {want3d && map3d !== 'off' && (
-              <LevelMap3D
-                currentLevel={Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL)}
-                stagesDone={stagesDone}
-                selected={lv}
-                onPick={n => { setLv(n); setSel(null) }}
-                onReady={okay => setMap3d(okay ? 'on' : 'off')}
-                levelName={n => t(levelNameKey(n))}
-                levelTag={n => `L${n}`}
-                meLabel={t('tree.map3d.me', { name: studentName, n: currentStage })}
-                ariaLabel={t('tree.map3d.aria')}
-                hint={t('tree.map3d.hint')}
-                hintSwipe={t('tree.map3d.hintSwipe')}
-              />
-            )}
-            {want3d && map3d !== 'off' && (
-              <div className="mst-lvrow">
-                <b>L{lv} · {t(levelNameKey(lv))}</b>
-                <span>{t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}</span>
-                <button type="button" className="tap-auto mst-help" aria-expanded={keyOpen} aria-label={t('tree.keyButton')}
-                  onClick={e => { e.stopPropagation(); setKeyOpen(o => !o) }}>?</button>
-                {keyOpen && <div className="mst-key open" onClick={e => e.stopPropagation()}>{keyItems}</div>}
-              </div>
-            )}
-            {map3d === 'off' && (
             <div className="mst-tabs" role="tablist">
               {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
                 <button key={n} className="mst-tab" role="tab" aria-selected={n === lv}
@@ -799,13 +571,10 @@ export default function SkillTree({
                 </button>
               ))}
             </div>
-            )}
 
-            {!(want3d && map3d !== 'off') && (
-              <p className="mst-meta">
-                {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
-              </p>
-            )}
+            <p className="mst-meta">
+              {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
+            </p>
 
             <div className="mst-scroll" style={{ ['--cols' as any]: cols }}>
               {([1, 2, 3] as const).filter(st => st <= rows).map(st => (
@@ -828,7 +597,7 @@ export default function SkillTree({
                 const got = stageEarned(
                   inLv.filter(x => x.stage === st && !x.apart).map(x => x.percent))
                 return (
-                  <div key={'rail' + st} className={'mst-rail' + (got ? ' got' : '') + (st % 2 === 0 ? ' even' : '')}
+                  <div key={'rail' + st} className={'mst-rail' + (got ? ' got' : '')}
                     style={{ ['--r' as any]: st }}>
                     <StageRibbon level={lv} stage={st} size={30} earned={got}
                       label={t(stageNameKey(lv, st))} />
@@ -903,13 +672,15 @@ export default function SkillTree({
               </div>
             </div>
 
-            <div className="mst-key">{keyItems}</div>
+            <div className="mst-key">
+              <span><i style={{ color: '#1f9d62' }} />{t('tree.state.done')}</span>
+              <span><i style={{ color: '#f09800' }} />{t('tree.state.active')}</span>
+              <span><i style={{ color: '#2050a0' }} />{t('tree.state.open')}</span>
+              <span><i style={{ color: '#8794ab', boxShadow: 'inset 0 0 0 1.5px currentColor', background: 'transparent' }} />{t('tree.state.ready')}</span>
+              <span><i style={{ color: '#c3ccd9' }} />{t('tree.state.locked')}</span>
+            </div>
 
-            {want3d && sel && <div className="mst-sheet-shade open" onClick={() => setSel(null)} />}
-            <div className={'mst-detail' + (sel ? ' open' : '')}>
-              {want3d && sel && (
-                <button type="button" className="mst-sheet-x" onClick={() => setSel(null)} aria-label={t('common.close')}>✕</button>
-              )}
+            <div className="mst-detail">
               {!sel && <p className="mst-dd" style={{ opacity: .6 }}>{t('tree.pickHint')}</p>}
               {sel && (
                 <>

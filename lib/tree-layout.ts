@@ -62,14 +62,6 @@ export type Geom = {
   /** A stage heading printed in a row's top channel (the phone layout), as the
       x-range it covers. A row-skipping line must not drop through it either. */
   heads?: Record<number, [number, number]>
-  /** The lowest name on each row, measured. When the rows are packed close (a
-      phone showing the whole map on one screen) the horizontal runs squeeze
-      into the gap under these instead of crossing a two-line name. */
-  nameBottom?: Record<number, number>
-  /** A stage heading's strip at the top of each row (a family's phone): the
-      horizontal runs stay above it, and only the last few px of a line into
-      a tile pass behind it. */
-  hd?: number
 }
 
 export type Edge = { from: string; to: string }
@@ -241,15 +233,7 @@ export function routeWires(
   const width = g.lane * 2 + g.cols * g.cw
   /* The channel between one row's names and the next row's tiles is 30px.
      Three lanes in it, so one horizontal run never sits on another. */
-  const lane = (r: number, k: 0 | 1 | 2) => {
-    const base = top(r) - (g.hd || 0)
-    const def = base - [8, 17, 26][k]
-    const nb = g.nameBottom?.[r - 1]
-    if (nb == null || base - 26 >= nb + 3) return def
-    // Not 30px to spare: share out what there is between the names and the tiles.
-    const hi = base - 6, lo = Math.min(nb + 3, hi)
-    return hi - (k * (hi - lo)) / 2
-  }
+  const lane = (r: number, k: 0 | 1 | 2) => top(r) - [8, 17, 26][k]
 
   /* Two brackets that meet end to end at the same height read as ONE long
      horizontal bar, and a bar says the skill at one end leads to the skill at

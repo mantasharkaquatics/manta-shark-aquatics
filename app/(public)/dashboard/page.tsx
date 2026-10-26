@@ -2077,14 +2077,6 @@ export default function DashboardPage() {
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
-  /* Get the learning map ready while the page sits idle -- its code, the 3D
-     code and the curriculum -- so it opens at once (owner, 2026-10-26). */
-  useEffect(() => {
-    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void }
-    const go = () => { import('./SkillTree').then(m => m.prefetchLearningMap()).catch(() => {}) }
-    if (w.requestIdleCallback) { const id = w.requestIdleCallback(go); return () => w.cancelIdleCallback?.(id) }
-    const id = setTimeout(go, 1500); return () => clearTimeout(id)
-  }, [])
   // Esc closes the dialog on top, as it already did for the records and points
   // sheets. Without it the only ways out were the X or a click on the backdrop,
   // and that click also landed on whatever sat underneath.
