@@ -286,7 +286,10 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       mascot.flap(t * 1.2, 0.28)
       if (meRef.current) {
         const m = toScreen(new THREE.Vector3(cs.x, topY + 1.05, 0))
-        meRef.current.style.transform = `translate(${m.x}px, ${m.y}px) translate(-50%, -100%)`
+        // Kept inside the box: over the first step on a phone it ran off the left.
+        const half = meRef.current.offsetWidth / 2 + 6
+        const mx = Math.min(Math.max(m.x, half), canvas!.clientWidth - half)
+        meRef.current.style.transform = `translate(${mx}px, ${m.y}px) translate(-50%, -100%)`
       }
       renderer.render(scene, camera)
     }
@@ -297,8 +300,28 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       if (!w || !h) return
       renderer.setSize(w, h, false)
       const aspect = w / h
-      const view = 2.85 * Math.max(1, 1.75 / aspect)
-      camera.left = -view * aspect; camera.right = view * aspect; camera.top = view; camera.bottom = -view
+      /* Fit the whole staircase -- and the room above the swimmer's step for
+         the mascot and its label -- whatever the box's shape: every corner is
+         taken into the camera's view, and the frame is set round them with a
+         margin, centred. A fixed zoom cut the first step off on a box a
+         little narrower than the one it was tuned on. */
+      camera.updateMatrixWorld()
+      const inv = camera.matrixWorldInverse
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+      const take = (x: number, y: number, z: number) => {
+        const q = new THREE.Vector3(x, y, z).applyMatrix4(inv)
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y)
+      }
+      steps.forEach(st => {
+        for (const dx of [-SW / 2, SW / 2]) for (const dz of [-SD / 2, SD / 2]) { take(st.x + dx, 0, dz); take(st.x + dx, st.h + 0.15, dz) }
+      })
+      take(cs.x, cs.h + 1.6, 0)
+      const mx = (x1 - x0) * 0.06, my = (y1 - y0) * 0.08
+      x0 -= mx; x1 += mx; y0 -= my; y1 += my
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+      let hw = (x1 - x0) / 2, hh = (y1 - y0) / 2
+      if (hw / hh > aspect) hh = hw / aspect; else hw = hh * aspect
+      camera.left = cx - hw; camera.right = cx + hw; camera.top = cy + hh; camera.bottom = cy - hh
       camera.updateProjectionMatrix()
       draw(clockT)
     }
@@ -370,7 +393,7 @@ const MAP3D_CSS = `
 .mst3d-step:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
 .mst3d-me { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12.5px; font-weight: 800; padding: 5px 11px;
   border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
-.mst3d-hint { position: absolute; left: 10px; bottom: 10px; margin: 0; font-size: 11.5px; color: #56647d;
+.mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
   background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
 @media (max-width: 640px) { .mst3d { height: 300px; margin: 10px 14px 0 } }
 `
