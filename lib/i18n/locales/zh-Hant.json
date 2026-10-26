@@ -2366,6 +2366,7 @@
   "tree.map3d.me": "{name} 在這裡 · 階段 {n}",
   "tree.map3d.aria": "七階階梯，一階是一個等級。選一個等級，下面會列出它的技能。",
   "tree.map3d.hint": "點一階，看那一級的技能",
+  "tree.map3d.hintSwipe": "左右滑動看其他等級，點一階看技能",
   "tree.statLine": "等級 {level} · 階段 {stage} · 已通過 {done}/{total} · {pct}%",
   "tree.keyButton": "顏色代表什麼"
 }

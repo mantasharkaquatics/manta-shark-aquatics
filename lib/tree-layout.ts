@@ -66,6 +66,10 @@ export type Geom = {
       phone showing the whole map on one screen) the horizontal runs squeeze
       into the gap under these instead of crossing a two-line name. */
   nameBottom?: Record<number, number>
+  /** A stage heading's strip at the top of each row (a family's phone): the
+      horizontal runs stay above it, and only the last few px of a line into
+      a tile pass behind it. */
+  hd?: number
 }
 
 export type Edge = { from: string; to: string }
@@ -238,11 +242,12 @@ export function routeWires(
   /* The channel between one row's names and the next row's tiles is 30px.
      Three lanes in it, so one horizontal run never sits on another. */
   const lane = (r: number, k: 0 | 1 | 2) => {
-    const def = top(r) - [8, 17, 26][k]
+    const base = top(r) - (g.hd || 0)
+    const def = base - [8, 17, 26][k]
     const nb = g.nameBottom?.[r - 1]
-    if (nb == null || top(r) - 26 >= nb + 3) return def
+    if (nb == null || base - 26 >= nb + 3) return def
     // Not 30px to spare: share out what there is between the names and the tiles.
-    const hi = top(r) - 6, lo = Math.min(nb + 3, hi)
+    const hi = base - 6, lo = Math.min(nb + 3, hi)
     return hi - (k * (hi - lo)) / 2
   }
 

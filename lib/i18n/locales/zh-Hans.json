@@ -2366,6 +2366,7 @@
   "tree.map3d.me": "{name} 在这里 · 阶段 {n}",
   "tree.map3d.aria": "七阶阶梯，一阶是一个等级。选一个等级，下面会列出它的技能。",
   "tree.map3d.hint": "点一阶，看那一级的技能",
+  "tree.map3d.hintSwipe": "左右滑动看其他等级，点一阶看技能",
   "tree.statLine": "等级 {level} · 阶段 {stage} · 已通过 {done}/{total} · {pct}%",
   "tree.keyButton": "颜色代表什么"
 }

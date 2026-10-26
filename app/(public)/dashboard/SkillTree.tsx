@@ -350,10 +350,13 @@ const CSS = `
 .mst-help { display: none; margin-left: auto; width: 32px; height: 32px; min-height: 0; aspect-ratio: 1; text-align: center; border-radius: 50%; border: 1px solid #c9d8ee;
   background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 15px; line-height: 30px; cursor: pointer; padding: 0 }
 .mst-statline { display: none }
+/* Families (older parents too, owner 2026-10-26): a size up on every screen. */
+.mst-panel.fam .mst-nm { font-size: 12px }
+.mst-panel.fam .mst-rail b { font-size: 13px }
 /* Stands in for the 3D box while its code arrives: same size, same ground. */
 .mst3d-ph { height: 340px; margin: 12px 20px 0; border-radius: 14px; border: 1px solid #e3ebf6;
   background: radial-gradient(120% 90% at 55% 30%, #ffffff 0%, #f5f8fc 55%, #e8eef6 100%) }
-@media (max-width: 640px) { .mst3d-ph { height: clamp(176px, 28vh, 224px); flex: none; margin: 6px 14px 0 } }
+@media (max-width: 640px) { .mst3d-ph { height: clamp(170px, 27vh, 220px); flex: none; margin: 6px 14px 0 } }
 .mst-sheet-shade { display: none }
 @media (max-width: 640px) {
   /* A sheet from the bottom with the page showing dimmed above it, like the
@@ -362,23 +365,46 @@ const CSS = `
   .mst-back.fam { align-items: flex-end; backdrop-filter: none; background: rgba(18,37,74,0.45) }
   .mst-panel.fam { display: flex; flex-direction: column; height: auto; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain;
     border-radius: 18px 18px 0 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); animation: mstUp .22s ease-out;
-    --rh: 96px; --pad: 10px; --tail: 30px }
+    --rh: 120px; --pad: 10px; --tail: 22px; --sz: 42px }
   /* Shorter stage rows (owner, 2026-10-26): less empty room above the first
      row and under the last, and a smaller ribbon beside each stage, so three
      rows fit under the staircase without scrolling. */
-  .mst-panel.fam .mst-rail { gap: 2px }
-  .mst-panel.fam .mst-rail svg { height: 20px; width: auto }
-  /* The whole stage name, never cut ("Face In, Bubble..." -- owner,
-     2026-10-26), a touch smaller so three lines still fit beside a row. */
-  .mst-panel.fam .mst-rail b { font-size: 9.5px; line-height: 1.2; overflow-wrap: anywhere }
-  .mst-panel.fam .mst-head { padding: 12px 56px 8px 16px; flex: none; border-radius: 18px 18px 0 0 }
+  /* Each stage's name is a heading across the top of its band (owner,
+     2026-10-26: in the narrow left column "Freestyle and Backstroke Take
+     Shape" ran to five lines and out of its band). The column is gone, so
+     the skills get its width too. A line dropping into a row passes behind
+     the heading, which wears its band's colour. --hd is the heading's height
+     (fit() grows it when a long name wraps); --pad holds row 1's heading. */
+  .mst-panel.fam { --rail: 0px; --hd: 22px; --pad: 32px }
+  .mst-panel.fam .mst-rail { left: 8px; right: auto; width: auto; max-width: calc(100% - 16px); transform: none;
+    flex-direction: row; align-items: center; gap: 6px; text-align: left; z-index: 2;
+    top: calc(var(--sp) + var(--pad) + (var(--r) - 1) * var(--rh) - var(--hd) - 4px);
+    padding: 2px 8px 2px 2px; border-radius: 8px; background: #f6f9fd }
+  .mst-panel.fam .mst-rail.even { background: #fff }
+  .mst-panel.fam .mst-rail svg { height: 18px; width: auto }
+  .mst-panel.fam .mst-rail > span { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px }
+  .mst-panel.fam .mst-rail b { font-size: 13px; max-width: none; line-height: 1.3 }
+  .mst-panel.fam .mst-rail span span { order: -1; display: inline; font-size: 12px; margin: 0; color: #56647d; font-weight: 700 }
+  /* Bigger letters for the skills and the level line (owner, 2026-10-26:
+     older parents). */
+  /* A long word in a narrow column (Level 6 has six) breaks with a hyphen
+     rather than running into its neighbour. */
+  .mst-panel.fam .mst-nm { font-size: 12px; line-height: 1.25; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere }
+  .mst-panel.fam .mst-lvrow b { font-size: 15px }
+  .mst-panel.fam .mst-lvrow span { font-size: 12.5px }
+  /* Name and the one-line summary side by side: one line of height saved
+     for the bigger letters below. */
+  .mst-panel.fam .mst-head { padding: 12px 56px 10px 16px; flex: none; border-radius: 18px 18px 0 0;
+    display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; row-gap: 2px }
   .mst-panel.fam .mst-x { top: 8px; right: 10px }
   .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
   .mst-panel.fam .mst-name { font-size: 18px !important; margin: 0 !important }
-  .mst-panel.fam .mst-statline { display: block; font-size: 12px; color: #56647d; margin-top: 2px; font-variant-numeric: tabular-nums }
+  .mst-panel.fam .mst-statline { display: block; font-size: 13px; color: #56647d; margin-top: 0; font-variant-numeric: tabular-nums }
   .mst-panel.fam .mst-statline b { color: #12254a; font-weight: 800 }
-  .mst-panel.fam .mst-lvrow { padding: 8px 14px 0; flex-wrap: nowrap; flex: none }
-  .mst-panel.fam .mst-lvrow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  /* A long level name wraps; the skill count drops under it instead of
+     being cut off ("Skills passed..."), and the "?" keeps the right edge. */
+  .mst-panel.fam .mst-lvrow { padding: 8px 56px 0 14px; flex-wrap: wrap; row-gap: 0; column-gap: 8px; flex: none; align-items: baseline; min-height: 40px }
+  .mst-panel.fam .mst-lvrow .mst-help { position: absolute; right: 14px; top: 6px }
   .mst-panel.fam .mst-help { display: block; flex: none }
   .mst-panel.fam .mst-key { display: none }
   .mst-panel.fam .mst-key.open { display: flex; position: absolute; z-index: 30; right: 14px; left: 14px; top: 100%; margin-top: 6px;
@@ -535,7 +561,11 @@ export default function SkillTree({
   /* Columns come from the widest stage, not from the highest column index:
      a short row is centred, so its columns are half-steps. */
   const cols = inLv.length
-    ? Math.max(...[1, 2, 3].map(st => inLv.filter(s => s.stage === st && !s.apart).length)) : 1
+    ? Math.max(...[1, 2, 3].map(st => inLv.filter(s => s.stage === st && !s.apart).length),
+      /* ...and never fewer than the rightmost pinned column needs: on Level 6
+         stage 3 sits in columns 0, 1, 3, 4, 5 -- five skills over six
+         columns -- and the last one was drawn off the edge (found 2026-10-26). */
+      Math.ceil(Math.max(0, ...inLv.filter(s => !s.apart).map(s => s.col)) + 1 - 1e-6)) : 1
   const rows = inLv.length ? Math.max(...inLv.map(s => s.row)) : 1
   const apartRow = inLv.some(s => s.apart) ? Math.max(...inLv.map(s => s.row)) : 0
 
@@ -568,9 +598,19 @@ export default function SkillTree({
          the rows share out the height left under the staircase, never taller
          than the usual row and never so short the names collide. */
       box.style.removeProperty('--rh')
+      box.style.removeProperty('--hd')
+      box.style.removeProperty('--tail')
+      box.style.removeProperty('--pad')
       const panel = box.closest('.mst-panel.fam') as HTMLElement | null
       if (panel && rows > 1 && window.matchMedia('(max-width: 640px)').matches) {
         const cs2 = getComputedStyle(box)
+        /* A stage heading that wraps to two lines gets a taller strip. */
+        const railH = Math.max(0, ...Array.from(box.querySelectorAll<HTMLElement>('.mst-rail')).map(e => e.offsetHeight))
+        const hd0 = parseFloat(cs2.getPropertyValue('--hd')) || 0
+        if (railH + 2 > hd0) {
+          box.style.setProperty('--hd', Math.ceil(railH + 2) + 'px')
+          box.style.setProperty('--pad', Math.ceil(railH + 12) + 'px')
+        }
         /* The sheet is as tall as its content, at most its max-height (92% of
            the visible screen): measure from the sheet's top to the board,
            and give the rows what is left of that. */
@@ -581,14 +621,23 @@ export default function SkillTree({
         const pad = parseFloat(cs2.getPropertyValue('--pad')) || 0
         const sz = parseFloat(cs2.getPropertyValue('--sz')) || 44
         const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
-        const tail = parseFloat(cs2.getPropertyValue('--tail')) || 40
+        /* Room under the last row for its names (two or three lines in
+           English) or for the stand-apart tile, measured. */
+        const lastNames = Array.from(box.querySelectorAll<HTMLElement>('.mst-tile:not(.apart)'))
+          .filter(el => Number(getComputedStyle(el).getPropertyValue('--r')) === rows)
+          .map(el => (el.querySelector('.mst-nm') as HTMLElement | null)?.offsetHeight || 0)
+        const apartH = (box.querySelector('.mst-tile.apart') as HTMLElement | null)?.offsetHeight || 0
+        const tail = Math.max(parseFloat(cs2.getPropertyValue('--tail')) || 22,
+          Math.ceil(Math.max(0, ...lastNames) + 12), apartH ? apartH - (parseFloat(cs2.getPropertyValue('--sz')) || 44) + 10 : 0)
+        box.style.setProperty('--tail', tail + 'px')
         const rh = Math.floor((room - vpad - pad - sz - tail) / (rows - 1))
         /* Never so short that a name runs into the row below (owner,
            2026-10-26: English names on two or three lines were covered): the
            tallest name, measured, plus room for a line under it. On a very
            short screen the sheet then scrolls a little instead. */
         const nmH = Math.max(0, ...Array.from(box.querySelectorAll<HTMLElement>('.mst-tile:not(.apart) .mst-nm')).map(e => e.offsetHeight))
-        const rhMin = Math.max(66, Math.ceil(sz + 6 + nmH + 10))
+        const hd = parseFloat(cs2.getPropertyValue('--hd')) || 0
+        const rhMin = Math.max(66, Math.ceil(sz + 6 + nmH + 10 + hd))
         box.style.setProperty('--rh', Math.max(rhMin, Math.min(maxRh, rh)) + 'px')
       }
     }
@@ -603,6 +652,7 @@ export default function SkillTree({
       if (svg) svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`)
       const lane = parseFloat(cs.getPropertyValue('--lane')) || 0
       const pad = parseFloat(cs.getPropertyValue('--pad')) || 0
+      const hd = parseFloat(cs.getPropertyValue('--hd')) || 0
       const spots = Object.fromEntries(inLv.map(s => [s.id, { row: s.row, col: s.col }]))
       const edges = inLv.filter(s => !s.apart).flatMap(s => (needs[s.id] || [])
         .filter(q => spots[q] && !inLv.find(x => x.id === q)?.apart)
@@ -640,7 +690,7 @@ export default function SkillTree({
           heads[row] = [b.left - base.left - 6, b.right - base.left + 6]
         }
       }
-      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads, nameBottom })
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads, nameBottom, hd })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
@@ -728,6 +778,7 @@ export default function SkillTree({
                 meLabel={t('tree.map3d.me', { name: studentName, n: currentStage })}
                 ariaLabel={t('tree.map3d.aria')}
                 hint={t('tree.map3d.hint')}
+                hintSwipe={t('tree.map3d.hintSwipe')}
               />
             )}
             {want3d && map3d !== 'off' && (
@@ -777,7 +828,7 @@ export default function SkillTree({
                 const got = stageEarned(
                   inLv.filter(x => x.stage === st && !x.apart).map(x => x.percent))
                 return (
-                  <div key={'rail' + st} className={'mst-rail' + (got ? ' got' : '')}
+                  <div key={'rail' + st} className={'mst-rail' + (got ? ' got' : '') + (st % 2 === 0 ? ' even' : '')}
                     style={{ ['--r' as any]: st }}>
                     <StageRibbon level={lv} stage={st} size={30} earned={got}
                       label={t(stageNameKey(lv, st))} />

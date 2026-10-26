@@ -41,12 +41,18 @@ type Props = {
   meLabel: string
   ariaLabel: string
   hint: string
+  /** The hint when the stairs are wider than the box (a phone): swipe. */
+  hintSwipe: string
 }
 
 const C = { navy: 0x12254a, blue: 0x2050a0, amber: 0xf09800 }
 const N = 7
-const SW = 1.5, SD = 1.2
-const stepH = (lv: number) => 0.9 + 0.3 * (lv - 1)
+/* The steps' proportions. On a phone they are much wider and a little lower
+   (owner, 2026-10-26: the names on the steps were too small for older
+   parents), so only three or four show at once and the box scrolls sideways;
+   a computer keeps all seven in view. Set when the scene is built. */
+let SW = 1.5, SD = 1.2, RISE: [number, number] = [0.9, 0.3]
+const stepH = (lv: number) => RISE[0] + RISE[1] * (lv - 1)
 /* The page's own font stack (next/font gives the faces generated names, so it
    is read off the page rather than written here). */
 let FONT = '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif'
@@ -204,8 +210,12 @@ function makeMascot() {
   return { group, flap }
 }
 
-export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick, onReady, levelName, levelTag, meLabel, ariaLabel, hint }: Props) {
+export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick, onReady, levelName, levelTag, meLabel, ariaLabel, hint, hintSwipe }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const layerRef = useRef<HTMLDivElement | null>(null)
+  const [swipe, setSwipe] = useState(false)
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
   const meRef = useRef<HTMLDivElement | null>(null)
@@ -222,7 +232,10 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    const scroller = scrollRef.current, layer = layerRef.current, box = boxRef.current
+    if (!canvas || !scroller || !layer || !box) return
+    const phone = window.matchMedia('(max-width: 640px)').matches
+    if (phone) { SW = 1.7; SD = 0.9; RISE = [1.0, 0.13] } else { SW = 1.5; SD = 1.2; RISE = [0.9, 0.3] }
     let renderer: THREE.WebGLRenderer
     try {
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
@@ -253,6 +266,10 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
        14 degrees round and 17 down, so the fronts face the reader. */
     camera.position.set(-2.6, 5.2, 12)
     camera.lookAt(0.3, 1.3, 0)
+    /* A phone looks almost straight at the fronts (about 7 degrees round and
+       12 down): the names read squarely, and a long staircase does not tilt
+       across the narrow box. */
+    if (phone) { camera.position.set(-1.2, 3.6, 12); camera.lookAt(0.3, 1.0, 0) }
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xc9d6e6, 1.5))
     const sun = new THREE.DirectionalLight(0xffffff, 2.3)
@@ -261,7 +278,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     sun.castShadow = true
     sun.shadow.mapSize.set(1024, 1024)
     sun.shadow.radius = 4
-    Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 })
+    Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11 })
     sun.shadow.bias = -0.0005
     scene.add(sun)
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.1 }))
@@ -315,7 +332,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     }
 
     const mascot = makeMascot()
-    mascot.group.scale.setScalar(0.36)
+    mascot.group.scale.setScalar(phone ? 0.3 : 0.36)
     scene.add(mascot.group)
     const cs = steps[Math.min(Math.max(currentLevel, 1), N) - 1]
 
@@ -329,12 +346,17 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       const h = ray.intersectObjects(meshes, false)[0]
       return h ? (h.object.userData.level as number) : -1
     }
-    const onMove = (e: PointerEvent) => { hover = at(e); canvas.style.cursor = hover > 0 ? 'pointer' : 'default'; if (reduce) draw(0) }
+    /* The scroller lies over the canvas, so it takes the pointer: a tap on a
+       step's top or side still picks it. */
+    const onMove = (e: PointerEvent) => { hover = at(e); scroller.style.cursor = hover > 0 ? 'pointer' : 'default'; if (reduce) draw(0) }
     const onLeave = () => { hover = -1; if (reduce) draw(0) }
-    const onClick = (e: PointerEvent) => { const lv = at(e); if (lv > 0) pickRef.current(lv) }
-    canvas.addEventListener('pointermove', onMove)
-    canvas.addEventListener('pointerleave', onLeave)
-    canvas.addEventListener('click', onClick as EventListener)
+    const onClick = (e: PointerEvent) => {
+      if ((e.target as HTMLElement).closest('button')) return
+      const lv = at(e); if (lv > 0) pickRef.current(lv)
+    }
+    scroller.addEventListener('pointermove', onMove)
+    scroller.addEventListener('pointerleave', onLeave)
+    scroller.addEventListener('click', onClick as EventListener)
 
     const v = new THREE.Vector3()
     const toScreen = (p: THREE.Vector3) => {
@@ -342,7 +364,28 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       return { x: ((v.x + 1) / 2) * canvas.clientWidth, y: ((1 - v.y) / 2) * canvas.clientHeight }
     }
 
+    /* The frame: worked out in resize(), and slid sideways by the scroller.
+       Everything laid over the picture (step buttons, L1..L7, the label) sits
+       in the scroller's content, so it moves with the stairs natively; the
+       canvas stays put and the camera follows the scroll. */
+    const F = { x0: 0, cx: 0, cy: 0, hw: 1, hh: 1, wpp: 0.01, T: 30, B: 44, contentW: 0, scrollable: false }
+    function setCamera() {
+      const left = F.scrollable ? F.x0 + scroller!.scrollLeft * F.wpp : F.cx - F.hw
+      camera.left = left; camera.right = left + 2 * F.hw
+      camera.top = F.cy + F.hh + F.T * F.wpp; camera.bottom = F.cy - F.hh - F.B * F.wpp
+      camera.updateProjectionMatrix()
+    }
+    function edges() {
+      const max = scroller!.scrollWidth - scroller!.clientWidth
+      box!.classList.toggle('more-l', F.scrollable && scroller!.scrollLeft > 4)
+      box!.classList.toggle('more-r', F.scrollable && scroller!.scrollLeft < max - 4)
+      // Once the reader has swiped, the hint has done its job and steps aside.
+      if (placed && Math.abs(scroller!.scrollLeft - startAt) > 12) box!.classList.add('used')
+    }
+
     function draw(t: number) {
+      setCamera()
+      const sx = scroller!.scrollLeft
       steps.forEach((s, i) => {
         const lv = i + 1
         const lift = lv === selRef.current ? 0.14 : lv === hover ? 0.08 : 0
@@ -355,7 +398,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         if (b) {
           const y0 = s.mesh.position.y - s.h / 2, y1 = s.mesh.position.y + s.h / 2, z = SD / 2
           const a = toScreen(new THREE.Vector3(s.x - SW / 2 + 0.03, y1, z)), c = toScreen(new THREE.Vector3(s.x + SW / 2 - 0.03, y0, z))
-          b.style.transform = `translate(${Math.min(a.x, c.x)}px, ${Math.min(a.y, c.y)}px)`
+          b.style.transform = `translate(${Math.min(a.x, c.x) + sx}px, ${Math.min(a.y, c.y)}px)`
           b.style.width = Math.abs(c.x - a.x) + 'px'
           b.style.height = Math.abs(c.y - a.y) + 'px'
         }
@@ -367,24 +410,37 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
           const r = toScreen(new THREE.Vector3(s.x + SW / 2 - 0.03, 0, SD / 2))
           const w = Math.max(30, r.x - l.x - 4)
           chip.style.width = w + 'px'
-          chip.style.transform = `translate(${(l.x + r.x) / 2 - w / 2}px, ${Math.max(l.y, r.y) + 6}px)`
+          chip.style.transform = `translate(${(l.x + r.x) / 2 - w / 2 + sx}px, ${Math.max(l.y, r.y) + 6}px)`
         }
       })
       const topY = cs.mesh.position.y + cs.h / 2
-      mascot.group.position.set(cs.x + 0.05, topY + 0.45 + Math.sin(t * 2) * 0.06, 0.1)
+      mascot.group.position.set(cs.x + 0.05, topY + (phone ? 0.3 : 0.38) + Math.sin(t * 2) * 0.05, 0.1)
       mascot.group.rotation.y = -Math.PI / 2 + Math.sin(t * 0.8) * 0.4
       mascot.flap(t * 1.2, 0.28)
       if (meRef.current) {
-        const m = toScreen(new THREE.Vector3(cs.x, topY + 1.05, 0))
-        // Kept inside the box: over the first step on a phone it ran off the left.
-        const half = meRef.current.offsetWidth / 2 + 6
-        const mx = Math.min(Math.max(m.x, half), canvas!.clientWidth - half)
-        meRef.current.style.transform = `translate(${mx}px, ${m.y}px) translate(-50%, -100%)`
+        if (phone) {
+          /* Beside the mascot, not above it: on a phone the room above the
+             top step would shrink the whole picture for a swimmer on Level 7.
+             Over the lower step to its left -- or, on Level 1, the right. */
+          const m = toScreen(new THREE.Vector3(cs.x, topY + 0.38, 0))
+          const gap = 0.32 / F.wpp, right = cs === steps[0]
+          meRef.current.classList.toggle('side-r', right)
+          meRef.current.classList.toggle('side-l', !right)
+          meRef.current.style.transform = right
+            ? `translate(${m.x + sx + gap}px, ${m.y}px) translate(0, -50%)`
+            : `translate(${m.x + sx - gap}px, ${m.y}px) translate(-100%, -50%)`
+        } else {
+          const m = toScreen(new THREE.Vector3(cs.x, topY + 0.9, 0))
+          // Kept inside the picture: over the first step it ran off the left.
+          const half = meRef.current.offsetWidth / 2 + 6
+          const mx = Math.min(Math.max(m.x + sx, half), Math.max(F.contentW, canvas!.clientWidth) - half)
+          meRef.current.style.transform = `translate(${mx}px, ${m.y}px) translate(-50%, -100%)`
+        }
       }
       renderer.render(scene, camera)
     }
 
-    let clockT = 0
+    let clockT = 0, placed = false, startAt = 0
     function resize() {
       const w = canvas!.clientWidth, h = canvas!.clientHeight
       if (!w || !h) return
@@ -404,23 +460,44 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       steps.forEach(st => {
         for (const dx of [-SW / 2, SW / 2]) for (const dz of [-SD / 2, SD / 2]) { take(st.x + dx, 0, dz); take(st.x + dx, st.h + 0.15, dz) }
       })
-      take(cs.x, cs.h + 1.6, 0)
-      const mx = (x1 - x0) * 0.03, my = (y1 - y0) * 0.03
+      take(cs.x, cs.h + (phone ? 0.72 : 1.4), 0)
+      const mx = (x1 - x0) * 0.02, my = (y1 - y0) * 0.03
       x0 -= mx; x1 += mx; y0 -= my; y1 += my
       /* A band kept clear at the top for the hint and at the bottom for the
          L1..L7 buttons, in pixels; the stairs fill what is between. */
-      const T = 30, B = w < 640 ? 44 : 50
+      /* On a phone the hint sits over the empty sky instead of a band of its
+         own, so the stairs get that height too. */
+      const T = phone ? 6 : 30, B = w < 640 ? 44 : 50
       const inner = Math.max(40, h - T - B), ia = w / inner
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
       let hw = (x1 - x0) / 2, hh = (y1 - y0) / 2
-      if (hw / hh > ia) hh = hw / ia; else hw = hh * ia
+      /* A computer fits all seven steps. A phone fits the height only, and
+         whatever is wider than the box scrolls. */
+      if (phone) hw = hh * ia
+      else if (hw / hh > ia) hh = hw / ia
+      else hw = hh * ia
+      hh = hw / ia
       const wpp = (2 * hh) / inner
-      camera.left = cx - hw; camera.right = cx + hw; camera.top = cy + hh + T * wpp; camera.bottom = cy - hh - B * wpp
-      camera.updateProjectionMatrix()
+      const fullW = (x1 - x0) / wpp
+      const was = F.scrollable
+      Object.assign(F, { x0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw, hh, wpp, T, B,
+        contentW: Math.max(w, Math.ceil(fullW)), scrollable: fullW > w + 1 })
+      layer!.style.width = F.contentW + 'px'
+      if (F.scrollable !== was) setSwipe(F.scrollable)
+      /* Open on the swimmer's own step, a third of the way in, so the next
+         levels are in view too. */
+      if (F.scrollable && !placed) {
+        placed = true
+        const q = new THREE.Vector3(cs.x, 0, 0).applyMatrix4(inv)
+        scroller!.scrollLeft = Math.max(0, (q.x - x0) / wpp - w * 0.3)
+        startAt = scroller!.scrollLeft
+      }
+      edges()
       draw(clockT)
     }
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
+    const onScroll = () => { edges(); if (reduce) draw(clockT) }
+    scroller.addEventListener('scroll', onScroll, { passive: true })
     let visible = true
     const io = new IntersectionObserver(es => { visible = es[0].isIntersecting })
     io.observe(canvas)
@@ -440,9 +517,10 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect(); io.disconnect()
-      canvas.removeEventListener('pointermove', onMove)
-      canvas.removeEventListener('pointerleave', onLeave)
-      canvas.removeEventListener('click', onClick as EventListener)
+      scroller.removeEventListener('pointermove', onMove)
+      scroller.removeEventListener('pointerleave', onLeave)
+      scroller.removeEventListener('click', onClick as EventListener)
+      scroller.removeEventListener('scroll', onScroll)
       redrawRef.current = null
       scene.traverse(o => {
         const m = o as THREE.Mesh
@@ -462,10 +540,11 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
   if (!ok) return null
   return (
-    <div className="mst3d">
+    <div className="mst3d" ref={boxRef}>
       <style dangerouslySetInnerHTML={{ __html: MAP3D_CSS }} />
       <canvas ref={canvasRef} role="img" aria-label={ariaLabel} />
-      <div className="mst3d-layer">
+      <div className="mst3d-scroll" ref={scrollRef}>
+      <div className="mst3d-layer" ref={layerRef}>
         {Array.from({ length: N }, (_, i) => (
           <button key={i} type="button" ref={el => { btnRefs.current[i] = el }}
             className="tap-auto mst3d-step" aria-pressed={i + 1 === selected}
@@ -483,7 +562,15 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         })}
         <div ref={meRef} className="mst3d-me" aria-hidden="true">{meLabel}</div>
       </div>
-      <p className="mst3d-hint">{hint}</p>
+      </div>
+      {/* Arrows at the edges when there is more to either side: a nudge to
+          swipe, and a tap scrolls too. The step buttons already scroll into
+          view on focus, so these stay out of the keyboard order. */}
+      <button type="button" className="tap-auto mst3d-more l" tabIndex={-1} aria-hidden="true"
+        onClick={() => scrollRef.current?.scrollBy({ left: -(scrollRef.current.clientWidth * 0.6), behavior: 'smooth' })}>‹</button>
+      <button type="button" className="tap-auto mst3d-more r" tabIndex={-1} aria-hidden="true"
+        onClick={() => scrollRef.current?.scrollBy({ left: scrollRef.current.clientWidth * 0.6, behavior: 'smooth' })}>›</button>
+      <p className="mst3d-hint">{swipe ? hintSwipe : hint}</p>
     </div>
   )
 }
@@ -493,7 +580,16 @@ const MAP3D_CSS = `
   border: 1px solid #e3ebf6;
   background: radial-gradient(120% 90% at 55% 30%, #ffffff 0%, #f5f8fc 55%, #e8eef6 100%) }
 .mst3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y }
-.mst3d-layer { position: absolute; inset: 0; pointer-events: none }
+.mst3d-scroll { position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x pan-y }
+.mst3d-scroll::-webkit-scrollbar { display: none }
+.mst3d-layer { position: relative; height: 100%; min-width: 100%; pointer-events: none }
+.mst3d-more { position: absolute; top: 38%; z-index: 4; width: 30px; height: 30px; min-height: 0; padding: 0; margin: -15px 0 0;
+  border-radius: 50%; border: 1px solid #d3deec; background: rgba(255,255,255,.8); color: #12254a; font: inherit;
+  font-size: 22px; font-weight: 700; line-height: 26px; box-shadow: 0 3px 10px rgba(18,37,74,.16); cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity .2s }
+.mst3d-more.l { left: 6px } .mst3d-more.r { right: 6px }
+.mst3d.more-l .mst3d-more.l, .mst3d.more-r .mst3d-more.r { opacity: 1; pointer-events: auto }
 .mst3d-step { position: absolute; left: 0; top: 0; min-height: 0; min-width: 0; padding: 0; margin: 0; border: 0;
   background: transparent; cursor: pointer; pointer-events: auto; border-radius: 4px; will-change: transform }
 .mst3d-step:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
@@ -502,7 +598,11 @@ const MAP3D_CSS = `
   box-shadow: 0 6px 16px rgba(18,37,74,.28), inset 0 1px 0 rgba(255,255,255,.14); will-change: transform }
 .mst3d-me::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; margin-left: -4px;
   background: #12254a; transform: rotate(45deg); border-radius: 1px }
-.mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
+.mst3d-me.side-l::after { left: auto; right: -4px; bottom: auto; top: 50%; margin: -4px 0 0 }
+.mst3d-me.side-r::after { left: -4px; bottom: auto; top: 50%; margin: -4px 0 0 }
+.mst3d.used .mst3d-hint { opacity: 0 }
+.mst3d-hint { transition: opacity .3s }
+.mst3d-hint { position: absolute; z-index: 3; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
   background: rgba(255,255,255,.75); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px) }
 .mst3d-chip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;
@@ -518,8 +618,8 @@ const MAP3D_CSS = `
 .mst3d-chip.cur.sel { border-color: #f7b733; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
 @media (hover: hover) { .mst3d-chip:hover { border-color: #2050a0 } }
 @media (max-width: 640px) {
-  .mst3d { height: clamp(176px, 28vh, 224px); flex: none; margin: 6px 14px 0 }
-  .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px }
+  .mst3d { height: clamp(170px, 27vh, 220px); flex: none; margin: 6px 14px 0 }
+  .mst3d-hint { font-size: 11.5px; top: 6px; right: 6px; padding: 3px 9px }
   .mst3d-me { font-size: 11px; padding: 4px 9px; z-index: 3 }
   .mst3d-chip { height: 32px; border-radius: 9px; font-size: 14px }
 }
