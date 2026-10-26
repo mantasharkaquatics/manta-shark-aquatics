@@ -6,8 +6,15 @@ export const REPORT_SHEET_CSS = `
 .msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
   display: flex; align-items: center; justify-content: center; padding: 20px }
 .msa-sheet { background: #f6f9fd; border: 1px solid #e3ebf6; border-radius: 18px; box-shadow: 0 30px 60px rgba(14,29,59,0.3);
-  width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto; padding: 20px }
-.msa-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px }
+  width: 100%; max-width: 520px; max-height: 86vh; max-height: 86dvh; overflow-y: auto; padding: 20px;
+  overscroll-behavior: contain }
+/* The title and close button stay at the top while the sheet scrolls, and the
+   sheet is measured against the screen actually visible (dvh): on an iPhone
+   88vh is taller than the space left by Safari's bars, which cut the title
+   off the top of the records sheet (owner, 2026-10-26). */
+.msa-sheet-head { display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: -20px; z-index: 2; margin: -20px -20px 14px; padding: 16px 20px 10px;
+  background: #f6f9fd; border-radius: 18px 18px 0 0 }
 .msa-sheet-head b { font-size: 17px; color: #12254a }
 .msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: #e8eef7;
   color: #34435e; font-size: 16px; cursor: pointer }
@@ -41,6 +48,6 @@ export const REPORT_SHEET_CSS = `
 .msa-report-segs i.on { background: #2e9d6a }
 @media (max-width: 640px) {
   .msa-sheet-back { align-items: flex-end; padding: 0 }
-  .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; padding-bottom: calc(20px + env(safe-area-inset-bottom)) }
+  .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; max-height: 88dvh; padding-bottom: calc(20px + env(safe-area-inset-bottom)) }
 }
 `
