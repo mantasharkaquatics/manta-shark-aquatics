@@ -34,7 +34,40 @@ import dynamic from 'next/dynamic'
 
 /* The families' 3D overview of the seven levels (owner, 2026-10-26). Its own
    chunk: three.js loads only when a family opens the map. */
-const LevelMap3D = dynamic(() => import('./LevelMap3D'), { ssr: false })
+const LevelMap3D = dynamic(() => import('./LevelMap3D'), {
+  ssr: false,
+  // The box is there at once, the same size, so nothing jumps when it draws.
+  loading: () => <div className="mst3d-ph" />,
+})
+
+/* The curriculum (levels, skills, what needs what) is the same for every
+   family, so it is read once per visit and kept. The dashboard asks for it,
+   and for the 3D code, while the page is idle (prefetchLearningMap), so the
+   map opens straight away instead of waiting on three downloads in a row
+   (owner, 2026-10-26: the staircase appeared late). */
+type CurriculumRows = [any[] | null, any[] | null, any[] | null]
+const FAMILY_COLS = 'id, name, stage, sort_order, level_id, is_standalone, col_override'
+const COACH_COLS = 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone, col_override'
+function readCurriculum(supabase: ReturnType<typeof createClient>, cols: string): Promise<CurriculumRows> {
+  return Promise.all([
+    supabase.from('levels').select('id, level_number'),
+    supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
+    supabase.from('skill_prerequisites').select('skill_id, requires_id'),
+  ]).then(([a, b, c]) => [a.data, b.data, c.data] as CurriculumRows)
+}
+let familyRows: Promise<CurriculumRows> | null = null
+function familyCurriculum(supabase: ReturnType<typeof createClient>) {
+  if (!familyRows) {
+    familyRows = readCurriculum(supabase, FAMILY_COLS)
+      .then(r => { if (!r[0] || !r[1]) familyRows = null; return r })
+      .catch(e => { familyRows = null; throw e })
+  }
+  return familyRows
+}
+export function prefetchLearningMap() {
+  import('./LevelMap3D').catch(() => {})
+  familyCurriculum(createClient()).catch(() => {})
+}
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -317,13 +350,17 @@ const CSS = `
 .mst-help { display: none; margin-left: auto; width: 32px; height: 32px; min-height: 0; aspect-ratio: 1; text-align: center; border-radius: 50%; border: 1px solid #c9d8ee;
   background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 15px; line-height: 30px; cursor: pointer; padding: 0 }
 .mst-statline { display: none }
+/* Stands in for the 3D box while its code arrives: same size, same ground. */
+.mst3d-ph { height: 340px; margin: 12px 20px 0; border-radius: 14px; border: 1px solid #e3ebf6;
+  background: radial-gradient(120% 90% at 55% 30%, #ffffff 0%, #f5f8fc 55%, #e8eef6 100%) }
+@media (max-width: 640px) { .mst3d-ph { height: clamp(176px, 28vh, 224px); flex: none; margin: 6px 14px 0 } }
 .mst-sheet-shade { display: none }
 @media (max-width: 640px) {
   /* A sheet from the bottom with the page showing dimmed above it, like the
      lesson records (owner, 2026-10-26). Its height follows its content up to
-     88% of the visible screen; fit() shares that height out among the rows. */
+     92% of the visible screen; fit() shares that height out among the rows. */
   .mst-back.fam { align-items: flex-end; backdrop-filter: none; background: rgba(18,37,74,0.45) }
-  .mst-panel.fam { display: flex; flex-direction: column; height: auto; max-height: 88vh; max-height: 88dvh; overscroll-behavior: contain;
+  .mst-panel.fam { display: flex; flex-direction: column; height: auto; max-height: 92vh; max-height: 92dvh; overscroll-behavior: contain;
     border-radius: 18px 18px 0 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); animation: mstUp .22s ease-out;
     --rh: 96px; --pad: 10px; --tail: 30px }
   /* Shorter stage rows (owner, 2026-10-26): less empty room above the first
@@ -331,7 +368,9 @@ const CSS = `
      rows fit under the staircase without scrolling. */
   .mst-panel.fam .mst-rail { gap: 2px }
   .mst-panel.fam .mst-rail svg { height: 20px; width: auto }
-  .mst-panel.fam .mst-rail b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+  /* The whole stage name, never cut ("Face In, Bubble..." -- owner,
+     2026-10-26), a touch smaller so three lines still fit beside a row. */
+  .mst-panel.fam .mst-rail b { font-size: 9.5px; line-height: 1.2; overflow-wrap: anywhere }
   .mst-panel.fam .mst-head { padding: 12px 56px 8px 16px; flex: none; border-radius: 18px 18px 0 0 }
   .mst-panel.fam .mst-x { top: 8px; right: 10px }
   .mst-panel.fam .mst-eyebrow, .mst-panel.fam .mst-stats { display: none }
@@ -392,14 +431,11 @@ export default function SkillTree({
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const cols = forCoach
-        ? 'id, name, pass_criteria, stage, sort_order, level_id, is_standalone, col_override'
-        : 'id, name, stage, sort_order, level_id, is_standalone, col_override'
-      const [{ data: levRows }, { data: skRows }, { data: preRows }] = await Promise.all([
-        supabase.from('levels').select('id, level_number'),
-        supabase.from('skills').select(cols).eq('is_active', true).order('sort_order'),
-        supabase.from('skill_prerequisites').select('skill_id, requires_id'),
-      ])
+      let rows: CurriculumRows
+      try {
+        rows = forCoach ? await readCurriculum(supabase, COACH_COLS) : await familyCurriculum(supabase)
+      } catch { rows = [null, null, null] }
+      const [levRows, skRows, preRows] = rows
       if (!alive) return
       if (!levRows || !skRows) { setFailed(true); return }
 
@@ -535,7 +571,7 @@ export default function SkillTree({
       const panel = box.closest('.mst-panel.fam') as HTMLElement | null
       if (panel && rows > 1 && window.matchMedia('(max-width: 640px)').matches) {
         const cs2 = getComputedStyle(box)
-        /* The sheet is as tall as its content, at most its max-height (88% of
+        /* The sheet is as tall as its content, at most its max-height (92% of
            the visible screen): measure from the sheet's top to the board,
            and give the rows what is left of that. */
         const ps = getComputedStyle(panel)
@@ -547,7 +583,13 @@ export default function SkillTree({
         const maxRh = parseFloat(cs2.getPropertyValue('--rh')) || 124
         const tail = parseFloat(cs2.getPropertyValue('--tail')) || 40
         const rh = Math.floor((room - vpad - pad - sz - tail) / (rows - 1))
-        box.style.setProperty('--rh', Math.max(66, Math.min(maxRh, rh)) + 'px')
+        /* Never so short that a name runs into the row below (owner,
+           2026-10-26: English names on two or three lines were covered): the
+           tallest name, measured, plus room for a line under it. On a very
+           short screen the sheet then scrolls a little instead. */
+        const nmH = Math.max(0, ...Array.from(box.querySelectorAll<HTMLElement>('.mst-tile:not(.apart) .mst-nm')).map(e => e.offsetHeight))
+        const rhMin = Math.max(66, Math.ceil(sz + 6 + nmH + 10))
+        box.style.setProperty('--rh', Math.max(rhMin, Math.min(maxRh, rh)) + 'px')
       }
     }
     const draw = () => {
@@ -573,6 +615,7 @@ export default function SkillTree({
       const blocked: Record<number, Array<[number, number]>> = {}
       const startY: Record<string, number> = {}
       const heads: Record<number, [number, number]> = {}
+      const nameBottom: Record<number, number> = {}
       for (const el of Array.from(board.querySelectorAll<HTMLElement>('.mst-tile'))) {
         const row = Number(getComputedStyle(el).getPropertyValue('--r')) || 0
         const put = (l: number, r: number) => { (blocked[row] ||= []).push([l, r]) }
@@ -586,6 +629,7 @@ export default function SkillTree({
           if (t.width) put(t.left - base.left - 5, t.right - base.left + 5)
           // The line leaves from under the name, never through it.
           if (t.height && el.dataset.id) startY[el.dataset.id] = t.bottom - base.top + 4
+          if (t.height) nameBottom[row] = Math.max(nameBottom[row] || 0, t.bottom - base.top)
         }
       }
       // On a phone the stage names sit in each row's top channel.
@@ -596,7 +640,7 @@ export default function SkillTree({
           heads[row] = [b.left - base.left - 6, b.right - base.left + 6]
         }
       }
-      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads })
+      const paths = routeWires(edges, spots, { cw, rh, sz, lane, pad, cols, blocked, startY, heads, nameBottom })
       for (const el of Array.from(board.querySelectorAll<SVGPathElement>('.mst-w'))) {
         el.setAttribute('d', paths[el.dataset.k || ''] || '')
       }
@@ -686,7 +730,7 @@ export default function SkillTree({
                 hint={t('tree.map3d.hint')}
               />
             )}
-            {want3d && map3d === 'on' && (
+            {want3d && map3d !== 'off' && (
               <div className="mst-lvrow">
                 <b>L{lv} · {t(levelNameKey(lv))}</b>
                 <span>{t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}</span>
@@ -695,7 +739,7 @@ export default function SkillTree({
                 {keyOpen && <div className="mst-key open" onClick={e => e.stopPropagation()}>{keyItems}</div>}
               </div>
             )}
-            {map3d !== 'on' && (
+            {map3d === 'off' && (
             <div className="mst-tabs" role="tablist">
               {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
                 <button key={n} className="mst-tab" role="tab" aria-selected={n === lv}
@@ -706,7 +750,7 @@ export default function SkillTree({
             </div>
             )}
 
-            {!(want3d && map3d === 'on') && (
+            {!(want3d && map3d !== 'off') && (
               <p className="mst-meta">
                 {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}
               </p>

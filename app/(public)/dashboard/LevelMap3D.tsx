@@ -53,32 +53,14 @@ let FONT = '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif'
 let ANISO = 4
 
 /* The front of a step: the level's name, drawn at the face's own aspect so
-   the letters are not stretched, and as large as the face allows. A name
+   the letters are not stretched. Every step uses the SAME letter size (owner,
+   2026-10-26: "Four Strokes" came out bigger than the rest because it is
+   short) -- the largest size at which every name fits its own face. A name
    with spaces breaks between words; a Chinese name of four characters or
-   more goes on two lines when that makes it bigger. */
-function faceTexture(name: string, h: number, bg: [string, string], ink: string) {
-  /* Drawn at 1.6x and scaled down, so the letters stay sharp on a phone's
-     dense screen (owner, 2026-10-26: blurry). */
-  const K = 2, W = 320, H = Math.round(W * h / (SW - 0.06))
-  const c = document.createElement('canvas'); c.width = W * K; c.height = H * K
-  const g = c.getContext('2d')!
-  g.scale(K, K)
-  /* A soft light-to-shade wash down the face, like a lit panel, rather than
-     one flat colour (owner, 2026-10-26: "more premium"). */
-  const wash = g.createLinearGradient(0, 0, 0, H)
-  wash.addColorStop(0, bg[0]); wash.addColorStop(1, bg[1])
-  g.fillStyle = wash; g.fillRect(0, 0, W, H)
-  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
-  const PAD = 26, MAXH = Math.min(H - 2 * PAD, 230)
-  const sizeFor = (lines: string[]) => {
-    let size = 110
-    const ok = () => {
-      g.font = `800 ${size}px ${FONT}`
-      return lines.every(l => g.measureText(l).width <= W - 2 * PAD) && lines.length * size * 1.15 <= MAXH
-    }
-    while (size > 24 && !ok()) size -= 2
-    return size
-  }
+   more goes on two lines. */
+const FW = 320, FPAD = 16
+const faceH = (h: number) => Math.round(FW * h / (SW - 0.06))
+function faceOptions(name: string): string[][] {
   const options: string[][] = [[name]]
   if (name.includes(' ')) {
     const w = name.split(' ')
@@ -87,10 +69,41 @@ function faceTexture(name: string, h: number, bg: [string, string], ink: string)
     const k = Math.ceil(name.length / 2)
     options.push([name.slice(0, k), name.slice(k)])
   }
-  let lines = options[0], size = sizeFor(lines)
-  for (const o of options.slice(1)) { const z = sizeFor(o); if (z > size) { size = z; lines = o } }
+  return options
+}
+function fits(g: CanvasRenderingContext2D, lines: string[], size: number, H: number) {
   g.font = `800 ${size}px ${FONT}`
-  const lh = size * 1.15, top = PAD + lh / 2
+  return lines.every(l => g.measureText(l).width <= FW - 2 * FPAD) && lines.length * size * 1.15 <= Math.min(H - 2 * FPAD, 230)
+}
+/** The one letter size for all seven faces. */
+function faceSize(names: string[], heights: number[]) {
+  const g = document.createElement('canvas').getContext('2d')!
+  let size = 110
+  names.forEach((n, i) => {
+    const H = faceH(heights[i])
+    let best = 24
+    for (const o of faceOptions(n)) { let z = size; while (z > 24 && !fits(g, o, z, H)) z -= 2; best = Math.max(best, z) }
+    size = Math.min(size, best)
+  })
+  return size
+}
+function faceTexture(name: string, h: number, bg: [string, string], ink: string, size: number) {
+  /* Drawn at 2x and scaled down, so the letters stay sharp on a phone's
+     dense screen (owner, 2026-10-26: blurry). */
+  const K = 2, W = FW, H = faceH(h)
+  const c = document.createElement('canvas'); c.width = W * K; c.height = H * K
+  const g = c.getContext('2d')!
+  g.scale(K, K)
+  /* A soft light-to-shade wash down the face, like a lit panel, rather than
+     one flat colour (owner, 2026-10-26: "more premium"). */
+  const wash = g.createLinearGradient(0, 0, 0, H)
+  wash.addColorStop(0, bg[0]); wash.addColorStop(1, bg[1])
+  g.fillStyle = wash; g.fillRect(0, 0, W, H)
+  // the fewest lines that fit at the shared size
+  const lines = faceOptions(name).find(o => fits(g, o, size, H)) || faceOptions(name).slice(-1)[0]
+  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.font = `800 ${size}px ${FONT}`
+  const lh = size * 1.15, top = FPAD + lh / 2
   lines.forEach((l, i) => g.fillText(l, W / 2, top + i * lh))
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
@@ -246,7 +259,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     // Straight over the viewer's shoulder: the shadows fall behind the stairs.
     sun.position.set(-0.5, 12, 9)
     sun.castShadow = true
-    sun.shadow.mapSize.set(2048, 2048)
+    sun.shadow.mapSize.set(1024, 1024)
     sun.shadow.radius = 4
     Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 })
     sun.shadow.bias = -0.0005
@@ -259,6 +272,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     contact.rotation.x = -Math.PI / 2; contact.position.set(0, 0.002, 0.05)
     scene.add(contact)
 
+    const NAME_SIZE = faceSize(Array.from({ length: N }, (_, i) => nameRef.current(i + 1)), Array.from({ length: N }, (_, i) => stepH(i + 1)))
     type Step = { mesh: THREE.Mesh; x: number; h: number; tiles: THREE.Mesh[]; edge: THREE.Mesh }
     const steps: Step[] = []
     for (let lv = 1; lv <= N; lv++) {
@@ -268,10 +282,13 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
          (owner, 2026-10-26: "more premium"). Finished = warm amber, the
          swimmer's level = deep blue with a clear-coat, ahead = porcelain. */
       const face: [string, string] = done ? ['#ffc95c', '#f2a91f'] : cur ? ['#2d63bd', '#1b4690'] : ['#ffffff', '#eef2f8']
-      const finish = { roughness: cur ? 0.32 : 0.5, clearcoat: cur || done ? 0.6 : 0.25, clearcoatRoughness: 0.35 }
-      const front = new THREE.MeshPhysicalMaterial({ map: faceTexture(nameRef.current(lv), h, face, ink), ...finish })
-      const side = new THREE.MeshPhysicalMaterial({ color: done ? 0xe39a17 : cur ? 0x173d80 : 0xdfe6f0, ...finish })
-      const topM = new THREE.MeshPhysicalMaterial({ color: done ? 0xffb733 : cur ? 0xf7faff : 0xfdfdfe, ...finish })
+      /* Standard, not physical, materials: the clear-coat shader took long
+         enough to build on a phone that the stairs appeared late (owner,
+         2026-10-26). The studio reflections give the sheen instead. */
+      const finish = { roughness: cur ? 0.3 : done ? 0.38 : 0.5, metalness: 0 }
+      const front = new THREE.MeshStandardMaterial({ map: faceTexture(nameRef.current(lv), h, face, ink, NAME_SIZE), ...finish })
+      const side = new THREE.MeshStandardMaterial({ color: done ? 0xe39a17 : cur ? 0x173d80 : 0xdfe6f0, ...finish })
+      const topM = new THREE.MeshStandardMaterial({ color: done ? 0xffb733 : cur ? 0xf7faff : 0xfdfdfe, ...finish })
       const geo = new RoundedBoxGeometry(SW - 0.06, h, SD, 4, 0.06)
       const mesh = new THREE.Mesh(geo, [side, side, topM, side, front, side])
       mesh.position.set(x, h / 2, 0)
@@ -290,7 +307,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         const got = !!stagesDone[lv - 1]?.[st - 1]
         const now = !got && (st === 1 || !!stagesDone[lv - 1]?.[st - 2])
         const tile = new THREE.Mesh(new RoundedBoxGeometry(0.36, 0.06, SD * 0.6, 2, 0.025),
-          new THREE.MeshPhysicalMaterial({ color: got ? 0xffb733 : now ? 0x8fbcff : 0xd5deea, roughness: 0.35, clearcoat: 0.6 }))
+          new THREE.MeshStandardMaterial({ color: got ? 0xffb733 : now ? 0x8fbcff : 0xd5deea, roughness: 0.32 }))
         tile.castShadow = true
         scene.add(tile); tiles.push(tile)
       }
