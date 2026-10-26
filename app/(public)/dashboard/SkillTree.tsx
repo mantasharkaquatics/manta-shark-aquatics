@@ -312,8 +312,10 @@ const CSS = `
 .mst-lvrow { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; flex-wrap: wrap }
 .mst-lvrow b { font-size: 14px; font-weight: 800; color: #12254a }
 .mst-lvrow span { font-size: 11.5px; color: #56647d }
-.mst-help { display: none; margin-left: auto; width: 28px; height: 28px; min-height: 0; border-radius: 50%; border: 1px solid #c9d8ee;
-  background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; padding: 0 }
+/* A round button (owner, 2026-10-26: it came out oval -- the site-wide 44px
+   minimum height for staff buttons stretched it; tap-auto opts out). */
+.mst-help { display: none; margin-left: auto; width: 32px; height: 32px; min-height: 0; aspect-ratio: 1; text-align: center; border-radius: 50%; border: 1px solid #c9d8ee;
+  background: #fff; color: #2050a0; font: inherit; font-weight: 800; font-size: 15px; line-height: 30px; cursor: pointer; padding: 0 }
 .mst-statline { display: none }
 .mst-sheet-shade { display: none }
 @media (max-width: 640px) {
@@ -670,7 +672,7 @@ export default function SkillTree({
               <div className="mst-lvrow">
                 <b>L{lv} · {t(levelNameKey(lv))}</b>
                 <span>{t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}</span>
-                <button type="button" className="mst-help" aria-expanded={keyOpen} aria-label={t('tree.keyButton')}
+                <button type="button" className="tap-auto mst-help" aria-expanded={keyOpen} aria-label={t('tree.keyButton')}
                   onClick={e => { e.stopPropagation(); setKeyOpen(o => !o) }}>?</button>
                 {keyOpen && <div className="mst-key open" onClick={e => e.stopPropagation()}>{keyItems}</div>}
               </div>
