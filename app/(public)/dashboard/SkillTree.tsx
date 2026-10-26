@@ -360,7 +360,9 @@ const CSS = `
   .mst-rk { font-size: 9px }
   .mst-scroll { margin: 8px 14px 0; padding: var(--sp) 8px 10px calc(8px + var(--rail)) }
   .mst-tabs, .mst-meta, .mst-key { padding-left: 14px; padding-right: 14px }
-  .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0 }
+  /* z-index: the board is its own layer (z-index 1), so without this the
+     tiles of the bottom row drew through the panel (found 2026-10-26). */
+  .mst-detail { margin: 14px 14px 26px; position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -6px 16px rgba(18,37,74,.08) }
   .mst-nm { font-size: 10px }
 }
 `
