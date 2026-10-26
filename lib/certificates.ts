@@ -9,7 +9,9 @@ import { sendEmail } from './email'
    they already had (from_level set, to_level higher): the first level from the
    Swim Assessment is a placement, not an achievement, and a correction
    downwards is not one either. Emailed to the family when the promotion is
-   approved (setStudentLevel), and on the dashboard for good.
+   approved (setStudentLevel). Not on the family dashboard (owner,
+   2026-10-26): the desk prints it from Admin > Certificates and hands it
+   to the swimmer, then marks it given.
 
    The page is /api/certificates/<id>: in the family's language, printable on
    one landscape page, with a Print / Save as PDF button. */
@@ -42,17 +44,45 @@ export async function readCertificate(svc: any, id: string): Promise<(Certificat
   }
 }
 
-/** Every certificate of a family's swimmers, newest first. */
-export async function familyCertificates(svc: any, parentId: string): Promise<{ id: string; studentId: string; toLevel: number; date: string }[]> {
-  const { data: kids } = await svc.from('students').select('id').eq('parent_id', parentId)
-  const ids = (kids || []).map((k: any) => k.id)
-  if (!ids.length) return []
-  const { data: rows } = await svc.from('level_upgrades').select('id, student_id, from_level, to_level, upgraded_at').in('student_id', ids).order('upgraded_at', { ascending: false })
-  return (rows || []).filter(isPromotion).map((r: any) => ({
-    id: r.id, studentId: r.student_id, toLevel: Number(r.to_level),
-    date: new Date(r.upgraded_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),
-  }))
+/** Every certificate, newest first, for the desk (owner, 2026-10-26: the
+    paper certificate is printed at the desk and handed to the swimmer;
+    certificate_given_at says it has been). given is null until then. A
+    promotion is a level_upgrades row that moved a swimmer up. */
+export async function allCertificates(svc: any): Promise<{ rows: AdminCertificate[]; needsSql: boolean }> {
+  let needsSql = false
+  let { data, error } = await svc.from('level_upgrades')
+    .select('id, student_id, from_level, to_level, upgraded_at, certificate_given_at')
+    .not('from_level', 'is', null).order('upgraded_at', { ascending: false }).limit(1000)
+  if (error) {
+    // docs/migration-certificate-given.sql not run yet: everything reads as not handed over.
+    needsSql = true
+    ;({ data } = await svc.from('level_upgrades').select('id, student_id, from_level, to_level, upgraded_at')
+      .not('from_level', 'is', null).order('upgraded_at', { ascending: false }).limit(1000))
+  }
+  const ups = (data || []).filter(isPromotion)
+  const sids = [...new Set(ups.map((u: any) => u.student_id))]
+  const { data: kids } = sids.length
+    ? await svc.from('students').select('id, full_name, parent_id').in('id', sids) : { data: [] }
+  const pids = [...new Set((kids || []).map((k: any) => k.parent_id).filter(Boolean))]
+  const { data: fams } = pids.length
+    ? await svc.from('parents').select('id, first_name, last_name').in('id', pids) : { data: [] }
+  const kid = new Map((kids || []).map((k: any) => [k.id, k]))
+  const fam = new Map((fams || []).map((f: any) => [f.id, f]))
+  return {
+    needsSql,
+    rows: ups.map((u: any) => {
+      const k: any = kid.get(u.student_id)
+      const f: any = k ? fam.get(k.parent_id) : null
+      return {
+        id: u.id, studentName: k?.full_name || '', familyName: f ? `${f.first_name || ''} ${f.last_name || ''}`.trim() : '',
+        fromLevel: Number(u.from_level), toLevel: Number(u.to_level),
+        date: new Date(u.upgraded_at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),
+        given: u.certificate_given_at || null,
+      }
+    }),
+  }
 }
+export type AdminCertificate = { id: string; studentName: string; familyName: string; fromLevel: number; toLevel: number; date: string; given: string | null }
 
 /** Emails the family their swimmer's certificate. Best effort, never throws. */
 export async function sendCertificate(svc: any, upgradeId: string): Promise<void> {

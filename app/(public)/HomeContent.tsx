@@ -334,7 +334,6 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
                   <div className="pc"><span>{t('stage.3.2.name')}</span><b>66%</b></div>
                   <div className="nx">
                     <div><span className="ic">📅</span><span><small>{t('dash.next.lesson')}</small>{t('home.preview.next')}</span></div>
-                    <div><span className="ic">🏠</span><span><small>{t('dash.next.home')}</small>{t('home.preview.homeTip')}</span></div>
                   </div>
                   <div className="two"><span>{t('dash.skillTree')}</span><span>{t('dash.records')}</span></div>
                 </div>

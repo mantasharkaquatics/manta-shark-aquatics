@@ -22,7 +22,6 @@ import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
-import HOME_PRACTICE from '@/lib/home-practice.json'
 import { MascotEmpty } from '@/components/MascotHelper'
 import type { MonthlyReport } from './MonthlyReportSheet'
 
@@ -56,11 +55,6 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-next .v { display: block; font-size: 15px; font-weight: 800; line-height: 1.3 }
 .msa-mcard-next .go { color: rgba(255,255,255,0.6); font-size: 18px }
 @media (hover: hover) { .msa-mcard-next button:hover { background: rgba(255,255,255,0.06) } }
-.msa-home { background: #fff; border: 1px solid #e3ebf6; border-radius: 14px; padding: 16px }
-.msa-home .k { font-size: 13px; font-weight: 700; color: #56647d }
-.msa-home h3 { margin: 6px 0 8px; font-size: 20px; color: #12254a }
-.msa-home p { margin: 0; font-size: 16px; line-height: 1.65; color: #34435e }
-.msa-home .safe { margin-top: 12px; font-size: 14px; color: #8a5a00; background: #fff6e3; border-radius: 10px; padding: 9px 12px }
 
 /* The week view of the upcoming lessons (owner, 2026-10-26): a card per
    day, big times, swipe sideways, this week and next. */
@@ -1943,18 +1937,6 @@ export default function DashboardPage() {
   // Which stage a family has opened on a student's card, keyed by student id.
   const [recordsFor, setRecordsFor] = useState<Student | null>(null)
   const [assessReports, setAssessReports] = useState<Record<string, AssessmentReport>>({})
-  // Each swimmer's latest level-up certificate (owner, 2026-10-22).
-  const [certs, setCerts] = useState<Record<string, string>>({})
-  useEffect(() => {
-    let live = true
-    fetch('/api/parent/certificates', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (!live || !Array.isArray(d?.certificates)) return
-      const m: Record<string, string> = {}
-      for (const c of d.certificates as { id: string; studentId: string }[]) if (!m[c.studentId]) m[c.studentId] = c.id
-      setCerts(m)
-    }).catch(() => {})
-    return () => { live = false }
-  }, [])
   const [reportFor, setReportFor] = useState<Student | null>(null)
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([])
   // The first read has finished (with or without reports): a ?report= link
@@ -2133,9 +2115,6 @@ export default function DashboardPage() {
   }, [recordsFor, pointsOpen])
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
-  /* The "practise at home" sheet a child card opens (owner, 2026-10-26). */
-  const [homeFor, setHomeFor] = useState<{ student: string; skillId: string; skillName: string } | null>(null)
-  const homeBox = useDialogFocus(!!homeFor)
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
   // Esc closes the dialog on top, as it already did for the records and points
   // sheets. Without it the only ways out were the X or a click on the backdrop,
@@ -3529,38 +3508,25 @@ export default function DashboardPage() {
                           <b>{curPct}%</b>
                         </div>
                         {(() => {
-                          /* The child's next step, on the card (owner, 2026-10-26,
-                             version A): the next lesson, and one thing to practise
-                             at home for the skill being worked on -- the one in
-                             the current stage closest to passing. */
+                          /* The child's next lesson, on the card (owner, 2026-10-26).
+                             The "practise at home" line beside it was taken out
+                             again the same day (owner: not wanted). */
                           const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
                           const next = upcomingBookings.filter(b => mine(b) && b.status !== 'cancelled')
                             .sort((a, b) => (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
-                          const open = prog.stageSkills.filter(x => x.stage === curStage && x.percent < 100)
-                          const working = open.length ? open.reduce((a, x) => (x.percent > a.percent ? x : a), open[0]) : null
-                          const tip = working ? (HOME_PRACTICE as unknown as Record<string, Record<string, [string, string]>>)[working.skill_id]?.[locale] : null
-                          if (!next && !tip) return null
+                          if (!next) return null
                           const today = getTodayLA()
                           const tomorrow = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
                           const when = next ? (next.session_date === today ? t('dash.week.today') : next.session_date === tomorrow ? t('dash.next.tomorrow')
                             : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
                           return (
                             <div className="msa-mcard-next">
-                              {next && (
-                                <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
-                                  <span className="ic" aria-hidden="true">📅</span>
-                                  <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
-                                    <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
-                                  <span className="go" aria-hidden="true">›</span>
-                                </button>
-                              )}
-                              {tip && working && (
-                                <button type="button" className="tap-auto" onClick={() => setHomeFor({ student: student.full_name, skillId: working.skill_id, skillName: tDb(locale, 'skills', working.skill_id, working.skill_name) })}>
-                                  <span className="ic" aria-hidden="true">🏠</span>
-                                  <span className="tx"><span className="k">{t('dash.next.home')}</span><span className="v">{tip[0]}</span></span>
-                                  <span className="go" aria-hidden="true">›</span>
-                                </button>
-                              )}
+                              <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
+                                <span className="ic" aria-hidden="true">📅</span>
+                                <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
+                                  <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
+                                <span className="go" aria-hidden="true">›</span>
+                              </button>
                             </div>
                           )
                         })()}
@@ -3582,11 +3548,6 @@ export default function DashboardPage() {
                             <button className="tap-auto" onClick={() => setReportFor(student)}>
                               {t('assess.report.button')}
                             </button>
-                          )}
-                          {certs[student.id] && (
-                            <a className="tap-auto" href={`/api/certificates/${certs[student.id]}`} target="_blank" rel="noopener noreferrer">
-                              🏅 {t('dash.certificate')}
-                            </a>
                           )}
                         </div>
                       </>
@@ -4581,24 +4542,6 @@ export default function DashboardPage() {
         <Celebration key={celebrate[0].name + celebrate[0].level + celebrate[0].stage} {...celebrate[0]}
           onClose={() => setCelebrate(q => q.slice(1))} />
       )}
-      {homeFor && (() => {
-        const tip = (HOME_PRACTICE as unknown as Record<string, Record<string, [string, string]>>)[homeFor.skillId]?.[locale]
-        if (!tip) return null
-        return (
-          <div className="msa-sheet-back" onClick={() => setHomeFor(null)}>
-            <div ref={homeBox} className="msa-sheet" role="dialog" aria-modal="true" aria-labelledby="home-tip-h" onClick={e => e.stopPropagation()}>
-              <div className="msa-sheet-head"><b id="home-tip-h">🏠 {t('dash.next.home')}</b>
-                <button className="tap-auto msa-sheet-x" onClick={() => setHomeFor(null)} aria-label={t('common.close')}>✕</button></div>
-              <div className="msa-home">
-                <div className="k">{t('dash.next.homeFor', { name: homeFor.student, skill: homeFor.skillName })}</div>
-                <h3>{tip[0]}</h3>
-                <p>{tip[1]}</p>
-                <p className="safe">{t('dash.next.safety')}</p>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
       {monthlyFor && (
         <MonthlyReportSheet studentName={monthlyFor.student.full_name} initialId={monthlyFor.id}
           reports={monthlyReports.filter(m => m.studentId === monthlyFor.student.id)}

@@ -903,7 +903,6 @@
   "home.preview.caption": "Each child's card in your account",
   "home.preview.note": "Side kicks were steady today. Next lesson we start lifting the head to breathe.",
   "home.preview.next": "Thu · 3:35 PM · Coach Shane",
-  "home.preview.homeTip": "Side-lying kicks",
   "home.preview.noteLabel": "COACH NOTE",
   "home.program.fitLabel": "Good for",
   "home.program.group.desc": "Up to four swimmers in the same level band. Open times are shown live.",
@@ -2182,7 +2181,6 @@
   "mail.cert.body": "Congratulations! {student} has moved up to <strong>Level {n} · {level}</strong>. Their certificate is ready to view, print or save.",
   "mail.cert.button": "View certificate",
   "mail.cert.note": "You can open it again any time from your dashboard.",
-  "dash.certificate": "Certificate",
   "mail.wait.subject": "A place opened for {student}: {course}",
   "mail.wait.subjectTeam": "A place opened in {course} for {student}",
   "mail.wait.title": "🎉 A place just opened",
@@ -2385,10 +2383,7 @@
   "dash.week.today": "Today",
   "dash.week.none": "No lessons this day",
   "dash.next.lesson": "Next lesson",
-  "dash.next.home": "Practise at home",
   "dash.next.tomorrow": "Tomorrow",
-  "dash.next.homeFor": "For {name}, working on: {skill}",
-  "dash.next.safety": "Any practice in or near water needs a grown-up right there, every time.",
   "celebrate.later": "Maybe later",
   "booking.tip.bring": "Bring a swimsuit, goggles and a towel, and come a little early so nobody has to rush."
 }

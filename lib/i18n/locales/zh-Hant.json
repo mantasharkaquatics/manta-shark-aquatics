@@ -903,7 +903,6 @@
   "home.preview.caption": "家長帳戶裡，每個孩子的卡片",
   "home.preview.note": "今天側邊打水很穩，下一堂開始練習抬頭換氣。",
   "home.preview.next": "週四 · 3:35 PM · Shane 教練",
-  "home.preview.homeTip": "側躺打水",
   "home.preview.noteLabel": "教練評語",
   "home.program.fitLabel": "適合",
   "home.program.group.desc": "最多四位同等級學員一起上，可預約的時段即時顯示。",
@@ -2182,7 +2181,6 @@
   "mail.cert.body": "恭喜！{student} 已經晉升到<strong>等級 {n} · {level}</strong>。晉級證書已經準備好，可以查看、列印或存成 PDF。",
   "mail.cert.button": "查看證書",
   "mail.cert.note": "之後也隨時可以在「我的頁面」打開。",
-  "dash.certificate": "晉級證書",
   "mail.wait.subject": "{student} 候補的{course}有空位了",
   "mail.wait.subjectTeam": "{course}有空位了，為 {student} 保留中",
   "mail.wait.title": "🎉 有空位了",
@@ -2385,10 +2383,7 @@
   "dash.week.today": "今天",
   "dash.week.none": "這天沒有課",
   "dash.next.lesson": "下一堂課",
-  "dash.next.home": "在家可以練",
   "dash.next.tomorrow": "明天",
-  "dash.next.homeFor": "{name} 正在練：{skill}",
-  "dash.next.safety": "只要碰到水（浴缸、泳池），都要有大人在旁邊看著。",
   "celebrate.later": "之後再說",
   "booking.tip.bring": "記得帶泳衣、泳鏡和毛巾，提早一點到泳池，就不用趕囉！"
 }

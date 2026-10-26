@@ -1814,5 +1814,21 @@
   "admin.followUps.test.assess14": "Test: day-14 email",
   "admin.followUps.test.summer": "Test: summer email",
   "admin.followUps.test.send": "Send a test to me",
-  "admin.followUps.test.sent": "Sent to {to}"
+  "admin.followUps.test.sent": "Sent to {to}",
+  "admin.nav.certificates": "Certificates",
+  "admin.certs.intro": "Each level-up earns a certificate. Print it, hand it to the swimmer at the pool, then mark it given.",
+  "admin.certs.tabTodo": "To hand over ({n})",
+  "admin.certs.tabAll": "All ({n})",
+  "admin.certs.nothingTodo": "Every certificate has been handed over.",
+  "admin.certs.empty": "No level-ups yet.",
+  "admin.certs.levelMove": "Level {from} → {to}",
+  "admin.certs.family": "Family: {name}",
+  "admin.certs.promoted": "Promoted {date}",
+  "admin.certs.givenOn": "Given {date}",
+  "admin.certs.print": "Print",
+  "admin.certs.markGiven": "Given to the swimmer",
+  "admin.certs.moveBack": "Not given yet",
+  "admin.certs.needsSql": "Run docs/migration-certificate-given.sql to track which certificates were handed over. Printing works already.",
+  "admin.certs.err.load": "Couldn't load the certificates. Try again.",
+  "admin.certs.err.save": "Couldn't save. Try again."
 }

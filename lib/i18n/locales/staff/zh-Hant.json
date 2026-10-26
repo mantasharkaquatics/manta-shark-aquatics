@@ -1814,5 +1814,21 @@
   "admin.followUps.test.assess14": "測試：第 14 天信",
   "admin.followUps.test.summer": "測試：暑期提醒",
   "admin.followUps.test.send": "寄測試信給我",
-  "admin.followUps.test.sent": "已寄到 {to}"
+  "admin.followUps.test.sent": "已寄到 {to}",
+  "admin.nav.certificates": "晉級證書",
+  "admin.certs.intro": "每次晉級都有一張證書。請印出來、在泳池交給學生，再按「已交給學生」。",
+  "admin.certs.tabTodo": "待列印交付（{n}）",
+  "admin.certs.tabAll": "全部（{n}）",
+  "admin.certs.nothingTodo": "所有證書都已交給學生了。",
+  "admin.certs.empty": "目前還沒有晉級紀錄。",
+  "admin.certs.levelMove": "等級 {from} → {to}",
+  "admin.certs.family": "家長：{name}",
+  "admin.certs.promoted": "晉級日 {date}",
+  "admin.certs.givenOn": "{date} 已交付",
+  "admin.certs.print": "列印",
+  "admin.certs.markGiven": "已交給學生",
+  "admin.certs.moveBack": "改回未交付",
+  "admin.certs.needsSql": "請先執行 docs/migration-certificate-given.sql，才能記錄哪些證書已交付。列印已經可以用。",
+  "admin.certs.err.load": "證書清單載入失敗，請再試一次。",
+  "admin.certs.err.save": "儲存失敗，請再試一次。"
 }
