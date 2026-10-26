@@ -2362,5 +2362,8 @@
   "viewer.cantPay": "You're signed in as a view-only family member, so you can't buy points. The main account holder can do it from their own login.",
   "mail.guardian.titleViewer": "You're invited to follow your family's swimmers",
   "mail.guardian.bodyViewer": "{name} added you as a view-only family member on their family's Manta Shark Aquatics account.",
-  "mail.guardian.canViewer": "You'll be able to see the lesson schedule and the swimmers' progress and reports, and you'll get the lesson emails. Booking, cancelling and payments stay with {name}."
+  "mail.guardian.canViewer": "You'll be able to see the lesson schedule and the swimmers' progress and reports, and you'll get the lesson emails. Booking, cancelling and payments stay with {name}.",
+  "tree.map3d.me": "{name} is here · Stage {n}",
+  "tree.map3d.aria": "A 3D map of the seven levels. Pick a level to see its skills.",
+  "tree.map3d.hint": "Drag to turn · tap a level to see its skills"
 }

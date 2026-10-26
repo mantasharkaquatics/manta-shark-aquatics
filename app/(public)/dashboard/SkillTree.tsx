@@ -30,6 +30,11 @@ import { placeLevel, routeWires } from '@/lib/tree-layout'
 import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import dynamic from 'next/dynamic'
+
+/* The families' 3D overview of the seven levels (owner, 2026-10-26). Its own
+   chunk: three.js loads only when a family opens the map. */
+const LevelMap3D = dynamic(() => import('./LevelMap3D'), { ssr: false })
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -314,6 +319,10 @@ export default function SkillTree({
   const [lv, setLv] = useState(Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL))
   const [sel, setSel] = useState<TreeSkill | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  /* Families get the 3D overview in place of the level tabs; the tabs come
+     back if the browser cannot draw it (no WebGL). */
+  const want3d = !forCoach && !allPassed
+  const [map3d, setMap3d] = useState<'wait' | 'on' | 'off'>(want3d ? 'wait' : 'off')
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
 
@@ -515,6 +524,12 @@ export default function SkillTree({
     return () => { ro.disconnect(); window.removeEventListener('resize', draw) }
   }, [inLv, needs, cols, rows])
 
+  /* Which stages of each level are earned, for the dots on the 3D platforms:
+     the same every-skill-at-100 rule as the ribbons beside the board. */
+  const stagesDone = useMemo(() => Array.from({ length: MAX_LEVEL }, (_, i) =>
+    [1, 2, 3].map(st => stageEarned((skills || [])
+      .filter(s => s.level === i + 1 && s.stage === st && !s.apart).map(s => s.percent)))), [skills])
+
   const total = skills?.length ?? 0
   const done = skills?.filter(s => s.state === 'done').length ?? 0
   const lvDone = inLv.filter(s => s.state === 'done').length
@@ -559,6 +574,25 @@ export default function SkillTree({
 
         {skills && (
           <>
+            {want3d && map3d !== 'off' && (
+              <LevelMap3D
+                currentLevel={Math.min(Math.max(1, currentLevel || 1), MAX_LEVEL)}
+                stagesDone={stagesDone}
+                selected={lv}
+                onPick={n => { setLv(n); setSel(null) }}
+                onReady={okay => setMap3d(okay ? 'on' : 'off')}
+                levelLabel={(n, short) => short ? `L${n}` : `L${n} ${t(levelNameKey(n))}`}
+                meLabel={t('tree.map3d.me', { name: studentName, n: currentStage })}
+                ariaLabel={t('tree.map3d.aria')}
+                hint={t('tree.map3d.hint')}
+              />
+            )}
+            {want3d && map3d === 'on' && (
+              <p className="mst-meta" style={{ paddingTop: 12, fontSize: 14, fontWeight: 800, color: '#12254a' }}>
+                L{lv} · {t(levelNameKey(lv))}
+              </p>
+            )}
+            {map3d !== 'on' && (
             <div className="mst-tabs" role="tablist">
               {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map(n => (
                 <button key={n} className="mst-tab" role="tab" aria-selected={n === lv}
@@ -567,6 +601,7 @@ export default function SkillTree({
                 </button>
               ))}
             </div>
+            )}
 
             <p className="mst-meta">
               {t('tree.levelMeta', { n: inLv.length })} · {t('tree.stat.lit')} {lvDone}

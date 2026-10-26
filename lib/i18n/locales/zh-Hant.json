@@ -2362,5 +2362,8 @@
   "viewer.cantPay": "您是以「只能看」的家人身分登入，無法購買點數。請由主帳號持有人用自己的帳號購買。",
   "mail.guardian.titleViewer": "邀請您一起關注孩子的游泳課",
   "mail.guardian.bodyViewer": "{name} 將您加入為 Manta Shark Aquatics 家庭帳戶的家人（只能看）。",
-  "mail.guardian.canViewer": "您可以查看上課時間、學員的學習進度和報告，也會收到上課相關的 Email。預約、取消和付款由 {name} 處理。"
+  "mail.guardian.canViewer": "您可以查看上課時間、學員的學習進度和報告，也會收到上課相關的 Email。預約、取消和付款由 {name} 處理。",
+  "tree.map3d.me": "{name} 在這裡 · 階段 {n}",
+  "tree.map3d.aria": "七個等級的立體地圖。選一個等級，下面會列出它的技能。",
+  "tree.map3d.hint": "拖曳可旋轉 · 點等級看技能"
 }
