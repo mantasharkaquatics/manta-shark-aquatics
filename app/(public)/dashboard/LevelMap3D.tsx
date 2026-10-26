@@ -231,7 +231,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
     // camera: turns round the spiral; picking a level brings it to the front
     let yaw = 0, wantYaw = 0
-    const pitch = 0.45
+    const pitch = 0.5
     const yawFor = (lv: number) => { const p = pos[lv - 1]; return Math.atan2(p.x, p.z) }
     wantYaw = yaw = yawFor(selRef.current)
     let dragging: { x: number; y: number; yaw: number; moved: boolean } | null = null
@@ -279,9 +279,11 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
     function draw(t: number) {
       const aspect = camera.aspect
-      const R = 11.5 * Math.pow(Math.max(1, 1.5 / aspect), 0.8)
+      const R = 13 * Math.pow(Math.max(1, 1.5 / aspect), 0.8)
       camera.position.set(Math.sin(yaw) * Math.cos(pitch) * R, 1.8 + Math.sin(pitch) * R, Math.cos(yaw) * Math.cos(pitch) * R)
-      camera.lookAt(0, 1.4, 0)
+      // Aimed low enough that the nearest platform (level 1, when it is the
+      // one facing the reader) is not cut off at the bottom.
+      camera.lookAt(0, 0.6, 0)
       ripples.forEach((r, i) => {
         const k = (t * 0.25 + i / 4) % 1
         r.scale.setScalar(1 + k * 7); (r.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - k)
@@ -292,7 +294,9 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       mascot.flap(t * 1.2, 0.3)
       const sp = pos[selRef.current - 1]
       ring.position.set(sp.x, sp.y + 0.05 + Math.sin(t * 2.4) * 0.03, sp.z)
-      pos.forEach((p, i) => place(labelRefs.current[i], new THREE.Vector3(p.x, p.y + 0.4, p.z), true))
+      // The swimmer's own level keeps its label down on the column, so the
+      // mascot above it stays in sight.
+      pos.forEach((p, i) => place(labelRefs.current[i], new THREE.Vector3(p.x, i === curIdx ? p.y - 0.35 : p.y + 0.4, p.z), true))
       place(meRef.current, new THREE.Vector3(cp.x, cp.y + 1.85, cp.z))
       renderer.render(scene, camera)
     }
