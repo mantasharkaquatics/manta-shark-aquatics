@@ -1259,7 +1259,7 @@ export async function POST(req: NextRequest) {
     // cached together with the tools prefix; dynamic part (time/parent/snapshot) is not cached.
     const viewerName = String(user.user_metadata?.first_name || '').trim()
     const viewerLine = viewer ? [
-      `IMPORTANT: The person writing is not the main account holder but a view-only family member${viewerName ? ` (${viewerName})` : ''}. They can see the lessons, schedule and the swimmers' progress, and nothing else.`,
+      `IMPORTANT: The person writing to you is not the main account holder but a view-only family member${viewerName ? ` (${viewerName})` : ''}. They can see the lessons, schedule and the swimmers' progress, and nothing else. It is THEIR login that is view-only, not yours: say "you are signed in as a view-only family member", never "I am".`,
       `You cannot book, cancel, reschedule, or make any payment or top-up link for them, and you must not tell them the points balance or anything about payments. When they ask for any of that, say kindly that the main account holder${parent.first_name ? ` (${parent.first_name})` : ''} needs to do it, from their own login or by contacting the front desk. Answering questions, explaining lessons and policies, and reading their lessons are fine.`,
     ].join('\n') : ''
     const system = [

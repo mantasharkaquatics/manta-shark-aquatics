@@ -297,9 +297,9 @@ export default function AccountPage() {
                             {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('safety.medical.none')}
                           </small>
                         )}
-                        {s.added_by_parent && <div className="ac-tag">{t('account.addedByYou')}</div>}
+                        {s.added_by_parent && !viewOnly && <div className="ac-tag">{t('account.addedByYou')}</div>}
                         {/* Ticking the box on a new swimmer moves "you" to them. */}
-                        {s.is_account_holder && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
+                        {s.is_account_holder && !viewOnly && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
                       </div>
                     </div>
                   )
