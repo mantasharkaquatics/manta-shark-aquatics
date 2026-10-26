@@ -1,21 +1,23 @@
 'use client'
 
 /*
- * The learning map's 3D overview (owner, 2026-10-26: "學習地圖改成3D就好").
- * Families only -- coaches and the admin curriculum page keep the 2D tree.
+ * The learning map's 3D overview, families only (owner, 2026-10-26: the
+ * learning map goes 3D; of five versions shown he picked "E", the minimal
+ * staircase). Coaches and the admin curriculum page keep the 2D tree.
  *
- * Seven platforms climb in a spiral, one per level, strung together with a
- * lane rope. Finished levels are amber, the swimmer's level is blue with the
- * school's little mascot hovering over it, levels ahead are pale. Each
- * platform carries three dots, one per stage, filled once the stage is
- * earned. Tapping a platform (or its label, which is a real button so the
- * keyboard and screen readers reach it) picks that level; the skill list
- * under the picture is the existing one from SkillTree.
+ * Seven white steps climb left to right, one per level, each with its number
+ * and name printed on the front. Finished levels are amber; the swimmer's
+ * level is blue, with three tiles on its top for the stages (earned = amber,
+ * the one under way = light blue) and the school's little mascot hovering
+ * over it. A fixed camera, no turning: it reads like a chart.
+ *
+ * Tapping a step picks that level and the existing skill list below shows it.
+ * Each step also has a real button laid over its front face, so a keyboard or
+ * a screen reader reaches the levels too.
  *
  * Loaded only when the map is opened (next/dynamic in SkillTree), so three.js
- * never weighs on the dashboard itself. No WebGL -> onReady(false) and the
- * map keeps its level tabs. Reduced motion -> a still picture that only
- * redraws when the reader turns it or picks a level.
+ * never weighs on the dashboard itself. No WebGL -> onReady(false) and the map
+ * keeps its level tabs. Reduced motion -> a still picture.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -28,35 +30,66 @@ type Props = {
   selected: number
   onPick: (level: number) => void
   onReady: (ok: boolean) => void
-  /** Label text for a level's button, and for the swimmer's own marker. */
-  levelLabel: (level: number, short: boolean) => string
+  /** The level's name, in the reader's language. */
+  levelName: (level: number) => string
+  /** "L3", for the buttons' accessible names. */
+  levelTag: (level: number) => string
   meLabel: string
   ariaLabel: string
   hint: string
 }
 
-const C = { navy: 0x12254a, blue: 0x2050a0, amber: 0xf09800, yellow: 0xf7b733 }
+const C = { navy: 0x12254a, blue: 0x2050a0, amber: 0xf09800 }
 const N = 7
+const SW = 1.25, SD = 1.6
+const stepH = (lv: number) => 0.8 + 0.28 * (lv - 1)
+/* The page's own font stack (next/font gives the faces generated names, so it
+   is read off the page rather than written here). */
+let FONT = '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+
+/* The front of a step: its number and name, drawn at the face's own aspect so
+   the letters are not stretched, shrunk or wrapped to fit the width. */
+function faceTexture(tag: string, name: string, h: number, bg: string, ink: string) {
+  const W = 320, H = Math.round(W * h / (SW - 0.06))
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const g = c.getContext('2d')!
+  g.fillStyle = bg; g.fillRect(0, 0, W, H)
+  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.font = `800 84px ${FONT}`
+  g.fillText(tag, W / 2, 64)
+  let size = 58
+  const fit = (s: string) => { g.font = `700 ${size}px ${FONT}`; return g.measureText(s).width <= W - 34 }
+  let lines = [name]
+  if (!fit(name) && name.includes(' ')) {
+    const words = name.split(' '), half = Math.ceil(words.length / 2)
+    lines = [words.slice(0, half).join(' '), words.slice(half).join(' ')]
+  }
+  // Narrow enough for the face, and short enough for the shortest step.
+  const tall = () => 140 + (lines.length - 1) * (size + 8) + size / 2 <= H - 6
+  while (size > 26 && (!lines.every(fit) || !tall())) size -= 2
+  g.font = `700 ${size}px ${FONT}`
+  lines.forEach((l, i) => g.fillText(l, W / 2, 140 + i * (size + 8)))
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
 
 /* The mascot, after the logo: a blue manta body with a shark's head, an amber
-   dorsal fin and a white belly with amber spots. Drawn from code, no model file. */
+   dorsal fin and a white belly with amber spots. Drawn from code. */
 function makeMascot() {
   const group = new THREE.Group()
   const NU = 40, NV = 16, SPAN = 1.9
   const lead = (u: number) => -0.62 + 0.62 * Math.pow(Math.abs(u), 0.85) - 0.62 * Math.exp(-Math.pow(u / 0.16, 2))
   const trail = (u: number) => 0.78 - 0.7 * Math.pow(Math.abs(u), 0.55)
   const bulge = (x: number, v: number) => Math.exp(-Math.pow(x / 0.42, 2)) * Math.pow(Math.sin(Math.PI * v), 0.7)
-
   function surface(top: boolean) {
     const pos: number[] = [], uv: number[] = [], idx: number[] = []
     for (let j = 0; j <= NV; j++) {
       const v = j / NV
       for (let i = 0; i <= NU; i++) {
-        const u = -1 + 2 * i / NU
-        const x = u * SPAN
-        const z = lead(u) + (trail(u) - lead(u)) * v
-        const y = top ? 0.24 * bulge(x, v) + 0.02 : -0.1 * bulge(x, v) - 0.01
-        pos.push(x, y, z)
+        const u = -1 + 2 * i / NU, x = u * SPAN, z = lead(u) + (trail(u) - lead(u)) * v
+        pos.push(x, top ? 0.24 * bulge(x, v) + 0.02 : -0.1 * bulge(x, v) - 0.01, z)
         uv.push((x / SPAN + 1) / 2, 1 - (z + 1.3) / 2.2)
       }
     }
@@ -71,7 +104,6 @@ function makeMascot() {
     return { g, base: Float32Array.from(pos) }
   }
   const top = surface(true), bot = surface(false)
-
   const spots = document.createElement('canvas'); spots.width = spots.height = 128
   const sg = spots.getContext('2d')!
   sg.fillStyle = '#f4f8ff'; sg.fillRect(0, 0, 128, 128)
@@ -80,32 +112,27 @@ function makeMascot() {
   sg.fillStyle = '#f09800'
   for (let i = 0; i < 22; i++) { sg.beginPath(); sg.arc(35 + rnd() * 60, 30 + rnd() * 70, 1.5 + rnd() * 3, 0, Math.PI * 2); sg.fill() }
   const belly = new THREE.CanvasTexture(spots); belly.colorSpace = THREE.SRGBColorSpace
-
-  group.add(new THREE.Mesh(top.g, new THREE.MeshStandardMaterial({ color: C.blue, roughness: 0.42 })))
-  group.add(new THREE.Mesh(bot.g, new THREE.MeshStandardMaterial({ map: belly, roughness: 0.6 })))
-
+  const back = new THREE.Mesh(top.g, new THREE.MeshStandardMaterial({ color: C.blue, roughness: 0.42 }))
+  back.castShadow = true
+  group.add(back, new THREE.Mesh(bot.g, new THREE.MeshStandardMaterial({ map: belly, roughness: 0.6 })))
   const fs = new THREE.Shape()
   fs.moveTo(-0.32, 0); fs.quadraticCurveTo(-0.05, 0.12, 0.12, 0.62); fs.quadraticCurveTo(0.14, 0.25, 0.38, 0); fs.lineTo(-0.32, 0)
   const fin = new THREE.Mesh(
     new THREE.ExtrudeGeometry(fs, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2 }),
     new THREE.MeshStandardMaterial({ color: C.amber, roughness: 0.45 }))
-  fin.rotation.y = -Math.PI / 2
-  fin.position.set(0.025, 0.2, 0.05)
+  fin.rotation.y = -Math.PI / 2; fin.position.set(0.025, 0.2, 0.05); fin.castShadow = true
   group.add(fin)
-
   const eyeW = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
   const eyeP = new THREE.MeshStandardMaterial({ color: 0x0b1530, roughness: 0.2 })
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), eyeW); e.position.set(s * 0.17, 0.14, -0.82); group.add(e)
     const p = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), eyeP); p.position.set(s * 0.2, 0.16, -0.86); group.add(p)
   }
-
   const TN = 16
   const tailPts = Array.from({ length: TN + 1 }, (_, i) => new THREE.Vector3(0, 0, 0.7 + i * 0.07))
   const tailCurve = new THREE.CatmullRomCurve3(tailPts)
   const tail = new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 20, 0.028, 6), new THREE.MeshStandardMaterial({ color: C.blue, roughness: 0.5 }))
   group.add(tail)
-
   function flap(t: number, amp: number) {
     for (const s of [top, bot]) {
       const p = s.g.attributes.position.array as Float32Array
@@ -124,32 +151,28 @@ function makeMascot() {
     tail.geometry.dispose()
     tail.geometry = new THREE.TubeGeometry(tailCurve, 20, 0.028, 6)
   }
-  flap(0, 0.3)
+  flap(0, 0.28)
   return { group, flap }
 }
 
-export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick, onReady, levelLabel, meLabel, ariaLabel, hint }: Props) {
-  const wrapRef = useRef<HTMLDivElement | null>(null)
+export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick, onReady, levelName, levelTag, meLabel, ariaLabel, hint }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const labelRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
   const meRef = useRef<HTMLDivElement | null>(null)
   const selRef = useRef(selected)
   const pickRef = useRef(onPick)
-  const [narrow, setNarrow] = useState(false)
+  const nameRef = useRef(levelName)
   const [ok, setOk] = useState(true)
-  /* The scene is built once per swimmer; picking a level only turns the
-     camera and moves the highlight, through these refs. */
-  const api = useRef<{ face: (level: number) => void; redraw: () => void } | null>(null)
+  // A still picture (reduced motion) is redrawn when the pick changes.
+  const redrawRef = useRef<(() => void) | null>(null)
 
   useEffect(() => { pickRef.current = onPick }, [onPick])
-  useEffect(() => {
-    selRef.current = selected
-    api.current?.face(selected)
-  }, [selected])
+  useEffect(() => { nameRef.current = levelName }, [levelName])
+  useEffect(() => { selRef.current = selected }, [selected])
 
   useEffect(() => {
-    const canvas = canvasRef.current, wrap = wrapRef.current
-    if (!canvas || !wrap) return
+    const canvas = canvasRef.current
+    if (!canvas) return
     let renderer: THREE.WebGLRenderer
     try {
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
@@ -158,162 +181,129 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       return () => clearTimeout(id)
     }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const pageFont = getComputedStyle(canvas).fontFamily
+    if (pageFont) FONT = pageFont
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100)
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)
+    camera.position.set(-6.5, 7.2, 10)
+    camera.lookAt(0.3, 1.45, 0)
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x7fb3e0, 2.2))
-    const sun = new THREE.DirectionalLight(0xffffff, 2.4)
-    sun.position.set(4, 10, 6)
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xc9d6e6, 2.4))
+    const sun = new THREE.DirectionalLight(0xffffff, 2.6)
+    sun.position.set(-4, 10, 8)
     sun.castShadow = true
     sun.shadow.mapSize.set(1024, 1024)
-    Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 })
+    Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 })
+    sun.shadow.bias = -0.0005
     scene.add(sun)
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.12 }))
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true
+    scene.add(ground)
 
-    const sea = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.MeshStandardMaterial({ color: 0x4aa3dc, roughness: 0.25 }))
-    sea.rotation.x = -Math.PI / 2; sea.position.y = -0.02; sea.receiveShadow = true
-    scene.add(sea)
-    const ringGeo = new THREE.RingGeometry(0.98, 1.0, 64)
-    const ripples = Array.from({ length: 4 }, () => {
-      const r = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }))
-      r.rotation.x = -Math.PI / 2; scene.add(r); return r
-    })
-
-    const pos: THREE.Vector3[] = []
-    const hit: THREE.Object3D[] = []
-    for (let i = 0; i < N; i++) {
-      const lv = i + 1
-      const a = i * 0.95 - 0.6, r = 3.4 - i * 0.18
-      const p = new THREE.Vector3(Math.cos(a) * r, 0.25 + i * 0.42, Math.sin(a) * r)
-      pos.push(p)
-      const done = lv < currentLevel, cur = lv === currentLevel
-      const h = p.y + 0.25
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.7, h, 40),
-        new THREE.MeshStandardMaterial({ color: done ? C.amber : cur ? C.blue : 0xc9d8ea, roughness: 0.5 }))
-      col.position.set(p.x, h / 2 - 0.25, p.z)
-      col.castShadow = col.receiveShadow = true
-      col.userData.level = lv
-      scene.add(col); hit.push(col)
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.08, 40),
-        new THREE.MeshStandardMaterial({ color: done ? C.yellow : cur ? 0xffffff : 0xeef4fb, roughness: 0.35 }))
-      cap.position.set(p.x, p.y + 0.04, p.z)
-      cap.receiveShadow = true
-      cap.userData.level = lv
-      scene.add(cap); hit.push(cap)
-      for (let s = 0; s < 3; s++) {
-        const got = done || !!stagesDone[i]?.[s]
-        const d = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12),
-          new THREE.MeshStandardMaterial({ color: got ? (cur ? C.amber : C.navy) : 0xb8c7db, roughness: 0.4 }))
-        const sa = -Math.PI / 2 + (s - 1) * 0.9
-        d.position.set(p.x + Math.cos(sa) * 0.36, p.y + 0.13, p.z + Math.sin(sa) * 0.36)
-        scene.add(d)
+    type Step = { mesh: THREE.Mesh; x: number; h: number; tiles: THREE.Mesh[]; edge: THREE.LineSegments }
+    const steps: Step[] = []
+    for (let lv = 1; lv <= N; lv++) {
+      const done = lv < currentLevel, cur = lv === currentLevel, h = stepH(lv), x = (lv - 4) * SW
+      const ink = done ? '#6b4300' : cur ? '#ffffff' : '#56647d'
+      const front = new THREE.MeshStandardMaterial({
+        map: faceTexture(`L${lv}`, nameRef.current(lv), h, done ? '#f6c25a' : cur ? '#2050a0' : '#f3f6fb', ink), roughness: 0.7 })
+      const side = new THREE.MeshStandardMaterial({ color: done ? 0xe7aa3c : cur ? 0x1a4386 : 0xdde4ee, roughness: 0.7 })
+      const topM = new THREE.MeshStandardMaterial({ color: done ? C.amber : cur ? 0xffffff : 0xfafbfd, roughness: 0.55 })
+      const geo = new THREE.BoxGeometry(SW - 0.06, h, SD)
+      const mesh = new THREE.Mesh(geo, [side, side, topM, side, front, side])
+      mesh.position.set(x, h / 2, 0)
+      mesh.castShadow = mesh.receiveShadow = true
+      mesh.userData.level = lv
+      scene.add(mesh)
+      // the picked step's outline
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: C.navy }))
+      edge.visible = false
+      mesh.add(edge)
+      const tiles: THREE.Mesh[] = []
+      if (cur) for (let st = 1; st <= 3; st++) {
+        const got = !!stagesDone[lv - 1]?.[st - 1]
+        const now = !got && (st === 1 || !!stagesDone[lv - 1]?.[st - 2])
+        const tile = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, SD * 0.6),
+          new THREE.MeshStandardMaterial({ color: got ? C.amber : now ? 0x9fc6ff : 0xdbe4ef, roughness: 0.4 }))
+        tile.castShadow = true
+        scene.add(tile); tiles.push(tile)
       }
+      steps.push({ mesh, x, h, tiles, edge })
     }
-    const beadGeo = new THREE.SphereGeometry(0.07, 12, 10)
-    const beadMats = [C.blue, 0xffffff, C.amber].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.4 }))
-    const rope = new THREE.CatmullRomCurve3(pos.map(p => p.clone().add(new THREE.Vector3(0, 0.12, 0))))
-    for (let i = 0; i <= 120; i++) {
-      const b = new THREE.Mesh(beadGeo, beadMats[Math.floor(i / 3) % 3])
-      b.position.copy(rope.getPoint(i / 120)); scene.add(b)
-    }
-
-    // the picked level: a navy ring floating round its platform
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.045, 12, 64), new THREE.MeshStandardMaterial({ color: C.navy, roughness: 0.3 }))
-    ring.rotation.x = Math.PI / 2
-    scene.add(ring)
 
     const mascot = makeMascot()
-    mascot.group.scale.setScalar(0.5)
-    const curIdx = Math.min(Math.max(currentLevel, 1), N) - 1
+    mascot.group.scale.setScalar(0.36)
     scene.add(mascot.group)
+    const cs = steps[Math.min(Math.max(currentLevel, 1), N) - 1]
 
-    // camera: turns round the spiral; picking a level brings it to the front
-    let yaw = 0, wantYaw = 0
-    const pitch = 0.5
-    const yawFor = (lv: number) => { const p = pos[lv - 1]; return Math.atan2(p.x, p.z) }
-    wantYaw = yaw = yawFor(selRef.current)
-    let dragging: { x: number; y: number; yaw: number; moved: boolean } | null = null
-
+    let hover = -1
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2()
-    const onDown = (e: PointerEvent) => {
-      dragging = { x: e.clientX, y: e.clientY, yaw, moved: false }
-      canvas.setPointerCapture(e.pointerId)
-    }
-    const onMove = (e: PointerEvent) => {
-      if (!dragging) return
-      const dx = e.clientX - dragging.x
-      if (Math.abs(dx) > 5) dragging.moved = true
-      yaw = wantYaw = dragging.yaw - dx * 0.008
-      if (reduce) draw(0)
-    }
-    const onUp = (e: PointerEvent) => {
-      const d = dragging; dragging = null
-      if (!d || d.moved) return
+    const meshes = steps.map(s => s.mesh)
+    const at = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect()
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
       ray.setFromCamera(ndc, camera)
-      const h = ray.intersectObjects(hit, false)[0]
-      if (h) pickRef.current(h.object.userData.level)
+      const h = ray.intersectObjects(meshes, false)[0]
+      return h ? (h.object.userData.level as number) : -1
     }
-    canvas.addEventListener('pointerdown', onDown)
+    const onMove = (e: PointerEvent) => { hover = at(e); canvas.style.cursor = hover > 0 ? 'pointer' : 'default'; if (reduce) draw(0) }
+    const onLeave = () => { hover = -1; if (reduce) draw(0) }
+    const onClick = (e: PointerEvent) => { const lv = at(e); if (lv > 0) pickRef.current(lv) }
     canvas.addEventListener('pointermove', onMove)
-    canvas.addEventListener('pointerup', onUp)
-    canvas.addEventListener('pointercancel', () => { dragging = null })
+    canvas.addEventListener('pointerleave', onLeave)
+    canvas.addEventListener('click', onClick as EventListener)
 
     const v = new THREE.Vector3()
-    const camDist = () => camera.position.length()
-    function place(el: HTMLElement | null, p: THREE.Vector3, depth = false) {
-      if (!el) return
-      if (depth) {
-        /* Labels on the far side of the spiral sit under the near ones and
-           fade back a little, so the front of the picture reads first. */
-        const d = camera.position.distanceTo(p)
-        el.style.zIndex = String(Math.round(1000 - d * 20))
-        el.style.opacity = d > camDist() ? '0.55' : '1'
-      }
+    const toScreen = (p: THREE.Vector3) => {
       v.copy(p).project(camera)
-      el.style.transform = `translate(${((v.x + 1) / 2) * canvas!.clientWidth}px, ${((1 - v.y) / 2) * canvas!.clientHeight}px) translate(-50%, -100%)`
+      return { x: ((v.x + 1) / 2) * canvas.clientWidth, y: ((1 - v.y) / 2) * canvas.clientHeight }
     }
 
     function draw(t: number) {
-      const aspect = camera.aspect
-      const R = 13 * Math.pow(Math.max(1, 1.5 / aspect), 0.8)
-      camera.position.set(Math.sin(yaw) * Math.cos(pitch) * R, 1.8 + Math.sin(pitch) * R, Math.cos(yaw) * Math.cos(pitch) * R)
-      // Aimed low enough that the nearest platform (level 1, when it is the
-      // one facing the reader) is not cut off at the bottom.
-      camera.lookAt(0, 0.6, 0)
-      ripples.forEach((r, i) => {
-        const k = (t * 0.25 + i / 4) % 1
-        r.scale.setScalar(1 + k * 7); (r.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - k)
+      steps.forEach((s, i) => {
+        const lv = i + 1
+        const lift = lv === selRef.current ? 0.14 : lv === hover ? 0.08 : 0
+        const want = s.h / 2 + lift
+        s.mesh.position.y += reduce ? want - s.mesh.position.y : (want - s.mesh.position.y) * 0.2
+        s.edge.visible = lv === selRef.current
+        s.tiles.forEach((tile, k) => tile.position.set(s.x + (k - 1) * 0.37, s.mesh.position.y + s.h / 2 + 0.03, 0))
+        // the button over the step's front face
+        const b = btnRefs.current[i]
+        if (b) {
+          const y0 = s.mesh.position.y - s.h / 2, y1 = s.mesh.position.y + s.h / 2, z = SD / 2
+          const a = toScreen(new THREE.Vector3(s.x - SW / 2 + 0.03, y1, z)), c = toScreen(new THREE.Vector3(s.x + SW / 2 - 0.03, y0, z))
+          b.style.transform = `translate(${Math.min(a.x, c.x)}px, ${Math.min(a.y, c.y)}px)`
+          b.style.width = Math.abs(c.x - a.x) + 'px'
+          b.style.height = Math.abs(c.y - a.y) + 'px'
+        }
       })
-      const cp = pos[curIdx]
-      mascot.group.position.set(cp.x, cp.y + 1.0 + Math.sin(t * 2) * 0.08, cp.z)
-      mascot.group.rotation.y = t * 0.6 + 0.6
-      mascot.flap(t * 1.2, 0.3)
-      const sp = pos[selRef.current - 1]
-      ring.position.set(sp.x, sp.y + 0.05 + Math.sin(t * 2.4) * 0.03, sp.z)
-      // The swimmer's own level keeps its label down on the column, so the
-      // mascot above it stays in sight.
-      pos.forEach((p, i) => place(labelRefs.current[i], new THREE.Vector3(p.x, i === curIdx ? p.y - 0.35 : p.y + 0.4, p.z), true))
-      place(meRef.current, new THREE.Vector3(cp.x, cp.y + 1.85, cp.z))
+      const topY = cs.mesh.position.y + cs.h / 2
+      mascot.group.position.set(cs.x + 0.05, topY + 0.45 + Math.sin(t * 2) * 0.06, 0.1)
+      mascot.group.rotation.y = -Math.PI / 2 + Math.sin(t * 0.8) * 0.4
+      mascot.flap(t * 1.2, 0.28)
+      if (meRef.current) {
+        const m = toScreen(new THREE.Vector3(cs.x, topY + 1.05, 0))
+        meRef.current.style.transform = `translate(${m.x}px, ${m.y}px) translate(-50%, -100%)`
+      }
       renderer.render(scene, camera)
     }
 
+    let clockT = 0
     function resize() {
       const w = canvas!.clientWidth, h = canvas!.clientHeight
       if (!w || !h) return
       renderer.setSize(w, h, false)
-      camera.aspect = w / h
+      const aspect = w / h
+      const view = 2.85 * Math.max(1, 1.75 / aspect)
+      camera.left = -view * aspect; camera.right = view * aspect; camera.top = view; camera.bottom = -view
       camera.updateProjectionMatrix()
-      setNarrow(w < 560)
       draw(clockT)
     }
-    let clockT = 0
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
-
     let visible = true
     const io = new IntersectionObserver(es => { visible = es[0].isIntersecting })
     io.observe(canvas)
@@ -323,57 +313,46 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       raf = requestAnimationFrame(loop)
       const dt = Math.min(clock.getDelta(), 0.05)
       if (!visible) return
-      if (!dragging) {
-        let dy = wantYaw - yaw
-        dy = Math.atan2(Math.sin(dy), Math.cos(dy))
-        yaw += dy * Math.min(1, dt * 4)
-      }
       clockT += dt
       draw(clockT)
     }
-    api.current = {
-      face: (lv: number) => { wantYaw = yawFor(lv); if (reduce) { yaw = wantYaw; draw(0) } },
-      redraw: () => draw(clockT),
-    }
-    // The ResizeObserver's first call sizes the canvas and draws the first frame.
     if (!reduce) loop()
+    redrawRef.current = () => draw(clockT)
     onReady(true)
 
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect(); io.disconnect()
-      canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
-      canvas.removeEventListener('pointerup', onUp)
-      api.current = null
+      canvas.removeEventListener('pointerleave', onLeave)
+      canvas.removeEventListener('click', onClick as EventListener)
+      redrawRef.current = null
       scene.traverse(o => {
         const m = o as THREE.Mesh
         m.geometry?.dispose()
         const mat = m.material as THREE.Material | THREE.Material[] | undefined
-        if (Array.isArray(mat)) mat.forEach(x => x.dispose()); else mat?.dispose()
+        const list = Array.isArray(mat) ? mat : mat ? [mat] : []
+        list.forEach(x => { (x as THREE.MeshStandardMaterial).map?.dispose(); x.dispose() })
       })
       renderer.dispose()
     }
-    // Built once per swimmer and level state; selection is handled above.
+    // Built once per swimmer and level state; the picked level is read from a ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLevel, JSON.stringify(stagesDone)])
 
+  useEffect(() => { redrawRef.current?.() }, [selected])
+
   if (!ok) return null
   return (
-    <div ref={wrapRef} className="mst3d">
+    <div className="mst3d">
       <style dangerouslySetInnerHTML={{ __html: MAP3D_CSS }} />
       <canvas ref={canvasRef} role="img" aria-label={ariaLabel} />
-      <div className="mst3d-labels">
-        {Array.from({ length: N }, (_, i) => {
-          const lv = i + 1
-          const cls = 'tap-auto mst3d-lbl' + (lv < currentLevel ? ' done' : '') + (lv === currentLevel ? ' cur' : '') + (lv === selected ? ' sel' : '')
-          return (
-            <button key={lv} type="button" ref={el => { labelRefs.current[i] = el }} className={cls}
-              aria-pressed={lv === selected} onClick={() => onPick(lv)}>
-              {levelLabel(lv, narrow)}
-            </button>
-          )
-        })}
+      <div className="mst3d-layer">
+        {Array.from({ length: N }, (_, i) => (
+          <button key={i} type="button" ref={el => { btnRefs.current[i] = el }}
+            className="tap-auto mst3d-step" aria-pressed={i + 1 === selected}
+            aria-label={`${levelTag(i + 1)} ${levelName(i + 1)}`} onClick={() => onPick(i + 1)} />
+        ))}
         <div ref={meRef} className="mst3d-me" aria-hidden="true">{meLabel}</div>
       </div>
       <p className="mst3d-hint">{hint}</p>
@@ -383,21 +362,15 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
 
 const MAP3D_CSS = `
 .mst3d { position: relative; height: 340px; margin: 12px 20px 0; border-radius: 14px; overflow: hidden;
-  border: 1px solid #e3ebf6; background: linear-gradient(180deg, #e3f2ff 0%, #b9dcf7 55%, #8cc2ec 100%) }
-.mst3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y }
-.mst3d canvas:active { cursor: grabbing }
-.mst3d-labels { position: absolute; inset: 0; pointer-events: none }
-.mst3d-lbl, .mst3d-me { position: absolute; left: 0; top: 0; white-space: nowrap; font: inherit; font-size: 12px; font-weight: 800;
-  padding: 5px 10px; border-radius: 999px; line-height: 1.2; will-change: transform; min-height: 0; min-width: 0; width: auto; height: auto }
-.mst3d-lbl { pointer-events: auto; cursor: pointer; border: 2px solid transparent; background: rgba(255,255,255,.95); color: #12254a;
-  box-shadow: 0 3px 10px rgba(18,37,74,.16) }
-.mst3d-lbl.done { background: #f09800; color: #12254a }
-.mst3d-lbl.cur { background: #2050a0; color: #fff }
-.mst3d-lbl.sel { border-color: #12254a }
-.mst3d-lbl.cur.sel { border-color: #f7b733 }
-.mst3d-lbl:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
-.mst3d-hint { position: absolute; left: 10px; bottom: 10px; margin: 0; font-size: 11.5px; color: #3b4a66;
-  background: rgba(255,255,255,.88); border-radius: 999px; padding: 4px 10px; pointer-events: none }
-.mst3d-me { z-index: 2000; background: #12254a; color: #fff; font-size: 12.5px; box-shadow: 0 4px 14px rgba(18,37,74,.25) }
-@media (max-width: 640px) { .mst3d { height: 300px; margin: 10px 14px 0 } .mst3d-lbl { padding: 5px 9px } }
+  border: 1px solid #e3ebf6; background: linear-gradient(180deg, #ffffff 0%, #f1f5fa 100%) }
+.mst3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y }
+.mst3d-layer { position: absolute; inset: 0; pointer-events: none }
+.mst3d-step { position: absolute; left: 0; top: 0; min-height: 0; min-width: 0; padding: 0; margin: 0; border: 0;
+  background: transparent; cursor: pointer; pointer-events: auto; border-radius: 4px; will-change: transform }
+.mst3d-step:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
+.mst3d-me { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12.5px; font-weight: 800; padding: 5px 11px;
+  border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
+.mst3d-hint { position: absolute; left: 10px; bottom: 10px; margin: 0; font-size: 11.5px; color: #56647d;
+  background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
+@media (max-width: 640px) { .mst3d { height: 300px; margin: 10px 14px 0 } }
 `

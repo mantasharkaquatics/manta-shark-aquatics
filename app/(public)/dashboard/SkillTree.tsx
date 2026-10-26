@@ -581,7 +581,8 @@ export default function SkillTree({
                 selected={lv}
                 onPick={n => { setLv(n); setSel(null) }}
                 onReady={okay => setMap3d(okay ? 'on' : 'off')}
-                levelLabel={(n, short) => short ? `L${n}` : `L${n} ${t(levelNameKey(n))}`}
+                levelName={n => t(levelNameKey(n))}
+                levelTag={n => `L${n}`}
                 meLabel={t('tree.map3d.me', { name: studentName, n: currentStage })}
                 ariaLabel={t('tree.map3d.aria')}
                 hint={t('tree.map3d.hint')}
