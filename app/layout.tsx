@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import ScrollRestoration from "@/components/ScrollRestoration";
+import ClientErrorReporter from "@/components/ClientErrorReporter";
 import { SITE_OG_IMAGE } from "@/lib/og";
 import { placeName } from "@/lib/location-place";
 import { publicLocations } from "@/lib/public-locations";
@@ -71,6 +72,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ScrollRestoration />
+        <ClientErrorReporter />
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>

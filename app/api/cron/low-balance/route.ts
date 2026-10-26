@@ -4,6 +4,7 @@ import { requireCron } from '@/lib/cron-auth'
 import { sweepLowBalance } from '@/lib/low-balance'
 import { sendEmail } from '@/lib/email'
 import { sendAssessmentFollowUps } from '@/lib/follow-ups'
+import { sendErrorDigest } from '@/lib/error-report'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -20,6 +21,14 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
   const svc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const dry = req.nextUrl.searchParams.get('dry') === '1'
+  // The daily error summary rides on this 9:00 run too (lib/error-report.ts,
+  // owner 2026-10-26), first, so a failure below cannot stop it.
+  let digest: unknown = null
+  if (!dry) {
+    try { digest = await sendErrorDigest() } catch (e) {
+      digest = { error: e instanceof Error ? e.message : String(e) }
+    }
+  }
   try {
     const result = await sweepLowBalance(svc, async (parentId, r) => {
       const { data: p } = await svc.from('parents')
@@ -48,8 +57,8 @@ export async function GET(req: NextRequest) {
       const name = new Map((ps || []).map((p: any) => [p.id, p.first_name || '?']))
       return NextResponse.json({ ...result, dry: result.dry.map(d => ({ family: name.get(d.parentId) || '?', weeksLeft: d.weeksLeft })), followUps })
     }
-    console.log('low-balance:', JSON.stringify(result), 'follow-ups:', JSON.stringify(followUps))
-    return NextResponse.json({ ...result, followUps }, { status: result.failed ? 207 : 200 })
+    console.log('low-balance:', JSON.stringify(result), 'follow-ups:', JSON.stringify(followUps), 'error digest:', JSON.stringify(digest))
+    return NextResponse.json({ ...result, followUps, digest }, { status: result.failed ? 207 : 200 })
   } catch (e: any) {
     console.error('low-balance failed:', e?.message || e)
     return NextResponse.json({ error: e?.message || 'failed' }, { status: 500 })

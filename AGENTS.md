@@ -354,3 +354,22 @@ lib/follow-ups.ts, Admin > Follow-ups, docs/migration-family-notices.sql.
   once per family per year.
 - All three are marketing mail: newsletter subscribers only, unsubscribe link
   and postal address, one `family_notices` row per email so none goes twice.
+
+# Error alerts (owner, 2026-10-26)
+
+lib/error-report.ts, docs/migration-error-alerts.sql. In production the site
+emails the school (ADMIN_ALERT_EMAIL) about its own errors -- no Sentry.
+
+- **console.error IS the alert.** instrumentation.ts wraps it on the server,
+  because most routes catch, log and answer 500 and Next never sees those.
+  So: log real failures with console.error, and expected outcomes (a family
+  typed a wrong code, a slot was taken) with console.log or console.warn --
+  an expected outcome on console.error will mail the school.
+- Uncaught errors come through onRequestError; browser errors through
+  components/ClientErrorReporter.tsx and /api/client-error.
+- Grouped by signature (ids and numbers taken out): first one mails at once,
+  repeats within the hour only count; 20 mails an hour at most (5 from
+  browsers); everything is in the daily summary sent by the 9:00 low-balance
+  run. requireCron records each job's run in cron_runs; a job that goes quiet
+  is mailed every 12 hours.
+- Only when VERCEL_ENV is production (ERROR_ALERTS_FORCE=1 to test locally).

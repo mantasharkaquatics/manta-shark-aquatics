@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
+import { recordCronRun } from '@/lib/error-report'
 
 /**
  * Does this value equal CRON_SECRET? False when CRON_SECRET is not set.
@@ -28,6 +29,11 @@ export function matchesCronSecret(value: string | null | undefined): boolean {
 export function requireCron(req: Request): NextResponse | null {
   const header = req.headers.get('authorization') || ''
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : null
-  if (matchesCronSecret(token)) return null
+  if (matchesCronSecret(token)) {
+    // When each job last ran, so one that stopped is noticed (owner,
+    // 2026-10-26: error alerts). Never delays the job.
+    try { recordCronRun(new URL(req.url).pathname) } catch { /* fine */ }
+    return null
+  }
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
