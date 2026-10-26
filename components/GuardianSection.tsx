@@ -154,7 +154,9 @@ export default function GuardianSection({ mainName }: { mainName: string }) {
                       onChange={() => setRole(r)} style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0, accentColor: '#2050a0' }} />
                     <span style={{ fontSize: 14, color: '#16294a', lineHeight: 1.5 }}>
                       <b>{t(r === 'viewer' ? 'account.guardian.roleViewer' : 'account.guardian.roleFull')}</b>
-                      {' · '}{t(r === 'viewer' ? 'account.guardian.roleViewerLeft' : 'account.guardian.roleFullLeft', { n: max[r] - s.guardians.filter(g => roleOf(g) === r).length })}
+                      <span style={{ marginLeft: 8, fontSize: 12, color: '#56647d', whiteSpace: 'nowrap' }}>
+                        {t(r === 'viewer' ? 'account.guardian.roleViewerLeft' : 'account.guardian.roleFullLeft', { n: max[r] - s.guardians.filter(g => roleOf(g) === r).length })}
+                      </span>
                       <span style={{ display: 'block', color: '#56647d', fontSize: 13 }}>{t(r === 'viewer' ? 'account.guardian.roleViewerDesc' : 'account.guardian.roleFullDesc')}</span>
                     </span>
                   </label>
