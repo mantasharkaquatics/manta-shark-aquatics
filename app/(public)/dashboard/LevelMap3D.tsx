@@ -5,8 +5,10 @@
  * learning map goes 3D; of five versions shown he picked "E", the minimal
  * staircase). Coaches and the admin curriculum page keep the 2D tree.
  *
- * Seven white steps climb left to right, one per level, each with its number
- * and name printed on the front. Finished levels are amber; the swimmer's
+ * Seven white steps climb left to right, one per level, each with its name
+ * printed on the front and an "L1".."L7" button under it (owner, 2026-10-26:
+ * the numbers under the stairs, the names on the faces, the stairs turned
+ * more towards the viewer and wider, so they are easier to read and tap). Finished levels are amber; the swimmer's
  * level is blue, with three tiles on its top for the stages (earned = amber,
  * the one under way = light blue) and the school's little mascot hovering
  * over it. A fixed camera, no turning: it reads like a chart.
@@ -41,16 +43,18 @@ type Props = {
 
 const C = { navy: 0x12254a, blue: 0x2050a0, amber: 0xf09800 }
 const N = 7
-const SW = 1.25, SD = 1.6
-const stepH = (lv: number) => 0.8 + 0.28 * (lv - 1)
+const SW = 1.5, SD = 1.2
+const stepH = (lv: number) => 0.9 + 0.3 * (lv - 1)
 /* The page's own font stack (next/font gives the faces generated names, so it
    is read off the page rather than written here). */
 let FONT = '"PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif'
 let ANISO = 4
 
-/* The front of a step: its number and name, drawn at the face's own aspect so
-   the letters are not stretched, shrunk or wrapped to fit the width. */
-function faceTexture(tag: string, name: string, h: number, bg: string, ink: string) {
+/* The front of a step: the level's name, drawn at the face's own aspect so
+   the letters are not stretched, and as large as the face allows. A name
+   with spaces breaks between words; a Chinese name of four characters or
+   more goes on two lines when that makes it bigger. */
+function faceTexture(name: string, h: number, bg: string, ink: string) {
   /* Drawn at 1.6x and scaled down, so the letters stay sharp on a phone's
      dense screen (owner, 2026-10-26: blurry). */
   const K = 1.6, W = 320, H = Math.round(W * h / (SW - 0.06))
@@ -59,20 +63,29 @@ function faceTexture(tag: string, name: string, h: number, bg: string, ink: stri
   g.scale(K, K)
   g.fillStyle = bg; g.fillRect(0, 0, W, H)
   g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
-  g.font = `800 84px ${FONT}`
-  g.fillText(tag, W / 2, 64)
-  let size = 58
-  const fit = (s: string) => { g.font = `700 ${size}px ${FONT}`; return g.measureText(s).width <= W - 34 }
-  let lines = [name]
-  if (!fit(name) && name.includes(' ')) {
-    const words = name.split(' '), half = Math.ceil(words.length / 2)
-    lines = [words.slice(0, half).join(' '), words.slice(half).join(' ')]
+  const PAD = 26, MAXH = Math.min(H - 2 * PAD, 230)
+  const sizeFor = (lines: string[]) => {
+    let size = 110
+    const ok = () => {
+      g.font = `800 ${size}px ${FONT}`
+      return lines.every(l => g.measureText(l).width <= W - 2 * PAD) && lines.length * size * 1.15 <= MAXH
+    }
+    while (size > 24 && !ok()) size -= 2
+    return size
   }
-  // Narrow enough for the face, and short enough for the shortest step.
-  const tall = () => 140 + (lines.length - 1) * (size + 8) + size / 2 <= H - 6
-  while (size > 26 && (!lines.every(fit) || !tall())) size -= 2
-  g.font = `700 ${size}px ${FONT}`
-  lines.forEach((l, i) => g.fillText(l, W / 2, 140 + i * (size + 8)))
+  const options: string[][] = [[name]]
+  if (name.includes(' ')) {
+    const w = name.split(' ')
+    for (let k = 1; k < w.length; k++) options.push([w.slice(0, k).join(' '), w.slice(k).join(' ')])
+  } else if (name.length >= 4) {
+    const k = Math.ceil(name.length / 2)
+    options.push([name.slice(0, k), name.slice(k)])
+  }
+  let lines = options[0], size = sizeFor(lines)
+  for (const o of options.slice(1)) { const z = sizeFor(o); if (z > size) { size = z; lines = o } }
+  g.font = `800 ${size}px ${FONT}`
+  const lh = size * 1.15, top = PAD + lh / 2
+  lines.forEach((l, i) => g.fillText(l, W / 2, top + i * lh))
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = ANISO
@@ -194,12 +207,15 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     const scene = new THREE.Scene()
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)
-    camera.position.set(-6.5, 7.2, 10)
-    camera.lookAt(0.3, 1.45, 0)
+    /* Turned only a little (owner, 2026-10-26: it was turned too far): about
+       14 degrees round and 17 down, so the fronts face the reader. */
+    camera.position.set(-2.6, 5.2, 12)
+    camera.lookAt(0.3, 1.3, 0)
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xc9d6e6, 2.4))
     const sun = new THREE.DirectionalLight(0xffffff, 2.6)
-    sun.position.set(-4, 10, 8)
+    // Straight over the viewer's shoulder: the shadows fall behind the stairs.
+    sun.position.set(-0.5, 12, 9)
     sun.castShadow = true
     sun.shadow.mapSize.set(1024, 1024)
     Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 })
@@ -215,7 +231,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       const done = lv < currentLevel, cur = lv === currentLevel, h = stepH(lv), x = (lv - 4) * SW
       const ink = done ? '#6b4300' : cur ? '#ffffff' : '#56647d'
       const front = new THREE.MeshStandardMaterial({
-        map: faceTexture(`L${lv}`, nameRef.current(lv), h, done ? '#f6c25a' : cur ? '#2050a0' : '#f3f6fb', ink), roughness: 0.7 })
+        map: faceTexture(nameRef.current(lv), h, done ? '#f6c25a' : cur ? '#2050a0' : '#f3f6fb', ink), roughness: 0.7 })
       const side = new THREE.MeshStandardMaterial({ color: done ? 0xe7aa3c : cur ? 0x1a4386 : 0xdde4ee, roughness: 0.7 })
       const topM = new THREE.MeshStandardMaterial({ color: done ? C.amber : cur ? 0xffffff : 0xfafbfd, roughness: 0.55 })
       const geo = new THREE.BoxGeometry(SW - 0.06, h, SD)
@@ -232,7 +248,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       if (cur) for (let st = 1; st <= 3; st++) {
         const got = !!stagesDone[lv - 1]?.[st - 1]
         const now = !got && (st === 1 || !!stagesDone[lv - 1]?.[st - 2])
-        const tile = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, SD * 0.6),
+        const tile = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, SD * 0.6),
           new THREE.MeshStandardMaterial({ color: got ? C.amber : now ? 0x9fc6ff : 0xdbe4ef, roughness: 0.4 }))
         tile.castShadow = true
         scene.add(tile); tiles.push(tile)
@@ -275,7 +291,7 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         const want = s.h / 2 + lift
         s.mesh.position.y += reduce ? want - s.mesh.position.y : (want - s.mesh.position.y) * 0.2
         s.edge.visible = lv === selRef.current
-        s.tiles.forEach((tile, k) => tile.position.set(s.x + (k - 1) * 0.37, s.mesh.position.y + s.h / 2 + 0.03, 0))
+        s.tiles.forEach((tile, k) => tile.position.set(s.x + (k - 1) * 0.42, s.mesh.position.y + s.h / 2 + 0.03, 0))
         // the button over the step's front face
         const b = btnRefs.current[i]
         if (b) {
@@ -285,12 +301,15 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
           b.style.width = Math.abs(c.x - a.x) + 'px'
           b.style.height = Math.abs(c.y - a.y) + 'px'
         }
-        /* On a phone the printed face is too small to read or to hit: a clear
-           "L1" button sits on each step's front instead (owner, 2026-10-26). */
+        /* "L1".."L7" under each step, as wide as the step: the easy thing to
+           tap (owner, 2026-10-26). It stays on the ground when a step lifts. */
         const chip = chipRefs.current[i]
         if (chip) {
-          const m = toScreen(new THREE.Vector3(s.x, s.mesh.position.y + s.h / 2 - 0.32, SD / 2))
-          chip.style.transform = `translate(${m.x}px, ${m.y}px) translate(-50%, -50%)`
+          const l = toScreen(new THREE.Vector3(s.x - SW / 2 + 0.03, 0, SD / 2))
+          const r = toScreen(new THREE.Vector3(s.x + SW / 2 - 0.03, 0, SD / 2))
+          const w = Math.max(30, r.x - l.x - 4)
+          chip.style.width = w + 'px'
+          chip.style.transform = `translate(${(l.x + r.x) / 2 - w / 2}px, ${Math.max(l.y, r.y) + 6}px)`
         }
       })
       const topY = cs.mesh.position.y + cs.h / 2
@@ -312,7 +331,6 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
       const w = canvas!.clientWidth, h = canvas!.clientHeight
       if (!w || !h) return
       renderer.setSize(w, h, false)
-      const aspect = w / h
       /* Fit the whole staircase -- and the room above the swimmer's step for
          the mascot and its label -- whatever the box's shape: every corner is
          taken into the camera's view, and the frame is set round them with a
@@ -329,12 +347,17 @@ export default function LevelMap3D({ currentLevel, stagesDone, selected, onPick,
         for (const dx of [-SW / 2, SW / 2]) for (const dz of [-SD / 2, SD / 2]) { take(st.x + dx, 0, dz); take(st.x + dx, st.h + 0.15, dz) }
       })
       take(cs.x, cs.h + 1.6, 0)
-      const mx = (x1 - x0) * 0.06, my = (y1 - y0) * 0.08
+      const mx = (x1 - x0) * 0.03, my = (y1 - y0) * 0.03
       x0 -= mx; x1 += mx; y0 -= my; y1 += my
+      /* A band kept clear at the top for the hint and at the bottom for the
+         L1..L7 buttons, in pixels; the stairs fill what is between. */
+      const T = 30, B = w < 640 ? 44 : 50
+      const inner = Math.max(40, h - T - B), ia = w / inner
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
       let hw = (x1 - x0) / 2, hh = (y1 - y0) / 2
-      if (hw / hh > aspect) hh = hw / aspect; else hw = hh * aspect
-      camera.left = cx - hw; camera.right = cx + hw; camera.top = cy + hh; camera.bottom = cy - hh
+      if (hw / hh > ia) hh = hw / ia; else hw = hh * ia
+      const wpp = (2 * hh) / inner
+      camera.left = cx - hw; camera.right = cx + hw; camera.top = cy + hh + T * wpp; camera.bottom = cy - hh - B * wpp
       camera.updateProjectionMatrix()
       draw(clockT)
     }
@@ -418,18 +441,19 @@ const MAP3D_CSS = `
   border-radius: 999px; line-height: 1.2; background: #12254a; color: #fff; box-shadow: 0 4px 14px rgba(18,37,74,.25); will-change: transform }
 .mst3d-hint { position: absolute; right: 10px; top: 10px; margin: 0; font-size: 11.5px; color: #56647d;
   background: rgba(255,255,255,.9); border: 1px solid #e3ebf6; border-radius: 999px; padding: 4px 10px; pointer-events: none }
-.mst3d-chip { display: none }
+.mst3d-chip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;
+  height: 38px; min-height: 0; min-width: 0; padding: 0; margin: 0; border-radius: 10px; border: 2px solid #c9d8ee;
+  background: #fff; color: #12254a; font: inherit; font-size: 16px; font-weight: 800; line-height: 1;
+  box-shadow: 0 2px 6px rgba(18,37,74,.12); will-change: transform }
+.mst3d-chip.done { background: #f09800; border-color: #f09800; color: #12254a }
+.mst3d-chip.cur { background: #2050a0; border-color: #2050a0; color: #fff }
+.mst3d-chip.sel { border-color: #12254a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
+.mst3d-chip.cur.sel { border-color: #f7b733; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
+@media (hover: hover) { .mst3d-chip:hover { border-color: #2050a0 } }
 @media (max-width: 640px) {
-  .mst3d { height: clamp(150px, 25vh, 200px); flex: none; margin: 6px 14px 0 }
+  .mst3d { height: clamp(176px, 28vh, 224px); flex: none; margin: 6px 14px 0 }
   .mst3d-hint { font-size: 10.5px; top: 6px; right: 6px; padding: 3px 8px }
   .mst3d-me { font-size: 11px; padding: 4px 9px; z-index: 3 }
-  .mst3d-chip { display: block; position: absolute; left: 0; top: 0; z-index: 2; pointer-events: auto; cursor: pointer;
-    min-width: 36px; min-height: 30px; padding: 0 6px; margin: 0; border-radius: 9px; border: 2px solid #c9d8ee;
-    background: #fff; color: #12254a; font: inherit; font-size: 14px; font-weight: 800; line-height: 26px;
-    box-shadow: 0 2px 6px rgba(18,37,74,.15); will-change: transform }
-  .mst3d-chip.done { background: #f09800; border-color: #f09800; color: #12254a }
-  .mst3d-chip.cur { background: #2050a0; border-color: #2050a0; color: #fff }
-  .mst3d-chip.sel { border-color: #12254a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
-  .mst3d-chip.cur.sel { border-color: #f7b733; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #12254a }
+  .mst3d-chip { height: 32px; border-radius: 9px; font-size: 14px }
 }
 `
