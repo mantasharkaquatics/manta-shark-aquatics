@@ -185,8 +185,11 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-qr { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 0; border-radius: 999px;
   background: #fff; color: #12254a; padding: 7px 12px; font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer }
 @media (hover: hover) { .msa-mcard-qr:hover { background: #fff3dc } }
+/* Always two lines tall (owner, 2026-10-26): a long name used to push its
+   card's level pill a line lower than its neighbours'. A third line is cut. */
 .msa-mcard-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; line-height: 1.15;
-  margin: 0; min-width: 0; overflow-wrap: anywhere }
+  margin: 0; min-width: 0; overflow-wrap: anywhere; min-height: calc(2em * 1.15);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden }
 .msa-mcard-lv { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 12px;
   background: rgba(255,255,255,0.12); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; font-weight: 800 }
 .msa-mcard-lv i { width: 9px; height: 9px; border-radius: 50%; background: var(--lv); flex-shrink: 0 }
