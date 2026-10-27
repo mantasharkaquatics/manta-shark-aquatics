@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { testModeRecipients } from '@/lib/test-mode'
 // From i18n/all, not i18n: index.ts holds only English now, so the voucher,
 // fixed-class and assessment emails went out in English (found 2026-10-05).
 // This file is server-only, so the extra dictionaries never reach the browser.
@@ -520,13 +521,18 @@ export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt
     return null
   }
 
+  // The test environment mails only allowed addresses (lib/test-mode.ts).
+  const sendTo = testModeRecipients(to, subject)
+  cc = testModeRecipients(cc, subject + ' (copy)')
+  if (sendTo.length === 0) return 'test-mode-skipped'
+
   try {
     // Resend reports an API failure in its result, not by throwing. Checked
     // since 2026-10-06, so a false here really means "not sent".
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
       replyTo: CONTACT_EMAIL,
-      to,
+      to: sendTo,
       subject,
       html,
       ...(text ? { text } : {}),
@@ -548,6 +554,7 @@ export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt
  * reply-to and failure reporting as sendEmail: false means not sent.
  */
 export async function sendRawEmail(msg: { to: string; subject: string; html: string; headers?: Record<string, string> }): Promise<boolean> {
+  if (testModeRecipients(msg.to, msg.subject).length === 0) return true
   try {
     const { error } = await resend.emails.send({
       from: EMAIL_FROM,

@@ -373,3 +373,23 @@ emails the school (ADMIN_ALERT_EMAIL) about its own errors -- no Sentry.
   run. requireCron records each job's run in cron_runs; a job that goes quiet
   is mailed every 12 hours.
 - Only when VERCEL_ENV is production (ERROR_ALERTS_FORCE=1 to test locally).
+
+# Two databases: live and test (owner, 2026-10-26)
+
+The live site (Vercel production) uses Supabase `uobflteojebscsfiortb`.
+Everything else -- preview links and `next dev` -- uses the test project
+`manta-dev` (`wzthqtzjwrnygjcbjlak`), set through the Preview environment
+variables on Vercel and `.env.local`. Never point a laptop at the live
+database again: that is how test bookings landed in real coaches' calendars.
+
+- manta-dev was copied from production on 2026-10-26: the same tables,
+  functions, triggers, RLS policies, grants and storage buckets (checked by
+  fingerprint), plus the curriculum, course types, team tiers, pools and the
+  coaches' weekly hours. No family, booking or payment was copied; coaches
+  have placeholder emails and no PIN.
+- **A schema change is two runs:** the SQL goes to the live project and to
+  manta-dev. A migration run on one only will make the two disagree.
+- lib/test-mode.ts: outside production, email goes only to DEV_EMAIL_ALLOW
+  addresses (none if unset) and no text message is sent -- both are logged,
+  so a sign-up code can be read from the server log. New sending code must
+  go through sendEmail / sendRawEmail / sendSms, which apply this.

@@ -1,3 +1,5 @@
+import { isLiveSite } from '@/lib/test-mode'
+
 // Every outbound SMS in the codebase goes through here. Callers get a shaped
 // result instead of a raw Response: `reason` is safe to show a parent, while
 // `sid` / `status` / `code` are the operator-facing details a cron or an admin
@@ -7,6 +9,12 @@ export type SmsResult =
   | { ok: false; reason: string; code?: number }
 
 export async function sendSms(to: string, body: string): Promise<SmsResult> {
+  // The test environment never texts anyone (lib/test-mode.ts); the message
+  // goes to the server log instead, so a sign-up code can still be read.
+  if (!isLiveSite()) {
+    console.log(`[test mode] SMS not sent to ${to}: ${body}`)
+    return { ok: true, sid: 'test-mode-skipped' }
+  }
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
