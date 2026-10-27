@@ -13,8 +13,9 @@
     "errorPath": "offline.html"
   },
   "ios": {
-    "contentInset": "never",
-    "limitsNavigationsToAppBoundDomains": false
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false,
+    "backgroundColor": "#ffffff"
   },
   "android": {
     "allowMixedContent": false

@@ -20,7 +20,16 @@ export default function AppBridge() {
   // The language the server writes this phone's notices in; sent again the
   // next time the app comes to the front.
   const localeRef = useRef(locale)
-  useEffect(() => { localeRef.current = locale }, [locale])
+  // Tells the server again when the language changes. The first report goes
+  // out from the sign-in page, which opens in the phone's language; the
+  // family's own (the cookie, the dashboard) arrives a moment later, and both
+  // test phones were left registered as English (2026-10-27).
+  const resync = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (localeRef.current === locale) return
+    localeRef.current = locale
+    resync.current?.()
+  }, [locale])
 
   useEffect(() => {
     const fm = pushPlugin()
@@ -29,9 +38,12 @@ export default function AppBridge() {
     const supabase = createClient()
     const removers: (() => void)[] = []
     let busy = false
+    let again = false
 
     const sync = async (ask: boolean, freshToken?: string) => {
-      if (busy) return
+      // One at a time; a call that comes in meanwhile runs once more after,
+      // so a language change during the first report is not lost.
+      if (busy) { again = true; return }
       busy = true
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -53,8 +65,11 @@ export default function AppBridge() {
         // A push is extra; nothing on the page depends on it.
       } finally {
         busy = false
+        if (again) { again = false; sync(false) }
       }
     }
+    resync.current = () => { sync(false) }
+    removers.push(() => { resync.current = null })
 
     const forget = () => {
       const token = rememberedToken()
