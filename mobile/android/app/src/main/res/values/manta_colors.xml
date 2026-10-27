@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The site's navy (lib/brand.ts): opening screen. -->
+    <color name="splash_bg">#12254A</color>
+    <!-- The logo blue: the small icon's tint in the notification shade. -->
+    <color name="notify_color">#2050A0</color>
+</resources>
