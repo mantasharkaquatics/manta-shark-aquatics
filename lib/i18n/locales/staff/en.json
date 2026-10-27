@@ -1830,5 +1830,20 @@
   "admin.certs.moveBack": "Not given yet",
   "admin.certs.needsSql": "Run docs/migration-certificate-given.sql to track which certificates were handed over. Printing works already.",
   "admin.certs.err.load": "Couldn't load the certificates. Try again.",
-  "admin.certs.err.save": "Couldn't save. Try again."
+  "admin.certs.err.save": "Couldn't save. Try again.",
+  "admin.members.fv.push.title": "Phone app",
+  "admin.members.fv.push.none": "Not signed in on the app on any phone yet.",
+  "admin.members.fv.push.notConfigured": "Push notifications are not set up on the server yet.",
+  "admin.members.fv.push.who.main": "main account",
+  "admin.members.fv.push.who.full": "second guardian",
+  "admin.members.fv.push.who.viewer": "view-only member",
+  "admin.members.fv.push.who.gone": "no longer in this family",
+  "admin.members.fv.push.allowed": "notifications on",
+  "admin.members.fv.push.blocked": "notifications off",
+  "admin.members.fv.push.lastSeen": "last opened {when}",
+  "admin.members.fv.push.send": "Send a test notification",
+  "admin.members.fv.push.confirm": "Send to {n} phone(s)",
+  "admin.members.fv.push.sending": "Sending…",
+  "admin.members.fv.push.sent": "Sent to {n} phone(s). Check the phone.",
+  "admin.members.fv.push.failed": "Not sent. Try again, or check the logs on Vercel."
 }

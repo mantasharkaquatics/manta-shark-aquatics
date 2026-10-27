@@ -1830,5 +1830,20 @@
   "admin.certs.moveBack": "改回未交付",
   "admin.certs.needsSql": "请先执行 docs/migration-certificate-given.sql，才能记录哪些证书已交付。打印已经可以用。",
   "admin.certs.err.load": "证书清单载入失败，请再试一次。",
-  "admin.certs.err.save": "储存失败，请再试一次。"
+  "admin.certs.err.save": "储存失败，请再试一次。",
+  "admin.members.fv.push.title": "手机 App",
+  "admin.members.fv.push.none": "还没有任何手机在 App 上登录。",
+  "admin.members.fv.push.notConfigured": "服务器还没设置好推送通知。",
+  "admin.members.fv.push.who.main": "主账号",
+  "admin.members.fv.push.who.full": "第二监护人",
+  "admin.members.fv.push.who.viewer": "仅查看成员",
+  "admin.members.fv.push.who.gone": "已不在这个家庭",
+  "admin.members.fv.push.allowed": "通知已开",
+  "admin.members.fv.push.blocked": "通知已关",
+  "admin.members.fv.push.lastSeen": "最后打开 {when}",
+  "admin.members.fv.push.send": "发测试通知",
+  "admin.members.fv.push.confirm": "发给 {n} 部手机",
+  "admin.members.fv.push.sending": "发送中…",
+  "admin.members.fv.push.sent": "已送到 {n} 部手机，请看手机。",
+  "admin.members.fv.push.failed": "没有送出。请再试一次，或到 Vercel 查看记录。"
 }

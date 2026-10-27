@@ -1830,5 +1830,20 @@
   "admin.certs.moveBack": "改回未交付",
   "admin.certs.needsSql": "請先執行 docs/migration-certificate-given.sql，才能記錄哪些證書已交付。列印已經可以用。",
   "admin.certs.err.load": "證書清單載入失敗，請再試一次。",
-  "admin.certs.err.save": "儲存失敗，請再試一次。"
+  "admin.certs.err.save": "儲存失敗，請再試一次。",
+  "admin.members.fv.push.title": "手機 App",
+  "admin.members.fv.push.none": "還沒有任何手機在 App 上登入。",
+  "admin.members.fv.push.notConfigured": "伺服器還沒設定好推播通知。",
+  "admin.members.fv.push.who.main": "主帳號",
+  "admin.members.fv.push.who.full": "第二監護人",
+  "admin.members.fv.push.who.viewer": "僅檢視成員",
+  "admin.members.fv.push.who.gone": "已不在這個家庭",
+  "admin.members.fv.push.allowed": "通知已開",
+  "admin.members.fv.push.blocked": "通知已關",
+  "admin.members.fv.push.lastSeen": "最後開啟 {when}",
+  "admin.members.fv.push.send": "發測試通知",
+  "admin.members.fv.push.confirm": "發給 {n} 支手機",
+  "admin.members.fv.push.sending": "發送中…",
+  "admin.members.fv.push.sent": "已送到 {n} 支手機，請看手機。",
+  "admin.members.fv.push.failed": "沒有送出。請再試一次，或到 Vercel 看紀錄。"
 }

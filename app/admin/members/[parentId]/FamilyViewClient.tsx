@@ -7,6 +7,7 @@ import { tDb, type Locale } from '@/lib/i18n'
 import { useT, useTFor } from '@/lib/i18n/provider'
 import { LEVEL_COLORS, stageNameKey } from '@/lib/levels'
 import { VOUCHER_ERROR_KEYS } from '@/lib/admin/voucher-errors'
+import AppPhones from './AppPhones'
 
 type View = {
   lang: Locale
@@ -92,6 +93,8 @@ export default function FamilyViewClient({ parentId }: { parentId: string }) {
           ))}
         </div>
       </div>
+
+      <AppPhones parentId={parentId} />
 
       {/* The family's picture, in the dashboard's own colours. */}
       <div className="fv">

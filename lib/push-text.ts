@@ -150,3 +150,18 @@ export async function pushReport(svc: SupabaseClient, opts: { studentId: string;
     console.warn('push: report push failed', e instanceof Error ? e.message : '')
   }
 }
+
+/** The desk's test notice (admin family page, owner 2026-10-27): proves a
+ *  family's phones get notices. Sent like a closure -- past the family's
+ *  switches -- so a switched-off kind cannot make the test look broken. */
+export async function pushTest(svc: SupabaseClient, parentId: string): Promise<number> {
+  return pushFamily(svc, parentId, {
+    category: 'always',
+    viewerOk: true,
+    url: '/dashboard',
+    text: (L) => {
+      const t = getT(L) as T
+      return { title: t('push.test.title'), body: t('push.test.body') }
+    },
+  })
+}

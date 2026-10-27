@@ -419,3 +419,8 @@ lib/push-text.ts (the words), docs/migration-push.sql, components/AppBridge.tsx
   JSON, as is or base64) is set; without it every family keeps its texts.
 - In the browser none of this runs: lib/native-app.ts only answers inside the
   app, where Capacitor puts its bridge on window.
+- The admin family page (/admin/members/<id>) lists the family's phones with
+  the app (whose, allowed, last opened -- never the token) and has "Send a
+  test notification" (/api/admin/push-test, pushTest): sent as 'always', so a
+  switched-off kind cannot make the test look broken. Two clicks; real
+  families get it only when the desk means to.

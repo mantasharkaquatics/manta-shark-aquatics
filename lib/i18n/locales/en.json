@@ -2415,5 +2415,7 @@
   "push.settings.bookingsDesc": "Booked, moved or cancelled, and waitlist places",
   "push.settings.phoneOff": "Notifications for this app are off in your phone's settings. Turn them on there to get these.",
   "push.settings.always": "Pool closures and lessons we have to cancel are always sent.",
-  "push.settings.error": "Could not save. Please try again."
+  "push.settings.error": "Could not save. Please try again.",
+  "push.test.title": "Test notification",
+  "push.test.body": "Manta Shark notifications are working. Tap to open the app."
 }

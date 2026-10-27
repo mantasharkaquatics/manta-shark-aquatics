@@ -4,3 +4,5 @@ ios/App/CapApp-SPM/symlinks/
 # Firebase app config: added on each machine from the Firebase console.
 android/app/google-services.json
 ios/App/App/GoogleService-Info.plist
+# Android Studio settings, per machine.
+android/.idea/

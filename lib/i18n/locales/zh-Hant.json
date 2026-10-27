@@ -2415,5 +2415,7 @@
   "push.settings.bookingsDesc": "預約成功、改時間、取消，以及候補有名額",
   "push.settings.phoneOff": "這支手機的設定裡關掉了本 App 的通知，要收到通知請先到手機設定打開。",
   "push.settings.always": "泳池停課和學校取消的課程一定會通知，不能關閉。",
-  "push.settings.error": "沒有儲存成功，請再試一次。"
+  "push.settings.error": "沒有儲存成功，請再試一次。",
+  "push.test.title": "測試通知",
+  "push.test.body": "Manta Shark 的通知運作正常，點這裡打開 App。"
 }
