@@ -1,0 +1,42 @@
+{
+  "appId": "branded.com.mantasharkaquaticss",
+  "appName": "Manta Shark",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.mantasharkaquatics.net/dashboard",
+    "allowNavigation": [
+      "www.mantasharkaquatics.net",
+      "mantasharkaquatics.net",
+      "www.mantasharkaquatics.com",
+      "mantasharkaquatics.com"
+    ],
+    "errorPath": "offline.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "FirebaseMessaging": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  },
+  "experimental": {
+    "ios": {
+      "spm": {
+        "packageOptions": {
+          "@capacitor-firebase/messaging": {
+            "symlink": true
+          }
+        }
+      }
+    }
+  }
+}

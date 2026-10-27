@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Manta Shark</string>
+    <string name="title_activity_main">Manta Shark</string>
+    <string name="package_name">branded.com.mantasharkaquaticss</string>
+    <string name="custom_url_scheme">branded.com.mantasharkaquaticss</string>
+</resources>
