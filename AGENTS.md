@@ -424,3 +424,26 @@ lib/push-text.ts (the words), docs/migration-push.sql, components/AppBridge.tsx
   test notification" (/api/admin/push-test, pushTest): sent as 'always', so a
   switched-off kind cannot make the test look broken. Two clicks; real
   families get it only when the desk means to.
+
+# The phone app's own look (owner, 2026-10-27)
+
+Inside the app the site is not the website: no website bar, footer or chat
+bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
+課表 /dashboard/schedule, 訊息 (opens the chat), 我的 /dashboard/me
+(components/AppShell.tsx). Browsers, phones included, keep the website.
+
+- **html.msa-app** is set before the first paint by a script in the root
+  layout's <head> (lib/native-app.ts APP_DETECT_SCRIPT): the app's user agent
+  carries `MantaSharkApp` (mobile/capacitor.config.json appendUserAgent), and
+  older builds are known by Capacitor's bridge. Everything the app hides is a
+  rule under `html.msa-app` in app/globals.css; mark website-only bits
+  `.msa-web-only`.
+- **The dashboard is two tabs.** /dashboard/schedule re-exports the dashboard
+  page; `view` (from the path) goes on the root as data-view. In the app,
+  首頁 hides `.msa-sched` (the lesson list) and 課表 hides `.msa-home`. A
+  sheet a 首頁 button opens must not live inside a `.msa-sched` section (the
+  lesson detail was moved out for this).
+- Something fixed to the bottom of a page sits on the tabs in the app: give
+  it a class and a `bottom: var(--app-tab-h)` rule there, as `.msa-book-bar`.
+- 我的 links into the dashboard's sheets with ?points=1, ?points=refer and
+  ?suggest=1. Notification switches live on 我的 (they only exist in the app).

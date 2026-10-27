@@ -52,3 +52,19 @@ export function rememberedToken(): string | null {
 export function rememberToken(token: string | null) {
   try { if (token) localStorage.setItem(TOKEN_KEY, token); else localStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ }
 }
+
+/* The app's own look (owner, 2026-10-27): inside the app the site drops its
+   website bar, footer and chat bubble and gets a top bar and five tabs
+   (components/AppShell.tsx). Browsers keep the website, phones included.
+
+   The class is put on <html> by a script in the root layout's <head>, before
+   the first paint, so the website bar never flashes up first. The app adds
+   APP_UA to its user agent (mobile/capacitor.config.json, appendUserAgent);
+   builds made before that are known by Capacitor's bridge instead. */
+export const APP_UA = 'MantaSharkApp'
+export const APP_CLASS = 'msa-app'
+export const APP_DETECT_SCRIPT =
+  `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()))document.documentElement.classList.add('${APP_CLASS}')}catch(e){}`
+
+/** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
+export const appLook = () => typeof document !== 'undefined' && document.documentElement.classList.contains(APP_CLASS)

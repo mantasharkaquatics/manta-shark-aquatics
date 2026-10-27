@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
-import { appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
+import { APP_CLASS, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
 
 /* Push notifications inside the phone app (owner, 2026-10-27; lib/push.ts).
    Renders nothing, and does nothing in a browser.
@@ -30,6 +30,11 @@ export default function AppBridge() {
     localeRef.current = locale
     resync.current?.()
   }, [locale])
+
+  // The app look, for a build the <head> script missed (lib/native-app.ts).
+  useEffect(() => {
+    if (appPlatform()) document.documentElement.classList.add(APP_CLASS)
+  }, [])
 
   useEffect(() => {
     const fm = pushPlugin()

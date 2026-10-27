@@ -81,3 +81,17 @@ export const CHAT_HANDBACK_AUTO_EN = 'The front desk has not replied for 30 minu
 // reads the account again, so the lesson does not sit there with its Cancel
 // button and the old balance until a reload (found 2026-10-08).
 export const ACCOUNT_CHANGED_EVENT = 'msa:account-changed'
+
+/* The school's unread replies, for the app's 訊息 tab (components/AppShell):
+   the chat widget reports its count, the tab shows it. */
+export const CHAT_UNREAD_EVENT = 'msa:chat-unread'
+const UNREAD_KEY = '__msaChatUnread'
+export function reportChatUnread(n: number) {
+  if (typeof window === 'undefined') return
+  ;(window as unknown as Record<string, number>)[UNREAD_KEY] = n
+  window.dispatchEvent(new Event(CHAT_UNREAD_EVENT))
+}
+export function chatUnread(): number {
+  if (typeof window === 'undefined') return 0
+  return (window as unknown as Record<string, number | undefined>)[UNREAD_KEY] || 0
+}

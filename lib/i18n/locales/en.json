@@ -2417,5 +2417,15 @@
   "push.settings.always": "Pool closures and lessons we have to cancel are always sent.",
   "push.settings.error": "Could not save. Please try again.",
   "push.test.title": "Test notification",
-  "push.test.body": "Manta Shark notifications are working. Tap to open the app."
+  "push.test.body": "Manta Shark notifications are working. Tap to open the app.",
+  "app.back": "Back",
+  "app.tabs": "App sections",
+  "app.tab.home": "Home",
+  "app.tab.book": "Book",
+  "app.tab.schedule": "Schedule",
+  "app.tab.chat": "Messages",
+  "app.tab.me": "Me",
+  "app.me.account": "Account and swimmers",
+  "app.me.points": "Points and receipts",
+  "app.me.school": "About the school"
 }

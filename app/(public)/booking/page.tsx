@@ -2370,7 +2370,8 @@ export default function BookingPage() {
         {/* The page's own heading and the way back, where 我的帳戶 and 共同預約
             put theirs -- the dark strip that used to hold them read as a second
             masthead under the floating nav. */}
-        <Link href="/dashboard" style={{ fontSize: '13.5px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
+        {/* The app's top bar has its own way back (components/AppShell). */}
+        <Link href="/dashboard" className="msa-web-only" style={{ fontSize: '13.5px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
           ← {t('booking.header.dashboard')}
         </Link>
         <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(28px,3vw,36px)', fontWeight: 900, color: NAVY, margin: '12px 0 0', lineHeight: 1.15 }}>
@@ -3723,7 +3724,7 @@ export default function BookingPage() {
                 only affects browsing, never operating. Collapsing months would
                 not have fixed this, and would have hidden chosen lessons -- the
                 same fault as the pager we removed. */}
-            <div style={{
+            <div className="msa-book-bar" style={{
               position: 'sticky', bottom: 0, zIndex: 5, marginTop: '24px',
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
               // The page's own colour, so it reads as part of the page until

@@ -2,6 +2,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
 import GlobalChat from '@/components/GlobalChat'
+import AppShell from '@/components/AppShell'
 import { FONT_BODY } from '@/lib/brand'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { footerLocations } from '@/lib/public-locations'
@@ -24,8 +25,10 @@ export default async function PublicLayout({ children }: { children: React.React
       <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
         {children}
       </main>
-      <Footer locations={pools} />
+      {/* Not in the phone app (app/globals.css .msa-web-only). */}
+      <div className="msa-web-only"><Footer locations={pools} /></div>
       <GlobalChat />
+      <AppShell />
     </div>
   )
 }

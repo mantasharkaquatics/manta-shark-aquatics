@@ -2,6 +2,7 @@
   "appId": "branded.com.mantasharkaquaticss",
   "appName": "Manta Shark",
   "webDir": "www",
+  "appendUserAgent": "MantaSharkApp",
   "server": {
     "url": "https://www.mantasharkaquatics.net/dashboard",
     "allowNavigation": [

@@ -317,3 +317,24 @@
   .note-actions { opacity: 0; transition: opacity 150ms; }
   .group:hover .note-actions, .note-actions:focus-within, .note-actions[data-open] { opacity: 1; }
 }
+
+/* The phone app's own look (owner, 2026-10-27; lib/native-app.ts,
+   components/AppShell.tsx). html.msa-app is set before the first paint inside
+   the app only. The website bar, its drawer and the skip link give way to the
+   app's top bar (the bar's pool-closed banner stays, under the top bar); the
+   footer, the chat bubble and anything marked .msa-web-only go; the page
+   leaves room for the tabs at the bottom. !important: Navbar's own <style>
+   and inline styles come later. */
+html.msa-app { --app-bar-h: 52px; --app-tab-h: 60px;
+  --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
+  --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
+html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
+html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
+html.msa-app .ac-back { display: none !important; }
+html.msa-app .rn { top: var(--app-bar-h) !important; left: 0 !important; right: 0 !important; }
+html.msa-app body { padding-bottom: var(--app-tab-h); }
+/* The dashboard is two tabs: 首頁 without the lesson list, 課表 with only it. */
+html.msa-app [data-view="home"] .msa-sched,
+html.msa-app [data-view="schedule"] .msa-home { display: none !important; }
+/* The booking page's bar along the bottom sits on the tabs, not under them. */
+html.msa-app .msa-book-bar { bottom: var(--app-tab-h) !important; }

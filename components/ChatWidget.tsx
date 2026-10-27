@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
-import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen } from '@/lib/chat-open'
+import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen, reportChatUnread } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
@@ -85,6 +85,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   // The i18n key of the "not sent" line, or null (the guest chat has its own).
   const [sendFailed, setSendFailed] = useState<string | null>(null)
   const [unread, setUnread] = useState(0)
+  // Told to the app's 訊息 tab too (lib/chat-open).
+  useEffect(() => { reportChatUnread(unread) }, [unread])
   // The realtime callback below is created once per thread, and the thread is
   // now found on page load with the panel shut, so it reads `open` from this
   // ref rather than the value it was created with (found 2026-10-05).

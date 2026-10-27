@@ -2417,5 +2417,15 @@
   "push.settings.always": "泳池停课和学校取消的课程一定会通知，不能关闭。",
   "push.settings.error": "没有保存成功，请再试一次。",
   "push.test.title": "测试通知",
-  "push.test.body": "Manta Shark 的通知运作正常，点这里打开 App。"
+  "push.test.body": "Manta Shark 的通知运作正常，点这里打开 App。",
+  "app.back": "返回",
+  "app.tabs": "主菜单",
+  "app.tab.home": "首页",
+  "app.tab.book": "预约",
+  "app.tab.schedule": "课表",
+  "app.tab.chat": "消息",
+  "app.tab.me": "我的",
+  "app.me.account": "账号资料与孩子",
+  "app.me.points": "点数与收据",
+  "app.me.school": "关于学校"
 }

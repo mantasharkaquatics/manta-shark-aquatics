@@ -5,7 +5,7 @@ import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { createContext, useCallback, useContext, useEffect, useState, useRef, useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
@@ -1713,6 +1713,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('morning')
   const router = useRouter()
+  /* Two tabs of the app share this page (owner, 2026-10-27): /dashboard is
+     首頁 without the lesson list, /dashboard/schedule is 課表 with only it
+     (the .msa-home / .msa-sched rules in app/globals.css). In a browser both
+     show the whole page, as before. */
+  const view = usePathname() === '/dashboard/schedule' ? 'schedule' : 'home'
 
   /* Assessment reports come back in the page's language (the coach's note and
      the recommendation line are translated), so they reload with fetchAll and
@@ -1948,6 +1953,12 @@ export default function DashboardPage() {
   // yet, which opens it when something there needs the family.
   const [plansOpen, setPlansOpen] = useState<boolean | null>(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
+  // 我的 -> 意見箱 in the app (/dashboard/me) lands here with ?suggest=1.
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('suggest') !== '1') return
+    setSuggestOpen(true)
+    try { const u = new URL(window.location.href); u.searchParams.delete('suggest'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [])
   // Make-up vouchers, and which children have used this month's grace -- the
   // two facts every lesson's leave/cancel button depends on.
   const [vouchers, setVouchers] = useState<MakeUpVoucher[]>([])
@@ -2119,7 +2130,10 @@ export default function DashboardPage() {
   // The low-balance email's button lands here with ?points=1 (lib/low-balance.ts),
   // and so does the payment-reversed email's "Pay by card" (lib/email.ts).
   useEffect(() => {
-    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('points') !== '1') return
+    const want = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('points')
+    if (want !== '1' && want !== 'refer') return
+    // 'refer': 我的 -> 介紹朋友 in the app (/dashboard/me), straight to that card.
+    if (want === 'refer') setReferralFocus(true)
     setPointsOpen(true)
     try { const u = new URL(window.location.href); u.searchParams.delete('points'); window.history.replaceState(null, '', u.toString()) } catch {}
   }, [])
@@ -3202,7 +3216,7 @@ export default function DashboardPage() {
 
   return (
     <PoolsCtx.Provider value={pools}>
-    <div className={viewer ? 'msa-viewer' : undefined} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
+    <div className={viewer ? 'msa-viewer' : undefined} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -3412,7 +3426,7 @@ export default function DashboardPage() {
       )}
 
       {/* GREETING -- the site's dark top, kept short: this is a working page. */}
-      <header className="msa-hello">
+      <header className="msa-hello msa-home">
         <div className="msa-hello-in">
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.blue, marginBottom: '8px' }}>
             {/* Today in LA, not the device clock (found 2026-10-05): the school's
@@ -3434,7 +3448,7 @@ export default function DashboardPage() {
           </div>
         )}
         {safetyMissing && !viewer && (
-          <section role="region" aria-labelledby="safety-banner-h" style={{ marginBottom: '24px', background: '#fff7e6', border: '1px solid #f3dfb4', borderRadius: '14px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 18px' }}>
+          <section role="region" aria-labelledby="safety-banner-h" className="msa-home" style={{ marginBottom: '24px', background: '#fff7e6', border: '1px solid #f3dfb4', borderRadius: '14px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 18px' }}>
             <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <h2 id="safety-banner-h" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: NAVY }}>{t('safety.banner.title')}</h2>
               <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#56647d', lineHeight: 1.6 }}>{t('safety.banner.body')}</p>
@@ -3446,10 +3460,10 @@ export default function DashboardPage() {
           </section>
         )}
         {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={m => setSafetyMissing(m)} />}
-        {!viewer && <WaitlistCard />}
+        {!viewer && <div className="msa-home"><WaitlistCard /></div>}
 
         {/* STUDENTS */}
-        <section style={{ marginBottom: '36px' }}>
+        <section className="msa-home" style={{ marginBottom: '36px' }}>
           <h2 className="msa-sec-h">{t('dash.mySwimmers')}</h2>
           {students.filter(s => newReportCount(s) > 0).map(s => (
             <button key={s.id} type="button" className="tap-auto msa-newrep" onClick={() => openRecords(s)}>
@@ -3818,7 +3832,7 @@ export default function DashboardPage() {
       )}
 
       {/* UPCOMING LESSONS */}
-        <section ref={upcomingRef} style={{ marginBottom: '36px', scrollMarginTop: '100px' }}>
+        <section ref={upcomingRef} className="msa-sched" style={{ marginBottom: '36px', scrollMarginTop: '100px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <h2 className="msa-sec-h" style={{ margin: 0 }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -4461,7 +4475,34 @@ export default function DashboardPage() {
               })()}
             </div>
           )}
-          {/* The lesson detail: opened from the month and the week views. */}
+          {lessonView === 'list' && (() => {
+            const dates = [...new Set(upcomingBookings.map(b => b.session_date))]
+            const totalDays = dates.length
+            // Days already shown out of turn (an awaited move) are not "more".
+            const forced = dates.slice(dayWindow).filter(d => upcomingBookings.some(b => b.session_date === d && b.pending_action === 'reschedule')).length
+            const more = totalDays - dayWindow - forced
+            if (more <= 0 && dayWindow <= UPCOMING_DAYS) return null
+            return (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                {more > 0 && (
+                  <button onClick={() => setDayWindow(w => w + UPCOMING_STEP)}
+                    style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    ▼ {t('dash.showMoreDays', { n: Math.min(UPCOMING_STEP, more) })}
+                  </button>
+                )}
+                {dayWindow > UPCOMING_DAYS && (
+                  <button onClick={collapseUpcoming}
+                    style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
+                    ▲ {t('dash.collapse')}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
+        </section>
+          {/* The lesson detail: opened from the month and the week views, and
+              from a card's next lesson -- outside the lesson list, which the
+              app's 首頁 hides (owner, 2026-10-27). */}
           {lessonDetail && (() => {
             const b = lessonDetail
             const past = !!(b.session_date && b.session_date < getTodayLA())
@@ -4522,37 +4563,13 @@ export default function DashboardPage() {
               </div>
             )
           })()}
-          {lessonView === 'list' && (() => {
-            const dates = [...new Set(upcomingBookings.map(b => b.session_date))]
-            const totalDays = dates.length
-            // Days already shown out of turn (an awaited move) are not "more".
-            const forced = dates.slice(dayWindow).filter(d => upcomingBookings.some(b => b.session_date === d && b.pending_action === 'reschedule')).length
-            const more = totalDays - dayWindow - forced
-            if (more <= 0 && dayWindow <= UPCOMING_DAYS) return null
-            return (
-              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                {more > 0 && (
-                  <button onClick={() => setDayWindow(w => w + UPCOMING_STEP)}
-                    style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
-                    ▼ {t('dash.showMoreDays', { n: Math.min(UPCOMING_STEP, more) })}
-                  </button>
-                )}
-                {dayWindow > UPCOMING_DAYS && (
-                  <button onClick={collapseUpcoming}
-                    style={{ flex: more > 0 ? '0 0 auto' : 1, padding: '10px 18px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '12px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.5px' }}>
-                    ▲ {t('dash.collapse')}
-                  </button>
-                )}
-              </div>
-            )
-          })()}
-        </section>
 
         {/* The optional things, at the foot (owner, 2026-10-02). Booking with
             another family; refer a friend (opens the points sheet at the
             referral card -- without a visible way in almost nobody finds the
             offer); the suggestion box (owner, 2026-09-30: any time, managers only). */}
-        <nav className="msa-more" aria-label={t('dash.more.label')}>
+        {/* In the app these live under 我的 (/dashboard/me). */}
+        <nav className="msa-more msa-home msa-web-only" aria-label={t('dash.more.label')}>
           {/* A row of three small buttons (owner, 2026-10-26), not three
               full-width rows. */}
           {!viewer && <Link href="/dashboard/partnerships" className="msa-more-row">
