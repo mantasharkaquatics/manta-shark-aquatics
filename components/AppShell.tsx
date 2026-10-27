@@ -50,8 +50,16 @@ const css = `
   .msa-ab-back { width: 40px; height: 40px; min-height: 0; margin-left: -8px; border: 0; background: none; color: ${BRAND.navy};
     display: grid; place-items: center; cursor: pointer; border-radius: 10px; }
   .msa-ab-back:focus-visible { outline: 2px solid ${BRAND.blue}; }
-  .msa-tb { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: var(--app-tab-h); display: flex;
-    background: rgba(255,255,255,.97); border-top: 1px solid ${BRAND.line}; font-family: ${FONT_BODY}; }
+  .msa-tb { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: var(--app-tab-now); display: flex;
+    background: rgba(255,255,255,.97); border-top: 1px solid ${BRAND.line}; font-family: ${FONT_BODY}; transition: height .22s ease; }
+  /* Small while the page is scrolled down, full size again on the way up
+     (owner, 2026-10-27, "like Instagram"): the labels fold away, the icons
+     shrink a little. */
+  .msa-tb .lb { display: block; max-height: 14px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
+  .msa-tb .ic { transition: transform .22s ease; }
+  html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
+  html.msa-tabs-small .msa-tb .ic { transform: scale(.88); }
+  @media (prefers-reduced-motion: reduce) { .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
   .msa-tb a, .msa-tb button { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     border: 0; background: none; padding: 0; font: inherit; font-size: 11px; font-weight: 800; color: #8a94a6; text-decoration: none;
     cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -90,6 +98,34 @@ export default function AppShell() {
     window.addEventListener(CHAT_UNREAD_EVENT, sync)
     return () => { subscription.unsubscribe(); off(); window.removeEventListener(CHAT_UNREAD_EVENT, sync) }
   }, [app])
+
+  /* Down a little: small. Up a little, or back near the top: full size.
+     A few pixels either way are ignored, so a resting thumb does not make
+     the bar flicker. Left on <html> (msa-tabs-small) so the booking page's
+     bottom bar follows it (app/globals.css). */
+  useEffect(() => {
+    if (!app) return
+    const root = document.documentElement
+    let last = window.scrollY
+    let ticking = false
+    const onScroll = () => {
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        ticking = false
+        const y = window.scrollY
+        const dy = y - last
+        if (y < 40) root.classList.remove('msa-tabs-small')
+        else if (dy > 8) root.classList.add('msa-tabs-small')
+        else if (dy < -8) root.classList.remove('msa-tabs-small')
+        if (Math.abs(dy) > 8 || y < 40) last = y
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); root.classList.remove('msa-tabs-small') }
+  }, [app])
+  // A new page starts with the bar at full size.
+  useEffect(() => { document.documentElement.classList.remove('msa-tabs-small') }, [pathname])
 
   if (!app) return null
 
@@ -139,7 +175,7 @@ export default function AppShell() {
             const inner = (
               <>
                 <span className="ic">{tab.icon}{tab.key === 'chat' && unread > 0 && <i className="bd" aria-hidden="true">{unread > 9 ? '9+' : unread}</i>}</span>
-                {label}
+                <span className="lb">{label}</span>
               </>
             )
             return tab.href ? (

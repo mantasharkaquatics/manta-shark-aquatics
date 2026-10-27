@@ -447,3 +447,10 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   it a class and a `bottom: var(--app-tab-h)` rule there, as `.msa-book-bar`.
 - 我的 links into the dashboard's sheets with ?points=1, ?points=refer and
   ?suggest=1. Notification switches live on 我的 (they only exist in the app).
+- The tabs shrink while the page is scrolled down and come back on the way
+  up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
+- iOS: the page starts below the status bar (contentInset "always"), and
+  white strips behind the status bar and the home indicator
+  (AppViewController in mobile/ios/App/App/SceneDelegate.swift) hide the page
+  scrolling past behind them. The app is always in light mode (Info.plist
+  UIUserInterfaceStyle), so the status bar text stays dark on that white.

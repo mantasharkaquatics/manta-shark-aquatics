@@ -325,7 +325,7 @@
    footer, the chat bubble and anything marked .msa-web-only go; the page
    leaves room for the tabs at the bottom. !important: Navbar's own <style>
    and inline styles come later. */
-html.msa-app { --app-bar-h: 52px; --app-tab-h: 60px;
+html.msa-app { --app-bar-h: 52px; --app-tab-h: 60px; --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
@@ -337,4 +337,6 @@ html.msa-app body { padding-bottom: var(--app-tab-h); }
 html.msa-app [data-view="home"] .msa-sched,
 html.msa-app [data-view="schedule"] .msa-home { display: none !important; }
 /* The booking page's bar along the bottom sits on the tabs, not under them. */
-html.msa-app .msa-book-bar { bottom: var(--app-tab-h) !important; }
+html.msa-app .msa-book-bar { bottom: var(--app-tab-now) !important; transition: bottom .22s ease; }
+/* The tabs shrink while the page is scrolled down (components/AppShell). */
+html.msa-app.msa-tabs-small { --app-tab-now: 46px; }
