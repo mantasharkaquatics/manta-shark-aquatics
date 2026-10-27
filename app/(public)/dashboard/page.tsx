@@ -2091,6 +2091,18 @@ export default function DashboardPage() {
       fetch('/api/parent/reports-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: st.id }) }).catch(() => {})
     }
   }
+  // A lesson-report push opens the dashboard on that swimmer's records
+  // (?records=<student id>, lib/push-text.ts), once.
+  const recordsLink = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('records') : null)
+  useEffect(() => {
+    const want = recordsLink.current
+    // Waits for the swimmer's reports too, so opening them clears the red dot.
+    if (!want || students.length === 0 || !studentProgressMap[want]) return
+    recordsLink.current = null
+    const st = students.find(x => x.id === want)
+    if (st) openRecords(st)
+    try { const u = new URL(window.location.href); u.searchParams.delete('records'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [students, studentProgressMap])
   const [pointsOpen, setPointsOpen] = useState(false)
   // Safety information still missing (owner, 2026-10-22): a banner until each
   // swimmer has answered the medical question and an emergency contact is on

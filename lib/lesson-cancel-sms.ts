@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from '@/lib/sms'
 import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
+import { familyUsesApp } from '@/lib/push'
 
 /* A text when the SCHOOL cancels a lesson that starts within 48 hours (owner,
    2026-10-22, tier-1 review item 3). The email alone can sit unread until the
@@ -10,7 +11,11 @@ import { formatTime12h, getTodayLA, getNowMinutesLA } from '@/lib/date'
    "Lesson changes" from 2026-10-22, and accounts that agreed before reminders
    were added (2026-10-05) are deleted before launch, exactly as the reminder
    cron treats them. Best effort: a failed text never fails the cancellation,
-   and the number is never logged. */
+   and the number is never logged.
+
+   A family using the phone app gets a push instead (owner, 2026-10-27): the
+   email that goes with each cancellation carries it (lib/push-text.ts), so
+   these send nothing for them. */
 
 export const CANCEL_SMS_WINDOW_HOURS = 48
 const SMS_TERMS_FROM = '2026-10-05'
@@ -38,6 +43,9 @@ export async function textLessonCancelled(svc: SupabaseClient, opts: {
 }): Promise<boolean> {
   try {
     if (!cancelNeedsText(opts.sessionDate, opts.startTime)) return false
+    // A family with the phone app got this as a push with the email
+    // (lib/push-text.ts); no text on top (owner, 2026-10-27).
+    if (await familyUsesApp(svc, opts.parentId, 'always')) return false
     const { data: p } = await svc.from('parents').select('first_name, phone, terms_version').eq('id', opts.parentId).maybeSingle()
     const parent = p as { first_name?: string | null; phone?: string | null; terms_version?: string | null } | null
     if (!parent?.phone) return false
@@ -67,6 +75,7 @@ export async function textClosure(svc: SupabaseClient, opts: {
     const soon = opts.items.filter(i => cancelNeedsText(i.date, i.start))
       .sort((a, b) => `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`))
     if (!soon.length) return false
+    if (await familyUsesApp(svc, opts.parentId, 'always')) return false
     const { data: p } = await svc.from('parents').select('first_name, phone, terms_version').eq('id', opts.parentId).maybeSingle()
     const parent = p as { first_name?: string | null; phone?: string | null; terms_version?: string | null } | null
     if (!parent?.phone) return false

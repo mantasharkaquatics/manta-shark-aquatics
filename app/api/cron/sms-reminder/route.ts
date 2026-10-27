@@ -5,6 +5,7 @@ import { requireCron } from '@/lib/cron-auth'
 import { getLocations, lessonPlaceShown, lessonLocationLine, DEFAULT_LOCATION_ID } from '@/lib/locations'
 import { sendEmail } from '@/lib/email'
 import { lessonCalendar } from '@/lib/lesson-calendar'
+import { familyUsesApp } from '@/lib/push'
 
 // The terms version that first listed lesson reminders in the SMS consent.
 const REMINDER_TERMS_FROM = '2026-10-05'
@@ -239,6 +240,13 @@ export async function GET(request: Request) {
     const claimedIds = (claimed || []).map((r: any) => r.id as string)
     if (claimedIds.length === 0) {
       results.push({ booking_ids: ids, skipped: 'claimed by another run' })
+      return
+    }
+    // A family using the phone app gets the reminder as a push, which goes
+    // out with the reminder email below (lib/push-text.ts), and no text
+    // (owner, 2026-10-27). The claim stays, so the text is never sent later.
+    if (emailOn && await familyUsesApp(supabase, rows[0].parent_id, 'reminders')) {
+      results.push({ booking_ids: claimedIds, skipped: 'push instead of text' })
       return
     }
     const release = async () => {

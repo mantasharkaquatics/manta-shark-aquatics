@@ -13,6 +13,7 @@ import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
 import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
+import PushSettings from '@/components/PushSettings'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 
@@ -270,6 +271,9 @@ export default function AccountPage() {
               <span />
             </button>
           </section>}
+
+          {/* Notifications: inside the phone app only (owner, 2026-10-27). */}
+          <PushSettings />
 
           {/* Swimmers (add-only) with each one's health answer (owner,
               2026-10-22: one card instead of a separate safety card). */}

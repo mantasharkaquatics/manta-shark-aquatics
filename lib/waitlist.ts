@@ -5,6 +5,7 @@ import { getTodayLA, getNowMinutesLA, formatTime12h } from './date'
 import { TEAM_SQUAD_CAP } from './team-tiers'
 import { sendEmail } from './email'
 import { sendSms, SMS_COMPLIANCE_SUFFIX } from './sms'
+import { familyUsesApp } from './push'
 import { liveOffers } from './waitlist-seats'
 export { teamSeatsHeld, teamSeatsHeldAll } from './waitlist-seats'
 
@@ -201,7 +202,9 @@ async function sendOffer(svc: SupabaseClient, e: WaitEntry, until: Date): Promis
     })
     // Texts follow the same consent rule as reminders (SMS terms list
     // "Waitlist notices" from 2026-10-22).
-    if (p?.phone && p.terms_version && p.terms_version >= '2026-10-05') {
+    // A family using the phone app got the offer as a push with the email
+    // (lib/push-text.ts) and is not texted as well (owner, 2026-10-27).
+    if (p?.phone && p.terms_version && p.terms_version >= '2026-10-05' && !(await familyUsesApp(svc, e.parent_id, 'bookings'))) {
       const when = d.date ? ` on ${new Date(d.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })} ${d.time?.split(' – ')[0] || ''}` : ''
       await sendSms(p.phone, `Manta Shark Aquatics: a place opened for ${d.kid} (${d.course}${when}). It is held for you until ${untilText}. Book: ${d.link}${SMS_COMPLIANCE_SUFFIX}`)
     }

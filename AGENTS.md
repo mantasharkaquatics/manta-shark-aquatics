@@ -393,3 +393,29 @@ database again: that is how test bookings landed in real coaches' calendars.
   addresses (none if unset) and no text message is sent -- both are logged,
   so a sign-up code can be read from the server log. New sending code must
   go through sendEmail / sendRawEmail / sendSms, which apply this.
+
+# Push notifications to the phone app (owner, 2026-10-27)
+
+lib/push.ts (Firebase Cloud Messaging, both iPhone and Android),
+lib/push-text.ts (the words), docs/migration-push.sql, components/AppBridge.tsx
+(the phone side), /api/push/device and /api/push/settings.
+
+- **A push rides on the family email.** sendEmailWithId calls pushForEmail for
+  the kinds that have one: reminder, booked (and series), moved, cancelled,
+  school cancellation / closure, Swim Team closure, waitlist offer. A new
+  sender of those emails pushes for free; a new kind of notice needs an entry
+  in PUSHED and its words in push.* (three languages). The lesson report has
+  no email; review-progress calls pushReport.
+- **Push replaces the text, not the email.** familyUsesApp: the main account
+  has a phone with the app, notifications allowed, opened within 60 days, and
+  that switch on. Then the reminder cron, the school-cancel / closure texts
+  and the waitlist text skip the SMS. Otherwise SMS exactly as before.
+- Recipients mirror email: main, full guardian, view-only (viewerOk =
+  VIEWER_COPY). Each person has three switches (reports / reminders /
+  bookings) in My Account, shown only inside the app; closures and school
+  cancellations ('always') have none.
+- Never put the pool's address in a push (it shows on a locked screen).
+- Nothing is sent until FCM_SERVICE_ACCOUNT (the Firebase service account
+  JSON, as is or base64) is set; without it every family keeps its texts.
+- In the browser none of this runs: lib/native-app.ts only answers inside the
+  app, where Capacitor puts its bridge on window.

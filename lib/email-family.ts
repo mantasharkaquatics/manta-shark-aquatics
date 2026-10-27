@@ -43,7 +43,7 @@ const NO_GUARDIAN_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
    reminder, closures -- and their learning: the assessment report, the
    monthly report and certificates. Nothing about points, payments, receipts,
    refunds or the account. */
-const VIEWER_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
+export const VIEWER_COPY: ReadonlySet<EmailType> = new Set<EmailType>([
   'booking_confirmed', 'booking_series_confirmed', 'booking_rescheduled', 'booking_cancelled',
   'block_cancellation_notice', 'team_practice_cancelled', 'reminder_24h', 'fixed_class_moved',
   'partner_booking_confirmed', 'partner_absent_lesson_continues',
@@ -131,7 +131,7 @@ const reDate = (L: Locale, s?: string) => {
 /** A hold's end in the family's language ("10月23日 週五 3:15 AM"): the date
  *  follows the language, the clock stays 12-hour as everywhere else. Seen
  *  live 2026-10-22: the Chinese offer read "Fri, Oct 23, 3:15 AM". */
-function holdUntil(L: Locale, at?: string, fallback?: string): string {
+export function holdUntil(L: Locale, at?: string, fallback?: string): string {
   const d = at ? new Date(at) : null
   if (!d || isNaN(d.getTime()) || L === 'en') return fallback || ''
   const tz = 'America/Los_Angeles'
@@ -205,7 +205,7 @@ export function withCalendarNote(html: string, L: Locale): string {
 
 /** Why the pool is closed, in the family's language: a preset reason, or the
  *  desk's own words (sent as typed). */
-function closureReason(t: T, p: Pick<EmailPayload, 'closureReasonKey' | 'closureReasonText'>): string {
+export function closureReason(t: T, p: Pick<EmailPayload, 'closureReasonKey' | 'closureReasonText'>): string {
   return p.closureReasonKey && p.closureReasonKey !== 'other'
     ? t('closure.reason.' + p.closureReasonKey)
     : esc(p.closureReasonText || '')

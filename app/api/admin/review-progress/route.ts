@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { readJson, badRequest } from '@/lib/http'
 import { cleanSnapshot, syncApprovedSkills } from '@/lib/skill-progress-sync'
+import { pushReport } from '@/lib/push-text'
 
 /**
  * Confirms a lesson report: the skill scores and the note, as one card.
@@ -112,6 +113,10 @@ export async function POST(req: NextRequest) {
 
     await refreshNoteTranslations(supabase, note_id)
   }
+
+  // "CC has a new lesson report" on the family's phones (owner, 2026-10-27).
+  // There is no email for it; the dashboard shows a red dot as well.
+  await pushReport(supabase, { studentId: histRow.student_id, coachId: histRow.coach_id })
 
   return NextResponse.json({ ok: true })
 }
