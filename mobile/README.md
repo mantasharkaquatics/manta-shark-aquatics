@@ -18,8 +18,10 @@ notifications to the phone app").
 - Google Play: `branded.com.mantasharkaquaticss` (two s) is the live listing;
   `appId` here matches it. `branded.com.mantasharkaquatics` is suspended and
   unused.
-- App Store: the existing "Manta Shark Aquatics" app. Its bundle ID must be
-  set in Xcode (Signing & Capabilities) before the first archive.
+- App Store: the existing "Manta Shark Aquatics" app (Apple ID 6743440484),
+  bundle ID `branded.com.mantasharkaquatics` -- ONE s, unlike Android. It is
+  set in the Xcode project (capacitor.config.json's appId is Android's);
+  `npx cap sync` does not overwrite it.
 - Home-screen name: "Manta Shark". Store name stays "Manta Shark Aquatics".
 - Versions must be higher than the Wix builds: the App Store has 2.122618.631
   (use 3.0 or above); Android's versionCode must exceed the live one (read it
