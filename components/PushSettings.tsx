@@ -22,7 +22,8 @@ export default function PushSettings() {
 
   useEffect(() => {
     if (!isNativeApp()) return
-    pushPlugin()?.checkPermissions().then(p => setPhoneOff(p.receive === 'denied')).catch(() => {})
+    // Inside a promise: whatever the bridge returns, a throw stays here.
+    Promise.resolve().then(() => pushPlugin()?.checkPermissions()).then(p => setPhoneOff(p?.receive === 'denied')).catch(() => {})
     fetch('/api/push/settings', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d) setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false }) })

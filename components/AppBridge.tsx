@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
-import { appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken } from '@/lib/native-app'
+import { appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
 
 /* Push notifications inside the phone app (owner, 2026-10-27; lib/push.ts).
    Renders nothing, and does nothing in a browser.
@@ -63,15 +63,34 @@ export default function AppBridge() {
       fetch('/api/push/device', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }).catch(() => {})
     }
 
+    /* Listen to a native event without trusting the bridge's return value.
+       Inside the app the plugins are reached through Capacitor's raw bridge
+       (lib/native-app.ts), whose addListener does NOT return a promise; the
+       first build called .then on it, and that uncaught error took the whole
+       page down to "This page couldn't load" (found on the first Android
+       run, 2026-10-27). A push is extra: nothing here may break the site. */
+    const listen = (plugin: NativeListenable | null, event: string, fn: (e: unknown) => void) => {
+      if (!plugin) return
+      try {
+        const handle = plugin.addListener(event, fn)
+        Promise.resolve(handle).then(h => {
+          const remove = (h as { remove?: () => unknown } | null)?.remove
+          if (typeof remove === 'function') removers.push(() => { try { remove.call(h) } catch { /* gone */ } })
+        }).catch(() => {})
+      } catch { /* no listener, no crash */ }
+    }
+
     sync(true)
-    fm.addListener('tokenReceived', e => { if (e?.token) sync(false, e.token) }).then(l => removers.push(() => { l.remove() })).catch(() => {})
-    fm.addListener('notificationActionPerformed', e => {
-      const url = e?.notification?.data?.url
+    listen(fm, 'tokenReceived', e => {
+      const token = (e as { token?: string } | null)?.token
+      if (token) sync(false, token)
+    })
+    listen(fm, 'notificationActionPerformed', e => {
+      const url = (e as { notification?: { data?: Record<string, unknown> } } | null)?.notification?.data?.url
       // Our own pages only.
       if (typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')) window.location.assign(url)
-    }).then(l => removers.push(() => { l.remove() })).catch(() => {})
-    appPlugin()?.addListener('appStateChange', e => { if (e?.isActive) sync(false) })
-      .then(l => removers.push(() => { l.remove() })).catch(() => {})
+    })
+    listen(appPlugin(), 'appStateChange', e => { if ((e as { isActive?: boolean } | null)?.isActive) sync(false) })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
       if (event === 'SIGNED_IN') sync(true)

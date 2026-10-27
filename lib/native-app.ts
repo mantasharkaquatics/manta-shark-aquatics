@@ -7,26 +7,24 @@
    exactly as before. The plugins' JavaScript is NOT bundled into the site:
    the bridge already exposes them, and the browser build stays as it was. */
 
-type Listener = { remove: () => Promise<void> | void }
-
 export type PushPermission = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'
 
-export interface FirebaseMessagingPlugin {
+/** A plugin with events. Through the raw bridge addListener does NOT return a
+ *  promise (seen on Android, 2026-10-27), so its result is left unknown. */
+export interface NativeListenable {
+  addListener(event: string, fn: (e: unknown) => void): unknown
+}
+
+export interface FirebaseMessagingPlugin extends NativeListenable {
   checkPermissions(): Promise<{ receive: PushPermission }>
   requestPermissions(): Promise<{ receive: PushPermission }>
   getToken(): Promise<{ token: string }>
-  addListener(event: 'tokenReceived', fn: (e: { token: string }) => void): Promise<Listener>
-  addListener(event: 'notificationActionPerformed', fn: (e: { notification?: { data?: Record<string, unknown> } }) => void): Promise<Listener>
-}
-
-interface AppPlugin {
-  addListener(event: 'appStateChange', fn: (e: { isActive: boolean }) => void): Promise<Listener>
 }
 
 interface CapacitorGlobal {
   isNativePlatform?: () => boolean
   getPlatform?: () => string
-  Plugins?: { FirebaseMessaging?: FirebaseMessagingPlugin; App?: AppPlugin; [name: string]: unknown }
+  Plugins?: { FirebaseMessaging?: FirebaseMessagingPlugin; App?: NativeListenable; [name: string]: unknown }
 }
 
 function cap(): CapacitorGlobal | null {
@@ -45,7 +43,7 @@ export function appPlatform(): 'ios' | 'android' | null {
 }
 
 export const pushPlugin = (): FirebaseMessagingPlugin | null => cap()?.Plugins?.FirebaseMessaging ?? null
-export const appPlugin = (): AppPlugin | null => (cap()?.Plugins?.App as AppPlugin | undefined) ?? null
+export const appPlugin = (): NativeListenable | null => cap()?.Plugins?.App ?? null
 
 const TOKEN_KEY = 'msa_push_token'
 export function rememberedToken(): string | null {
