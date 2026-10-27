@@ -43,9 +43,16 @@ npx cap open ios      # Xcode
 npx cap open android  # Android Studio
 ```
 
-iOS, once in Xcode: Signing & Capabilities -> add "Push Notifications" and
-"Background Modes" (Remote notifications). Firebase needs the Apple push key
-(.p8) uploaded under Project settings -> Cloud Messaging.
+iOS: push is already set in the project (App/App.entitlements with
+aps-environment, Background Modes -> remote-notification in Info.plist, the
+team 86478NTHW4, GoogleService-Info.plist in the app's resources -- the file
+itself is not in git, so Xcode shows it red until it is added). Xcode only
+needs an Apple ID of the team signed in (Settings -> Accounts); automatic
+signing adds Push Notifications to the App ID. aps-environment says
+"development"; an App Store export switches it to production by itself.
+The Apple push key (Key ID 2PSRRV8ML6, "Manta Shark Push", Sandbox &
+Production) is uploaded to Firebase -> Project settings -> Cloud Messaging,
+both rows. The .p8 file can be downloaded only once; the owner keeps it.
 
 The server sends nothing until `FCM_SERVICE_ACCOUNT` (the Firebase service
 account key, JSON) is set on Vercel.
