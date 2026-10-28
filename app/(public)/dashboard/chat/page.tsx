@@ -37,6 +37,9 @@ const css = `
   border-radius: 8px; border: 0; background: transparent; color: #9fb3d6; }
 .ib-tabs button[aria-selected="true"] { background: #fff; color: ${BRAND.navy}; }
 .ib-tabs .dot { position: absolute; top: 6px; right: 14px; width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
+/* The X closes the messages the same way the arrow does (owner, 2026-10-28,
+   who asked for both). */
+.ib-back.ib-x { margin-left: 0; margin-right: -6px; }
 .ib-back:focus-visible, .ib-tabs button:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: -2px; }
 .ib-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: ${BRAND.paper}; }
 .ib-list { flex: 1; overflow-y: auto; padding: 14px 12px 24px; display: flex; flex-direction: column; gap: 10px; }
@@ -149,6 +152,9 @@ export default function ChatPage() {
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
         </button>
         <h1>{t('app.tab.chat')}</h1>
+        <button type="button" className="ib-back ib-x" onClick={back} aria-label={t('common.close')}>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
       </header>
       <div className="ib-tabs" role="tablist" aria-label={t('app.tab.chat')}>
         {tabs.map(x => (
