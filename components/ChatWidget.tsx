@@ -98,15 +98,16 @@ const PAGE_CSS = `
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
 /* The same room above the box as below it, the home-indicator band added
    below only while the keyboard is down: typing, the keyboard sits right
-   under the row (owner, 2026-10-28). */
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 6px 10px calc(7px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
-.pc-inp:focus-within { padding-bottom: 7px; }
+   under the row (owner, 2026-10-28). The box, the row and both buttons a
+   little bigger again, the buttons full 44px targets at the row's ends. */
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 9px 8px calc(10px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
+.pc-inp:focus-within { padding-bottom: 10px; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
 .pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
-.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 38px; font: inherit; font-size: 16px; padding: 0 14px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
-.pc-cam { width: 38px; height: 38px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
-.pc-send { width: 38px; height: 38px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 42px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
+.pc-cam { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+.pc-send { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
 .pc-cam:disabled { opacity: .5; cursor: not-allowed; }
 .pc-cam:focus-visible, .pc-send:focus-visible, .pc-strip:focus-visible, .pc-acts button:focus-visible, .pc-tsend:focus-visible, .pc-add:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
@@ -885,7 +886,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         )}
         <div className="pc-inp">
           <button type="button" className="pc-cam tap-auto" onClick={choosePhotos} disabled={photoBusy || !threadId || picked.length >= MAX_PHOTOS} aria-label={t('chat.photo.send')}>
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
           </button>
           <input ref={inputRef} className="kb-focus" aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}
             value={input} maxLength={800} onChange={e => setInput(e.target.value)}
@@ -895,7 +896,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               sendMessage()
             }} />
           <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z" /></svg>
+            <svg viewBox="0 0 24 24" width="23" height="23" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z" /></svg>
           </button>
         </div>
         {viewPhoto && (
