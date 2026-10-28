@@ -503,6 +503,13 @@ button. docs/migration-app-inbox.sql.
   logFamily writes without pushing: stage-ups (review-progress) and
   level-ups (setStudentLevel, not an assessment's first level). A new kind
   needs an icon in both lists. One red dot covers all three.
+- **Red dots** (owner, 2026-10-28): on 通知 when anything there is newer
+  than the last look, on 客服 when a desk or AI reply is unread (from
+  chat_threads.parent_last_read_at), each at the word's top right corner.
+  The 訊息 tab in the bottom bar shows the unread replies as a number,
+  else a dot for 通知 -- from GET /api/app/inbox?summary=1, asked on every
+  page, when the app comes back to the front and every minute
+  (components/AppShell).
 - **Event strips**: the same push_log rows of the kinds in CHAT_EVENT_KINDS
   (reports, stage/level ups, closures, booking changes) laid across the chat
   by time.

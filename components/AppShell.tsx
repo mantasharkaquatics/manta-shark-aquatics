@@ -93,6 +93,7 @@ const css = `
   .msa-tb [aria-current="page"] { color: ${BRAND.navy}; background: #e6edf8; }
   .msa-tb a:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -2px; }
   .msa-tb .ic { position: relative; display: block; width: 24px; height: 24px; }
+  .msa-tb .bd.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: -2px; right: -4px; border: 2px solid #fff; box-sizing: content-box; }
   .msa-tb .bd { position: absolute; top: -4px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
     background: #e5484d; color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-style: normal; }
 `
@@ -149,6 +150,25 @@ export default function AppShell() {
     return () => { subscription.unsubscribe(); off(); window.removeEventListener(CHAT_UNREAD_EVENT, sync) }
   }, [app])
 
+  /* The 訊息 tab's red mark (owner, 2026-10-28): a number for unread chat
+     replies, else a dot when 通知 has something newer than the last look.
+     Asked of the server on every page, when the app comes back to the
+     front, and every minute; the chat widget's own count is used too. */
+  const [inbox, setInbox] = useState<{ notices: boolean; chat: number }>({ notices: false, chat: 0 })
+  useEffect(() => {
+    if (!app || !signedIn) return
+    let live = true
+    const ask = () => {
+      if (document.visibilityState === 'hidden') return
+      fetch('/api/app/inbox?summary=1', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null))
+        .then(d => { if (live && d) setInbox({ notices: !!d.notices, chat: Number(d.chat) || 0 }) }).catch(() => {})
+    }
+    ask()
+    const id = setInterval(ask, 60000)
+    document.addEventListener('visibilitychange', ask)
+    return () => { live = false; clearInterval(id); document.removeEventListener('visibilitychange', ask) }
+  }, [app, signedIn, pathname])
+
   /* Down a little: small. Up a little, or back near the top: full size.
      A few pixels either way are ignored, so a resting thumb does not make
      the bar flicker. Left on <html> (msa-tabs-small) so the booking page's
@@ -185,6 +205,7 @@ export default function AppShell() {
   if (!app || pathname === '/dashboard/chat') return null
 
   const isRoot = TAB_ROOTS.has(pathname)
+  const chatCount = Math.max(unread, inbox.chat)
   const back = () => {
     if (window.history.length > 1) router.back()
     else router.push('/dashboard')
@@ -245,13 +266,16 @@ export default function AppShell() {
             const current = onTab(tab.key) ? 'page' as const : undefined
             const inner = (
               <>
-                <span className="ic">{tab.icon}{tab.key === 'chat' && unread > 0 && <i className="bd" aria-hidden="true">{unread > 9 ? '9+' : unread}</i>}</span>
+                <span className="ic">{tab.icon}{tab.key === 'chat' && (chatCount > 0
+                  ? <i className="bd" aria-hidden="true">{chatCount > 9 ? '9+' : chatCount}</i>
+                  : inbox.notices && <i className="bd dot" aria-hidden="true" />)}</span>
                 <span className="lb">{label}</span>
               </>
             )
             return (
               <Link key={tab.key} href={tab.href} aria-current={current}
-                aria-label={tab.key === 'chat' && unread > 0 ? `${label} · ${t('chat.unread', { n: unread })}` : undefined}>{inner}</Link>
+                aria-label={tab.key === 'chat' && chatCount > 0 ? `${label} · ${t('chat.unread', { n: chatCount })}`
+                  : tab.key === 'chat' && inbox.notices ? `${label} · ${t('inbox.new')}` : undefined}>{inner}</Link>
             )
           })}
         </nav>

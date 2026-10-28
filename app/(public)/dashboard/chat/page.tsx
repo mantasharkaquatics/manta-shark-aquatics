@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale, useT } from '@/lib/i18n/provider'
@@ -18,7 +18,8 @@ import { BRAND, FONT_BODY } from '@/lib/brand'
    (lib/announcements.ts, pinned first) and what the school told this
    person (90 days, push_log). 客服 is the chat with the AI and the desk
    (components/ChatWidget variant 'page'). A red dot on 通知 when something
-   there is newer than the last look. ?tab=notices (or the old ?tab=news,
+   there is newer than the last look, and on 客服 when a reply is unread
+   (owner, 2026-10-28). ?tab=notices (or the old ?tab=news,
    which a pushed announcement opens) opens on 通知.
 
    Fills the screen: the app's own top bar and tabs step aside on this page
@@ -26,7 +27,7 @@ import { BRAND, FONT_BODY } from '@/lib/brand'
 
 type Tab = 'chat' | 'notices'
 type Announcement = { id: string; title: string; body: string; pinned: boolean; created_at: string }
-type Inbox = { announcements: Announcement[]; closures: Closure[]; notices: ChatEvent[]; seen: { announcements: string | null; notices: string | null } }
+type Inbox = { announcements: Announcement[]; closures: Closure[]; notices: ChatEvent[]; seen: { announcements: string | null; notices: string | null }; chat?: number }
 
 const NEWS_ASKED = 'msa_news_push_asked'
 
@@ -39,7 +40,9 @@ const css = `
 .ib-tabs button { flex: 1; position: relative; min-height: 0; padding: 7px 0; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
   border-radius: 8px; border: 0; background: transparent; color: #9fb3d6; }
 .ib-tabs button[aria-selected="true"] { background: #fff; color: ${BRAND.navy}; }
-.ib-tabs .dot { position: absolute; top: 6px; right: 14px; width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
+.ib-tabs .lb { position: relative; display: inline-block; }
+/* At the word's top right corner (owner, 2026-10-28). */
+.ib-tabs .dot { position: absolute; top: -3px; right: -11px; width: 8px; height: 8px; border-radius: 50%; background: #e5484d; }
 /* The X closes the messages the same way the arrow does (owner, 2026-10-28,
    who asked for both). */
 .ib-back.ib-x { margin-left: 0; margin-right: -6px; }
@@ -82,6 +85,17 @@ export default function ChatPage() {
   // what was new stays marked while the family reads it.
   const [seenAtOpen, setSeenAtOpen] = useState<{ announcements: string | null; notices: string | null } | null>(null)
   const [askNews, setAskNews] = useState(false)
+  // Once 客服 has been on screen its replies are read; no dot on it after.
+  const [chatSeen, setChatSeen] = useState(false)
+  // (Opened with ?tab=notices, the first moment on 客服, before 通知 shows,
+  // is not a look at it.)
+  const beenOnNotices = useRef(false)
+  useEffect(() => {
+    if (tab === 'notices') { beenOnNotices.current = true; return }
+    const want = new URLSearchParams(window.location.search).get('tab')
+    if ((want === 'news' || want === 'notices') && !beenOnNotices.current) return
+    queueMicrotask(() => setChatSeen(true))
+  }, [tab])
 
   useEffect(() => {
     let live = true
@@ -94,11 +108,17 @@ export default function ChatPage() {
     return () => { live = false }
   }, [supabase, router])
 
+  // Which tab is on screen, for the inbox answer that lands after it opened.
+  const tabRef = useRef<Tab>('chat')
+  useEffect(() => { tabRef.current = tab }, [tab])
   const loadInbox = useCallback(() => {
-    fetch('/api/app/inbox', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then((d: Inbox | null) => {
-      if (!d) return
-      setInbox(d)
-      setSeenAtOpen(s => s ?? d.seen)
+    fetch('/api/app/inbox', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then((got: Inbox | null) => {
+      if (!got) return
+      setSeenAtOpen(s => s ?? got.seen)
+      // 通知 already open (?tab=notices) when the answer came: it is being
+      // looked at, so no dot for it.
+      const now = new Date().toISOString()
+      setInbox(tabRef.current === 'notices' ? { ...got, seen: { announcements: now, notices: now } } : got)
     }).catch(() => {})
   }, [])
   useEffect(() => { loadInbox() }, [loadInbox])
@@ -148,7 +168,7 @@ export default function ChatPage() {
 
   const tabs: { k: Tab; label: string; dot: boolean }[] = [
     { k: 'notices', label: t('inbox.tab.notices'), dot: noticesDot },
-    { k: 'chat', label: t('inbox.tab.chat'), dot: false },
+    { k: 'chat', label: t('inbox.tab.chat'), dot: tab !== 'chat' && !chatSeen && (inbox?.chat ?? 0) > 0 },
   ]
 
   return (
@@ -166,7 +186,7 @@ export default function ChatPage() {
       <div className="ib-tabs" role="tablist" aria-label={t('app.tab.chat')}>
         {tabs.map(x => (
           <button key={x.k} type="button" role="tab" aria-selected={tab === x.k} className="tap-auto" onClick={() => openTab(x.k)}>
-            {x.label}{x.dot && <i className="dot" aria-label={t('inbox.new')} />}
+            <span className="lb">{x.label}{x.dot && <i className="dot" aria-label={t('inbox.new')} />}</span>
           </button>
         ))}
       </div>
