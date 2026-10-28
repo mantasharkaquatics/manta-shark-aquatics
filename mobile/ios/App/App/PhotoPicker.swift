@@ -94,7 +94,7 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
             let opts = PHImageRequestOptions()
             opts.isSynchronous = true
             opts.deliveryMode = .highQualityFormat
-            opts.resizeMode = .accurate
+            opts.resizeMode = .exact
             opts.isNetworkAccessAllowed = true
             for asset in assets {
                 var picture: UIImage?
