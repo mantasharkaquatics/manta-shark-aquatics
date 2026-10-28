@@ -1847,7 +1847,7 @@
   "admin.members.fv.push.sent": "Sent to {n} phone(s). Check the phone.",
   "admin.members.fv.push.failed": "Not sent. Try again, or check the logs on Vercel.",
   "admin.nav.announcements": "Announcements",
-  "admin.ann.intro": "What you post here shows in the phone app under Messages > School news, exactly as typed.",
+  "admin.ann.intro": "Announcements posted here appear at the top of Messages → Notifications in the phone app (pinned ones first), exactly as you type them.",
   "admin.ann.title": "Title",
   "admin.ann.body": "Message",
   "admin.ann.pinned": "Pin to the top",

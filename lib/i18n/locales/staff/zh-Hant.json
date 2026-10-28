@@ -1847,7 +1847,7 @@
   "admin.members.fv.push.sent": "已送到 {n} 支手機，請看手機。",
   "admin.members.fv.push.failed": "沒有送出。請再試一次，或到 Vercel 看紀錄。",
   "admin.nav.announcements": "公告",
-  "admin.ann.intro": "在這裡發的公告會出現在手機 App 的「訊息 → 學校公告」，照您打的字顯示。",
+  "admin.ann.intro": "在這裡發的公告會出現在手機 App 的「訊息 → 通知」最上方（置頂的在最前面），照您打的字顯示。",
   "admin.ann.title": "標題",
   "admin.ann.body": "內容",
   "admin.ann.pinned": "置頂",

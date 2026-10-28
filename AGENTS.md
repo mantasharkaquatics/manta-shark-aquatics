@@ -478,7 +478,9 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 
 # The app's 訊息 screen (owner, 2026-10-28)
 
-/dashboard/chat, the app's 訊息 tab: three tabs under a navy header. The
+/dashboard/chat, the app's 訊息 tab: two tabs under a navy header, 通知
+then 客服, opening on 客服 (owner, 2026-10-28, who swapped them and dropped
+a third, 學校公告, folding it into 通知). The
 look is the school's own and kept quiet (owner, 2026-10-28, after a
 game-styled first version was "too much like a game"): a segmented control
 for the tabs, white bubbles, the family's own in navy, small round avatars,
@@ -489,16 +491,18 @@ button. docs/migration-app-inbox.sql.
   Inside the app the floating widget never opens: openChat() and ?chat=1 go
   to this page, which takes the waiting request. GlobalChat mounts nothing on
   this path, and AppShell steps aside (the page has its own header).
-- **學校公告**: active pool closures plus what the desk posts on Admin > 公告
-  (lib/announcements.ts), shown as typed. "Also push" sends category 'news',
-  which goes only to people who turned on 學校公告與活動 -- the one switch
-  that is OFF unless turned on (Apple 4.5.4). The page asks once, the first
-  time the tab is opened in the app.
-- **通知**: push_log, written by pushFamily for every person with the app
-  (whether or not that kind of push is switched off), in their phone's
-  language, kept 90 days (cleanup cron). logFamily writes without pushing:
-  stage-ups (review-progress) and level-ups (setStudentLevel, not an
-  assessment's first level). A new kind needs an icon in both lists.
+- **通知**, top down: active pool closures, what the desk posts on Admin >
+  公告 (lib/announcements.ts, pinned first, shown as typed), then push_log.
+  "Also push" sends category 'news' (opens ?tab=notices; the old ?tab=news
+  still works), which goes only to people who turned on 學校公告與活動 --
+  the one switch that is OFF unless turned on (Apple 4.5.4). The page asks
+  once, the first time 通知 is opened in the app. push_log is written by
+  pushFamily for every person with the app (whether or not that kind of
+  push is switched off), in their phone's language, kept 90 days (cleanup
+  cron); announcements are not logged there (they are listed above it).
+  logFamily writes without pushing: stage-ups (review-progress) and
+  level-ups (setStudentLevel, not an assessment's first level). A new kind
+  needs an icon in both lists. One red dot covers all three.
 - **Event strips**: the same push_log rows of the kinds in CHAT_EVENT_KINDS
   (reports, stage/level ups, closures, booking changes) laid across the chat
   by time.

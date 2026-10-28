@@ -53,7 +53,7 @@ export async function pushAnnouncement(svc: SupabaseClient, a: Pick<Announcement
       kind: 'announcement',
       log: false,
       viewerOk: true,
-      url: '/dashboard/chat?tab=news',
+      url: '/dashboard/chat?tab=notices',
       text: () => ({ title: a.title, body: body.length > 160 ? body.slice(0, 157) + '…' : body }),
     })
   }

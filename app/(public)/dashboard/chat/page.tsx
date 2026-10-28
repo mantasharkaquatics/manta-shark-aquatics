@@ -11,17 +11,20 @@ import { myParentId } from '@/lib/my-parent'
 import { isNativeApp } from '@/lib/native-app'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
-/* 訊息, the phone app's message screen (owner, 2026-10-28; the quiet school-colour style): three
-   tabs -- 客服 (the chat with the AI and the desk, components/ChatWidget
-   variant 'page'), 學校公告 (pool closures and the desk's announcements,
-   lib/announcements.ts) and 通知 (what the school told this person, 90 days,
-   push_log). A red dot on a tab with something newer than the last look.
-   ?tab=news / ?tab=notices open on those (a pushed announcement opens here).
+/* 訊息, the phone app's message screen (owner, 2026-10-28; the quiet school-colour style): two
+   tabs -- 通知 first, then 客服, which is where the screen opens (owner,
+   2026-10-28, who swapped them and dropped a third, 學校公告).
+   通知 holds, top down: active pool closures, the desk's announcements
+   (lib/announcements.ts, pinned first) and what the school told this
+   person (90 days, push_log). 客服 is the chat with the AI and the desk
+   (components/ChatWidget variant 'page'). A red dot on 通知 when something
+   there is newer than the last look. ?tab=notices (or the old ?tab=news,
+   which a pushed announcement opens) opens on 通知.
 
    Fills the screen: the app's own top bar and tabs step aside on this page
    (components/AppShell). */
 
-type Tab = 'chat' | 'news' | 'notices'
+type Tab = 'chat' | 'notices'
 type Announcement = { id: string; title: string; body: string; pinned: boolean; created_at: string }
 type Inbox = { announcements: Announcement[]; closures: Closure[]; notices: ChatEvent[]; seen: { announcements: string | null; notices: string | null } }
 
@@ -100,23 +103,26 @@ export default function ChatPage() {
   }, [])
   useEffect(() => { loadInbox() }, [loadInbox])
 
-  // Looking at a tab marks it read on the server (the dot goes next time).
+  // Looking at 通知 marks both what it shows read on the server (the dot
+  // goes next time): the announcements and the notices.
   const openTab = useCallback((k: Tab) => {
     setTab(k)
     if (k === 'chat') return
-    const mark = k === 'news' ? 'announcements' : 'notices'
-    fetch('/api/app/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mark }) }).catch(() => {})
-    setInbox(i => (i ? { ...i, seen: { ...i.seen, [mark]: new Date().toISOString() } } : i))
+    const now = new Date().toISOString()
+    for (const mark of ['announcements', 'notices']) {
+      fetch('/api/app/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mark }) }).catch(() => {})
+    }
+    setInbox(i => (i ? { ...i, seen: { announcements: now, notices: now } } : i))
   }, [])
   useEffect(() => {
     const want = new URLSearchParams(window.location.search).get('tab')
-    if (want === 'news' || want === 'notices') queueMicrotask(() => openTab(want))
+    if (want === 'news' || want === 'notices') queueMicrotask(() => openTab('notices'))
   }, [openTab])
 
-  /* 學校公告 opened for the first time inside the app: ask once whether to be
-     told of new ones (Apple 4.5.4 wants that yes from the family). */
+  /* 通知 opened for the first time inside the app: ask once whether to be
+     told of new announcements (Apple 4.5.4 wants that yes from the family). */
   useEffect(() => {
-    if (tab !== 'news' || !isNativeApp()) return
+    if (tab !== 'notices' || !isNativeApp()) return
     let asked = false
     try { asked = localStorage.getItem(NEWS_ASKED) === '1' } catch { /* private */ }
     if (asked) return
@@ -129,8 +135,10 @@ export default function ChatPage() {
   }
 
   const newer = (at: string, seen: string | null | undefined) => !seen || at > seen
-  const newsDot = !!inbox && tab !== 'news' && (inbox.announcements.some(a => newer(a.created_at, inbox.seen.announcements)) || inbox.closures.length > 0 && !inbox.seen.announcements)
-  const noticesDot = !!inbox && tab !== 'notices' && inbox.notices.some(n => newer(n.created_at, inbox.seen.notices))
+  const noticesDot = !!inbox && tab !== 'notices' && (
+    inbox.notices.some(n => newer(n.created_at, inbox.seen.notices))
+    || inbox.announcements.some(a => newer(a.created_at, inbox.seen.announcements))
+    || (inbox.closures.length > 0 && !inbox.seen.announcements))
   const when = (iso: string) => new Date(iso).toLocaleString(dateTag(locale), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
 
   const back = () => {
@@ -139,9 +147,8 @@ export default function ChatPage() {
   }
 
   const tabs: { k: Tab; label: string; dot: boolean }[] = [
-    { k: 'chat', label: t('inbox.tab.chat'), dot: false },
-    { k: 'news', label: t('inbox.tab.news'), dot: newsDot },
     { k: 'notices', label: t('inbox.tab.notices'), dot: noticesDot },
+    { k: 'chat', label: t('inbox.tab.chat'), dot: false },
   ]
 
   return (
@@ -168,7 +175,7 @@ export default function ChatPage() {
           ? <div className="ib-empty">{t('common.loading')}</div>
           : <ChatWidget key={parentId ?? 'none'} parentId={parentId} variant="page" events={inbox?.notices || []} />)}
 
-        {tab === 'news' && (
+        {tab === 'notices' && (
           <div className="ib-list">
             {askNews && (
               <div className="ib-ask" role="note">
@@ -195,32 +202,26 @@ export default function ChatPage() {
                     <small>{when(a.created_at)}</small>
                   </article>
                 ))}
-                {inbox.closures.length === 0 && inbox.announcements.length === 0 && <div className="ib-empty">{t('inbox.news.empty')}</div>}
+                {inbox.notices.map(n => {
+                  const inner = (
+                    <div className="ib-n">
+                      <span className="ico" aria-hidden="true">{ICON[n.kind] || '🔔'}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <h2>{n.title}</h2>
+                        {n.body && <p>{n.body}</p>}
+                        <small>{when(n.created_at)}</small>
+                      </div>
+                    </div>
+                  )
+                  const cls = 'ib-card' + (newer(n.created_at, seenAtOpen?.notices) ? ' new' : '')
+                  return n.url && n.url.startsWith('/') && !n.url.startsWith('//')
+                    ? <a key={n.id} href={n.url} className={cls} onClick={e => { e.preventDefault(); router.push(n.url!) }}>{inner}</a>
+                    : <div key={n.id} className={cls}>{inner}</div>
+                })}
+                {inbox.closures.length === 0 && inbox.announcements.length === 0 && inbox.notices.length === 0
+                  && <div className="ib-empty">{t('inbox.notices.empty')}</div>}
               </>
             )}
-          </div>
-        )}
-
-        {tab === 'notices' && (
-          <div className="ib-list">
-            {!inbox ? <div className="ib-empty">{t('common.loading')}</div>
-              : inbox.notices.length === 0 ? <div className="ib-empty">{t('inbox.notices.empty')}</div>
-              : inbox.notices.map(n => {
-                const inner = (
-                  <div className="ib-n">
-                    <span className="ico" aria-hidden="true">{ICON[n.kind] || '🔔'}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <h2>{n.title}</h2>
-                      {n.body && <p>{n.body}</p>}
-                      <small>{when(n.created_at)}</small>
-                    </div>
-                  </div>
-                )
-                const cls = 'ib-card' + (newer(n.created_at, seenAtOpen?.notices) ? ' new' : '')
-                return n.url && n.url.startsWith('/') && !n.url.startsWith('//')
-                  ? <a key={n.id} href={n.url} className={cls} onClick={e => { e.preventDefault(); router.push(n.url!) }}>{inner}</a>
-                  : <div key={n.id} className={cls}>{inner}</div>
-              })}
           </div>
         )}
       </div>
