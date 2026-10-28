@@ -69,19 +69,11 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         guard let vc = bridge?.viewController else { finish([]); return }
         let sheetVC = PhotoSheetController(limit: limit, labels: labels)
         sheetVC.onFinish = { [weak self] assets in self?.loadAssets(assets) }
-        sheetVC.modalPresentationStyle = .pageSheet
-        if let s = sheetVC.sheetPresentationController {
-            s.detents = [.medium(), .large()]
-            s.selectedDetentIdentifier = .medium
-            s.prefersGrabberVisible = true
-            // Scrolling the photos scrolls them; the sheet grows only when
-            // dragged by its top.
-            s.prefersScrollingExpandsWhenScrolledToEdge = false
-        }
-        // Swiped down without choosing: answer "nothing picked".
-        sheetVC.presentationController?.delegate = self
+        // The sheet draws itself (PhotoSheet.swift): over the chat, which
+        // stays in view, dimmed, above it.
+        sheetVC.modalPresentationStyle = .overFullScreen
         sheet = sheetVC
-        vc.present(sheetVC, animated: true)
+        vc.present(sheetVC, animated: false)
     }
 
     /// The photos picked in the app's sheet, shrunk and upright, one at a time.

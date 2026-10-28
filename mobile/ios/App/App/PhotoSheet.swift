@@ -6,7 +6,13 @@ import Photos
 /// photos below and a number on each one picked. No Cancel or Done (owner:
 /// "useless"): the photos picked when the sheet is swiped away, or the chat
 /// above it tapped, go to the chat's preview row, where they can still be
-/// taken off before 送出. Apple's picker cannot
+/// taken off before 送出.
+///
+/// The sheet is drawn here, not by iOS's page sheet: that one moved a little
+/// with every tap on a photo (a finger never taps without moving, and the
+/// sheet took the movement as a drag). Here only the top bar drags it --
+/// up to the full screen, down to close -- and the photos never move it.
+/// Apple's picker cannot
 /// show its top bar at half height, hence this one. It needs the photo
 /// library permission (NSPhotoLibraryUsageDescription in Info.plist); without
 /// it PhotoPickerPlugin falls back to Apple's picker.
@@ -42,6 +48,13 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     private let albumTable = UITableView(frame: .zero, style: .plain)
     private var shownAlbums: [Album] = []
 
+    private let dim = UIView()
+    private let panel = UIView()
+    private let grabber = UIView()
+    private var panelHeight: NSLayoutConstraint!
+    private var expanded = false
+    private var dragStart: CGFloat = 0
+
     init(limit: Int, labels: [String: String]) {
         self.limit = max(1, limit)
         self.labels = labels
@@ -59,13 +72,33 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .white
+        view.backgroundColor = .clear
         loadAlbums()
         album = albums.first
 
-        // The top bar: the album (▾) in the middle, the album search on the right
+        // The chat above, dimmed; a tap there closes the sheet.
+        dim.backgroundColor = UIColor(white: 0, alpha: 0.25)
+        dim.alpha = 0
+        dim.translatesAutoresizingMaskIntoConstraints = false
+        dim.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dimTapped)))
+        view.addSubview(dim)
+
+        panel.backgroundColor = .white
+        panel.layer.cornerRadius = 14
+        panel.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        panel.clipsToBounds = true
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+
+        // The top bar: the album (▾) in the middle, the album search on the
+        // right. Only this bar drags the sheet.
         header.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(header)
+        panel.addSubview(header)
+        header.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragged(_:))))
+        grabber.backgroundColor = UIColor(white: 0.82, alpha: 1)
+        grabber.layer.cornerRadius = 2.5
+        grabber.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(grabber)
 
         titleButton.setTitleColor(navy, for: .normal)
         titleButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .bold)
@@ -97,13 +130,13 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         grid.delegate = self
         grid.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.id)
         grid.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(grid)
+        panel.addSubview(grid)
 
         // The album list, with its search, over the photos when open.
         albumPanel.backgroundColor = .white
         albumPanel.isHidden = true
         albumPanel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(albumPanel)
+        panel.addSubview(albumPanel)
         searchBar.placeholder = word("search", "Search albums")
         searchBar.searchBarStyle = .minimal
         searchBar.delegate = self
@@ -117,14 +150,28 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         albumTable.translatesAutoresizingMaskIntoConstraints = false
         albumPanel.addSubview(albumTable)
 
+        panelHeight = panel.heightAnchor.constraint(equalToConstant: halfHeight)
         NSLayoutConstraint.activate([
+            dim.topAnchor.constraint(equalTo: view.topAnchor),
+            dim.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            dim.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            dim.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            panelHeight,
+
             // The top row sits in the middle of its band: as much room above
             // the words (the grabber's strip included) as below them, down
             // to the line over the photos (owner, 2026-10-28).
-            header.topAnchor.constraint(equalTo: view.topAnchor),
-            header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            header.topAnchor.constraint(equalTo: panel.topAnchor),
+            header.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
             header.heightAnchor.constraint(equalToConstant: 72),
+            grabber.topAnchor.constraint(equalTo: header.topAnchor, constant: 6),
+            grabber.centerXAnchor.constraint(equalTo: header.centerXAnchor),
+            grabber.widthAnchor.constraint(equalToConstant: 36),
+            grabber.heightAnchor.constraint(equalToConstant: 5),
 
             searchButton.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -12),
             searchButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
@@ -141,14 +188,14 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
             line.heightAnchor.constraint(equalToConstant: 1),
 
             grid.topAnchor.constraint(equalTo: header.bottomAnchor),
-            grid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            grid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            grid.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            grid.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            grid.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+            grid.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
 
             albumPanel.topAnchor.constraint(equalTo: header.bottomAnchor),
-            albumPanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            albumPanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            albumPanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            albumPanel.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            albumPanel.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+            albumPanel.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
             searchBar.topAnchor.constraint(equalTo: albumPanel.topAnchor, constant: 4),
             searchBar.leadingAnchor.constraint(equalTo: albumPanel.leadingAnchor, constant: 8),
             searchBar.trailingAnchor.constraint(equalTo: albumPanel.trailingAnchor, constant: -8),
@@ -158,6 +205,65 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
             albumTable.bottomAnchor.constraint(equalTo: albumPanel.bottomAnchor),
         ])
         refreshHeader()
+        // Starts below the screen; viewDidAppear slides it up.
+        panel.transform = CGAffineTransform(translationX: 0, y: halfHeight)
+    }
+
+    // MARK: - The sheet itself
+
+    private var screenHeight: CGFloat { view.bounds.height > 0 ? view.bounds.height : UIScreen.main.bounds.height }
+    private var halfHeight: CGFloat { round(screenHeight * 0.5) }
+    private var fullHeight: CGFloat { screenHeight - view.safeAreaInsets.top - 10 }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseOut]) {
+            self.panel.transform = .identity
+            self.dim.alpha = 1
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        grid.contentInset.bottom = view.safeAreaInsets.bottom
+        albumTable.contentInset.bottom = view.safeAreaInsets.bottom
+    }
+
+    private func setExpanded(_ full: Bool) {
+        expanded = full
+        panelHeight.constant = full ? fullHeight : halfHeight
+        UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut]) { self.view.layoutIfNeeded() }
+    }
+
+    @objc private func dimTapped() { finish(picked) }
+
+    /// Up: taller, to the full screen. Down: shorter; let go well below half
+    /// and the sheet closes, handing over what is picked.
+    @objc private func dragged(_ g: UIPanGestureRecognizer) {
+        let dy = g.translation(in: view).y
+        switch g.state {
+        case .began:
+            dragStart = panelHeight.constant
+        case .changed:
+            let h = dragStart - dy
+            if h >= halfHeight {
+                panel.transform = .identity
+                panelHeight.constant = min(fullHeight, h)
+            } else {
+                panelHeight.constant = halfHeight
+                panel.transform = CGAffineTransform(translationX: 0, y: halfHeight - h)
+            }
+        case .ended, .cancelled:
+            let v = g.velocity(in: view).y
+            let h = dragStart - dy
+            if h < halfHeight - 90 || (v > 900 && !expanded) {
+                finish(picked)
+            } else {
+                panel.transform = .identity
+                setExpanded(v < -600 || (v <= 600 && h > (halfHeight + fullHeight) / 2))
+            }
+        default: break
+        }
     }
 
     private func refreshHeader() {
@@ -197,9 +303,7 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
             albumTable.reloadData()
             if search {
                 // Room for the keyboard: the full screen.
-                if let sheet = sheetPresentationController {
-                    sheet.animateChanges { sheet.selectedDetentIdentifier = .large }
-                }
+                setExpanded(true)
                 searchBar.becomeFirstResponder()
             }
         } else {
@@ -299,12 +403,18 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     func finish(_ assets: [PHAsset]) {
         if finished { return }
         finished = true
+        searchBar.resignFirstResponder()
         let done = onFinish
-        if presentingViewController != nil {
-            dismiss(animated: true) { done?(assets) }
-        } else {
-            done?(assets)
-        }
+        UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn], animations: {
+            self.panel.transform = CGAffineTransform(translationX: 0, y: self.panelHeight.constant + 20)
+            self.dim.alpha = 0
+        }, completion: { _ in
+            if self.presentingViewController != nil {
+                self.dismiss(animated: false) { done?(assets) }
+            } else {
+                done?(assets)
+            }
+        })
     }
 }
 

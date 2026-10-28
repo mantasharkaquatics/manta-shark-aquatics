@@ -520,7 +520,7 @@ button. docs/migration-app-inbox.sql.
   choice and a search on top, like Facebook; Apple's picker hides its top
   bar at half height, so the app has its own sheet (PhotoSheet.swift:
   Recents and albums, a search over album names -- iOS lets no app search
-  photo contents -- numbered picks; no Cancel or Done, owner: swiping it away hands over what is picked, to the preview row). It needs the photo permission
+  photo contents -- numbered picks; no Cancel or Done, owner: swiping it away hands over what is picked, to the preview row). The sheet draws itself over the chat (overFullScreen): iOS's page sheet moved with every tap on a photo, so only its top bar drags it. It needs the photo permission
   (NSPhotoLibraryUsageDescription), asked once; a family that says no gets
   Apple's picker (PHPicker, no permission). Its words come from the page
   (chat.photo.sheet.*). Photos are shrunk to 1600px JPEG on the phone.
