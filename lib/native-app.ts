@@ -53,6 +53,11 @@ export interface PhotoPickerPlugin {
 export const photoPickerPlugin = (): PhotoPickerPlugin | null =>
   (cap()?.Plugins?.PhotoPicker as PhotoPickerPlugin | undefined) ?? null
 
+/** The app's language button (components/AppShell) asks the website bar
+ *  (components/Navbar), which stays mounted inside the app, to switch:
+ *  detail = the Locale. */
+export const APP_SET_LOCALE_EVENT = 'msa:set-locale'
+
 export const pushPlugin = (): FirebaseMessagingPlugin | null => cap()?.Plugins?.FirebaseMessaging ?? null
 export const appPlugin = (): NativeListenable | null => cap()?.Plugins?.App ?? null
 

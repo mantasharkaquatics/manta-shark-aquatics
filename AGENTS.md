@@ -449,6 +449,15 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   ?suggest=1. Notification switches live on 我的 (they only exist in the app).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
+- **The look of the two bars** (owner, 2026-10-28). Top: the website's phone
+  bar, a floating white card with MANTA SHARK and its chevron, never moving;
+  no book button or menu, a language button on the right, and a back arrow
+  before the name on any page that is not a tab. The language button asks
+  the hidden website bar to switch (APP_SET_LOCALE_EVENT; components/Navbar
+  keeps the saving rules in one place). Bottom: a floating white capsule,
+  icons with their names, the current one on a pale blue pill; scrolled
+  down, the names fold away and it narrows. --app-bar-h / --app-tab-h are
+  the room each takes, not their height.
 - iOS: the web view never reaches under the status bar or the home
   indicator: SafeAreaContainer (mobile/ios/App/App/SceneDelegate.swift) pins
   the bridge's view to the safe area and paints those bands white. The first

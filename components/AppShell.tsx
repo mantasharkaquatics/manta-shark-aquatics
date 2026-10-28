@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useT } from '@/lib/i18n/provider'
-import { appLook } from '@/lib/native-app'
+import { useT, useLocale } from '@/lib/i18n/provider'
+import { LOCALES, type Locale } from '@/lib/i18n'
+import { appLook, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
 import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY } from '@/lib/brand'
@@ -18,17 +19,22 @@ import { BRAND, FONT_BODY } from '@/lib/brand'
    What the app hides of the website is in app/globals.css (html.msa-app).
 
    The tabs are for a signed-in family; a view-only member has no 預約 (they
-   cannot book). The top bar names the tab, or offers a way back on any other
-   page (the account page, the programs page opened from 我的). */
+   cannot book).
+
+   The look (owner, 2026-10-28): the top bar is the website's phone bar -- a
+   floating white card with MANTA SHARK and its chevron -- without the book
+   button and the menu; a language button sits on the right, and on any page
+   that is not a tab a back arrow before the name. It never moves. The tabs
+   float as a white capsule above the bottom edge, icons with their names,
+   like Instagram's; scrolling down folds the names away and narrows it. */
 
 const noSubscribe = () => () => {}
 
-const TAB_ROOTS: Record<string, string> = {
-  '/dashboard': '',
-  '/booking': 'app.tab.book',
-  '/dashboard/schedule': 'app.tab.schedule',
-  '/dashboard/me': 'app.tab.me',
-}
+const TAB_ROOTS = new Set(['/dashboard', '/booking', '/dashboard/schedule', '/dashboard/me'])
+
+/* What the round language button says: the language you are in now (as the
+   website bar's, components/Navbar.tsx). */
+const LOCALE_SHORT: Record<Locale, string> = { en: 'EN', 'zh-Hant': '繁', 'zh-Hans': '简' }
 
 type Tab = { key: string; href: string; icon: React.ReactNode }
 
@@ -44,29 +50,45 @@ const ICONS = {
 }
 
 const css = `
-  .msa-ab { position: fixed; top: 0; left: 0; right: 0; z-index: 60; height: var(--app-bar-h); display: flex; align-items: center; gap: 10px;
-    padding: 0 14px; background: #fff; border-bottom: 1px solid ${BRAND.line}; font-family: ${FONT_BODY}; }
-  .msa-ab img { width: 30px; height: auto; display: block; }
-  .msa-ab b { font-size: 17px; font-weight: 800; color: ${BRAND.navy}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .msa-ab-back { width: 40px; height: 40px; min-height: 0; margin-left: -8px; border: 0; background: none; color: ${BRAND.navy};
+  /* The top bar: the website's floating white card (Navbar .rn-bar, phone size). */
+  .msa-ab { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 60; height: 56px; display: flex; align-items: center; gap: 4px;
+    padding: 0 8px 0 16px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16); font-family: ${FONT_BODY}; }
+  .msa-ab.sub { padding-left: 4px; }
+  .msa-ab-word { flex: 1; min-width: 0; display: inline-flex; align-items: center; font-weight: 800; font-size: 13.5px; letter-spacing: .26em;
+    color: ${BRAND.navy}; text-decoration: none; white-space: nowrap; padding: 8px 0; }
+  .msa-ab-word svg { width: 9px; height: 12px; margin-left: 8px; flex-shrink: 0; color: ${BRAND.blue}; }
+  .msa-ab-back { width: 40px; height: 40px; min-height: 0; border: 0; background: none; color: ${BRAND.navy}; flex-shrink: 0;
     display: grid; place-items: center; cursor: pointer; border-radius: 10px; }
-  .msa-ab-back:focus-visible { outline: 2px solid ${BRAND.blue}; }
-  .msa-tb { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: var(--app-tab-now); display: flex;
-    background: rgba(255,255,255,.97); border-top: 1px solid ${BRAND.line}; font-family: ${FONT_BODY}; transition: height .22s ease; }
-  /* Small while the page is scrolled down, full size again on the way up
-     (owner, 2026-10-27, "like Instagram"): the labels fold away, the icons
-     shrink a little. */
+  .msa-ab-lang { position: relative; flex-shrink: 0; }
+  .msa-ab-lang > button { width: 40px; height: 40px; min-height: 0; border-radius: 50%; border: 0; background: #eef1f6; color: ${BRAND.navy};
+    display: grid; place-items: center; font: inherit; font-weight: 800; font-size: 14px; line-height: 1; cursor: pointer; }
+  .msa-ab-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 200px; background: #fff; border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(10,22,48,.22); padding: 8px; }
+  .msa-ab-menu button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px;
+    padding: 10px 12px; border-radius: 8px; border: 0; background: none; text-align: left; font: inherit; font-weight: 700; font-size: 15px;
+    color: ${BRAND.ink}; cursor: pointer; }
+  .msa-ab-menu button[aria-pressed="true"] { color: ${BRAND.blue}; }
+  .msa-ab-back:focus-visible, .msa-ab-word:focus-visible, .msa-ab-lang button:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
+
+  /* The tabs: a floating white capsule (owner, 2026-10-28, "like Instagram",
+     with the names kept). Small while the page is scrolled down, full size
+     again on the way up: the names fold away and the capsule narrows. */
+  .msa-tb { position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 60; height: 64px;
+    display: flex; align-items: stretch; padding: 6px; border-radius: 32px; font-family: ${FONT_BODY};
+    background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
+    transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
+  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
   .msa-tb .lb { display: block; max-height: 14px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
-  html.msa-tabs-small .msa-tb .ic { transform: scale(.88); }
+  html.msa-tabs-small .msa-tb .ic { transform: scale(.9); }
   @media (prefers-reduced-motion: reduce) { .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
-  .msa-tb a, .msa-tb button { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    border: 0; background: none; padding: 0; font: inherit; font-size: 11px; font-weight: 800; color: #8a94a6; text-decoration: none;
-    cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .msa-tb [aria-current="page"] { color: ${BRAND.navy}; }
-  .msa-tb [aria-current="page"] svg { stroke: ${BRAND.amberHover}; }
-  .msa-tb a:focus-visible, .msa-tb button:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -4px; border-radius: 10px; }
+  .msa-tb a { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    border-radius: 26px; padding: 0; font-size: 10.5px; font-weight: 800; color: #7a869b; text-decoration: none;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
+  .msa-tb [aria-current="page"] { color: ${BRAND.navy}; background: #e6edf8; }
+  .msa-tb a:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -2px; }
   .msa-tb .ic { position: relative; display: block; width: 24px; height: 24px; }
   .msa-tb .bd { position: absolute; top: -4px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
     background: #e5484d; color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-style: normal; }
@@ -83,6 +105,30 @@ export default function AppShell() {
   const [viewer, setViewer] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
+  const locale = useLocale()
+  const [langOpen, setLangOpen] = useState(false)
+  const langRef = useRef<HTMLDivElement>(null)
+  const langBtnRef = useRef<HTMLButtonElement>(null)
+
+  // The language menu closes on a tap elsewhere, on Escape and on a new page.
+  useEffect(() => {
+    if (!langOpen) return
+    const onDown = (e: PointerEvent) => { if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setLangOpen(false); langBtnRef.current?.focus() } }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [langOpen])
+  useEffect(() => { const id = setTimeout(() => setLangOpen(false), 0); return () => clearTimeout(id) }, [pathname])
+
+  /* The website bar (components/Navbar) stays mounted, hidden, inside the
+     app and already knows how to change the language -- the main account's
+     saved language, a guardian's choice kept on the phone, the localised
+     address. It is asked to, rather than copied. */
+  const pickLocale = (l: Locale) => {
+    setLangOpen(false)
+    window.dispatchEvent(new CustomEvent(APP_SET_LOCALE_EVENT, { detail: l }))
+  }
 
   useEffect(() => {
     if (!app) return
@@ -131,8 +177,7 @@ export default function AppShell() {
   // The message screen fills the screen with its own header and tabs.
   if (!app || pathname === '/dashboard/chat') return null
 
-  const isRoot = pathname in TAB_ROOTS
-  const title = isRoot && TAB_ROOTS[pathname] ? t(TAB_ROOTS[pathname]) : 'Manta Shark'
+  const isRoot = TAB_ROOTS.has(pathname)
   const back = () => {
     if (window.history.length > 1) router.back()
     else router.push('/dashboard')
@@ -158,16 +203,33 @@ export default function AppShell() {
   return (
     <>
       <style>{css}</style>
-      <header className="msa-ab">
-        {isRoot ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/mascot.png" alt="" />
-        ) : (
+      <header className={'msa-ab' + (isRoot ? '' : ' sub')}>
+        {!isRoot && (
           <button type="button" className="msa-ab-back" onClick={back} aria-label={t('app.back')}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
           </button>
         )}
-        <b>{title}</b>
+        <Link href="/dashboard" className="msa-ab-word">
+          MANTA SHARK
+          <svg viewBox="0 0 12 14" aria-hidden="true">
+            <path d="M2.5 1.5 L9 7 L2.5 12.5" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
+        <div className="msa-ab-lang" ref={langRef}>
+          <button ref={langBtnRef} type="button" className="tap-auto" aria-label={t('nav.language')} aria-expanded={langOpen}
+            onClick={() => setLangOpen(o => !o)}>
+            {LOCALE_SHORT[locale]}
+          </button>
+          {langOpen && (
+            <div className="msa-ab-menu" role="group" aria-label={t('nav.language')}>
+              {LOCALES.map(l => (
+                <button key={l} type="button" aria-pressed={l === locale} onClick={() => pickLocale(l)}>
+                  {t('locale.' + l + '.native')}{l === locale && <span aria-hidden="true">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
       {signedIn && (
         <nav className="msa-tb" aria-label={t('app.tabs')}>

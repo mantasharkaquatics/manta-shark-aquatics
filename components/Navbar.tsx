@@ -9,6 +9,7 @@ import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import ClosureBanner from '@/components/ClosureBanner'
+import { APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
    pixels inside the window, the name set as a wordmark instead of the round logo,
@@ -293,6 +294,16 @@ export default function Navbar() {
     document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [open])
+
+  // The phone app's own language button (components/AppShell) asks here.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const next = (e as CustomEvent).detail
+      if (isLocale(next)) changeLocale(next)
+    }
+    window.addEventListener(APP_SET_LOCALE_EVENT, onAsk)
+    return () => window.removeEventListener(APP_SET_LOCALE_EVENT, onAsk)
+  })
 
   async function changeLocale(next: Locale) {
     setOpen(null)
