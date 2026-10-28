@@ -491,12 +491,16 @@ button. docs/migration-app-inbox.sql.
   served to the thread's family and to staff as a 5-minute signed link. The
   AI never sees one: ai-reply turns it into a line saying a photo was sent;
   with the AI on the thread it answers once that the desk will look, and the
-  desk is alerted (throttled).
+  desk is alerted (throttled). In the chat each photo is a fixed 180px
+  square (tap for the whole picture), so the list never grows as pictures
+  load and the chat opens already at its newest message -- placed before
+  paint, not scrolled to (owner, 2026-10-28).
 - **Pictures only, from the photo library** (owner, 2026-10-28: no camera,
   no files). An iPhone web page's file button always offers Take Photo and
   Choose File too, so the iOS app has its own plugin,
   mobile/ios/App/App/PhotoPicker.swift (PHPicker: no permission asked,
-  shrinks to 1600px JPEG; opens as a half-screen sheet, like Instagram),
+  shrinks to 1600px JPEG; Apple's full sheet, because at half height it
+  hides Photos / Collections and search, which the owner wants),
   registered in AppViewController.capacitorDidLoad;
   the page reaches it through photoPickerPlugin() (lib/native-app.ts).
   Android's file button already opens a picture-only picker, and iPhone

@@ -1,5 +1,5 @@
 'use client'
-import { Fragment, useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
@@ -73,7 +73,9 @@ const PAGE_CSS = `
 .pc-bub.mine a { color: #fff; }
 .pc-bub.ph { padding: 3px; background: transparent; border: 0; box-shadow: none; }
 .pc-photo { display: block; position: relative; padding: 0; border: 0; background: none; cursor: zoom-in; min-height: 0; }
-.pc-photo img { display: block; max-width: 220px; max-height: 280px; border-radius: 14px; }
+/* A fixed square (owner, 2026-10-28): the list never grows as pictures load,
+   so the chat opens already at its newest message. Tap for the whole photo. */
+.pc-photo img { display: block; width: 180px; height: 180px; object-fit: cover; border-radius: 14px; background: #e8edf5; }
 .pc-photo-wait { position: absolute; inset: auto 6px 6px auto; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 8px; }
 .pc-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .pc-acts button, .pc-acts a { font: inherit; font-size: 13.5px; font-weight: 700; padding: 7px 13px; border-radius: 999px; cursor: pointer; text-decoration: none; min-height: 0; }
@@ -452,21 +454,41 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
   const listRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
+  /* The conversation first appears already at its newest message (owner,
+     2026-10-28: the whole history used to fly past on opening). Until the
+     list has been placed once, and for a moment after while the rest of it
+     (event strips, a late message) arrives, it jumps there before paint;
+     only what comes in after that glides into view. */
+  const placedAtRef = useRef(0)
+  const lastSeenRef = useRef<{ id: string | null; awaiting: boolean }>({ id: null, awaiting: false })
+  useLayoutEffect(() => {
     const el = listRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages, awaitingAi])
+    if (!el) return
+    const now = Date.now()
+    const newest = messages.length ? String(messages[messages.length - 1].id) : null
+    const fresh = newest !== lastSeenRef.current.id || awaitingAi !== lastSeenRef.current.awaiting
+    lastSeenRef.current = { id: newest, awaiting: awaitingAi }
+    if (!placedAtRef.current || now - placedAtRef.current < 1500) {
+      el.scrollTop = el.scrollHeight
+      if (!placedAtRef.current && messages.length) placedAtRef.current = now
+      return
+    }
+    // A new message or the AI starting to type: glide to it. Anything else
+    // that made the list longer (event strips arriving): stay at the bottom
+    // without a visible move, if that is where the family was.
+    if (fresh) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    else if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) el.scrollTop = el.scrollHeight
+  }, [messages, awaitingAi, events.length])
 
   // Opening the panel shows the newest message. The thread is usually loaded
   // before the panel opens, so the effect above has nothing new to react to,
   // and the freshly mounted list used to sit at the oldest message.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return
-    const id = requestAnimationFrame(() => {
-      const el = listRef.current
-      if (el) el.scrollTop = el.scrollHeight
-    })
-    return () => cancelAnimationFrame(id)
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+    // A list mounted again (the panel reopened) is placed afresh.
+    placedAtRef.current = 0
   }, [open])
 
   useEffect(() => {
@@ -791,12 +813,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             const mine = m.sender_type === 'parent'
             const body = m.metadata?.photo ? (
               <button type="button" className="pc-photo tap-auto" onClick={() => setViewPhoto(photoSrc(m))} aria-label={t('chat.photo.open')}>
-                {/* A picture arriving makes the list taller: keep the newest in view. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoSrc(m)} alt={t('chat.photo.alt')} onLoad={() => {
-                  const el = listRef.current
-                  if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 400) el.scrollTop = el.scrollHeight
-                }} />
+                <img src={photoSrc(m)} alt={t('chat.photo.alt')} width={180} height={180} />
                 {m._local && <span className="pc-photo-wait">{t('chat.photo.sending')}</span>}
               </button>
             ) : renderBody(m.body, t('chat.openLink'))
@@ -1012,7 +1030,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                   {msg.metadata?.photo ? (
                     <a href={photoSrc(msg)} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photoSrc(msg)} alt={t('chat.photo.alt')} style={{ display: 'block', maxWidth: '100%', maxHeight: '280px', borderRadius: '10px' }} />
+                      <img src={photoSrc(msg)} alt={t('chat.photo.alt')} width={160} height={160} style={{ display: 'block', width: '160px', height: '160px', objectFit: 'cover', borderRadius: '10px', background: '#e8edf5' }} />
                     </a>
                   ) : renderBody(msg.body, t('chat.openLink'))}
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
