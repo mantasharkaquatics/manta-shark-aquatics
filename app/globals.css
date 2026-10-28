@@ -326,15 +326,20 @@
    leaves room for the tabs at the bottom. !important: Navbar's own <style>
    and inline styles come later. */
 /* --app-bar-h: the room the floating top card takes (8 + 56 + 8);
-   --app-tab-h: the room the floating tab capsule takes (10 + 64 + 10);
+   --app-tab-h: the room the floating tab capsule takes (10 + 64 + 10, plus
+   the iPhone's home-indicator band the page now runs under);
    --app-tab-now: the same while the capsule is small (owner, 2026-10-28). */
-html.msa-app { --app-bar-h: 72px; --app-tab-h: 84px; --app-tab-now: var(--app-tab-h);
+html.msa-app { --app-bar-h: 72px; --app-tab-h: calc(84px + env(safe-area-inset-bottom, 0px)); --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }
 html.msa-app .rn { top: var(--app-bar-h) !important; left: 0 !important; right: 0 !important; }
+/* The room kept for the tabs, in the colour the app's pages end in (the
+   account and family pages fade to #e9eff7), so no white shows under the
+   floating tabs once a page is scrolled to its end. */
+html.msa-app, html.msa-app body { background: #e9eff7; }
 html.msa-app body { padding-bottom: var(--app-tab-h); }
 /* The dashboard is two tabs: 首頁 without the lesson list, 課表 with only it. */
 html.msa-app [data-view="home"] .msa-sched,
@@ -342,4 +347,7 @@ html.msa-app [data-view="schedule"] .msa-home { display: none !important; }
 /* The booking page's bar along the bottom sits on the tabs, not under them. */
 html.msa-app .msa-book-bar { bottom: var(--app-tab-now) !important; transition: bottom .22s ease; }
 /* The tabs shrink while the page is scrolled down (components/AppShell). */
-html.msa-app.msa-tabs-small { --app-tab-now: 64px; }
+html.msa-app.msa-tabs-small { --app-tab-now: calc(64px + env(safe-area-inset-bottom, 0px)); }
+/* The booking bar sits on the tabs inside the app, so the home indicator is
+   not under it: no room for it. */
+html.msa-app .msa-book-bar { padding-bottom: 12px !important; }

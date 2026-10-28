@@ -38,9 +38,16 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
             config.selection = .ordered
             let picker = PHPickerViewController(configuration: config)
             picker.delegate = self
-            // Apple's own full sheet (owner, 2026-10-28): at half height the
-            // picker hides its top bar, and the owner wants Photos /
-            // Collections (Recents, albums) and search there, as Facebook has.
+            // Half the screen (owner, 2026-10-28, after trying the full one):
+            // the chat stays in view above it. At half height Apple's picker
+            // shows the photos alone; dragging the grabber up, or scrolling
+            // the photos, opens it full with Photos / Collections and search.
+            picker.modalPresentationStyle = .pageSheet
+            if let sheet = picker.sheetPresentationController {
+                sheet.detents = [.medium(), .large()]
+                sheet.selectedDetentIdentifier = .medium
+                sheet.prefersGrabberVisible = true
+            }
             // Swiped down without choosing: answer "nothing picked".
             picker.presentationController?.delegate = self
             guard let vc = self.bridge?.viewController else {

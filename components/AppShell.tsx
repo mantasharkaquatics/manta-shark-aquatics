@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { LOCALES, type Locale } from '@/lib/i18n'
-import { appLook, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
+import { appLook, coverViewport, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
 import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY } from '@/lib/brand'
@@ -171,8 +171,12 @@ export default function AppShell() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => { window.removeEventListener('scroll', onScroll); root.classList.remove('msa-tabs-small') }
   }, [app])
-  // A new page starts with the bar at full size.
-  useEffect(() => { document.documentElement.classList.remove('msa-tabs-small') }, [pathname])
+  // A new page starts with the bar at full size -- and, should a page change
+  // have rewritten the viewport tag, still covering the whole screen.
+  useEffect(() => {
+    document.documentElement.classList.remove('msa-tabs-small')
+    if (app) coverViewport()
+  }, [pathname, app])
 
   // The message screen fills the screen with its own header and tabs.
   if (!app || pathname === '/dashboard/chat') return null

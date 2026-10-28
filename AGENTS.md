@@ -458,14 +458,19 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   icons with their names, the current one on a pale blue pill; scrolled
   down, the names fold away and it narrows. --app-bar-h / --app-tab-h are
   the room each takes, not their height.
-- iOS: the web view never reaches under the status bar or the home
-  indicator: SafeAreaContainer (mobile/ios/App/App/SceneDelegate.swift) pins
-  the bridge's view to the safe area and paints those bands white. The first
-  build let the page run under them and covered them with white strips;
-  once scrolled, iOS put the fixed bottom tabs at the very bottom of the
-  screen and the strip cut them in half (owner, 2026-10-28). The app is
-  always in light mode (Info.plist UIUserInterfaceStyle), so the status bar
-  text stays dark on that white.
+- iOS: the status bar band stays white (SafeAreaContainer in
+  mobile/ios/App/App/SceneDelegate.swift starts the web view below it), and
+  the page runs to the very bottom, under the home indicator, with no inset
+  from iOS (contentInsetAdjustmentBehavior .never). Inside the app the
+  viewport is viewport-fit=cover (APP_DETECT_SCRIPT, coverViewport()), so
+  env(safe-area-inset-bottom) is the home-indicator band: the tabs, the
+  room kept for them (--app-tab-h) and the chat's input row add it.
+  Anything new fixed to the bottom of an app page must add it too. The
+  page colour behind the tabs is #e9eff7 (html.msa-app body). History
+  (owner, 2026-10-28): white strips over iOS's own insets cut the tabs in
+  half once scrolled; a web view inside the safe area left a white band
+  under the tabs. The app is always in light mode (Info.plist
+  UIUserInterfaceStyle), so the status bar text stays dark on that white.
 
 # The app's 訊息 screen (owner, 2026-10-28)
 
@@ -508,8 +513,9 @@ button. docs/migration-app-inbox.sql.
   no files). An iPhone web page's file button always offers Take Photo and
   Choose File too, so the iOS app has its own plugin,
   mobile/ios/App/App/PhotoPicker.swift (PHPicker: no permission asked,
-  shrinks to 1600px JPEG; Apple's full sheet, because at half height it
-  hides Photos / Collections and search, which the owner wants),
+  shrinks to 1600px JPEG; opens at half the screen -- the owner's choice
+  after trying the full sheet -- where Apple shows the photos alone; drag
+  it up for Photos / Collections and search),
   registered in AppViewController.capacitorDidLoad;
   the page reaches it through photoPickerPlugin() (lib/native-app.ts).
   Android's file button already opens a picture-only picker, and iPhone

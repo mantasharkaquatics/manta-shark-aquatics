@@ -23,15 +23,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// The bridge's web view, kept INSIDE the safe area (owner, 2026-10-28).
+/// Where the bridge's web view sits (owner, 2026-10-28).
 ///
 /// The first build let the page run under the status bar and the home
-/// indicator (contentInset "always") and covered those two bands with white
-/// strips. iOS then laid the page's fixed bottom tabs out to the very bottom
-/// of the screen once the page was scrolled, and the strip cut them in half.
-/// Now the web view simply never reaches those bands: this container pins it
-/// to the safe area and paints the bands white itself, so a fixed bar at
-/// bottom: 0 is always just above the home indicator, scrolled or not.
+/// indicator with iOS adding its own insets (contentInset "always"), and
+/// covered both bands with white strips; once scrolled, iOS put the fixed
+/// bottom tabs at the very bottom of the screen and the strip cut them in
+/// half. The second kept the web view inside the safe area; the band below
+/// the floating tabs then showed as a white strip. Now: the status bar band
+/// stays white (the web view starts below it), and the page runs to the very
+/// bottom with no inset from iOS, laying its tabs out above the home
+/// indicator itself (viewport-fit=cover, env(safe-area-inset-bottom)).
 /// Capacitor makes the web view the bridge controller's own view (its
 /// loadView is final), hence a container rather than a constraint.
 class SafeAreaContainer: UIViewController {
@@ -54,7 +56,11 @@ class SafeAreaContainer: UIViewController {
             child.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             child.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             child.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            child.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            // Down to the very bottom: the page runs under the home indicator,
+            // its own colour behind the floating tabs (owner, 2026-10-28: the
+            // white band below the tabs had to go). The page keeps its tabs
+            // above the indicator with env(safe-area-inset-bottom).
+            child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         child.didMove(toParent: self)
     }
@@ -70,5 +76,13 @@ class SafeAreaContainer: UIViewController {
 class AppViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(PhotoPickerPlugin())
+    }
+
+    /// The page lays itself out around the home indicator (viewport-fit=cover
+    /// inside the app, lib/native-app.ts); iOS adding its own inset as well
+    /// is what once pushed the fixed tabs about while scrolling.
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        webView?.scrollView.contentInsetAdjustmentBehavior = .never
     }
 }

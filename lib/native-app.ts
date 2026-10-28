@@ -79,8 +79,18 @@ export function rememberToken(token: string | null) {
    builds made before that are known by Capacitor's bridge instead. */
 export const APP_UA = 'MantaSharkApp'
 export const APP_CLASS = 'msa-app'
+/* Inside the app the page also runs under the iPhone's home indicator (owner,
+   2026-10-28: the white band under the tabs had to go), so the viewport is
+   told to cover the whole screen and env(safe-area-inset-bottom) says how
+   tall that band is. Browsers are left exactly as they were. */
+export function coverViewport() {
+  if (typeof document === 'undefined') return
+  const m = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
+  if (m && !/viewport-fit/.test(m.content)) m.content += ', viewport-fit=cover'
+}
 export const APP_DETECT_SCRIPT =
-  `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()))document.documentElement.classList.add('${APP_CLASS}')}catch(e){}`
+  `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){document.documentElement.classList.add('${APP_CLASS}');` +
+  `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
 export const appLook = () => typeof document !== 'undefined' && document.documentElement.classList.contains(APP_CLASS)
