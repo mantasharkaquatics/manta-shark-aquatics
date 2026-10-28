@@ -17,10 +17,13 @@ export const runtime = 'nodejs'
    metadata.photo. Shown through GET here, to the family of the thread and
    to staff, as a short-lived signed link.
 
-   POST multipart { thread_id, locale, file } -> { message, ack }
+   POST multipart { thread_id, locale, file (1-5 of them) } -> { messages, ack }
+   Each picture is its own message; the AI's answer and the desk's alert
+   come once for the lot (owner, 2026-10-28: up to 5 at a time).
    GET  ?id=<message id>                      -> 302 to the picture */
 
 const MAX_BYTES = 10 * 1024 * 1024
+const MAX_FILES = 5
 const PER_DAY = 30
 const BUCKET = 'chat-photos'
 
@@ -37,9 +40,9 @@ export async function POST(req: NextRequest) {
   const { parent, svc } = auth
   const form = await req.formData().catch(() => null)
   const threadId = form?.get('thread_id')
-  const file = form?.get('file')
-  if (typeof threadId !== 'string' || !(file instanceof Blob)) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
-  if (file.size === 0 || file.size > MAX_BYTES) return NextResponse.json({ error: 'Too large', code: 'too_large' }, { status: 413 })
+  const files = (form?.getAll('file') || []).filter((f): f is File => f instanceof Blob)
+  if (typeof threadId !== 'string' || files.length === 0 || files.length > MAX_FILES) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+  if (files.some(f => f.size === 0 || f.size > MAX_BYTES)) return NextResponse.json({ error: 'Too large', code: 'too_large' }, { status: 413 })
   const locale = toLocale(String(form?.get('locale') || 'en'))
 
   const { data: thread } = await svc.from('chat_threads').select('id, parent_id, mode').eq('id', threadId).maybeSingle()
@@ -48,26 +51,37 @@ export async function POST(req: NextRequest) {
   const { count } = await svc.from('chat_messages').select('id', { count: 'exact', head: true })
     .eq('thread_id', thread.id).eq('sender_type', 'parent').not('metadata->>photo', 'is', null)
     .gte('created_at', new Date(Date.now() - 86400000).toISOString())
-  if ((count || 0) >= PER_DAY) return NextResponse.json({ error: 'Too many', code: 'limited' }, { status: 429 })
+  if ((count || 0) + files.length > PER_DAY) return NextResponse.json({ error: 'Too many', code: 'limited' }, { status: 429 })
 
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const kind = kindOf(bytes)
-  if (!kind) return NextResponse.json({ error: 'Not a picture', code: 'not_image' }, { status: 415 })
-  const path = `${parent.id}/${thread.id}/${randomUUID()}.${kind.ext}`
-  const up = await svc.storage.from(BUCKET).upload(path, bytes, { contentType: kind.type, upsert: false })
-  if (up.error) {
-    console.error('[chat/photo] upload', up.error.message)
-    return NextResponse.json({ error: 'failed' }, { status: 500 })
+  // All checked before anything is stored: one bad file stops the lot.
+  const pics: { bytes: Uint8Array; ext: string; type: string }[] = []
+  for (const f of files) {
+    const bytes = new Uint8Array(await f.arrayBuffer())
+    const kind = kindOf(bytes)
+    if (!kind) return NextResponse.json({ error: 'Not a picture', code: 'not_image' }, { status: 415 })
+    pics.push({ bytes, ...kind })
   }
 
   const t = getT(locale)
-  const { data: message, error } = await svc.from('chat_messages')
-    .insert({ thread_id: thread.id, sender_type: 'parent', body: '📷', metadata: { photo: path } })
-    .select('*').single()
-  if (error || !message) {
-    console.error('[chat/photo] message', error?.message)
-    await svc.storage.from(BUCKET).remove([path])
-    return NextResponse.json({ error: 'failed' }, { status: 500 })
+  const messages: unknown[] = []
+  for (const pic of pics) {
+    const path = `${parent.id}/${thread.id}/${randomUUID()}.${pic.ext}`
+    const up = await svc.storage.from(BUCKET).upload(path, pic.bytes, { contentType: pic.type, upsert: false })
+    if (up.error) {
+      console.error('[chat/photo] upload', up.error.message)
+      if (!messages.length) return NextResponse.json({ error: 'failed' }, { status: 500 })
+      break
+    }
+    const { data: message, error } = await svc.from('chat_messages')
+      .insert({ thread_id: thread.id, sender_type: 'parent', body: '📷', metadata: { photo: path } })
+      .select('*').single()
+    if (error || !message) {
+      console.error('[chat/photo] message', error?.message)
+      await svc.storage.from(BUCKET).remove([path])
+      if (!messages.length) return NextResponse.json({ error: 'failed' }, { status: 500 })
+      break
+    }
+    messages.push(message)
   }
 
   // The thread is with the AI: it says, once per photo, that a person will
@@ -86,7 +100,7 @@ export async function POST(req: NextRequest) {
   }).eq('id', thread.id)
   await alertDeskChat(svc, { threadId: thread.id, parentFirstName: parent.first_name, reason: 'They sent a photo in the chat.' })
 
-  return NextResponse.json({ ok: true, message, ack })
+  return NextResponse.json({ ok: true, messages, ack })
 }
 
 export async function GET(req: NextRequest) {

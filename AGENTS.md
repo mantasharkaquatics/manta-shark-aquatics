@@ -457,8 +457,12 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 
 # The app's 訊息 screen (owner, 2026-10-28)
 
-/dashboard/chat, the app's 訊息 tab: three tabs drawn after a game's chat
-(navy and gold frames). docs/migration-app-inbox.sql.
+/dashboard/chat, the app's 訊息 tab: three tabs under a navy header. The
+look is the school's own and kept quiet (owner, 2026-10-28, after a
+game-styled first version was "too much like a game"): a segmented control
+for the tabs, white bubbles, the family's own in navy, small round avatars,
+cards and event strips white with an amber left edge, a round amber send
+button. docs/migration-app-inbox.sql.
 
 - **客服** is the family's chat itself -- ChatWidget with variant 'page'.
   Inside the app the floating widget never opens: openChat() and ?chat=1 go
@@ -477,10 +481,15 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 - **Event strips**: the same push_log rows of the kinds in CHAT_EVENT_KINDS
   (reports, stage/level ups, closures, booking changes) laid across the chat
   by time.
-- **Photos** (app/api/chat/photo): private bucket chat-photos, the path in
-  chat_messages.metadata.photo, served to the thread's family and to staff as
-  a 5-minute signed link. The AI never sees one: ai-reply turns it into a
+- **Photos** (app/api/chat/photo): picked first, shown as a row of previews
+  (each can be taken off, more added), and sent only on 送出 -- up to 5 at
+  once, each its own message; one AI answer and one desk alert per batch.
+  Private bucket chat-photos, the path in chat_messages.metadata.photo,
+  served to the thread's family and to staff as a 5-minute signed link. The AI never sees one: ai-reply turns it into a
   line saying a photo was sent; with the AI on the thread it answers once
   that the desk will look, and the desk is alerted (throttled).
+- **Desk replies carry the staff member's first name** (「櫃台 · Mitzi」):
+  app/api/admin/chat-message stores it in metadata.desk_name when sent.
+  Older replies, and staff with no first name, show 櫃台 alone.
 - Buttons in AI replies were already there (metadata.options, <<OPTIONS>> in
   lib/ai/system-prompt.ts); the page only draws them in the new style.

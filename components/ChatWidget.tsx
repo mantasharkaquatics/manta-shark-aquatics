@@ -42,60 +42,65 @@ function renderBody(text: string, linkLabel: string) {
 // sent -- through openChat() in lib/chat-open.
 // lift: extra px above the bottom edge, for pages whose own sticky action bar
 // would otherwise sit under the button (the booking page on a phone).
-/* The app's chat page, school colours (owner, 2026-10-28, sample B): navy
-   and gold frames on a light sea, the school's words in white bubbles with a
-   blue rim, the family's in warm cream with an amber rim. */
+/* The app's chat page (owner, 2026-10-28). First drawn after a game's chat;
+   the owner found that too much like a game the same day and chose the quiet
+   school-colour version: light page, white bubbles, the family's own in navy,
+   small round pictures, the school's notices as small cards. */
 const PAGE_CSS = `
-.pc { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; font-family: ${FONT_BODY};
-  background: radial-gradient(ellipse at 50% 20%, #eef6ff 0, #d6e7fb 55%, #b7d3f4 100%); }
-.pc-mode { text-align: center; font-size: 12px; font-weight: 700; color: #36507e; padding: 6px 12px 0; }
-.pc-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.pc-empty { margin: 40px auto 0; text-align: center; color: #36507e; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
-.pc-empty span { font-size: 34px; }
-.pc-pill { align-self: center; font-size: 11.5px; font-weight: 800; padding: 3px 14px; border-radius: 999px; background: ${BRAND.navy}; color: ${BRAND.yellow}; }
-.pc-note { align-self: center; max-width: 90%; text-align: center; font-size: 12px; color: #36507e; background: rgba(255,255,255,.6); border-radius: 10px; padding: 4px 10px; }
-.pc-strip { margin: 2px -12px; padding: 9px 14px; font-size: 13px; text-align: center; line-height: 1.45; text-decoration: none;
-  background: rgba(18,37,74,.9); color: #fff; border-top: 1px solid ${BRAND.yellow}; border-bottom: 1px solid ${BRAND.yellow}; display: block; }
-.pc-strip b { color: ${BRAND.yellow}; font-weight: 800; }
-.pc-strip u { text-decoration: none; color: #fff; font-weight: 800; white-space: nowrap; }
-.pc-row { display: flex; gap: 8px; align-items: flex-start; }
+.pc { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; font-family: ${FONT_BODY}; background: ${BRAND.paper}; }
+.pc-mode { text-align: center; font-size: 12px; color: ${BRAND.mute}; padding: 6px 12px 0; }
+.pc-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.pc-empty { margin: 40px auto 0; text-align: center; color: ${BRAND.mute}; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
+.pc-empty span { font-size: 32px; }
+.pc-pill { align-self: center; font-size: 11.5px; font-weight: 600; color: #8a94a6; padding: 6px 0 0; }
+.pc-note { align-self: center; max-width: 90%; text-align: center; font-size: 12px; color: ${BRAND.mute}; }
+.pc-strip { display: flex; align-items: center; gap: 10px; margin: 2px 4px; padding: 10px 12px; border-radius: 10px; text-decoration: none;
+  background: #fff; border: 1px solid ${BRAND.line}; border-left: 3px solid ${BRAND.amber}; color: ${BRAND.ink}; font-size: 13.5px; line-height: 1.45; }
+.pc-strip b { font-weight: 700; flex: 1; min-width: 0; }
+.pc-strip u { text-decoration: none; color: ${BRAND.blue}; font-weight: 800; white-space: nowrap; }
+.pc-row { display: flex; gap: 8px; align-items: flex-end; }
 .pc-row.me { justify-content: flex-end; }
-.pc-av { position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; font-weight: 900; font-size: 18px;
-  border: 3px solid ${BRAND.amber}; box-shadow: inset 0 0 0 2px #fff; }
-.pc-av img { width: 32px; height: auto; display: block; }
-.pc-av i { position: absolute; top: -7px; right: -9px; font-style: normal; font-size: 9.5px; font-weight: 900; padding: 1px 5px; border-radius: 6px;
-  background: ${BRAND.amber}; color: ${BRAND.navy}; border: 1px solid #fff; white-space: nowrap; }
-.pc-av-ai { background: #fff; }
-.pc-av-desk { background: ${BRAND.blue}; color: #fff; font-size: 20px; }
-.pc-av-me { background: ${BRAND.navy}; color: #fff; }
-.pc-col { max-width: calc(100% - 64px); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pc-av { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; margin-bottom: 2px; }
+.pc-av img { width: 21px; height: auto; display: block; }
+.pc-av-ai { background: #fff; border: 1px solid ${BRAND.line}; }
+.pc-av-desk { background: ${BRAND.navy}; color: #fff; }
+.pc-col { max-width: min(78%, 420px); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pc-row.me .pc-col { align-items: flex-end; }
-.pc-nm { font-size: 11.5px; font-weight: 800; }
-.pc-nm b { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; }
-.pc-tag-ai { background: ${BRAND.navy}; color: ${BRAND.yellow}; }
-.pc-tag-desk { background: ${BRAND.blue}; color: #fff; }
-.pc-bub { font-size: 15px; line-height: 1.55; padding: 9px 13px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere;
-  background: #fff; border: 2.5px solid ${BRAND.blue}; color: ${BRAND.ink}; box-shadow: 0 2px 0 #9fb8e6; }
-.pc-bub.mine { background: #fff4dc; border-color: ${BRAND.amber}; color: #4a3000; box-shadow: 0 2px 0 #f3c97a; }
-.pc-bub.ph { padding: 4px; }
-.pc-photo { display: block; position: relative; padding: 0; border: 0; background: none; cursor: zoom-in; }
-.pc-photo img { display: block; max-width: 220px; max-height: 280px; border-radius: 10px; }
-.pc-photo-wait { position: absolute; inset: auto 6px 6px auto; font-size: 11px; font-weight: 800; color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 8px; }
+.pc-nm { font-size: 11.5px; font-weight: 700; color: ${BRAND.mute}; padding-left: 4px; }
+.pc-bub { font-size: 15px; line-height: 1.55; padding: 9px 13px; border-radius: 18px 18px 18px 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: #fff; border: 1px solid ${BRAND.line}; color: ${BRAND.ink}; box-shadow: 0 1px 2px rgba(18,37,74,.06); }
+.pc-bub.mine { background: ${BRAND.navy}; border-color: ${BRAND.navy}; color: #fff; border-radius: 18px 18px 6px 18px; }
+.pc-bub.mine a { color: #fff; }
+.pc-bub.ph { padding: 3px; background: transparent; border: 0; box-shadow: none; }
+.pc-photo { display: block; position: relative; padding: 0; border: 0; background: none; cursor: zoom-in; min-height: 0; }
+.pc-photo img { display: block; max-width: 220px; max-height: 280px; border-radius: 14px; }
+.pc-photo-wait { position: absolute; inset: auto 6px 6px auto; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 8px; }
 .pc-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-.pc-acts button, .pc-acts a { font: inherit; font-size: 13.5px; font-weight: 800; padding: 7px 12px; border-radius: 10px; cursor: pointer; text-decoration: none; min-height: 0; }
-.pc-a1 { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 2px solid #c97f00; }
-.pc-a2 { background: #fff; color: ${BRAND.blue}; border: 2px solid #9fb8e6; }
+.pc-acts button, .pc-acts a { font: inherit; font-size: 13.5px; font-weight: 700; padding: 7px 13px; border-radius: 999px; cursor: pointer; text-decoration: none; min-height: 0; }
+.pc-a1 { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 0; }
+.pc-a2 { background: #fff; color: ${BRAND.navy}; border: 1px solid #d6e0ee; }
 .pc-acts button:disabled { opacity: .6; cursor: not-allowed; }
 .pc-dots { display: flex; gap: 5px; align-items: center; padding: 13px 14px; }
 .pc-dots span { width: 7px; height: 7px; border-radius: 50%; background: #8a97ad; animation: msaTypingBlink 1.2s infinite; }
 .pc-err { font-size: 13px; color: #9b1c1c; background: #fdecec; border-top: 1px solid #f5c2c2; padding: 8px 14px; }
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 10px 10px 12px; background: ${BRAND.navy}; }
-.pc-inp input:not([type=file]) { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 11px 13px; border-radius: 12px; border: 2px solid #3b64a8; background: #fff; color: ${BRAND.ink}; outline: none; }
-.pc-cam { width: 46px; height: 46px; min-height: 0; flex-shrink: 0; border-radius: 12px; border: 2px solid #3b64a8; background: #fff; font-size: 20px; cursor: pointer; }
-.pc-send { height: 46px; min-height: 0; flex-shrink: 0; padding: 0 18px; border-radius: 12px; border: 2px solid #c97f00; font: inherit; font-weight: 900; font-size: 16px;
-  background: linear-gradient(180deg, #ffb733, ${BRAND.amber}); color: ${BRAND.navy}; cursor: pointer; }
-.pc-send:disabled, .pc-cam:disabled { opacity: .55; cursor: not-allowed; }
-.pc-cam:focus-visible, .pc-send:focus-visible, .pc-strip:focus-visible, .pc-acts button:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: 2px; }
+.pc-tray { background: #fff; border-top: 1px solid ${BRAND.line}; padding: 12px 12px 8px; }
+.pc-thumbs { display: flex; gap: 10px; overflow-x: auto; padding: 6px 2px 2px; }
+.pc-th { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
+.pc-th img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; }
+.pc-th button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; min-height: 0; border-radius: 50%; border: 2px solid #fff; background: ${BRAND.navy}; color: #fff; font-size: 11px; line-height: 1; cursor: pointer; padding: 0; }
+.pc-add { flex-shrink: 0; width: 64px; height: 64px; min-height: 0; border-radius: 10px; border: 1.5px dashed #b5c3d8; background: #f4f7fb; color: ${BRAND.mute}; font-size: 24px; cursor: pointer; }
+.pc-trow { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.pc-trow span { flex: 1; font-size: 13px; color: ${BRAND.mute}; }
+.pc-tcancel { min-height: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: ${BRAND.mute}; cursor: pointer; padding: 8px 4px; }
+.pc-tsend { min-height: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 800; font-size: 14px; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; }
+.pc-tsend:disabled { opacity: .6; cursor: wait; }
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 8px 10px 10px; background: #fff; border-top: 1px solid ${BRAND.line}; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 10px 14px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
+.pc-cam { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+.pc-send { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+.pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
+.pc-cam:disabled { opacity: .5; cursor: not-allowed; }
+.pc-cam:focus-visible, .pc-send:focus-visible, .pc-strip:focus-visible, .pc-acts button:focus-visible, .pc-tsend:focus-visible, .pc-add:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
 .pc-view { position: fixed; inset: 0; z-index: 1100; background: rgba(5,12,26,.92); display: grid; place-items: center; padding: 16px; }
 .pc-view img { max-width: 100%; max-height: 100%; border-radius: 8px; }
 .pc-view button { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 20px; }
@@ -147,12 +152,11 @@ async function shrinkPhoto(file: File): Promise<Blob> {
 
 /* variant 'page' (owner, 2026-10-28): the phone app's 客服 tab
    (app/(public)/dashboard/chat) -- the same conversation, always open,
-   filling the screen, drawn after a game's chat: framed pictures, time
-   pills, the school's notices as strips across it, a photo button and a big
-   send button. In the app the floating widget never opens; asking it to
+   filling the screen: the school's notices as small cards in it by time, a
+   photo button (up to 5, picked then sent) and buttons in the AI's replies. In the app the floating widget never opens; asking it to
    (openChat, ?chat=1) goes to that page instead. */
-export default function ChatWidget({ parentId, lift = 0, variant = 'float', events = [], myName = '' }: {
-  parentId: string | null; lift?: number; variant?: 'float' | 'page'; events?: ChatEvent[]; myName?: string
+export default function ChatWidget({ parentId, lift = 0, variant = 'float', events = [] }: {
+  parentId: string | null; lift?: number; variant?: 'float' | 'page'; events?: ChatEvent[]
 }) {
   const t = useT()
   const locale = useLocale()
@@ -670,32 +674,46 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   const fileRef = useRef<HTMLInputElement>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [viewPhoto, setViewPhoto] = useState<string | null>(null)
-  async function sendPhoto(file: File) {
-    if (!threadId || guest || photoBusy) return
+  /* Picked first, sent on 送出 (owner, 2026-10-28: a tap on a picture used
+     to send it at once). Up to MAX_PHOTOS, shown above the box, each with an
+     ✕; ＋ adds more. */
+  const MAX_PHOTOS = 5
+  const [picked, setPicked] = useState<{ file: File; url: string }[]>([])
+  const pick = (list: FileList | null) => {
+    const files = Array.from(list || []).filter(f => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name))
+    setPicked(prev => [...prev, ...files.slice(0, MAX_PHOTOS - prev.length).map(file => ({ file, url: URL.createObjectURL(file) }))])
+  }
+  const unpick = (url: string) => setPicked(prev => { URL.revokeObjectURL(url); return prev.filter(p => p.url !== url) })
+  const clearPicked = () => setPicked(prev => { prev.forEach(p => URL.revokeObjectURL(p.url)); return [] })
+  async function sendPhotos() {
+    const batch = picked
+    if (!threadId || guest || photoBusy || !batch.length) return
     setPhotoBusy(true); setSendFailed(null)
-    const local = URL.createObjectURL(file)
-    const tmpId = 'local-photo-' + Date.now()
-    setMessages(prev => [...prev, { id: tmpId, _local: true, _src: local, sender_type: 'parent', body: '📷', metadata: { photo: 'local' }, created_at: new Date().toISOString() }])
+    setPicked([])
+    const stamp = Date.now()
+    const temps = batch.map((p, i) => ({ id: `local-photo-${stamp}-${i}`, _local: true, _src: p.url, sender_type: 'parent', body: '📷', metadata: { photo: 'local' }, created_at: new Date(stamp + i).toISOString() }))
+    const tempIds = new Set(temps.map(x => x.id))
+    setMessages(prev => [...prev, ...temps])
     let code = ''
     try {
       const fd = new FormData()
       fd.append('thread_id', threadId)
       fd.append('locale', locale)
-      fd.append('file', await shrinkPhoto(file), 'photo.jpg')
+      for (const p of batch) fd.append('file', await shrinkPhoto(p.file), 'photo.jpg')
       const r = await fetch('/api/chat/photo', { method: 'POST', body: fd })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { code = d.code || 'failed'; throw new Error(code) }
       setMessages(prev => {
-        const rest = prev.filter(m => m.id !== tmpId)
-        const add = [d.message, d.ack].filter(Boolean).filter((x: any) => !rest.some(m => m.id === x.id))
+        const rest = prev.filter(m => !tempIds.has(m.id))
+        const add = [...(d.messages || []), d.ack].filter(Boolean).filter((x: any) => !rest.some(m => m.id === x.id))
         return [...rest, ...add]
       })
     } catch {
-      setMessages(prev => prev.filter(m => m.id !== tmpId))
+      setMessages(prev => prev.filter(m => !tempIds.has(m.id)))
       setSendFailed(code === 'too_large' ? 'chat.photo.tooLarge' : code === 'limited' ? 'chat.photo.limited' : code === 'not_image' ? 'chat.photo.notImage' : 'chat.photo.failed')
     } finally {
       setPhotoBusy(false)
-      setTimeout(() => URL.revokeObjectURL(local), 60000)
+      setTimeout(() => batch.forEach(p => URL.revokeObjectURL(p.url)), 60000)
     }
   }
   const photoSrc = (m: any) => m._src || `/api/chat/photo?id=${m.id}`
@@ -713,13 +731,13 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
     const dateLine = (iso: string) => new Date(iso).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })
     const lastAi = [...messages].reverse().find(m => m.sender_type !== 'system')
-    const me = (myName || '').trim().charAt(0).toUpperCase() || '🙂'
-    const avatar = (who: string) => who === 'ai'
+    const avatar = (m: any) => m.sender_type === 'ai'
       // eslint-disable-next-line @next/next/no-img-element
-      ? <span className="pc-av pc-av-ai" aria-hidden="true"><img src="/mascot.png" alt="" /><i>AI</i></span>
-      : who === 'admin'
-        ? <span className="pc-av pc-av-desk" aria-hidden="true">🎧<i>{t('chat.deskBadge')}</i></span>
-        : <span className="pc-av pc-av-me" aria-hidden="true">{me}</span>
+      ? <span className="pc-av pc-av-ai" aria-hidden="true"><img src="/mascot.png" alt="" /></span>
+      : <span className="pc-av pc-av-desk" aria-hidden="true">{String(m.metadata?.desk_name || t('chat.deskBadge')).trim().charAt(0).toUpperCase()}</span>
+    // "櫃台 · Mitzi": the first name the desk's reply carries (api/admin/chat-message).
+    const nameOf = (m: any) => m.sender_type === 'ai' ? t('chat.fromAi')
+      : m.metadata?.desk_name ? `${t('chat.fromDesk')} · ${m.metadata.desk_name}` : t('chat.fromDesk')
     return (
       <div className="pc" ref={panelRef} tabIndex={-1}>
         <style>{PAGE_CSS}</style>
@@ -736,7 +754,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             const key = it.k === 'm' ? it.m.id : 'e-' + it.e.id
             if (it.k === 'e') {
               const e = it.e
-              const inner = <><span aria-hidden="true">{EVENT_ICON[e.kind] || '🔔'}</span> <b>{e.title}</b>{e.url && <u> {t('chat.event.open')} ›</u>}</>
+              const inner = <><span aria-hidden="true">{EVENT_ICON[e.kind] || '🔔'}</span><b>{e.title}</b>{e.url && <u>{t('chat.event.open')}</u>}</>
               return (
                 <Fragment key={key}>
                   {pill && <div className="pc-pill">{pillText}</div>}
@@ -754,8 +772,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             const mine = m.sender_type === 'parent'
             const body = m.metadata?.photo ? (
               <button type="button" className="pc-photo tap-auto" onClick={() => setViewPhoto(photoSrc(m))} aria-label={t('chat.photo.open')}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {/* A picture arriving makes the list taller: keep the newest in view. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photoSrc(m)} alt={t('chat.photo.alt')} onLoad={() => {
                   const el = listRef.current
                   if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 400) el.scrollTop = el.scrollHeight
@@ -767,9 +785,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               <Fragment key={key}>
                 {pill && <div className="pc-pill">{pillText}</div>}
                 <div className={'pc-row' + (mine ? ' me' : '')}>
-                  {!mine && avatar(m.sender_type)}
+                  {!mine && avatar(m)}
                   <div className="pc-col">
-                    {!mine && <div className="pc-nm"><b className={m.sender_type === 'ai' ? 'pc-tag-ai' : 'pc-tag-desk'}>{t(m.sender_type === 'ai' ? 'chat.fromAi' : 'chat.fromDesk')}</b></div>}
+                    {!mine && <div className="pc-nm">{nameOf(m)}</div>}
                     <div className={'pc-bub' + (mine ? ' mine' : '') + (m.metadata?.photo ? ' ph' : '')}>
                       {body}
                       {m.sender_type === 'ai' && m.id === lastAi?.id && Array.isArray(m.metadata?.options) && (
@@ -782,14 +800,13 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                       )}
                     </div>
                   </div>
-                  {mine && avatar('parent')}
                 </div>
               </Fragment>
             )
           })}
           {awaitingAi && (
             <div className="pc-row">
-              {avatar('ai')}
+              {avatar({ sender_type: 'ai' })}
               <div className="pc-col"><div className="pc-bub pc-dots" aria-label={t('chat.typing')}>
                 {[0, 1, 2].map(i => <span key={i} style={{ animationDelay: `${i * 0.2}s` }} />)}
               </div></div>
@@ -797,7 +814,32 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
           )}
         </div>
         {sendFailed && <div role="alert" className="pc-err">{t(sendFailed)}</div>}
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => { pick(e.target.files); e.target.value = '' }} />
+        {picked.length > 0 && (
+          <div className="pc-tray" role="group" aria-label={t('chat.photo.picked', { n: picked.length })}>
+            <div className="pc-thumbs">
+              {picked.map(p => (
+                <div key={p.url} className="pc-th">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt="" />
+                  <button type="button" onClick={() => unpick(p.url)} aria-label={t('chat.photo.remove')}>✕</button>
+                </div>
+              ))}
+              {picked.length < MAX_PHOTOS && (
+                <button type="button" className="pc-add" onClick={() => fileRef.current?.click()} aria-label={t('chat.photo.add')}>＋</button>
+              )}
+            </div>
+            <div className="pc-trow">
+              <span>{t('chat.photo.picked', { n: picked.length })}</span>
+              <button type="button" className="pc-tcancel" onClick={clearPicked} disabled={photoBusy}>{t('common.cancel')}</button>
+              <button type="button" className="pc-tsend" onClick={sendPhotos} disabled={photoBusy || !threadId}>{t('chat.photo.sendN', { n: picked.length })}</button>
+            </div>
+          </div>
+        )}
         <div className="pc-inp">
+          <button type="button" className="pc-cam tap-auto" onClick={() => fileRef.current?.click()} disabled={photoBusy || !threadId || picked.length >= MAX_PHOTOS} aria-label={t('chat.photo.send')}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
+          </button>
           <input ref={inputRef} className="kb-focus" aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}
             value={input} maxLength={800} onChange={e => setInput(e.target.value)}
             onKeyDown={e => {
@@ -805,9 +847,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               if (e.nativeEvent.isComposing || e.keyCode === 229) return
               sendMessage()
             }} />
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f) }} />
-          <button type="button" className="pc-cam tap-auto" onClick={() => fileRef.current?.click()} disabled={photoBusy || !threadId} aria-label={t('chat.photo.send')}>📷</button>
-          <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending}>{t('chat.sendShort')}</button>
+          <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z" /></svg>
+          </button>
         </div>
         {viewPhoto && (
           <div className="pc-view" role="dialog" aria-modal="true" aria-label={t('chat.photo.alt')} onClick={() => setViewPhoto(null)}>

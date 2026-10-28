@@ -29,7 +29,9 @@ export async function POST(req: NextRequest) {
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
 
   const { data: message, error } = await svc.from('chat_messages')
-    .insert({ thread_id: thread.id, sender_type: 'admin', body, sender_admin_id: admin.id })
+    // The first name goes with the reply: the app's chat shows "櫃台 · Mitzi"
+    // (owner, 2026-10-28). Families cannot read the admins table.
+    .insert({ thread_id: thread.id, sender_type: 'admin', body, sender_admin_id: admin.id, metadata: admin.first_name ? { desk_name: String(admin.first_name).trim().slice(0, 40) } : null })
     .select('*').single()
   if (error || !message) {
     console.error('[admin/chat-message]', error)

@@ -11,7 +11,7 @@ import { myParentId } from '@/lib/my-parent'
 import { isNativeApp } from '@/lib/native-app'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
-/* 訊息, the phone app's message screen (owner, 2026-10-28; sample B): three
+/* 訊息, the phone app's message screen (owner, 2026-10-28; the quiet school-colour style): three
    tabs -- 客服 (the chat with the AI and the desk, components/ChatWidget
    variant 'page'), 學校公告 (pool closures and the desk's announcements,
    lib/announcements.ts) and 通知 (what the school told this person, 90 days,
@@ -28,33 +28,33 @@ type Inbox = { announcements: Announcement[]; closures: Closure[]; notices: Chat
 const NEWS_ASKED = 'msa_news_push_asked'
 
 const css = `
-.ib { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: ${BRAND.navyDeep}; font-family: ${FONT_BODY}; }
-.ib-hd { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(180deg, ${BRAND.navyMid}, ${BRAND.navy}); color: #fff; }
-.ib-hd h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 900; }
+.ib { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: ${BRAND.paper}; font-family: ${FONT_BODY}; }
+.ib-hd { display: flex; align-items: center; gap: 8px; padding: 6px 12px 4px; background: ${BRAND.navy}; color: #fff; }
+.ib-hd h1 { flex: 1; margin: 0; font-size: 18px; font-weight: 800; }
 .ib-back { width: 42px; height: 42px; min-height: 0; border: 0; background: none; color: #fff; display: grid; place-items: center; cursor: pointer; border-radius: 10px; margin-left: -6px; }
-.ib-tabs { display: flex; gap: 6px; padding: 4px 10px 0; background: ${BRAND.navy}; }
-.ib-tabs button { flex: 1; position: relative; min-height: 0; padding: 10px 0 9px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer;
-  border-radius: 12px 12px 0 0; border: 2px solid #3b64a8; border-bottom: 0; background: ${BRAND.navyMid}; color: #c8d6f0; }
-.ib-tabs button[aria-selected="true"] { background: #eef5ff; color: ${BRAND.navy}; border-color: ${BRAND.yellow}; }
-.ib-tabs .dot { position: absolute; top: 7px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
-.ib-back:focus-visible, .ib-tabs button:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: -3px; }
-.ib-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #eef5ff; }
+.ib-tabs { display: flex; gap: 4px; padding: 4px 12px 10px; background: ${BRAND.navy}; }
+.ib-tabs button { flex: 1; position: relative; min-height: 0; padding: 7px 0; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+  border-radius: 8px; border: 0; background: transparent; color: #9fb3d6; }
+.ib-tabs button[aria-selected="true"] { background: #fff; color: ${BRAND.navy}; }
+.ib-tabs .dot { position: absolute; top: 6px; right: 14px; width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
+.ib-back:focus-visible, .ib-tabs button:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: -2px; }
+.ib-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: ${BRAND.paper}; }
 .ib-list { flex: 1; overflow-y: auto; padding: 14px 12px 24px; display: flex; flex-direction: column; gap: 10px; }
-.ib-empty { margin: 48px auto 0; text-align: center; color: #36507e; font-size: 15px; }
-.ib-card { background: #fff; border: 2.5px solid ${BRAND.blue}; border-radius: 14px; padding: 12px 14px; box-shadow: 0 2px 0 #9fb8e6; color: ${BRAND.ink}; text-decoration: none; display: block; }
-.ib-card.new { border-color: ${BRAND.amber}; box-shadow: 0 2px 0 #f3c97a; }
-.ib-card.closure { border-color: #b4321f; box-shadow: 0 2px 0 #e9a99c; }
-.ib-card h2 { margin: 0; font-size: 16px; font-weight: 900; color: ${BRAND.navy}; display: flex; gap: 8px; align-items: baseline; }
+.ib-empty { margin: 48px auto 0; text-align: center; color: ${BRAND.mute}; font-size: 15px; }
+.ib-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(18,37,74,.05); color: ${BRAND.ink}; text-decoration: none; display: block; }
+.ib-card.new { border-left: 3px solid ${BRAND.amber}; }
+.ib-card.closure { border-left: 3px solid #b4321f; }
+.ib-card h2 { margin: 0; font-size: 15.5px; font-weight: 800; color: ${BRAND.navy}; display: flex; gap: 8px; align-items: baseline; }
 .ib-card p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ib-card small { display: block; margin-top: 6px; font-size: 12px; color: #6a7891; }
-.ib-pin { font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 6px; background: ${BRAND.navy}; color: ${BRAND.yellow}; flex-shrink: 0; }
-.ib-ask { background: ${BRAND.navy}; color: #fff; border-radius: 14px; padding: 14px; border: 2px solid ${BRAND.yellow}; }
-.ib-ask b { display: block; font-size: 15.5px; }
-.ib-ask p { margin: 6px 0 10px; font-size: 13.5px; line-height: 1.55; color: #d6e2f7; }
+.ib-pin { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 6px; background: #fff4dc; color: #8a5300; flex-shrink: 0; }
+.ib-ask { background: #fff; border: 1px solid ${BRAND.line}; border-left: 3px solid ${BRAND.amber}; border-radius: 12px; padding: 14px; }
+.ib-ask b { display: block; font-size: 15.5px; color: ${BRAND.navy}; }
+.ib-ask p { margin: 6px 0 10px; font-size: 13.5px; line-height: 1.55; color: ${BRAND.mute}; }
 .ib-ask div { display: flex; gap: 8px; }
-.ib-ask button { flex: 1; min-height: 0; padding: 10px; border-radius: 10px; font: inherit; font-weight: 800; font-size: 14.5px; cursor: pointer; }
-.ib-ask .yes { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 2px solid #c97f00; }
-.ib-ask .no { background: transparent; color: #fff; border: 2px solid #3b64a8; }
+.ib-ask button { flex: 1; min-height: 0; padding: 10px; border-radius: 999px; font: inherit; font-weight: 800; font-size: 14.5px; cursor: pointer; }
+.ib-ask .yes { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 0; }
+.ib-ask .no { background: #fff; color: ${BRAND.navy}; border: 1px solid #d6e0ee; }
 .ib-n { display: flex; gap: 10px; align-items: flex-start; }
 .ib-n .ico { font-size: 20px; line-height: 1.3; }
 `
@@ -71,13 +71,11 @@ export default function ChatPage() {
   const supabase = useMemo(() => createClient(), [])
   const [tab, setTab] = useState<Tab>('chat')
   const [parentId, setParentId] = useState<string | null | undefined>(undefined)
-  const [myName, setMyName] = useState('')
   const [inbox, setInbox] = useState<Inbox | null>(null)
   // When each tab was last looked at, as the dots were worked out on arrival:
   // what was new stays marked while the family reads it.
   const [seenAtOpen, setSeenAtOpen] = useState<{ announcements: string | null; notices: string | null } | null>(null)
   const [askNews, setAskNews] = useState(false)
-
 
   useEffect(() => {
     let live = true
@@ -85,12 +83,7 @@ export default function ChatPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login?next=/dashboard/chat'); return }
       const pid = await myParentId(supabase, user.id)
-      let name = ''
-      if (pid) {
-        const { data } = await supabase.from('parents').select('first_name').eq('id', pid).maybeSingle()
-        name = String(data?.first_name || '')
-      }
-      if (live) { setParentId(pid); setMyName(name) }
+      if (live) setParentId(pid)
     })().catch(() => { if (live) setParentId(null) })
     return () => { live = false }
   }, [supabase, router])
@@ -167,7 +160,7 @@ export default function ChatPage() {
       <div className="ib-body" role="tabpanel">
         {tab === 'chat' && (parentId === undefined
           ? <div className="ib-empty">{t('common.loading')}</div>
-          : <ChatWidget key={parentId ?? 'none'} parentId={parentId} variant="page" events={inbox?.notices || []} myName={myName} />)}
+          : <ChatWidget key={parentId ?? 'none'} parentId={parentId} variant="page" events={inbox?.notices || []} />)}
 
         {tab === 'news' && (
           <div className="ib-list">
