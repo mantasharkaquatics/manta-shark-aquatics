@@ -465,7 +465,7 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   viewport is viewport-fit=cover (APP_DETECT_SCRIPT, coverViewport()), so
   env(safe-area-inset-bottom) is the home-indicator band; the app also
   sets --msa-sab itself (SafeAreaContainer), and --app-sab is the larger of
-  the two. The tabs (16px above the band -- owner: not so low), the room
+  the two. The tabs (6px above the band -- the owner tried 10px over the screen's edge and 16px over the band), the room
   kept for them (--app-tab-h) and the chat's input row add --app-sab.
   Anything new fixed to the bottom of an app page must add it too. The
   page colour behind the tabs is #e9eff7 (html.msa-app body). History

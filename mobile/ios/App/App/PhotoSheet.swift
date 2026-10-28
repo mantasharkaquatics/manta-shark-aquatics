@@ -125,10 +125,13 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         albumPanel.addSubview(albumTable)
 
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            // The top row sits in the middle of its band: as much room above
+            // the words (the grabber's strip included) as below them, down
+            // to the line over the photos (owner, 2026-10-28).
+            header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 48),
+            header.heightAnchor.constraint(equalToConstant: 72),
 
             cancelButton.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
             cancelButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
@@ -337,19 +340,20 @@ private final class PhotoCell: UICollectionViewCell {
         shade.isHidden = true
         contentView.addSubview(shade)
         badge.textAlignment = .center
-        badge.font = .systemFont(ofSize: 13, weight: .bold)
+        badge.font = .systemFont(ofSize: 11, weight: .bold)
         badge.textColor = .white
-        badge.layer.cornerRadius = 12
-        badge.layer.borderWidth = 2
+        badge.layer.cornerRadius = 10
+        badge.layer.borderWidth = 1.5
         badge.layer.borderColor = UIColor.white.cgColor
         badge.clipsToBounds = true
         badge.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(badge)
         NSLayoutConstraint.activate([
-            badge.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
-            badge.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -6),
-            badge.widthAnchor.constraint(equalToConstant: 24),
-            badge.heightAnchor.constraint(equalToConstant: 24),
+            // Smaller rings (owner, 2026-10-28).
+            badge.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 5),
+            badge.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -5),
+            badge.widthAnchor.constraint(equalToConstant: 20),
+            badge.heightAnchor.constraint(equalToConstant: 20),
         ])
     }
 
