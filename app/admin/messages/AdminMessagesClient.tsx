@@ -48,6 +48,13 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
   const [notice, setNotice] = useState<string | null>(null)
   // "Recall" disappears once a message passes 24 hours; checked each minute.
   const [nowMs, setNowMs] = useState(() => Date.now())
+  // Who wrote each desk reply -- shown here only; families see 櫃台 (owner, 2026-10-28).
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let live = true
+    fetch('/api/admin/staff-names').then(r => (r.ok ? r.json() : null)).then(d => { if (live && d?.names) setStaffNames(d.names) }).catch(() => {})
+    return () => { live = false }
+  }, [])
   useEffect(() => { const id = setInterval(() => setNowMs(Date.now()), 60000); return () => clearInterval(id) }, [])
 
   async function setThreadMode(mode: 'ai' | 'human') {
@@ -460,6 +467,9 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
                     }}>
                       {msg.sender_type === 'ai' && (
                         <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
+                      )}
+                      {msg.sender_type === 'admin' && msg.sender_admin_id && staffNames[msg.sender_admin_id] && (
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: NAVY, opacity: 0.7, marginBottom: '4px', letterSpacing: '0.5px' }}>{staffNames[msg.sender_admin_id]}</div>
                       )}
                       {/* A photo the family sent from the app (app/api/chat/photo). */}
                       {msg.metadata?.photo && !msg._local ? (

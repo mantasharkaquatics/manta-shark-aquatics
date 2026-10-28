@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen, reportChatUnread } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { useRouter } from 'next/navigation'
-import { appLook } from '@/lib/native-app'
+import { appLook, photoPickerPlugin } from '@/lib/native-app'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
 // messages in the LOGO blue, the school's in white. The launcher is blue so it
@@ -679,9 +679,28 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
      ✕; ＋ adds more. */
   const MAX_PHOTOS = 5
   const [picked, setPicked] = useState<{ file: File; url: string }[]>([])
-  const pick = (list: FileList | null) => {
+  const pick = (list: FileList | File[] | null) => {
     const files = Array.from(list || []).filter(f => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name))
     setPicked(prev => [...prev, ...files.slice(0, MAX_PHOTOS - prev.length).map(file => ({ file, url: URL.createObjectURL(file) }))])
+  }
+  /* The camera icon: the photo library alone inside the iPhone app (native
+     PhotoPicker); anywhere else the page's file button. */
+  async function choosePhotos() {
+    const native = photoPickerPlugin()
+    if (!native) { fileRef.current?.click(); return }
+    try {
+      const { photos } = await native.pick({ limit: Math.max(1, MAX_PHOTOS - picked.length) })
+      const files = (photos || []).map((b64, i) => {
+        const bin = atob(b64)
+        const bytes = new Uint8Array(bin.length)
+        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j)
+        return new File([bytes], `photo-${Date.now()}-${i}.jpg`, { type: 'image/jpeg' })
+      })
+      if (files.length) pick(files)
+    } catch {
+      // The picker could not open: fall back to the page's own.
+      fileRef.current?.click()
+    }
   }
   const unpick = (url: string) => setPicked(prev => { URL.revokeObjectURL(url); return prev.filter(p => p.url !== url) })
   const clearPicked = () => setPicked(prev => { prev.forEach(p => URL.revokeObjectURL(p.url)); return [] })
@@ -734,10 +753,10 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     const avatar = (m: any) => m.sender_type === 'ai'
       // eslint-disable-next-line @next/next/no-img-element
       ? <span className="pc-av pc-av-ai" aria-hidden="true"><img src="/mascot.png" alt="" /></span>
-      : <span className="pc-av pc-av-desk" aria-hidden="true">{String(m.metadata?.desk_name || t('chat.deskBadge')).trim().charAt(0).toUpperCase()}</span>
-    // "櫃台 · Mitzi": the first name the desk's reply carries (api/admin/chat-message).
-    const nameOf = (m: any) => m.sender_type === 'ai' ? t('chat.fromAi')
-      : m.metadata?.desk_name ? `${t('chat.fromDesk')} · ${m.metadata.desk_name}` : t('chat.fromDesk')
+      : <span className="pc-av pc-av-desk" aria-hidden="true">{t('chat.deskBadge').trim().charAt(0).toUpperCase()}</span>
+    // Never which staff member wrote: families see 櫃台 only (owner,
+    // 2026-10-28); the desk's own screen shows who.
+    const nameOf = (m: any) => m.sender_type === 'ai' ? t('chat.fromAi') : t('chat.fromDesk')
     return (
       <div className="pc" ref={panelRef} tabIndex={-1}>
         <style>{PAGE_CSS}</style>
@@ -826,7 +845,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                 </div>
               ))}
               {picked.length < MAX_PHOTOS && (
-                <button type="button" className="pc-add" onClick={() => fileRef.current?.click()} aria-label={t('chat.photo.add')}>＋</button>
+                <button type="button" className="pc-add" onClick={choosePhotos} aria-label={t('chat.photo.add')}>＋</button>
               )}
             </div>
             <div className="pc-trow">
@@ -837,7 +856,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
           </div>
         )}
         <div className="pc-inp">
-          <button type="button" className="pc-cam tap-auto" onClick={() => fileRef.current?.click()} disabled={photoBusy || !threadId || picked.length >= MAX_PHOTOS} aria-label={t('chat.photo.send')}>
+          <button type="button" className="pc-cam tap-auto" onClick={choosePhotos} disabled={photoBusy || !threadId || picked.length >= MAX_PHOTOS} aria-label={t('chat.photo.send')}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
           </button>
           <input ref={inputRef} className="kb-focus" aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}

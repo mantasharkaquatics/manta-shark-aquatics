@@ -42,6 +42,17 @@ export function appPlatform(): 'ios' | 'android' | null {
   return p === 'ios' || p === 'android' ? p : null
 }
 
+/* The chat's photo picker (owner, 2026-10-28: pictures only -- no camera, no
+   files). Native code in the iOS app (mobile/ios/App/App/PhotoPicker.swift)
+   opens the photo library alone and hands back shrunk JPEGs as base64.
+   Missing on Android, where the page's own file button already opens a
+   picture-only picker, and on iPhone builds made before it. */
+export interface PhotoPickerPlugin {
+  pick(opts: { limit: number; maxSide?: number }): Promise<{ photos: string[] }>
+}
+export const photoPickerPlugin = (): PhotoPickerPlugin | null =>
+  (cap()?.Plugins?.PhotoPicker as PhotoPickerPlugin | undefined) ?? null
+
 export const pushPlugin = (): FirebaseMessagingPlugin | null => cap()?.Plugins?.FirebaseMessaging ?? null
 export const appPlugin = (): NativeListenable | null => cap()?.Plugins?.App ?? null
 

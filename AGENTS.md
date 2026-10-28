@@ -485,11 +485,22 @@ button. docs/migration-app-inbox.sql.
   (each can be taken off, more added), and sent only on 送出 -- up to 5 at
   once, each its own message; one AI answer and one desk alert per batch.
   Private bucket chat-photos, the path in chat_messages.metadata.photo,
-  served to the thread's family and to staff as a 5-minute signed link. The AI never sees one: ai-reply turns it into a
-  line saying a photo was sent; with the AI on the thread it answers once
-  that the desk will look, and the desk is alerted (throttled).
-- **Desk replies carry the staff member's first name** (「櫃台 · Mitzi」):
-  app/api/admin/chat-message stores it in metadata.desk_name when sent.
-  Older replies, and staff with no first name, show 櫃台 alone.
+  served to the thread's family and to staff as a 5-minute signed link. The
+  AI never sees one: ai-reply turns it into a line saying a photo was sent;
+  with the AI on the thread it answers once that the desk will look, and the
+  desk is alerted (throttled).
+- **Pictures only, from the photo library** (owner, 2026-10-28: no camera,
+  no files). An iPhone web page's file button always offers Take Photo and
+  Choose File too, so the iOS app has its own plugin,
+  mobile/ios/App/App/PhotoPicker.swift (PHPicker: no permission asked,
+  shrinks to 1600px JPEG), registered in AppViewController.capacitorDidLoad;
+  the page reaches it through photoPickerPlugin() (lib/native-app.ts).
+  Android's file button already opens a picture-only picker, and iPhone
+  builds older than the plugin fall back to it too.
+- **Families never see which staff member replied** (owner, 2026-10-28):
+  the app shows 櫃台 only. Who wrote it is chat_messages.sender_admin_id,
+  shown on Admin > Messages through /api/admin/staff-names (the browser can
+  read only its own admins row). Do not put a staff name in a message's
+  metadata or body: families read their rows through RLS.
 - Buttons in AI replies were already there (metadata.options, <<OPTIONS>> in
   lib/ai/system-prompt.ts); the page only draws them in the new style.

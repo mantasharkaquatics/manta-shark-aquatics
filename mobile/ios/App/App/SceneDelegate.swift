@@ -29,6 +29,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 /// page scrolling past behind those two bars; the strips cover it, in the
 /// white of the app's own top bar and tabs.
 class AppViewController: CAPBridgeViewController {
+    /// The app's own plugins: the chat's photo-library picker (PhotoPicker.swift).
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(PhotoPickerPlugin())
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         for top in [true, false] {
