@@ -449,11 +449,14 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   ?suggest=1. Notification switches live on 我的 (they only exist in the app).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
-- iOS: the page starts below the status bar (contentInset "always"), and
-  white strips behind the status bar and the home indicator
-  (AppViewController in mobile/ios/App/App/SceneDelegate.swift) hide the page
-  scrolling past behind them. The app is always in light mode (Info.plist
-  UIUserInterfaceStyle), so the status bar text stays dark on that white.
+- iOS: the web view never reaches under the status bar or the home
+  indicator: SafeAreaContainer (mobile/ios/App/App/SceneDelegate.swift) pins
+  the bridge's view to the safe area and paints those bands white. The first
+  build let the page run under them and covered them with white strips;
+  once scrolled, iOS put the fixed bottom tabs at the very bottom of the
+  screen and the strip cut them in half (owner, 2026-10-28). The app is
+  always in light mode (Info.plist UIUserInterfaceStyle), so the status bar
+  text stays dark on that white.
 
 # The app's 訊息 screen (owner, 2026-10-28)
 
@@ -493,7 +496,8 @@ button. docs/migration-app-inbox.sql.
   no files). An iPhone web page's file button always offers Take Photo and
   Choose File too, so the iOS app has its own plugin,
   mobile/ios/App/App/PhotoPicker.swift (PHPicker: no permission asked,
-  shrinks to 1600px JPEG), registered in AppViewController.capacitorDidLoad;
+  shrinks to 1600px JPEG; opens as a half-screen sheet, like Instagram),
+  registered in AppViewController.capacitorDidLoad;
   the page reaches it through photoPickerPlugin() (lib/native-app.ts).
   Android's file button already opens a picture-only picker, and iPhone
   builds older than the plugin fall back to it too.

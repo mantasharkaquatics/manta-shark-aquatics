@@ -8,7 +8,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = AppViewController()
+        window?.rootViewController = SafeAreaContainer(child: AppViewController())
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
@@ -23,33 +23,52 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// The bridge, with a white strip behind the status bar and another behind the
-/// home indicator (owner, 2026-10-27). The page starts below the status bar
-/// (contentInset "always" in capacitor.config.json), but iOS still draws the
-/// page scrolling past behind those two bars; the strips cover it, in the
-/// white of the app's own top bar and tabs.
-class AppViewController: CAPBridgeViewController {
-    /// The app's own plugins: the chat's photo-library picker (PhotoPicker.swift).
-    override func capacitorDidLoad() {
-        bridge?.registerPluginInstance(PhotoPickerPlugin())
+/// The bridge's web view, kept INSIDE the safe area (owner, 2026-10-28).
+///
+/// The first build let the page run under the status bar and the home
+/// indicator (contentInset "always") and covered those two bands with white
+/// strips. iOS then laid the page's fixed bottom tabs out to the very bottom
+/// of the screen once the page was scrolled, and the strip cut them in half.
+/// Now the web view simply never reaches those bands: this container pins it
+/// to the safe area and paints the bands white itself, so a fixed bar at
+/// bottom: 0 is always just above the home indicator, scrolled or not.
+/// Capacitor makes the web view the bridge controller's own view (its
+/// loadView is final), hence a container rather than a constraint.
+class SafeAreaContainer: UIViewController {
+    private let child: UIViewController
+
+    init(child: UIViewController) {
+        self.child = child
+        super.init(nibName: nil, bundle: nil)
     }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        for top in [true, false] {
-            let strip = UIView()
-            strip.backgroundColor = .white
-            strip.isUserInteractionEnabled = false
-            strip.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(strip)
-            NSLayoutConstraint.activate([
-                strip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                strip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                top ? strip.topAnchor.constraint(equalTo: view.topAnchor)
-                    : strip.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-                top ? strip.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
-                    : strip.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            ])
-        }
+        view.backgroundColor = .white
+        addChild(child)
+        child.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(child.view)
+        NSLayoutConstraint.activate([
+            child.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            child.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            child.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            child.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+        ])
+        child.didMove(toParent: self)
+    }
+
+    // The bridge still decides the status bar and the screen's turning.
+    override var childForStatusBarStyle: UIViewController? { child }
+    override var childForStatusBarHidden: UIViewController? { child }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { child.supportedInterfaceOrientations }
+}
+
+/// The Capacitor bridge, with the app's own plugins: the chat's
+/// photo-library picker (PhotoPicker.swift).
+class AppViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(PhotoPickerPlugin())
     }
 }

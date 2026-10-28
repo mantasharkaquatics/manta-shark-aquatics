@@ -16,7 +16,7 @@ import UniformTypeIdentifiers
 /// upright here, so a 48-megapixel photo never crosses the bridge.
 /// Registered in AppViewController.capacitorDidLoad (SceneDelegate.swift).
 @objc(PhotoPickerPlugin)
-public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControllerDelegate {
+public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
     public let identifier = "PhotoPickerPlugin"
     public let jsName = "PhotoPicker"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -38,6 +38,16 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
             config.selection = .ordered
             let picker = PHPickerViewController(configuration: config)
             picker.delegate = self
+            // Half the screen, like Instagram (owner, 2026-10-28): the chat
+            // stays in view above it; drag the grabber up for the full library.
+            picker.modalPresentationStyle = .pageSheet
+            if let sheet = picker.sheetPresentationController {
+                sheet.detents = [.medium(), .large()]
+                sheet.prefersGrabberVisible = true
+                sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+            }
+            // Swiped down without choosing: answer "nothing picked".
+            picker.presentationController?.delegate = self
             guard let vc = self.bridge?.viewController else {
                 self.finish([])
                 return
@@ -58,6 +68,10 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
             }
             DispatchQueue.main.async { self.finish(photos) }
         }
+    }
+
+    public func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        finish([])
     }
 
     private func finish(_ photos: [String]) {
