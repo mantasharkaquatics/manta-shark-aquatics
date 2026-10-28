@@ -218,8 +218,8 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     // MARK: - The sheet itself
 
     private var screenHeight: CGFloat { view.bounds.height > 0 ? view.bounds.height : UIScreen.main.bounds.height }
-    /// 55% of the screen when it opens (owner, 2026-10-28: a little more than half).
-    private var halfHeight: CGFloat { round(screenHeight * 0.55) }
+    /// 60% of the screen when it opens (owner, 2026-10-28, after trying 50% and 55%).
+    private var halfHeight: CGFloat { round(screenHeight * 0.60) }
     private var fullHeight: CGFloat { screenHeight - view.safeAreaInsets.top - 10 }
 
     override func viewDidAppear(_ animated: Bool) {
