@@ -10,10 +10,10 @@ import Photos
 ///
 /// The sheet is drawn here, not by iOS's page sheet: that one moved a little
 /// with every tap on a photo (a finger never taps without moving, and the
-/// sheet took the movement as a drag). Here the top bar drags it -- up to
-/// the full screen, down to close -- and the photos move it only when they
-/// are already at their top and pulled further down: let go gently and it
-/// springs back, pull far or flick fast and it closes.
+/// sheet took the movement as a drag). Here the top bar drags it, and the
+/// photos move it when they are already at their top and pulled further
+/// down. As on Instagram, only a fast flick down closes it: a slow pull,
+/// however far, springs back when let go (owner, 2026-10-28).
 /// Apple's picker cannot
 /// show its top bar at half height, hence this one. It needs the photo
 /// library permission (NSPhotoLibraryUsageDescription in Info.plist); without
@@ -218,7 +218,8 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     // MARK: - The sheet itself
 
     private var screenHeight: CGFloat { view.bounds.height > 0 ? view.bounds.height : UIScreen.main.bounds.height }
-    private var halfHeight: CGFloat { round(screenHeight * 0.5) }
+    /// 55% of the screen when it opens (owner, 2026-10-28: a little more than half).
+    private var halfHeight: CGFloat { round(screenHeight * 0.55) }
     private var fullHeight: CGFloat { screenHeight - view.safeAreaInsets.top - 10 }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -255,15 +256,15 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         dim.alpha = max(0.2, 1 - pullOffset / max(panelHeight.constant, 1))
     }
 
-    /// Let go: a fast flick down, or a pull past a third of the sheet,
-    /// closes it; anything gentler springs back.
+    /// Let go: only a fast flick down closes it; a slow pull, however far,
+    /// springs back.
     func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                    targetContentOffset: UnsafeMutablePointer<CGPoint>) {
         guard scrollView === grid, pullOffset > 0 else { return }
         let top = -scrollView.adjustedContentInset.top
         targetContentOffset.pointee = CGPoint(x: 0, y: top)
         // velocity is in points per millisecond; negative is downward.
-        let close = velocity.y < -1.0 || pullOffset > panelHeight.constant / 3
+        let close = velocity.y < -1.0
         pullOffset = 0
         if close {
             finish(picked)
@@ -275,8 +276,8 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         }
     }
 
-    /// Up: taller, to the full screen. Down: shorter; let go well below half
-    /// and the sheet closes, handing over what is picked.
+    /// Up: taller, to the full screen. A fast flick down closes it, handing
+    /// over what is picked; anything slower settles at half or full.
     @objc private func dragged(_ g: UIPanGestureRecognizer) {
         let dy = g.translation(in: view).y
         switch g.state {
@@ -294,10 +295,13 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         case .ended, .cancelled:
             let v = g.velocity(in: view).y
             let h = dragStart - dy
-            if h < halfHeight - 90 || (v > 900 && !expanded) {
+            if v > 900 {
                 finish(picked)
             } else {
-                panel.transform = .identity
+                // Back up, smoothly, from wherever the finger let go.
+                UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0, options: [.allowUserInteraction]) {
+                    self.panel.transform = .identity
+                }
                 setExpanded(v < -600 || (v <= 600 && h > (halfHeight + fullHeight) / 2))
             }
         default: break
