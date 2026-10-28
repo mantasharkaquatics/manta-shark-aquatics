@@ -3,7 +3,10 @@ import Photos
 
 /// The chat's own photo sheet, like Facebook's (owner, 2026-10-28): half the
 /// screen, with the album ("Recents ▾") and a search for albums on top, the
-/// photos below, a number on each one picked, and Done. Apple's picker cannot
+/// photos below and a number on each one picked. No Cancel or Done (owner:
+/// "useless"): the photos picked when the sheet is swiped away, or the chat
+/// above it tapped, go to the chat's preview row, where they can still be
+/// taken off before 送出. Apple's picker cannot
 /// show its top bar at half height, hence this one. It needs the photo
 /// library permission (NSPhotoLibraryUsageDescription in Info.plist); without
 /// it PhotoPickerPlugin falls back to Apple's picker.
@@ -25,14 +28,14 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     private var albums: [Album] = []
     private var album: Album?
     private var picked: [PHAsset] = []
+    /// What is picked right now: handed over when the sheet goes away.
+    var pickedAssets: [PHAsset] { picked }
     private var finished = false
 
     private let imageManager = PHCachingImageManager()
     private let header = UIView()
-    private let cancelButton = UIButton(type: .system)
     private let titleButton = UIButton(type: .system)
     private let searchButton = UIButton(type: .system)
-    private let doneButton = UIButton(type: .system)
     private var grid: UICollectionView!
     private let albumPanel = UIView()
     private let searchBar = UISearchBar()
@@ -60,14 +63,9 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         loadAlbums()
         album = albums.first
 
-        // The top bar: Cancel · Album ▾ · search · Done
+        // The top bar: the album (▾) in the middle, the album search on the right
         header.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(header)
-
-        cancelButton.setTitle(word("cancel", "Cancel"), for: .normal)
-        cancelButton.setTitleColor(navy, for: .normal)
-        cancelButton.titleLabel?.font = .systemFont(ofSize: 16)
-        cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
 
         titleButton.setTitleColor(navy, for: .normal)
         titleButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .bold)
@@ -79,12 +77,7 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         searchButton.accessibilityLabel = word("search", "Search albums")
         searchButton.addTarget(self, action: #selector(searchTapped), for: .touchUpInside)
 
-        doneButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
-        doneButton.setTitleColor(blue, for: .normal)
-        doneButton.setTitleColor(UIColor.systemGray3, for: .disabled)
-        doneButton.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
-
-        for b in [cancelButton, titleButton, searchButton, doneButton] {
+        for b in [titleButton, searchButton] {
             b.translatesAutoresizingMaskIntoConstraints = false
             header.addSubview(b)
         }
@@ -133,17 +126,13 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
             header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             header.heightAnchor.constraint(equalToConstant: 72),
 
-            cancelButton.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
-            cancelButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            doneButton.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
-            doneButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            searchButton.trailingAnchor.constraint(equalTo: doneButton.leadingAnchor, constant: -10),
+            searchButton.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -12),
             searchButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             searchButton.widthAnchor.constraint(equalToConstant: 40),
             searchButton.heightAnchor.constraint(equalToConstant: 40),
             titleButton.centerXAnchor.constraint(equalTo: header.centerXAnchor),
             titleButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            titleButton.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor, constant: 8),
+            titleButton.leadingAnchor.constraint(greaterThanOrEqualTo: header.leadingAnchor, constant: 56),
             titleButton.trailingAnchor.constraint(lessThanOrEqualTo: searchButton.leadingAnchor, constant: -4),
 
             line.leadingAnchor.constraint(equalTo: header.leadingAnchor),
@@ -175,9 +164,6 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         let open = !albumPanel.isHidden
         let name = album?.title ?? word("recents", "Recents")
         titleButton.setTitle(name + (open ? " ▴" : " ▾"), for: .normal)
-        let done = word("done", "Done")
-        doneButton.setTitle(picked.isEmpty ? done : "\(done) (\(picked.count))", for: .normal)
-        doneButton.isEnabled = !picked.isEmpty
     }
 
     // MARK: - Albums
@@ -296,17 +282,20 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         } else {
             return
         }
-        // Every number may move (taking one off renumbers the rest).
-        collectionView.reloadItems(at: collectionView.indexPathsForVisibleItems)
-        refreshHeader()
+        // Every number may move (taking one off renumbers the rest). The
+        // rings are redrawn in place: reloading the cells made the photos
+        // blink as they were fetched again (owner, 2026-10-28).
+        let full = picked.count >= limit
+        for case let cell as PhotoCell in collectionView.visibleCells {
+            let n = picked.firstIndex(where: { $0.localIdentifier == cell.representedId }).map { $0 + 1 }
+            cell.setNumber(n, color: blue, full: full)
+        }
     }
 
     // MARK: - Finish
 
-    @objc private func cancelTapped() { finish([]) }
-    @objc private func doneTapped() { finish(picked) }
-
-    /// Called once: by Cancel, Done, or the sheet being swiped away.
+    /// Called once, when the sheet goes away (PhotoPickerPlugin hands over
+    /// pickedAssets).
     func finish(_ assets: [PHAsset]) {
         if finished { return }
         finished = true

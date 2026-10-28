@@ -713,7 +713,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     try {
       const { photos } = await native.pick({
         limit: Math.max(1, MAX_PHOTOS - picked.length),
-        labels: { cancel: t('chat.photo.sheet.cancel'), done: t('chat.photo.sheet.done'), recents: t('chat.photo.sheet.recents'), search: t('chat.photo.sheet.search') },
+        labels: { recents: t('chat.photo.sheet.recents'), search: t('chat.photo.sheet.search') },
       })
       const files = (photos || []).map((b64, i) => {
         const bin = atob(b64)

@@ -17,7 +17,7 @@ import Photos
 /// Apple's picker (PHPicker, no permission needed) opens instead.
 ///
 /// JS: Capacitor.Plugins.PhotoPicker.pick({ limit, maxSide, labels })
-///   labels: { cancel, done, recents, search } in the family's language.
+///   labels: { recents, search } in the family's language.
 ///   -> { photos: [base64 JPEG] }, in the order picked; [] if cancelled.
 /// Each picture is shrunk (longest side maxSide, default 1600) and turned
 /// upright here, so a 48-megapixel photo never crosses the bridge.
@@ -135,7 +135,9 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
     }
 
     public func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-        if let s = sheet { s.finish([]) } else { finish([]) }
+        // The app's sheet has no Done: what is picked when it goes away is
+        // what the family chose.
+        if let s = sheet { s.finish(s.pickedAssets) } else { finish([]) }
     }
 
     /// A picture as a base64 JPEG, drawn on white (a transparent PNG would

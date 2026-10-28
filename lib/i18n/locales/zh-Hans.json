@@ -2443,8 +2443,6 @@
   "chat.photo.remove": "拿掉这张",
   "chat.photo.add": "再加照片",
   "chat.photo.sendN": "发送 {n} 张照片",
-  "chat.photo.sheet.cancel": "取消",
-  "chat.photo.sheet.done": "完成",
   "chat.photo.sheet.recents": "最近项目",
   "chat.photo.sheet.search": "搜索相册",
   "chat.deskBadge": "柜台",

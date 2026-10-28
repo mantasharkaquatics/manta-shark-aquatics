@@ -2443,8 +2443,6 @@
   "chat.photo.remove": "Remove this photo",
   "chat.photo.add": "Add more photos",
   "chat.photo.sendN": "Send {n} photo(s)",
-  "chat.photo.sheet.cancel": "Cancel",
-  "chat.photo.sheet.done": "Done",
   "chat.photo.sheet.recents": "Recents",
   "chat.photo.sheet.search": "Search albums",
   "chat.deskBadge": "Desk",
