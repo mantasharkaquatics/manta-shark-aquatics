@@ -100,9 +100,9 @@ const PAGE_CSS = `
    the chat's own colour, no band and no line, so it looks the same before
    and while typing; the box itself is white, 46px tall, with 15px above it
    and 11px below; the photo and send buttons sit 16px in from the screen's
-   edges. The home-indicator band is added below only while the keyboard is
-   down. */
-.pc-inp { display: flex; gap: 10px; align-items: center; padding: 15px 16px calc(11px + var(--app-sab, 0px)); background: ${BRAND.paper}; }
+   edges. While the keyboard is down the row sits just above the home
+   indicator (2px over its band -- owner: lower). */
+.pc-inp { display: flex; gap: 10px; align-items: center; padding: 15px 16px max(11px, calc(var(--app-sab, 0px) + 2px)); background: ${BRAND.paper}; }
 .pc-inp:focus-within { padding-bottom: 11px; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
