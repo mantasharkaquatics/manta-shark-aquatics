@@ -98,14 +98,16 @@ const PAGE_CSS = `
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
 /* No row of its own (owner, 2026-10-28, after Messenger): the input sits on
    the chat's own colour, no band and no line, so it looks the same before
-   and while typing; the box itself is white. 12px above and below it; the
-   home-indicator band is added below only while the keyboard is down. */
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 11px 8px calc(11px + var(--app-sab, 0px)); background: ${BRAND.paper}; }
+   and while typing; the box itself is white, 46px tall, with 15px above it
+   and 11px below; the photo and send buttons sit 16px in from the screen's
+   edges. The home-indicator band is added below only while the keyboard is
+   down. */
+.pc-inp { display: flex; gap: 10px; align-items: center; padding: 15px 16px calc(11px + var(--app-sab, 0px)); background: ${BRAND.paper}; }
 .pc-inp:focus-within { padding-bottom: 11px; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
 .pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
-.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 42px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid #dbe3ef; background: #fff; color: ${BRAND.ink}; outline: none; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 46px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid #dbe3ef; background: #fff; color: ${BRAND.ink}; outline: none; }
 .pc-cam { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
