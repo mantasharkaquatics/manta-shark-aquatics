@@ -463,8 +463,10 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   the page runs to the very bottom, under the home indicator, with no inset
   from iOS (contentInsetAdjustmentBehavior .never). Inside the app the
   viewport is viewport-fit=cover (APP_DETECT_SCRIPT, coverViewport()), so
-  env(safe-area-inset-bottom) is the home-indicator band: the tabs, the
-  room kept for them (--app-tab-h) and the chat's input row add it.
+  env(safe-area-inset-bottom) is the home-indicator band; the app also
+  sets --msa-sab itself (SafeAreaContainer), and --app-sab is the larger of
+  the two. The tabs (16px above the band -- owner: not so low), the room
+  kept for them (--app-tab-h) and the chat's input row add --app-sab.
   Anything new fixed to the bottom of an app page must add it too. The
   page colour behind the tabs is #e9eff7 (html.msa-app body). History
   (owner, 2026-10-28): white strips over iOS's own insets cut the tabs in
@@ -511,13 +513,17 @@ button. docs/migration-app-inbox.sql.
   paint, not scrolled to (owner, 2026-10-28).
 - **Pictures only, from the photo library** (owner, 2026-10-28: no camera,
   no files). An iPhone web page's file button always offers Take Photo and
-  Choose File too, so the iOS app has its own plugin,
-  mobile/ios/App/App/PhotoPicker.swift (PHPicker: no permission asked,
-  shrinks to 1600px JPEG; opens at half the screen -- the owner's choice
-  after trying the full sheet -- where Apple shows the photos alone; drag
-  it up for Photos / Collections and search),
-  registered in AppViewController.capacitorDidLoad;
-  the page reaches it through photoPickerPlugin() (lib/native-app.ts).
+  Choose File too, so the iOS app picks photos itself: PhotoPickerPlugin
+  (mobile/ios/App/App/PhotoPicker.swift, registered in
+  AppViewController.capacitorDidLoad), reached through photoPickerPlugin()
+  (lib/native-app.ts). The owner wants it at HALF the screen WITH the album
+  choice and a search on top, like Facebook; Apple's picker hides its top
+  bar at half height, so the app has its own sheet (PhotoSheet.swift:
+  Recents and albums, a search over album names -- iOS lets no app search
+  photo contents -- numbered picks, Done). It needs the photo permission
+  (NSPhotoLibraryUsageDescription), asked once; a family that says no gets
+  Apple's picker (PHPicker, no permission). Its words come from the page
+  (chat.photo.sheet.*). Photos are shrunk to 1600px JPEG on the phone.
   Android's file button already opens a picture-only picker, and iPhone
   builds older than the plugin fall back to it too.
 - **Families never see which staff member replied** (owner, 2026-10-28):

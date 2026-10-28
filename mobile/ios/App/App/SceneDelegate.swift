@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -63,6 +64,20 @@ class SafeAreaContainer: UIViewController {
             child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         child.didMove(toParent: self)
+    }
+
+    /// The home-indicator band, told to the page as --msa-sab as well, so the
+    /// tabs clear it even where env(safe-area-inset-bottom) reads 0 (the
+    /// page uses whichever is larger; lib/native-app.ts, app/globals.css).
+    private var bandSent = false
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        let band = Int(view.safeAreaInsets.bottom.rounded())
+        guard !bandSent, band > 0, let web = (child as? CAPBridgeViewController)?.webView else { return }
+        bandSent = true
+        let js = "(function(){var s=function(){if(document.documentElement)document.documentElement.style.setProperty('--msa-sab','\(band)px')};s();document.addEventListener('DOMContentLoaded',s)})()"
+        web.configuration.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        web.evaluateJavaScript(js, completionHandler: nil)
     }
 
     // The bridge still decides the status bar and the screen's turning.

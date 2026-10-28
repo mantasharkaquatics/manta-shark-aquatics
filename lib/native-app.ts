@@ -48,7 +48,7 @@ export function appPlatform(): 'ios' | 'android' | null {
    Missing on Android, where the page's own file button already opens a
    picture-only picker, and on iPhone builds made before it. */
 export interface PhotoPickerPlugin {
-  pick(opts: { limit: number; maxSide?: number }): Promise<{ photos: string[] }>
+  pick(opts: { limit: number; maxSide?: number; labels?: { cancel: string; done: string; recents: string; search: string } }): Promise<{ photos: string[] }>
 }
 export const photoPickerPlugin = (): PhotoPickerPlugin | null =>
   (cap()?.Plugins?.PhotoPicker as PhotoPickerPlugin | undefined) ?? null

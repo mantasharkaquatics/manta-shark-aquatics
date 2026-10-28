@@ -73,12 +73,14 @@ const css = `
   /* The tabs: a floating white capsule (owner, 2026-10-28, "like Instagram",
      with the names kept). Small while the page is scrolled down, full size
      again on the way up: the names fold away and the capsule narrows. */
-  .msa-tb { position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 60; height: 64px;
+  /* Lifted clear of the home indicator, with a little air (owner, 2026-10-28:
+     "too low, almost touching the bottom"). */
+  .msa-tb { position: fixed; left: 12px; right: 12px; bottom: calc(16px + var(--app-sab, 0px)); z-index: 60; height: 64px;
     display: flex; align-items: stretch; padding: 6px; border-radius: 32px; font-family: ${FONT_BODY};
     background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
     border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
     transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
-  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: calc(14px + var(--app-sab, 0px)); }
   .msa-tb .lb { display: block; max-height: 14px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }

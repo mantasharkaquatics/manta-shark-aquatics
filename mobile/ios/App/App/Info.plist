@@ -69,6 +69,8 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<!-- Light, always: the status bar's text stays dark on the white strip behind it (SceneDelegate.swift). -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos to send to the Manta Shark front desk in Messages. 選擇要在「訊息」傳給 Manta Shark 櫃台的照片。</string>
 	<key>UIUserInterfaceStyle</key>
 	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>

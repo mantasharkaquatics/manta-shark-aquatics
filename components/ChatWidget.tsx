@@ -96,7 +96,7 @@ const PAGE_CSS = `
 .pc-tcancel { min-height: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: ${BRAND.mute}; cursor: pointer; padding: 8px 4px; }
 .pc-tsend { min-height: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 800; font-size: 14px; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; }
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 8px 10px calc(10px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
 .pc-inp input:not([type=file]) { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 10px 14px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
 .pc-cam { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
@@ -711,7 +711,10 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     const native = photoPickerPlugin()
     if (!native) { fileRef.current?.click(); return }
     try {
-      const { photos } = await native.pick({ limit: Math.max(1, MAX_PHOTOS - picked.length) })
+      const { photos } = await native.pick({
+        limit: Math.max(1, MAX_PHOTOS - picked.length),
+        labels: { cancel: t('chat.photo.sheet.cancel'), done: t('chat.photo.sheet.done'), recents: t('chat.photo.sheet.recents'), search: t('chat.photo.sheet.search') },
+      })
       const files = (photos || []).map((b64, i) => {
         const bin = atob(b64)
         const bytes = new Uint8Array(bin.length)
