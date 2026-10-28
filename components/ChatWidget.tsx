@@ -96,12 +96,13 @@ const PAGE_CSS = `
 .pc-tcancel { min-height: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: ${BRAND.mute}; cursor: pointer; padding: 8px 4px; }
 .pc-tsend { min-height: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 800; font-size: 14px; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; }
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
-/* The same room above the box as below it, the home-indicator band added
-   below only while the keyboard is down: typing, the keyboard sits right
-   under the row (owner, 2026-10-28). The box, the row and both buttons a
-   little bigger again, the buttons full 44px targets at the row's ends. */
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 9px 8px calc(10px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
-.pc-inp:focus-within { padding-bottom: 10px; }
+/* The white row is the same before and while typing (owner, 2026-10-28):
+   11px above the box and 11px below it. Under it, only while the keyboard
+   is down, the home-indicator band, in the chat's own colour -- so the row
+   looks the same in both states and the band reads as the screen's edge. */
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 10px 8px 11px; background: #fff; border-top: 1px solid ${BRAND.line};
+  border-bottom: var(--app-sab, 0px) solid ${BRAND.paper}; }
+.pc-inp:focus-within { border-bottom-width: 0; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
 .pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
