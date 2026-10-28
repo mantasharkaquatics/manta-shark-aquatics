@@ -10,8 +10,10 @@ import Photos
 ///
 /// The sheet is drawn here, not by iOS's page sheet: that one moved a little
 /// with every tap on a photo (a finger never taps without moving, and the
-/// sheet took the movement as a drag). Here only the top bar drags it --
-/// up to the full screen, down to close -- and the photos never move it.
+/// sheet took the movement as a drag). Here the top bar drags it -- up to
+/// the full screen, down to close -- and the photos move it only when they
+/// are already at their top and pulled further down: let go gently and it
+/// springs back, pull far or flick fast and it closes.
 /// Apple's picker cannot
 /// show its top bar at half height, hence this one. It needs the photo
 /// library permission (NSPhotoLibraryUsageDescription in Info.plist); without
@@ -54,6 +56,9 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     private var panelHeight: NSLayoutConstraint!
     private var expanded = false
     private var dragStart: CGFloat = 0
+    /// How far the photos have pulled the sheet down (owner, 2026-10-28:
+    /// pulling down at the top of the photos pulls the whole sheet).
+    private var pullOffset: CGFloat = 0
 
     init(limit: Int, labels: [String: String]) {
         self.limit = max(1, limit)
@@ -129,6 +134,7 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
         grid.dataSource = self
         grid.delegate = self
         grid.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.id)
+        grid.alwaysBounceVertical = true
         grid.translatesAutoresizingMaskIntoConstraints = false
         panel.addSubview(grid)
 
@@ -236,6 +242,38 @@ final class PhotoSheetController: UIViewController, UICollectionViewDataSource, 
     }
 
     @objc private func dimTapped() { finish(picked) }
+
+    /// The photos at their top and pulled further down: the sheet comes down
+    /// with the finger instead of the photos.
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard scrollView === grid, !finished else { return }
+        let top = -scrollView.adjustedContentInset.top
+        guard scrollView.isTracking, scrollView.contentOffset.y < top || pullOffset > 0 else { return }
+        pullOffset = max(0, pullOffset + (top - scrollView.contentOffset.y))
+        scrollView.contentOffset.y = top
+        panel.transform = CGAffineTransform(translationX: 0, y: pullOffset)
+        dim.alpha = max(0.2, 1 - pullOffset / max(panelHeight.constant, 1))
+    }
+
+    /// Let go: a fast flick down, or a pull past a third of the sheet,
+    /// closes it; anything gentler springs back.
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
+                                   targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        guard scrollView === grid, pullOffset > 0 else { return }
+        let top = -scrollView.adjustedContentInset.top
+        targetContentOffset.pointee = CGPoint(x: 0, y: top)
+        // velocity is in points per millisecond; negative is downward.
+        let close = velocity.y < -1.0 || pullOffset > panelHeight.constant / 3
+        pullOffset = 0
+        if close {
+            finish(picked)
+        } else {
+            UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0, options: [.allowUserInteraction]) {
+                self.panel.transform = .identity
+                self.dim.alpha = 1
+            }
+        }
+    }
 
     /// Up: taller, to the full screen. Down: shorter; let go well below half
     /// and the sheet closes, handing over what is picked.
