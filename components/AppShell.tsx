@@ -73,14 +73,15 @@ const css = `
   /* The tabs: a floating white capsule (owner, 2026-10-28, "like Instagram",
      with the names kept). Small while the page is scrolled down, full size
      again on the way up: the names fold away and the capsule narrows. */
-  /* Just above the home indicator (owner, 2026-10-28: 10px over the screen's
-     edge was too low, 16px over the indicator too high). */
-  .msa-tb { position: fixed; left: 12px; right: 12px; bottom: calc(6px + var(--app-sab, 0px)); z-index: 60; height: 64px;
+  /* Where Instagram puts its own: 22px over the screen's edge on an iPhone,
+     over the home-indicator band rather than above it (owner, 2026-10-28,
+     comparing the two side by side). 8px where there is no band. */
+  .msa-tb { position: fixed; left: 12px; right: 12px; bottom: var(--app-tab-gap); z-index: 60; height: 64px;
     display: flex; align-items: stretch; padding: 6px; border-radius: 32px; font-family: ${FONT_BODY};
     background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
     border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
     transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
-  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: calc(6px + var(--app-sab, 0px)); }
+  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: var(--app-tab-gap); }
   .msa-tb .lb { display: block; max-height: 14px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }

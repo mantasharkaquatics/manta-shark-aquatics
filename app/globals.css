@@ -326,13 +326,15 @@
    leaves room for the tabs at the bottom. !important: Navbar's own <style>
    and inline styles come later. */
 /* --app-bar-h: the room the floating top card takes (8 + 56 + 8);
-   --app-tab-h: the room the floating tab capsule takes (6 + 64 + 10, plus
-   the iPhone's home-indicator band the page now runs under);
+   --app-tab-gap: how far the tab capsule sits above the screen's edge --
+   22px on an iPhone with a home indicator (Instagram's place), 8px without;
+   --app-tab-h: the room the capsule takes (gap + 64 + 10);
    --app-sab: that band -- env(safe-area-inset-bottom), or --msa-sab, which
    the iOS app sets itself (SceneDelegate.swift), whichever is larger;
    --app-tab-now: the same while the capsule is small (owner, 2026-10-28). */
 html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0px));
-  --app-bar-h: 72px; --app-tab-h: calc(80px + var(--app-sab)); --app-tab-now: var(--app-tab-h);
+  --app-tab-gap: max(8px, calc(var(--app-sab) - 12px));
+  --app-bar-h: 72px; --app-tab-h: calc(74px + var(--app-tab-gap)); --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
@@ -350,7 +352,7 @@ html.msa-app [data-view="schedule"] .msa-home { display: none !important; }
 /* The booking page's bar along the bottom sits on the tabs, not under them. */
 html.msa-app .msa-book-bar { bottom: var(--app-tab-now) !important; transition: bottom .22s ease; }
 /* The tabs shrink while the page is scrolled down (components/AppShell). */
-html.msa-app.msa-tabs-small { --app-tab-now: calc(62px + var(--app-sab)); }
+html.msa-app.msa-tabs-small { --app-tab-now: calc(60px + var(--app-tab-gap)); }
 /* The booking bar sits on the tabs inside the app, so the home indicator is
    not under it: no room for it. */
 html.msa-app .msa-book-bar { padding-bottom: 12px !important; }
