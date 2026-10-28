@@ -96,10 +96,17 @@ const PAGE_CSS = `
 .pc-tcancel { min-height: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: ${BRAND.mute}; cursor: pointer; padding: 8px 4px; }
 .pc-tsend { min-height: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 800; font-size: 14px; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; }
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 8px 10px calc(10px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
-.pc-inp input:not([type=file]) { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 10px 14px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
-.pc-cam { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
-.pc-send { width: 40px; height: 40px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+/* The same room above the box as below it, the home-indicator band added
+   below only while the keyboard is down: typing, the keyboard sits right
+   under the row (owner, 2026-10-28). */
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 6px 10px calc(7px + var(--app-sab, 0px)); background: #fff; border-top: 1px solid ${BRAND.line}; }
+.pc-inp:focus-within { padding-bottom: 7px; }
+/* Typing shows as the box's own edge turning blue, not a ring around it
+   that crowded the line above. */
+.pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 38px; font: inherit; font-size: 16px; padding: 0 14px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
+.pc-cam { width: 38px; height: 38px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
+.pc-send { width: 38px; height: 38px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
 .pc-cam:disabled { opacity: .5; cursor: not-allowed; }
 .pc-cam:focus-visible, .pc-send:focus-visible, .pc-strip:focus-visible, .pc-acts button:focus-visible, .pc-tsend:focus-visible, .pc-add:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
