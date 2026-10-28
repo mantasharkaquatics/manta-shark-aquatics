@@ -11,7 +11,7 @@ import { dateTag } from '@/lib/i18n'
    it for this visit. While it shows it adds its height to --closure-h, which
    the nav bar's spacer adds to --nav-space, so it covers nothing. */
 
-type Closure = {
+export type Closure = {
   id: string
   pool: string | null
   start_date: string
@@ -27,6 +27,20 @@ const HIDDEN_KEY = 'msa-closure-hidden'
 function clock(t: string) {
   const [h, m] = t.split(':').map(Number)
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+/** "The pool is closed on ... (reason)", as the banner says it; the app's
+ *  學校公告 tab shows the same line (components/AppInbox). */
+export function closureText(t: (k: string, v?: Record<string, string | number>) => string, locale: string, c: Closure): string {
+  const day = (d: string, withWeekday: boolean) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale as Parameters<typeof dateTag>[0]),
+    withWeekday ? { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' } : { month: 'long', day: 'numeric', timeZone: 'UTC' })
+  const when = c.start_date !== c.end_date
+    ? `${day(c.start_date, false)} – ${day(c.end_date, false)}`
+    : c.start_time && c.end_time
+      ? `${day(c.start_date, true)} ${clock(c.start_time)} – ${clock(c.end_time)}`
+      : day(c.start_date, true)
+  const reason = c.reason_key === 'other' ? (c.reason_text || '') : t('closure.reason.' + c.reason_key)
+  return t(c.pool ? 'closure.banner.textPool' : 'closure.banner.text', { when, pool: c.pool || '', reason })
 }
 
 export default function ClosureBanner() {
@@ -59,14 +73,6 @@ export default function ClosureBanner() {
 
   if (shown.length === 0) return null
 
-  const day = (d: string, withWeekday: boolean) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale),
-    withWeekday ? { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' } : { month: 'long', day: 'numeric', timeZone: 'UTC' })
-  const when = (c: Closure) => c.start_date !== c.end_date
-    ? `${day(c.start_date, false)} – ${day(c.end_date, false)}`
-    : c.start_time && c.end_time
-      ? `${day(c.start_date, true)} ${clock(c.start_time)} – ${clock(c.end_time)}`
-      : day(c.start_date, true)
-  const reason = (c: Closure) => c.reason_key === 'other' ? (c.reason_text || '') : t('closure.reason.' + c.reason_key)
 
   const hide = (id: string) => {
     const next = [...hidden, id]
@@ -84,7 +90,7 @@ export default function ClosureBanner() {
         }}>
           <span aria-hidden="true" style={{ flexShrink: 0 }}>⚠️</span>
           <span style={{ flex: 1, minWidth: 0 }}>
-            {t(c.pool ? 'closure.banner.textPool' : 'closure.banner.text', { when: when(c), pool: c.pool || '', reason: reason(c) })}
+            {closureText(t, locale, c)}
           </span>
           <button type="button" onClick={() => hide(c.id)} aria-label={t('closure.banner.hide')} className="tap-auto"
             style={{ flexShrink: 0, background: 'transparent', border: 'none', color: '#fff', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '2px 4px' }}>

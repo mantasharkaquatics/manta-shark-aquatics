@@ -1273,7 +1273,11 @@ export async function POST(req: NextRequest) {
       // assistant said.
       if (m.sender_type === 'system') continue
       const role = m.sender_type === 'parent' ? ('user' as const) : ('assistant' as const)
-      const text = role === 'user' ? String(m.body || '').slice(0, MAX_PARENT_LEN) : m.body
+      // A photo (app/api/chat/photo) is for the desk only: the AI is told one
+      // was sent, never shown it (owner, 2026-10-28).
+      const text = (m as any).metadata?.photo
+        ? '[The parent sent a photo. Only the front desk can see photos; you cannot. The desk has been told.]'
+        : role === 'user' ? String(m.body || '').slice(0, MAX_PARENT_LEN) : m.body
       const prev = merged[merged.length - 1]
       if (prev && prev.role === role && typeof prev.content === 'string') prev.content += '\n' + text
       else merged.push({ role, content: text })

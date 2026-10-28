@@ -245,5 +245,12 @@ export async function GET(req: NextRequest) {
   let waitlist: unknown = null
   try { waitlist = await runWaitlist(supabase) } catch (err) { console.error('cleanup-pending-bookings: waitlist pass failed', err) }
 
+  // The app's 通知 history keeps 90 days (lib/push.ts logFamily). Before
+  // docs/migration-app-inbox.sql there is no table: nothing to do.
+  try {
+    const { error } = await supabase.from('push_log').delete().lt('created_at', new Date(Date.now() - 90 * 86400000).toISOString())
+    if (error && error.code !== '42P01' && error.code !== 'PGRST205') console.warn('cleanup-pending-bookings: push_log trim', error.message)
+  } catch { /* next run */ }
+
   return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed, waitlist })
 }

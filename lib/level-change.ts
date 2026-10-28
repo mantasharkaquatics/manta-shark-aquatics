@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { logProgress } from '@/lib/push-text'
 import { isLevelNumber } from './levels'
 import { allRows, allRowsIn } from './db-paging'
 import { getTodayLA, getNowMinutesLA } from './date'
@@ -75,6 +76,11 @@ export async function setStudentLevel(
   if (updateErr) {
     await svc.from('level_upgrades').delete().eq('id', record.id)
     return { ok: false, status: 500, error: updateErr.message }
+  }
+  // Moved UP from a level it had (not an assessment's first level): an event
+  // strip in the app's chat (owner, 2026-10-28).
+  if (student.current_level && Number(to) > Number(student.current_level)) {
+    await logProgress(svc, { studentId, kind: 'level_up', level: Number(to), stage: 1 })
   }
   const [outOfBand, squad] = await Promise.all([
     outOfBandGroupLessons(svc, studentId, Number(to)).catch(e => {

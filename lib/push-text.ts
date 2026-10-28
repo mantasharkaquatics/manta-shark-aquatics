@@ -4,7 +4,7 @@ import { getT } from '@/lib/i18n/all'
 import { dateTag, type Locale } from '@/lib/i18n'
 import { getTodayLA } from '@/lib/date'
 import { courseIn, holdUntil, VIEWER_COPY } from '@/lib/email-family'
-import { pushFamily, type PushCategory, type PushMessage } from '@/lib/push'
+import { logFamily, pushFamily, type PushCategory, type PushMessage } from '@/lib/push'
 
 /* The words of each push (owner approved the sample page, 2026-10-27).
 
@@ -65,8 +65,10 @@ export function pushOfEmail(p: EmailPayload): PushMessage | null {
   if (!category) return null
   return {
     category,
+    kind: p.type,
     viewerOk: VIEWER_COPY.has(p.type),
-    url: p.type === 'waitlist_offer' ? sitePath(p.linkUrl as string | undefined, '/booking') : '/dashboard',
+    // The lesson list: the app's 課表 tab (the whole dashboard in a browser).
+    url: p.type === 'waitlist_offer' ? sitePath(p.linkUrl as string | undefined, '/booking') : '/dashboard/schedule',
     text: (L) => {
       const t = getT(L) as T
       const who = String(p.studentName || '').trim() || t('push.yourSwimmer')
@@ -135,6 +137,7 @@ export async function pushReport(svc: SupabaseClient, opts: { studentId: string;
     const first = String(st.full_name || '').trim().split(/\s+/)[0] || ''
     await pushFamily(svc, st.parent_id, {
       category: 'reports',
+      kind: 'report',
       viewerOk: true,
       url: `/dashboard?records=${encodeURIComponent(opts.studentId)}`,
       text: (L) => {
@@ -157,6 +160,7 @@ export async function pushReport(svc: SupabaseClient, opts: { studentId: string;
 export async function pushTest(svc: SupabaseClient, parentId: string): Promise<number> {
   return pushFamily(svc, parentId, {
     category: 'always',
+    kind: 'test',
     viewerOk: true,
     url: '/dashboard',
     text: (L) => {
@@ -164,4 +168,31 @@ export async function pushTest(svc: SupabaseClient, parentId: string): Promise<n
       return { title: t('push.test.title'), body: t('push.test.body') }
     },
   })
+}
+
+/** A swimmer finished a stage, or moved up a level (owner, 2026-10-28): kept
+ *  for the 通知 tab and shown as an event strip in the app's chat. No push
+ *  goes with it. Never throws. */
+export async function logProgress(svc: SupabaseClient, opts: { studentId: string; kind: 'stage_up' | 'level_up'; level: number; stage: number }): Promise<void> {
+  try {
+    const { data: s } = await svc.from('students').select('parent_id, full_name').eq('id', opts.studentId).maybeSingle()
+    const st = s as { parent_id?: string | null; full_name?: string | null } | null
+    if (!st?.parent_id) return
+    const first = String(st.full_name || '').trim().split(/\s+/)[0] || ''
+    await logFamily(svc, st.parent_id, {
+      kind: opts.kind,
+      viewerOk: true,
+      url: '/dashboard',
+      text: (L) => {
+        const t = getT(L) as T
+        const who = first || t('push.yourSwimmer')
+        const level = t('level.badge', { n: opts.level, name: t(`level.${opts.level}.name`) })
+        return opts.kind === 'level_up'
+          ? { title: t('push.levelUp.title', { who, n: opts.level }), body: level }
+          : { title: t('push.stageUp.title', { who, n: opts.stage }), body: level }
+      },
+    })
+  } catch (e) {
+    console.warn('push: progress log failed', e instanceof Error ? e.message : '')
+  }
 }

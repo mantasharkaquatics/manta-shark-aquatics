@@ -7,12 +7,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/provider'
 import { appLook } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
-import { openChat, chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
+import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
 /* The phone app's own frame (owner, 2026-10-27): a top bar and five tabs --
-   首頁 /dashboard, 預約 /booking, 課表 /dashboard/schedule, 訊息 (the chat),
-   我的 /dashboard/me. Only inside the app (lib/native-app.ts appLook); in a
+   首頁 /dashboard, 預約 /booking, 課表 /dashboard/schedule, 訊息
+   /dashboard/chat (the chat, school news and notices), 我的 /dashboard/me.
+   Only inside the app (lib/native-app.ts appLook); in a
    browser this renders nothing and the site keeps its own bar and footer.
    What the app hides of the website is in app/globals.css (html.msa-app).
 
@@ -29,7 +30,7 @@ const TAB_ROOTS: Record<string, string> = {
   '/dashboard/me': 'app.tab.me',
 }
 
-type Tab = { key: string; href?: string; icon: React.ReactNode }
+type Tab = { key: string; href: string; icon: React.ReactNode }
 
 const I = (d: React.ReactNode) => (
   <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
@@ -127,7 +128,8 @@ export default function AppShell() {
   // A new page starts with the bar at full size.
   useEffect(() => { document.documentElement.classList.remove('msa-tabs-small') }, [pathname])
 
-  if (!app) return null
+  // The message screen fills the screen with its own header and tabs.
+  if (!app || pathname === '/dashboard/chat') return null
 
   const isRoot = pathname in TAB_ROOTS
   const title = isRoot && TAB_ROOTS[pathname] ? t(TAB_ROOTS[pathname]) : 'Manta Shark'
@@ -140,12 +142,12 @@ export default function AppShell() {
     { key: 'home', href: '/dashboard', icon: ICONS.home },
     ...(viewer ? [] : [{ key: 'book', href: '/booking', icon: ICONS.book }]),
     { key: 'schedule', href: '/dashboard/schedule', icon: ICONS.schedule },
-    { key: 'chat', icon: ICONS.chat },
+    { key: 'chat', href: '/dashboard/chat', icon: ICONS.chat },
     { key: 'me', href: '/dashboard/me', icon: ICONS.me },
   ]
   // 我的 also covers the pages it opens; 首頁 is the dashboard itself.
   const onTab = (k: string) => {
-    if (chatOpen) return k === 'chat'
+    if (chatOpen || pathname === '/dashboard/chat') return k === 'chat'
     if (k === 'home') return pathname === '/dashboard'
     if (k === 'book') return pathname.startsWith('/booking')
     if (k === 'schedule') return pathname === '/dashboard/schedule'
@@ -178,11 +180,9 @@ export default function AppShell() {
                 <span className="lb">{label}</span>
               </>
             )
-            return tab.href ? (
-              <Link key={tab.key} href={tab.href} aria-current={current}>{inner}</Link>
-            ) : (
-              <button key={tab.key} type="button" aria-current={current} onClick={() => openChat()}
-                aria-label={unread > 0 ? `${label} · ${t('chat.unread', { n: unread })}` : label}>{inner}</button>
+            return (
+              <Link key={tab.key} href={tab.href} aria-current={current}
+                aria-label={tab.key === 'chat' && unread > 0 ? `${label} · ${t('chat.unread', { n: unread })}` : undefined}>{inner}</Link>
             )
           })}
         </nav>

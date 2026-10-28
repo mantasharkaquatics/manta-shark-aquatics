@@ -19,12 +19,19 @@ import { toLocale, type Locale } from '@/lib/i18n'
 
    Never throws: a push is extra, it must not fail the booking or the cron. */
 
-export type PushCategory = 'reports' | 'reminders' | 'bookings' | 'always'
+/** 'news': the school's announcements, pushed only to people who turned the
+ *  switch on (Apple 4.5.4: no promotional push without opting in). */
+export type PushCategory = 'reports' | 'reminders' | 'bookings' | 'news' | 'always'
 
 export type PushText = { title: string; body: string }
 
 export type PushMessage = {
   category: PushCategory
+  /** What it was about, for the 通知 history and the chat's event strips
+   *  (push_log.kind): the email type, 'report', 'test'... */
+  kind: string
+  /** false: not kept in push_log (an announcement has its own tab). */
+  log?: boolean
   /** Whether a view-only family member gets it too. */
   viewerOk: boolean
   /** The page the notification opens, a path on the site. */
@@ -129,12 +136,46 @@ async function familyMembers(svc: SupabaseClient, parentId: string): Promise<Mem
   return out
 }
 
-/** Which of these people turned this kind of notice off. */
+/** Which of these people turned this kind of notice off. School news is the
+ *  other way round: off unless the person turned it on (no row = off). */
 async function switchedOff(svc: SupabaseClient, userIds: string[], category: PushCategory): Promise<Set<string>> {
   if (category === 'always' || userIds.length === 0) return new Set()
-  const { data } = await svc.from('push_settings').select('auth_user_id, reports, reminders, bookings').in('auth_user_id', userIds)
-  return new Set(((data || []) as Record<string, unknown>[])
-    .filter(r => r[category] === false).map(r => r.auth_user_id as string))
+  const { data, error } = await svc.from('push_settings').select('*').in('auth_user_id', userIds)
+  const rows = (error ? [] : (data || [])) as Record<string, unknown>[]
+  if (category === 'news') {
+    const on = new Set(rows.filter(r => r.news === true).map(r => r.auth_user_id as string))
+    return new Set(userIds.filter(u => !on.has(u)))
+  }
+  return new Set(rows.filter(r => r[category] === false).map(r => r.auth_user_id as string))
+}
+
+/* The 通知 tab and the chat's event strips (owner, 2026-10-28): what the
+   school told each person, in the language of their phone, kept 90 days
+   (the cleanup cron). One row per person with the app, whether or not the
+   push itself was switched off or delivered -- a notice muted on the lock
+   screen is still something they may look up. docs/migration-app-inbox.sql;
+   before it runs, nothing is kept and nothing fails. */
+export async function logFamily(svc: SupabaseClient, parentId: string, msg: Pick<PushMessage, 'kind' | 'url' | 'text' | 'viewerOk'>, people?: { userId: string; role: Member['role'] }[]): Promise<void> {
+  try {
+    const members = people ?? await familyMembers(svc, parentId)
+    if (!members.length) return
+    const { data: devs } = await svc.from('push_devices').select('auth_user_id, lang, last_seen_at')
+      .eq('parent_id', parentId).order('last_seen_at', { ascending: false })
+    const langOf = new Map<string, string>()
+    for (const d of (devs || []) as { auth_user_id: string; lang: string }[]) if (!langOf.has(d.auth_user_id)) langOf.set(d.auth_user_id, d.lang)
+    const rows = members
+      .filter(m => langOf.has(m.userId) && (m.role !== 'viewer' || msg.viewerOk))
+      .map(m => {
+        const tx = msg.text(toLocale(langOf.get(m.userId)))
+        return { parent_id: parentId, auth_user_id: m.userId, kind: msg.kind, title: tx.title.slice(0, 200), body: tx.body.slice(0, 1000), url: msg.url }
+      })
+      .filter(r => r.title)
+    if (!rows.length) return
+    const { error } = await svc.from('push_log').insert(rows)
+    if (error && error.code !== '42P01' && error.code !== 'PGRST205') console.warn('push: log failed', error.message)
+  } catch (e) {
+    console.warn('push: log failed', e instanceof Error ? e.message : '')
+  }
 }
 
 /**
@@ -143,9 +184,11 @@ async function switchedOff(svc: SupabaseClient, userIds: string[], category: Pus
  */
 export async function pushFamily(svc: SupabaseClient, parentId: string, msg: PushMessage): Promise<number> {
   try {
-    const sa = serviceAccount()
-    if (!sa || !parentId) return 0
+    if (!parentId) return 0
     const members = await familyMembers(svc, parentId)
+    if (msg.log !== false) await logFamily(svc, parentId, msg, members)
+    const sa = serviceAccount()
+    if (!sa) return 0
     const roleOf = new Map(members.map(m => [m.userId, m.role]))
     const { data: devs, error } = await svc.from('push_devices')
       .select('token, auth_user_id, lang').eq('parent_id', parentId).eq('permission', true)

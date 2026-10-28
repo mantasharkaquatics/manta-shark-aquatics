@@ -461,7 +461,14 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
                       {msg.sender_type === 'ai' && (
                         <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
                       )}
-                      {msg.body}
+                      {/* A photo the family sent from the app (app/api/chat/photo). */}
+                      {msg.metadata?.photo && !msg._local ? (
+                        <a href={`/api/chat/photo?id=${msg.id}`} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/chat/photo?id=${msg.id}`} alt={t('chat.photo.alt')} loading="lazy"
+                            style={{ display: 'block', maxWidth: '240px', maxHeight: '320px', borderRadius: '10px' }} />
+                        </a>
+                      ) : msg.body}
                       <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px', textAlign: 'right' }}>
                         {clock(msg.created_at)}
                       </div>

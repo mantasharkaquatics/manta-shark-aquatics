@@ -454,3 +454,33 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   (AppViewController in mobile/ios/App/App/SceneDelegate.swift) hide the page
   scrolling past behind them. The app is always in light mode (Info.plist
   UIUserInterfaceStyle), so the status bar text stays dark on that white.
+
+# The app's 訊息 screen (owner, 2026-10-28)
+
+/dashboard/chat, the app's 訊息 tab: three tabs drawn after a game's chat
+(navy and gold frames). docs/migration-app-inbox.sql.
+
+- **客服** is the family's chat itself -- ChatWidget with variant 'page'.
+  Inside the app the floating widget never opens: openChat() and ?chat=1 go
+  to this page, which takes the waiting request. GlobalChat mounts nothing on
+  this path, and AppShell steps aside (the page has its own header).
+- **學校公告**: active pool closures plus what the desk posts on Admin > 公告
+  (lib/announcements.ts), shown as typed. "Also push" sends category 'news',
+  which goes only to people who turned on 學校公告與活動 -- the one switch
+  that is OFF unless turned on (Apple 4.5.4). The page asks once, the first
+  time the tab is opened in the app.
+- **通知**: push_log, written by pushFamily for every person with the app
+  (whether or not that kind of push is switched off), in their phone's
+  language, kept 90 days (cleanup cron). logFamily writes without pushing:
+  stage-ups (review-progress) and level-ups (setStudentLevel, not an
+  assessment's first level). A new kind needs an icon in both lists.
+- **Event strips**: the same push_log rows of the kinds in CHAT_EVENT_KINDS
+  (reports, stage/level ups, closures, booking changes) laid across the chat
+  by time.
+- **Photos** (app/api/chat/photo): private bucket chat-photos, the path in
+  chat_messages.metadata.photo, served to the thread's family and to staff as
+  a 5-minute signed link. The AI never sees one: ai-reply turns it into a
+  line saying a photo was sent; with the AI on the thread it answers once
+  that the desk will look, and the desk is alerted (throttled).
+- Buttons in AI replies were already there (metadata.options, <<OPTIONS>> in
+  lib/ai/system-prompt.ts); the page only draws them in the new style.

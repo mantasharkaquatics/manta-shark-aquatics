@@ -10,8 +10,9 @@ import { isNativeApp, pushPlugin } from '@/lib/native-app'
    so. When the phone itself has notifications off for the app, a line says
    that instead, since no switch here can override the phone. */
 
-type Key = 'reports' | 'reminders' | 'bookings'
-const KEYS: Key[] = ['reports', 'reminders', 'bookings']
+// news (2026-10-28): school announcements, off until turned on (Apple 4.5.4).
+type Key = 'reports' | 'reminders' | 'bookings' | 'news'
+const KEYS: Key[] = ['reports', 'reminders', 'bookings', 'news']
 
 export default function PushSettings() {
   const t = useT()
@@ -26,7 +27,7 @@ export default function PushSettings() {
     Promise.resolve().then(() => pushPlugin()?.checkPermissions()).then(p => setPhoneOff(p?.receive === 'denied')).catch(() => {})
     fetch('/api/push/settings', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false }) })
+      .then(d => { if (d) setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) })
       .catch(() => {})
   }, [])
 

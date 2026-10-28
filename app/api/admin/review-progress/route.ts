@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { readJson, badRequest } from '@/lib/http'
 import { cleanSnapshot, syncApprovedSkills } from '@/lib/skill-progress-sync'
-import { pushReport } from '@/lib/push-text'
+import { logProgress, pushReport } from '@/lib/push-text'
 
 /**
  * Confirms a lesson report: the skill scores and the note, as one card.
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   // with its level (/api/admin/review-assessment). Publishing it here would put
   // a note in front of the family with no level behind it.
   const { data: who } = await supabase
-    .from('students').select('current_level').eq('id', histRow.student_id).single()
+    .from('students').select('current_level, current_stage').eq('id', histRow.student_id).single()
   if (!who?.current_level) {
     return NextResponse.json({ error: 'This is an assessment with no level yet. Confirm it together with its level.', code: 'assessment_no_level' }, { status: 409 })
   }
@@ -117,6 +117,13 @@ export async function POST(req: NextRequest) {
   // "CC has a new lesson report" on the family's phones (owner, 2026-10-27).
   // There is no email for it; the dashboard shows a red dot as well.
   await pushReport(supabase, { studentId: histRow.student_id, coachId: histRow.coach_id })
+
+  // The approved scores may have finished a stage (the database trigger moves
+  // the swimmer on): an event strip in the app's chat (lib/push-text.ts).
+  const { data: after } = await supabase.from('students').select('current_level, current_stage').eq('id', histRow.student_id).maybeSingle()
+  if (after && Number(after.current_level) === Number(who.current_level) && Number(after.current_stage) > Number(who.current_stage || 1)) {
+    await logProgress(supabase, { studentId: histRow.student_id, kind: 'stage_up', level: Number(after.current_level), stage: Number(after.current_stage) })
+  }
 
   return NextResponse.json({ ok: true })
 }

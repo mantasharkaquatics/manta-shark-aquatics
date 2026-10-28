@@ -6,6 +6,8 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
 import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen, reportChatUnread } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
+import { useRouter } from 'next/navigation'
+import { appLook } from '@/lib/native-app'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
 // messages in the LOGO blue, the school's in white. The launcher is blue so it
@@ -40,6 +42,67 @@ function renderBody(text: string, linkLabel: string) {
 // sent -- through openChat() in lib/chat-open.
 // lift: extra px above the bottom edge, for pages whose own sticky action bar
 // would otherwise sit under the button (the booking page on a phone).
+/* The app's chat page, school colours (owner, 2026-10-28, sample B): navy
+   and gold frames on a light sea, the school's words in white bubbles with a
+   blue rim, the family's in warm cream with an amber rim. */
+const PAGE_CSS = `
+.pc { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; font-family: ${FONT_BODY};
+  background: radial-gradient(ellipse at 50% 20%, #eef6ff 0, #d6e7fb 55%, #b7d3f4 100%); }
+.pc-mode { text-align: center; font-size: 12px; font-weight: 700; color: #36507e; padding: 6px 12px 0; }
+.pc-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.pc-empty { margin: 40px auto 0; text-align: center; color: #36507e; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
+.pc-empty span { font-size: 34px; }
+.pc-pill { align-self: center; font-size: 11.5px; font-weight: 800; padding: 3px 14px; border-radius: 999px; background: ${BRAND.navy}; color: ${BRAND.yellow}; }
+.pc-note { align-self: center; max-width: 90%; text-align: center; font-size: 12px; color: #36507e; background: rgba(255,255,255,.6); border-radius: 10px; padding: 4px 10px; }
+.pc-strip { margin: 2px -12px; padding: 9px 14px; font-size: 13px; text-align: center; line-height: 1.45; text-decoration: none;
+  background: rgba(18,37,74,.9); color: #fff; border-top: 1px solid ${BRAND.yellow}; border-bottom: 1px solid ${BRAND.yellow}; display: block; }
+.pc-strip b { color: ${BRAND.yellow}; font-weight: 800; }
+.pc-strip u { text-decoration: none; color: #fff; font-weight: 800; white-space: nowrap; }
+.pc-row { display: flex; gap: 8px; align-items: flex-start; }
+.pc-row.me { justify-content: flex-end; }
+.pc-av { position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; font-weight: 900; font-size: 18px;
+  border: 3px solid ${BRAND.amber}; box-shadow: inset 0 0 0 2px #fff; }
+.pc-av img { width: 32px; height: auto; display: block; }
+.pc-av i { position: absolute; top: -7px; right: -9px; font-style: normal; font-size: 9.5px; font-weight: 900; padding: 1px 5px; border-radius: 6px;
+  background: ${BRAND.amber}; color: ${BRAND.navy}; border: 1px solid #fff; white-space: nowrap; }
+.pc-av-ai { background: #fff; }
+.pc-av-desk { background: ${BRAND.blue}; color: #fff; font-size: 20px; }
+.pc-av-me { background: ${BRAND.navy}; color: #fff; }
+.pc-col { max-width: calc(100% - 64px); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pc-row.me .pc-col { align-items: flex-end; }
+.pc-nm { font-size: 11.5px; font-weight: 800; }
+.pc-nm b { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; }
+.pc-tag-ai { background: ${BRAND.navy}; color: ${BRAND.yellow}; }
+.pc-tag-desk { background: ${BRAND.blue}; color: #fff; }
+.pc-bub { font-size: 15px; line-height: 1.55; padding: 9px 13px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: #fff; border: 2.5px solid ${BRAND.blue}; color: ${BRAND.ink}; box-shadow: 0 2px 0 #9fb8e6; }
+.pc-bub.mine { background: #fff4dc; border-color: ${BRAND.amber}; color: #4a3000; box-shadow: 0 2px 0 #f3c97a; }
+.pc-bub.ph { padding: 4px; }
+.pc-photo { display: block; position: relative; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.pc-photo img { display: block; max-width: 220px; max-height: 280px; border-radius: 10px; }
+.pc-photo-wait { position: absolute; inset: auto 6px 6px auto; font-size: 11px; font-weight: 800; color: #fff; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 8px; }
+.pc-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.pc-acts button, .pc-acts a { font: inherit; font-size: 13.5px; font-weight: 800; padding: 7px 12px; border-radius: 10px; cursor: pointer; text-decoration: none; min-height: 0; }
+.pc-a1 { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 2px solid #c97f00; }
+.pc-a2 { background: #fff; color: ${BRAND.blue}; border: 2px solid #9fb8e6; }
+.pc-acts button:disabled { opacity: .6; cursor: not-allowed; }
+.pc-dots { display: flex; gap: 5px; align-items: center; padding: 13px 14px; }
+.pc-dots span { width: 7px; height: 7px; border-radius: 50%; background: #8a97ad; animation: msaTypingBlink 1.2s infinite; }
+.pc-err { font-size: 13px; color: #9b1c1c; background: #fdecec; border-top: 1px solid #f5c2c2; padding: 8px 14px; }
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 10px 10px 12px; background: ${BRAND.navy}; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 11px 13px; border-radius: 12px; border: 2px solid #3b64a8; background: #fff; color: ${BRAND.ink}; outline: none; }
+.pc-cam { width: 46px; height: 46px; min-height: 0; flex-shrink: 0; border-radius: 12px; border: 2px solid #3b64a8; background: #fff; font-size: 20px; cursor: pointer; }
+.pc-send { height: 46px; min-height: 0; flex-shrink: 0; padding: 0 18px; border-radius: 12px; border: 2px solid #c97f00; font: inherit; font-weight: 900; font-size: 16px;
+  background: linear-gradient(180deg, #ffb733, ${BRAND.amber}); color: ${BRAND.navy}; cursor: pointer; }
+.pc-send:disabled, .pc-cam:disabled { opacity: .55; cursor: not-allowed; }
+.pc-cam:focus-visible, .pc-send:focus-visible, .pc-strip:focus-visible, .pc-acts button:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: 2px; }
+.pc-view { position: fixed; inset: 0; z-index: 1100; background: rgba(5,12,26,.92); display: grid; place-items: center; padding: 16px; }
+.pc-view img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+.pc-view button { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 20px; }
+@keyframes msaTypingBlink { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .pc-dots span { animation: none; } }
+`
+
 const GUEST_KEY = 'msa_guest_chat_key'
 const HISTORY_LIMIT = 200
 const readGuestKey = () => { try { return localStorage.getItem(GUEST_KEY) } catch { return null } }
@@ -55,21 +118,60 @@ export async function claimGuestChat() {
   } catch {}
 }
 
-export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | null; lift?: number }) {
+/** Something the school told the family, shown as a strip across the app's
+ *  chat (push_log via /api/app/inbox; owner, 2026-10-28). */
+export type ChatEvent = { id: string; kind: string; title: string; body: string; url: string | null; created_at: string }
+const EVENT_ICON: Record<string, string> = {
+  report: '📝', stage_up: '🏅', level_up: '🏆',
+  block_cancellation_notice: '⚠️', team_practice_cancelled: '⚠️',
+  booking_confirmed: '📅', booking_series_confirmed: '📅', booking_rescheduled: '📅', booking_cancelled: '📅',
+}
+export const CHAT_EVENT_KINDS = new Set(Object.keys(EVENT_ICON))
+
+/** A phone photo made small enough to send: at most 1600px on the long side,
+ *  as JPEG. A picture the browser cannot draw goes as it is. */
+async function shrinkPhoto(file: File): Promise<Blob> {
+  try {
+    const url = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url })
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k)
+      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+      const blob = await new Promise<Blob | null>(ok => c.toBlob(ok, 'image/jpeg', 0.85))
+      return blob || file
+    } finally { URL.revokeObjectURL(url) }
+  } catch { return file }
+}
+
+/* variant 'page' (owner, 2026-10-28): the phone app's 客服 tab
+   (app/(public)/dashboard/chat) -- the same conversation, always open,
+   filling the screen, drawn after a game's chat: framed pictures, time
+   pills, the school's notices as strips across it, a photo button and a big
+   send button. In the app the floating widget never opens; asking it to
+   (openChat, ?chat=1) goes to that page instead. */
+export default function ChatWidget({ parentId, lift = 0, variant = 'float', events = [], myName = '' }: {
+  parentId: string | null; lift?: number; variant?: 'float' | 'page'; events?: ChatEvent[]; myName?: string
+}) {
   const t = useT()
   const locale = useLocale()
+  const router = useRouter()
+  const page = variant === 'page'
   const guest = !parentId
   const [guestKey, setGuestKey] = useState<string | null>(null)
   const [limited, setLimited] = useState(false)
   const supabase = createClient()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(page)
   // Auto-restore the open chat after navigating away (e.g. to payment) and back
   const restoring = useRef(false)
   useEffect(() => {
+    if (page || appLook()) return
     try { if (sessionStorage.getItem('msa_chat_open') === '1') { restoring.current = true; setOpen(true) } } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => {
-    try { sessionStorage.setItem('msa_chat_open', open ? '1' : '0') } catch {}
+    if (!page) try { sessionStorage.setItem('msa_chat_open', open ? '1' : '0') } catch {}
     // Told to the page (lib/chat-open), so the dashboard holds its low-balance
     // notice while the panel is open (found 2026-10-15). Not the "closed" of
     // the first pass of a restore: the panel is about to open.
@@ -153,7 +255,11 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   }, [])
 
   useEffect(() => {
+    // In the app the chat is a page of its own: go there, and leave the
+    // request (and its text) for the page to take when it mounts.
+    const toPage = () => !page && appLook()
     const onOpen = (e: Event) => {
+      if (toPage()) { router.push('/dashboard/chat'); return }
       takePendingChatOpen()
       focusOnOpenRef.current = true
       setOpen(true)
@@ -164,6 +270,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     // A request made before this widget was mounted (lib/chat-open), handled
     // just after mount like an event would be.
     const timer = setTimeout(() => {
+      if (toPage()) return
       const pending = takePendingChatOpen()
       if (!pending) return
       focusOnOpenRef.current = true
@@ -171,6 +278,7 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
       if (pending.text) setInput(pending.text)
     }, 0)
     return () => { clearTimeout(timer); window.removeEventListener(CHAT_OPEN_EVENT, onOpen) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const awaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useIsMobile()
@@ -192,7 +300,8 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
   useEffect(() => {
     if (open && focusOnOpenRef.current) {
       focusOnOpenRef.current = false
-      ;(isMobile ? panelRef.current : inputRef.current)?.focus()
+      // The page: never the box, which would throw the keyboard up.
+      ;(isMobile || page ? panelRef.current : inputRef.current)?.focus()
     } else if (!open && focusLauncherRef.current) {
       focusLauncherRef.current = false
       launcherRef.current?.focus()
@@ -556,6 +665,163 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
     }
   }
 
+  /* A photo for the desk (app/api/chat/photo; owner, 2026-10-28). Shown at
+     once from the phone itself, then replaced by the stored one. */
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [viewPhoto, setViewPhoto] = useState<string | null>(null)
+  async function sendPhoto(file: File) {
+    if (!threadId || guest || photoBusy) return
+    setPhotoBusy(true); setSendFailed(null)
+    const local = URL.createObjectURL(file)
+    const tmpId = 'local-photo-' + Date.now()
+    setMessages(prev => [...prev, { id: tmpId, _local: true, _src: local, sender_type: 'parent', body: '📷', metadata: { photo: 'local' }, created_at: new Date().toISOString() }])
+    let code = ''
+    try {
+      const fd = new FormData()
+      fd.append('thread_id', threadId)
+      fd.append('locale', locale)
+      fd.append('file', await shrinkPhoto(file), 'photo.jpg')
+      const r = await fetch('/api/chat/photo', { method: 'POST', body: fd })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { code = d.code || 'failed'; throw new Error(code) }
+      setMessages(prev => {
+        const rest = prev.filter(m => m.id !== tmpId)
+        const add = [d.message, d.ack].filter(Boolean).filter((x: any) => !rest.some(m => m.id === x.id))
+        return [...rest, ...add]
+      })
+    } catch {
+      setMessages(prev => prev.filter(m => m.id !== tmpId))
+      setSendFailed(code === 'too_large' ? 'chat.photo.tooLarge' : code === 'limited' ? 'chat.photo.limited' : code === 'not_image' ? 'chat.photo.notImage' : 'chat.photo.failed')
+    } finally {
+      setPhotoBusy(false)
+      setTimeout(() => URL.revokeObjectURL(local), 60000)
+    }
+  }
+  const photoSrc = (m: any) => m._src || `/api/chat/photo?id=${m.id}`
+
+  /* The app's 客服 tab (variant 'page'). The school's notices sit in the
+     conversation by time, as strips across it; a time pill marks a new day
+     or a gap of 15 minutes. */
+  function renderPage() {
+    type Item = { k: 'm'; at: string; m: any } | { k: 'e'; at: string; e: ChatEvent }
+    const items: Item[] = [
+      ...messages.map(m => ({ k: 'm' as const, at: String(m.created_at || ''), m })),
+      ...events.filter(e => CHAT_EVENT_KINDS.has(e.kind)).map(e => ({ k: 'e' as const, at: e.created_at, e })),
+    ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+    const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+    const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
+    const dateLine = (iso: string) => new Date(iso).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })
+    const lastAi = [...messages].reverse().find(m => m.sender_type !== 'system')
+    const me = (myName || '').trim().charAt(0).toUpperCase() || '🙂'
+    const avatar = (who: string) => who === 'ai'
+      // eslint-disable-next-line @next/next/no-img-element
+      ? <span className="pc-av pc-av-ai" aria-hidden="true"><img src="/mascot.png" alt="" /><i>AI</i></span>
+      : who === 'admin'
+        ? <span className="pc-av pc-av-desk" aria-hidden="true">🎧<i>{t('chat.deskBadge')}</i></span>
+        : <span className="pc-av pc-av-me" aria-hidden="true">{me}</span>
+    return (
+      <div className="pc" ref={panelRef} tabIndex={-1}>
+        <style>{PAGE_CSS}</style>
+        <div ref={liveRef} className="sr-only" aria-live="polite" aria-atomic="true" />
+        <div className="pc-mode">{mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
+        <div className="pc-feed" ref={listRef}>
+          {items.length === 0 && (
+            <div className="pc-empty"><span aria-hidden="true">👋</span>{t('chat.empty')}</div>
+          )}
+          {items.map((it, i) => {
+            const prev = items[i - 1]
+            const pill = !prev || dayOf(prev.at) !== dayOf(it.at) || Date.parse(it.at) - Date.parse(prev.at) > 15 * 60000
+            const pillText = !prev || dayOf(prev.at) !== dayOf(it.at) ? `${dateLine(it.at)} ${clock(it.at)}` : clock(it.at)
+            const key = it.k === 'm' ? it.m.id : 'e-' + it.e.id
+            if (it.k === 'e') {
+              const e = it.e
+              const inner = <><span aria-hidden="true">{EVENT_ICON[e.kind] || '🔔'}</span> <b>{e.title}</b>{e.url && <u> {t('chat.event.open')} ›</u>}</>
+              return (
+                <Fragment key={key}>
+                  {pill && <div className="pc-pill">{pillText}</div>}
+                  {e.url ? <Link href={e.url} className="pc-strip">{inner}</Link> : <div className="pc-strip">{inner}</div>}
+                </Fragment>
+              )
+            }
+            const m = it.m
+            if (m.sender_type === 'system') return (
+              <Fragment key={key}>
+                {pill && <div className="pc-pill">{pillText}</div>}
+                <div className="pc-note">{m.metadata?.key === CHAT_HANDBACK_AUTO_KEY ? t('chat.handbackAuto') : m.metadata?.key === CHAT_HANDBACK_KEY || m.body === CHAT_HANDBACK_EN ? t('chat.handback') : m.body}</div>
+              </Fragment>
+            )
+            const mine = m.sender_type === 'parent'
+            const body = m.metadata?.photo ? (
+              <button type="button" className="pc-photo tap-auto" onClick={() => setViewPhoto(photoSrc(m))} aria-label={t('chat.photo.open')}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {/* A picture arriving makes the list taller: keep the newest in view. */}
+                <img src={photoSrc(m)} alt={t('chat.photo.alt')} onLoad={() => {
+                  const el = listRef.current
+                  if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 400) el.scrollTop = el.scrollHeight
+                }} />
+                {m._local && <span className="pc-photo-wait">{t('chat.photo.sending')}</span>}
+              </button>
+            ) : renderBody(m.body, t('chat.openLink'))
+            return (
+              <Fragment key={key}>
+                {pill && <div className="pc-pill">{pillText}</div>}
+                <div className={'pc-row' + (mine ? ' me' : '')}>
+                  {!mine && avatar(m.sender_type)}
+                  <div className="pc-col">
+                    {!mine && <div className="pc-nm"><b className={m.sender_type === 'ai' ? 'pc-tag-ai' : 'pc-tag-desk'}>{t(m.sender_type === 'ai' ? 'chat.fromAi' : 'chat.fromDesk')}</b></div>}
+                    <div className={'pc-bub' + (mine ? ' mine' : '') + (m.metadata?.photo ? ' ph' : '')}>
+                      {body}
+                      {m.sender_type === 'ai' && m.id === lastAi?.id && Array.isArray(m.metadata?.options) && (
+                        <div className="pc-acts">
+                          {m.metadata.options.map((opt: any, j: number) =>
+                            opt.type === 'link' ? <a key={j} href={opt.url} className="pc-a1">{opt.label}</a>
+                              : <button key={j} type="button" className={'tap-auto ' + (j === 0 ? 'pc-a1' : 'pc-a2')} disabled={sending} onClick={() => sendMessage(opt.label)}>{opt.label}</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {mine && avatar('parent')}
+                </div>
+              </Fragment>
+            )
+          })}
+          {awaitingAi && (
+            <div className="pc-row">
+              {avatar('ai')}
+              <div className="pc-col"><div className="pc-bub pc-dots" aria-label={t('chat.typing')}>
+                {[0, 1, 2].map(i => <span key={i} style={{ animationDelay: `${i * 0.2}s` }} />)}
+              </div></div>
+            </div>
+          )}
+        </div>
+        {sendFailed && <div role="alert" className="pc-err">{t(sendFailed)}</div>}
+        <div className="pc-inp">
+          <input ref={inputRef} className="kb-focus" aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}
+            value={input} maxLength={800} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || e.shiftKey) return
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return
+              sendMessage()
+            }} />
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendPhoto(f) }} />
+          <button type="button" className="pc-cam tap-auto" onClick={() => fileRef.current?.click()} disabled={photoBusy || !threadId} aria-label={t('chat.photo.send')}>📷</button>
+          <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending}>{t('chat.sendShort')}</button>
+        </div>
+        {viewPhoto && (
+          <div className="pc-view" role="dialog" aria-modal="true" aria-label={t('chat.photo.alt')} onClick={() => setViewPhoto(null)}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={viewPhoto} alt={t('chat.photo.alt')} />
+            <button type="button" className="tap-auto" onClick={() => setViewPhoto(null)} aria-label={t('common.close')}>✕</button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (page) return renderPage()
+
   const windowStyle: React.CSSProperties = isMobile ? {
     position: 'fixed', inset: 0, zIndex: 1000,
     display: 'flex', flexDirection: 'column',
@@ -682,7 +948,12 @@ export default function ChatWidget({ parentId, lift = 0 }: { parentId: string | 
                   {msg.sender_type === 'admin' && (
                     <div style={{ fontSize: '11px', fontWeight: 800, color: '#1f7a57', marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromDesk')}</div>
                   )}
-                  {renderBody(msg.body, t('chat.openLink'))}
+                  {msg.metadata?.photo ? (
+                    <a href={photoSrc(msg)} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photoSrc(msg)} alt={t('chat.photo.alt')} style={{ display: 'block', maxWidth: '100%', maxHeight: '280px', borderRadius: '10px' }} />
+                    </a>
+                  ) : renderBody(msg.body, t('chat.openLink'))}
                   {msg.sender_type === 'ai' && msg.id === messages[messages.length - 1]?.id && Array.isArray(msg.metadata?.options) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                       {msg.metadata.options.map((opt: any, i: number) =>

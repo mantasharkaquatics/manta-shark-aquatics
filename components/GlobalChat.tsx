@@ -52,6 +52,8 @@ export default function GlobalChat() {
   }, [])
 
   if (parentId === undefined) return null
+  // The app's message screen has the conversation itself (variant 'page').
+  if (pathname === '/dashboard/chat') return null
   // The booking page has its own sticky bar along the bottom on a phone.
   const lift = isPhone && pathname.startsWith('/booking') ? 104 : 0
   // Keyed on the account, so signing in or out starts the right kind of chat.

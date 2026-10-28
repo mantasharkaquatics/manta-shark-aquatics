@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
 
-/* The three notification switches in My Account (owner, 2026-10-27), per
-   person: lesson reports, lesson reminders, booking changes. No row means all
-   on. Closures and lessons the school cancels have no switch (lib/push.ts). */
+/* The notification switches under 我的 (owner, 2026-10-27), per person:
+   lesson reports, lesson reminders, booking changes -- on unless turned off
+   -- and school news (2026-10-28), off unless turned on (Apple 4.5.4).
+   Closures and lessons the school cancels have no switch (lib/push.ts). */
 
 export const runtime = 'nodejs'
 
-const KEYS = ['reports', 'reminders', 'bookings'] as const
+const KEYS = ['reports', 'reminders', 'bookings', 'news'] as const
 
 export async function GET() {
   const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data } = await auth.svc.from('push_settings').select('reports, reminders, bookings')
+  const { data } = await auth.svc.from('push_settings').select('*')
     .eq('auth_user_id', auth.user.id).maybeSingle()
   const row = (data || {}) as Record<string, boolean | undefined>
-  return NextResponse.json(Object.fromEntries(KEYS.map(k => [k, row[k] !== false])))
+  return NextResponse.json(Object.fromEntries(KEYS.map(k => [k, k === 'news' ? row[k] === true : row[k] !== false])))
 }
 
 export async function POST(req: NextRequest) {
