@@ -198,6 +198,10 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   useEffect(() => () => reportChatOpen(false), [])
   const [threadId, setThreadId] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[]>([])
+  /* The greeting ("Hi! How can we help?") is for a conversation that has
+     nothing in it -- not for one whose history is still on its way, where
+     it flashed up and vanished (owner, 2026-10-28). */
+  const [historyReady, setHistoryReady] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   // The i18n key of the "not sent" line, or null (the guest chat has its own).
@@ -510,6 +514,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       const k = readGuestKey()
       setGuestKey(k)
       if (k) await loadGuest(k, true)
+      else setHistoryReady(true) // a visitor with no conversation yet
       return
     }
     // Normally already done by GlobalChat at sign-in; harmless if not.
@@ -562,6 +567,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       // Keep a message still on its way (shown before the server has it).
       if (Array.isArray(d.messages)) setMessages(prev => [...d.messages, ...prev.filter(m => m._local)])
     } catch {}
+    setHistoryReady(true)
   }
 
   // A guest has no realtime channel, so a reply from the team is picked up by
@@ -629,6 +635,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     ;(data || []).forEach((m: { id?: string } | null) => { if (m?.id) heardRef.current.add(m.id) })
     setMessages((data || []).reverse())
     if (th) setMode((th as any).mode === 'human' ? 'human' : 'ai')
+    setHistoryReady(true)
   }
 
   async function sendMessage(text?: string) {
@@ -798,7 +805,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         <div ref={liveRef} className="sr-only" aria-live="polite" aria-atomic="true" />
         <div className="pc-mode">{mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
         <div className="pc-feed" ref={listRef}>
-          {items.length === 0 && (
+          {items.length === 0 && historyReady && (
             <div className="pc-empty"><span aria-hidden="true">👋</span>{t('chat.empty')}</div>
           )}
           {items.map((it, i) => {
@@ -999,7 +1006,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
 
           {/* Messages */}
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {messages.length === 0 && (
+            {messages.length === 0 && historyReady && (
               <div style={{ textAlign: 'center', color: '#56647d', fontSize: '14px', marginTop: '40px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px' }}>👋</div>
                 {t(guest ? 'chat.guest.empty' : 'chat.empty')}
