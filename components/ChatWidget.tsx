@@ -85,7 +85,7 @@ const PAGE_CSS = `
 .pc-dots { display: flex; gap: 5px; align-items: center; padding: 13px 14px; }
 .pc-dots span { width: 7px; height: 7px; border-radius: 50%; background: #8a97ad; animation: msaTypingBlink 1.2s infinite; }
 .pc-err { font-size: 13px; color: #9b1c1c; background: #fdecec; border-top: 1px solid #f5c2c2; padding: 8px 14px; }
-.pc-tray { background: #fff; border-top: 1px solid ${BRAND.line}; padding: 12px 12px 8px; }
+.pc-tray { background: ${BRAND.paper}; padding: 12px 12px 4px; }
 .pc-thumbs { display: flex; gap: 10px; overflow-x: auto; padding: 6px 2px 2px; }
 .pc-th { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
 .pc-th img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; }
@@ -96,17 +96,16 @@ const PAGE_CSS = `
 .pc-tcancel { min-height: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: ${BRAND.mute}; cursor: pointer; padding: 8px 4px; }
 .pc-tsend { min-height: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; font-weight: 800; font-size: 14px; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; }
 .pc-tsend:disabled { opacity: .6; cursor: wait; }
-/* The white row is the same before and while typing (owner, 2026-10-28):
-   11px above the box and 11px below it. Under it, only while the keyboard
-   is down, the home-indicator band, in the chat's own colour -- so the row
-   looks the same in both states and the band reads as the screen's edge. */
-.pc-inp { display: flex; gap: 8px; align-items: center; padding: 10px 8px 11px; background: #fff; border-top: 1px solid ${BRAND.line};
-  border-bottom: var(--app-sab, 0px) solid ${BRAND.paper}; }
-.pc-inp:focus-within { border-bottom-width: 0; }
+/* No row of its own (owner, 2026-10-28, after Messenger): the input sits on
+   the chat's own colour, no band and no line, so it looks the same before
+   and while typing; the box itself is white. 12px above and below it; the
+   home-indicator band is added below only while the keyboard is down. */
+.pc-inp { display: flex; gap: 8px; align-items: center; padding: 11px 8px calc(11px + var(--app-sab, 0px)); background: ${BRAND.paper}; }
+.pc-inp:focus-within { padding-bottom: 11px; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
 .pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
-.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 42px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid ${BRAND.line}; background: ${BRAND.paper}; color: ${BRAND.ink}; outline: none; }
+.pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 42px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid #dbe3ef; background: #fff; color: ${BRAND.ink}; outline: none; }
 .pc-cam { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
