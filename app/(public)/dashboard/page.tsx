@@ -3,7 +3,7 @@ import ZellePay from '@/components/ZellePay'
 import { SafetyEditor } from '@/components/SafetyFields'
 import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
-import { createContext, useCallback, useContext, useEffect, useState, useRef, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -31,11 +31,16 @@ import type { MonthlyReport } from './MonthlyReportSheet'
 const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
 const Celebration = dynamic(() => import('./Celebration'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
+// The app's 3D swimmer cards (owner, 2026-10-29): three.js and the model load
+// only inside the app, on 首頁 -- never on the website or 課表.
+const SwimmerDeck = dynamic(() => import('@/components/swimmer/SwimmerDeck'), { ssr: false })
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
+import { appLook } from '@/lib/native-app'
+import { lookOf, type Gender, type SwimmerLook } from '@/lib/swimmer-look'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -83,6 +88,8 @@ ${REPORT_SHEET_CSS}
   color: #2050a0; font-size: 13.5px; font-weight: 800; text-decoration: none;
   transition: border-color .15s, color .15s }
 @media (hover: hover) { .msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) } }
+.msa-addkid.sw-add { min-height: 0; flex-direction: row; padding: 14px; margin-top: 14px }
+.msa-addkid.sw-add .msa-addkid-plus { width: 30px; height: 30px; font-size: 18px }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   font-size: 22px; font-weight: 400; background: #12254a; color: #fff }
 /* 「我的方案」 (owner, 2026-10-02): what the family already holds -- each fixed
@@ -334,7 +341,7 @@ const AMBER = BRAND.amber
 
 
 interface Parent { id: string; first_name: string; last_name: string; email: string; phone?: string | null }
-interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string; trial_used_at: string | null
+interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string | null; avatar_look?: unknown; trial_used_at: string | null
   /** When the family last opened this swimmer's lesson records (docs/migration-reports-seen.sql); null = never. */
   reports_seen_at?: string | null }
 interface SkillProgress {
@@ -1679,6 +1686,10 @@ export default function DashboardPage() {
   const [viewer, setViewer] = useState(false)
   const [mainName, setMainName] = useState('')
   const [students, setStudents] = useState<Student[]>([])
+  // Inside the phone app the home cards carry the 3D swimmer (SwimmerDeck).
+  const [inApp, setInApp] = useState(false)
+  useEffect(() => { setInApp(appLook()) }, [])
+  const swimmerItems = useMemo(() => students.map(s => ({ id: s.id, name: s.full_name, look: lookOf(s) })), [students])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
   // The pools, read once (PoolLink). Nothing is set while only one is open.
@@ -3472,8 +3483,10 @@ export default function DashboardPage() {
               <b>{t('dash.newReportsView')} ›</b>
             </button>
           ))}
-          <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
-            {students.map((student) => {
+          {(() => {
+            /* One swimmer's card. Inside the app the 3D swimmer's stage comes
+               first (SwimmerDeck); on the website there is none. */
+            const studentCard = (student: Student, stage: React.ReactNode = null) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
@@ -3490,6 +3503,7 @@ export default function DashboardPage() {
               )
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
+                  {stage}
                   {/* Name and check-in on one line (owner, 2026-10-26: the
                       "MANTA SHARK · SWIMMER" line and the age came off). */}
                   <div className="msa-mcard-top">
@@ -3593,18 +3607,38 @@ export default function DashboardPage() {
                   {hereMsg?.id === student.id && <div className="msa-mcard-heremsg" role="alert">{hereMsg.text}</div>}
                 </div>
               )
-            })}
-            {/* Adding a child used to live only on the account page, behind a
-                footer link. A parent looking to add one looks next to the
-                children they already have. Gone at the limit the account page
-                enforces. */}
-            {students.length < MAX_SWIMMERS && !viewer && (
-              <Link href="/dashboard/account?add=1" className="msa-addkid">
+            }
+            /* Adding a child used to live only on the account page, behind a
+               footer link. A parent looking to add one looks next to the
+               children they already have. Gone at the limit the account page
+               enforces. */
+            const addKid = (extra = '') => students.length < MAX_SWIMMERS && !viewer && (
+              <Link href="/dashboard/account?add=1" className={'msa-addkid' + extra}>
                 <span className="msa-addkid-plus">+</span>
                 <span>{t('account.addSwimmer')}</span>
               </Link>
-            )}
-          </Rail>
+            )
+            if (inApp && view === 'home' && students.length > 0) return (
+              <>
+                <SwimmerDeck
+                  items={swimmerItems}
+                  renderCard={(it, stage) => {
+                    const s = students.find(x => x.id === it.id)
+                    return s ? studentCard(s, stage) : null
+                  }}
+                  onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
+                  onGender={(id: string, gender: Gender) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, gender } : s)))}
+                />
+                {addKid(' sw-add')}
+              </>
+            )
+            return (
+              <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
+                {students.map(s => studentCard(s))}
+                {addKid()}
+              </Rail>
+            )
+          })()}
 
           {/* The two things a family comes here to do most, under the
               children they are doing them for. Points open a sheet with the

@@ -10,6 +10,7 @@ import { sendEmail } from '@/lib/email'
 import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
 import { contactProblem, medicalToStore } from '@/lib/safety-info'
+import { isGender } from '@/lib/swimmer-look'
 import { saveContact, saveMedical } from '@/lib/safety-info-server'
 
 export const runtime = 'nodejs'
@@ -97,7 +98,10 @@ export async function POST(req: NextRequest) {
   const today = getTodayLA()
   const students = (Array.isArray(body.students) ? body.students : [])
     .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '', me: s?.is_account_holder === true,
-      medical: medicalToStore(s?.medical) }))
+      medical: medicalToStore(s?.medical),
+      // Boy or girl (owner, 2026-10-29). The form asks it; a page loaded before
+      // the question existed sends none, and the app's card asks it later.
+      gender: isGender(s?.gender) ? s.gender : null }))
     .filter((s: { full_name: string | null }) => s.full_name)
   // Safety information (owner, 2026-10-22): every swimmer answers the medical
   // question and the family names an emergency contact who is not the parent.
@@ -194,9 +198,9 @@ export async function POST(req: NextRequest) {
 
   // The account exists from here on: a swimmer that fails to save is
   // reported, not fatal -- the page opens My Account with the add form.
-  const { data: made, error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string; medical: string | null }, i: number) => ({
+  const { data: made, error: stuErr } = await svc.from('students').insert(students.map((s: { full_name: string; date_of_birth: string; medical: string | null; gender: string | null }, i: number) => ({
     parent_id: parent.id, full_name: s.full_name, date_of_birth: s.date_of_birth,
-    current_level: null, is_active: true, sort_order: i + 1, medical_notes: s.medical,
+    current_level: null, is_active: true, sort_order: i + 1, medical_notes: s.medical, gender: s.gender,
   }))).select('id, sort_order')
   if (stuErr) console.error('[complete-registration] students insert failed', stuErr)
 

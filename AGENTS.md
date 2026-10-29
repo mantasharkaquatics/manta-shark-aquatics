@@ -546,3 +546,38 @@ button. docs/migration-app-inbox.sql.
   metadata or body: families read their rows through RLS.
 - Buttons in AI replies were already there (metadata.options, <<OPTIONS>> in
   lib/ai/system-prompt.ts); the page only draws them in the new style.
+
+# The 3D swimmer on the app's home cards (owner, 2026-10-29)
+
+Inside the app, 首頁's swimmer cards are a curved deck (components/swimmer/
+SwimmerDeck.tsx): each card has a 3D cartoon swimmer on top and the card's
+usual content below it. Several swimmers swipe left and right on a curve; the
+middle one turns with a finger and is dressed with 換造型 (boy/girl, hair,
+swimsuit, goggles, cap, fins, colours). The website, and 課表, keep the plain
+cards (Rail). The owner chose this look from three (版本一 豆豆身: a rounded
+trunk and a barely visible neck) and asked for no wave/cheer actions -- only
+a slow breathing.
+
+- **The model is made by code.** public/3d/swimmer-v1.glb comes from
+  scripts/swimmer/swimmer.py (Blender) and pack.mjs; scripts/swimmer/README.md
+  says how to rebuild it and which part and material names the page relies
+  on. Do not hand-edit the GLB. A changed model gets a new file name.
+- **three.js loads only there.** SwimmerDeck is a dynamic import, mounted only
+  when `appLook()` and view === 'home'; engine.ts is its only importer of
+  three. One live WebGL canvas moves to the middle card; the others show still
+  pictures. Nothing is drawn while the deck is off screen or the app is in
+  the background; breathing is drawn at 30 frames a second. No WebGL, or a
+  model that will not load: the cards show as before, without a swimmer.
+- **The look is students.avatar_look** (docs/migration-swimmer-look.sql),
+  written only by POST /api/parent/swimmer-look, which anyone in the family may
+  call -- view-only members too (owner: it costs nothing). Every value is from
+  the lists in lib/swimmer-look.ts; cleanLook() refuses the rest.
+- **No look yet:** the card starts from students.gender (boy: short hair and
+  jammers; girl: ponytail and a one-piece; colours from the swimmer's id). A
+  swimmer with no gender wears a swim cap and the card asks "boy or girl?";
+  the answer fills students.gender only while it is empty.
+- **Gender is asked when a swimmer is added** (owner, 2026-10-29): the register
+  form and My Account (components/GenderQuestion.tsx, 'male' / 'female', the
+  values lib/monthly-reports.ts reads); optional on Admin > Members. The
+  servers accept a missing answer (a page loaded before the question existed)
+  and store none.

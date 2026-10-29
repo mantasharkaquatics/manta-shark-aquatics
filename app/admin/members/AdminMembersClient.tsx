@@ -463,6 +463,7 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [dob, setDob] = useState('')
+  const [gender, setGender] = useState<'' | 'male' | 'female'>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
@@ -472,7 +473,7 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
     setSaving(true); setError(null)
     const res = await fetch('/api/admin/students/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent_id: parentId, full_name: name.trim(), date_of_birth: dob }),
+      body: JSON.stringify({ parent_id: parentId, full_name: name.trim(), date_of_birth: dob, gender: gender || null }),
     }).catch(() => null)
     const data = res ? await res.json().catch(() => ({})) : {}
     setSaving(false)
@@ -482,7 +483,7 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
       return
     }
     onAdded(data.student)
-    setName(''); setDob(''); setOpen(false)
+    setName(''); setDob(''); setGender(''); setOpen(false)
   }
 
   if (!open) return (
@@ -498,6 +499,16 @@ function AddStudentForm({ parentId, onAdded }: { parentId: string; onAdded: (s: 
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
         <input type="date" value={dob} max={today} onChange={e => setDob(e.target.value)} aria-label={t('admin.members.dob')} title={t('admin.members.dobRequired')}
           className="w-full bg-[#111d38] border border-[#1e3a6e] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#c9a84c]" />
+      </div>
+      {/* Boy or girl (owner, 2026-10-29): optional for the desk; the family's
+          app card asks if it is left empty. */}
+      <div role="radiogroup" aria-label={t('admin.members.gender')} className="flex gap-2">
+        {([['male', t('admin.members.genderMale')], ['female', t('admin.members.genderFemale')]] as const).map(([v, label]) => (
+          <button key={v} type="button" role="radio" aria-checked={gender === v} onClick={() => setGender(gender === v ? '' : v)}
+            className={`flex-1 py-2 rounded-lg border text-xs font-semibold ${gender === v ? 'border-[#c9a84c] text-[#c9a84c] bg-[#c9a84c]/10' : 'border-[#1e3a6e] text-gray-400'}`}>
+            {label}
+          </button>
+        ))}
       </div>
       <p className="text-gray-500 text-[11px]">{t('admin.members.addStudentHint')}</p>
       {error && <p className="text-red-400 text-xs">{error}</p>}

@@ -4,6 +4,7 @@ import { getTodayLA } from '@/lib/date'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
 import { medicalToStore } from '@/lib/safety-info'
 import { saveMedical } from '@/lib/safety-info-server'
+import { isGender } from '@/lib/swimmer-look'
 
 export const runtime = 'nodejs'
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { svc, parent } = ctx
 
-  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown; is_account_holder?: unknown; medical?: any } | null
+  const body = await req.json().catch(() => null) as { full_name?: unknown; date_of_birth?: unknown; gender?: unknown; is_account_holder?: unknown; medical?: any } | null
   const fullName = typeof body?.full_name === 'string' ? body.full_name.trim().replace(/\s+/g, ' ') : ''
   const dob = typeof body?.date_of_birth === 'string' ? body.date_of_birth.trim() : ''
   if (!fullName || fullName.length > 120) return NextResponse.json({ error: 'Missing or invalid name', code: 'NAME' }, { status: 400 })
@@ -45,6 +46,10 @@ export async function POST(req: NextRequest) {
   // The safety question (owner, 2026-10-22): "none" or what it is.
   const medical = medicalToStore(body?.medical)
   if (medical === undefined) return NextResponse.json({ error: 'Answer the medical question', code: 'MEDICAL' }, { status: 400 })
+  // Boy or girl (owner, 2026-10-29): the app's 3D swimmer starts from it.
+  // The form asks it; a page loaded before the question existed sends none
+  // (stored empty -- the app's card then asks).
+  const gender = isGender(body?.gender) ? body.gender : null
 
   const countActive = async () => {
     const { count, error } = await svc.from('students').select('id', { count: 'exact', head: true })
@@ -72,6 +77,7 @@ export async function POST(req: NextRequest) {
     added_by_parent: true,
     sort_order: sortOrder,
     medical_notes: medical,
+    gender,
   }).select('id').single()
   if (error || !row) {
     console.error('[parent/students] insert failed', error)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { readJson, badRequest } from '@/lib/http'
+import { isGender } from '@/lib/swimmer-look'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
     is_active: true,
     added_by_parent: false,
     sort_order: sortOrder,
+    // Optional for the desk (owner, 2026-10-29).
+    gender: isGender(body.gender) ? body.gender : null,
   }).select('id, full_name, current_level, is_active, date_of_birth, created_at, added_by_parent, legal_full_name, uci_number, service_code').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
