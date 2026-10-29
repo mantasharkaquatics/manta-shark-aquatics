@@ -1919,7 +1919,7 @@
   "swimmer.askHint": "選一個，{name}的游泳小人就會出現。之後隨時可以換造型。",
   "swimmer.dress": "換造型",
   "swimmer.done": "完成",
-  "swimmer.hintOne": "左右拖動轉圈",
+  "swimmer.hintOne": "拖人物轉圈",
   "swimmer.loading": "人物載入中…",
   "swimmer.noGL": "這支手機無法顯示 3D 游泳小人。",
   "swimmer.stageLabel": "{name}的游泳小人，左右拖動可以轉圈。",

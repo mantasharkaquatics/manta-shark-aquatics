@@ -50,6 +50,8 @@ export interface Engine {
   attach(host: HTMLElement | null): void
   /** The character drawn live, or none. */
   show(ch: Character | null): void
+  /** Is this screen point (clientX/Y) on the live swimmer itself -- not the pool or the sky? */
+  hitSwimmer(x: number, y: number): boolean
   spin(dx: number): void
   fling(velocity: number): void
   setDragging(on: boolean): void
@@ -278,6 +280,24 @@ export async function createEngine(): Promise<Engine | null> {
     if (ch) { ch.holder.rotation.y = yaw; live.scene.add(ch.holder) }
   }
 
+  const ray = new THREE.Raycaster()
+  const ndc = new THREE.Vector2()
+  function hitSwimmer(x: number, y: number) {
+    if (!current || !host) return false
+    const r = host.getBoundingClientRect()
+    if (!r.width || !r.height) return false
+    const meshes: T.Object3D[] = []
+    current.holder.traverseVisible(o => { if ((o as T.Mesh).isMesh) meshes.push(o) })
+    current.holder.updateMatrixWorld(true)
+    // The finger is wide: a point a little beside an arm or a leg still counts.
+    for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]]) {
+      ndc.set(((x + dx - r.left) / r.width) * 2 - 1, -((y + dy - r.top) / r.height) * 2 + 1)
+      ray.setFromCamera(ndc, live.cam)
+      if (ray.intersectObjects(meshes, false).length) return true
+    }
+    return false
+  }
+
   function loop() {
     raf = requestAnimationFrame(loop)
     const nowMs = performance.now()
@@ -296,7 +316,7 @@ export async function createEngine(): Promise<Engine | null> {
   raf = requestAnimationFrame(loop)
 
   return {
-    make, dress, snapshot, attach, show,
+    make, dress, snapshot, attach, show, hitSwimmer,
     spin(dx) {
       const now = performance.now()
       const most = SWIMMER_MAX_PER_S * Math.max(1, Math.min(100, now - spunAt)) / 1000

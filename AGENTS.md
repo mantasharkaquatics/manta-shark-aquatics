@@ -565,6 +565,14 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
 - **The swimmer's turning speed is the owner's** (2026-10-29, after "not
   fast" and then "a little faster"): the constants at the top of engine.ts.
   A swipe moves one card, however fast the flick.
+- **Only a finger that lands ON the swimmer turns it** (owner, 2026-10-29);
+  the pool, the sky and the card below all swipe. engine.hitSwimmer() casts
+  rays at the visible parts of the live swimmer (with a few pixels to spare).
+- **Swiping never goes through React.** The deck's position lives in a ref
+  and is written straight to the cards' style each frame; React re-renders
+  once, when the middle card changes. Release hands the finger's speed to a
+  critically damped spring. Re-rendering every card per frame is what made
+  it feel heavy -- keep it this way.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.
