@@ -32,13 +32,30 @@ const NEUTRAL: SwimmerLook = {
 const lookKey = (l: SwimmerLook) => JSON.stringify(l)
 
 const CSS = `
-.sw-deck { position: relative; perspective: 1100px; touch-action: pan-y; margin: 0 -20px; overflow-x: clip; overflow-y: visible;
-  -webkit-user-select: none; user-select: none }
-.sw-slot { position: absolute; top: 0; left: 50%; transform-origin: 50% 50%; will-change: transform, opacity; backface-visibility: hidden }
-.sw-dim { position: absolute; inset: 0; z-index: 5; border-radius: 20px; background: #0b1a36; opacity: 0; pointer-events: none; will-change: opacity }
+.sw-deck { --gap: 12px; display: flex; align-items: flex-start; gap: var(--gap); margin: 0 -20px -18px; padding: 4px 0 18px;
+  overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; -webkit-user-select: none; user-select: none }
+.sw-deck::-webkit-scrollbar { display: none }
+/* Room so the first and last card can come to the middle. */
+.sw-deck::before, .sw-deck::after { content: ''; flex: 0 0 calc((100% - var(--cw)) / 2 - var(--gap)) }
+.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always }
+.sw-dim { position: absolute; inset: 0; z-index: 5; border-radius: 20px; background: #0b1a36; opacity: 0; pointer-events: none }
+/* The curve: cards beside the middle one turn away and shrink a little.
+   Driven by the scroll itself (no script), so it moves with the finger. */
+@supports (animation-timeline: view()) {
+  .sw-slot { view-timeline: --sw-v inline; animation: sw-curve linear both; animation-timeline: --sw-v }
+  .sw-dim { animation: sw-dim linear both; animation-timeline: --sw-v }
+  @keyframes sw-curve {
+    0% { transform: perspective(900px) rotateY(-24deg) scale(.9); transform-origin: 0% 50% }
+    50% { transform: none; transform-origin: 50% 50% }
+    100% { transform: perspective(900px) rotateY(24deg) scale(.9); transform-origin: 100% 50% }
+  }
+  @keyframes sw-dim { 0% { opacity: .14 } 50% { opacity: 0 } 100% { opacity: .14 } }
+}
 .sw-slot:not(.on) .msa-mcard * { pointer-events: none }
 .sw-slot:not(.on) { cursor: pointer }
-.sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden; touch-action: pan-y;
+.sw-hold { position: absolute; z-index: 2; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
+.sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden;
   background: radial-gradient(120% 90% at 50% 18%, #e9f6fd, #c3e4f5) }
 .sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 46px; pointer-events: none;
   background: linear-gradient(180deg, rgba(29,63,124,0), rgba(29,63,124,.16)) }
@@ -121,10 +138,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const [engine, setEngine] = useState<Engine | null | 'loading'>('loading')
   const chars = useRef(new Map<string, { ch: Character; key: string }>())
   const [snaps, setSnaps] = useState<Record<string, string>>({})
-  // Which card is in the middle. The deck's exact position while a finger
-  // or the settling spring moves it lives in posRef and is written straight
-  // to the cards' style, never through React (a re-render of every card on
-  // every frame is what made swiping feel heavy).
+  // Which card is in the middle, once the cards have come to rest.
   const [center, setCenter] = useState(0)
   const [hinted, setHinted] = useState(false)
   const [draft, setDraft] = useState<SwimmerLook | null>(null)
@@ -135,7 +149,6 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const deckRef = useRef<HTMLDivElement>(null)
   const slotRefs = useRef<(HTMLDivElement | null)[]>([])
   const liveHost = useRef<HTMLDivElement | null>(null)
-  const [deckH, setDeckH] = useState(0)
   const [cw, setCw] = useState(320)
 
   // Load three.js and the model once.
@@ -188,170 +201,115 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     if (id && had) { engine.dress(had.ch, draft); chars.current.set(id, { ch: had.ch, key: lookKey(draft) }) }
   }, [engine, draft, items, center])
 
-  // The deck's size: card width from the screen, height from the tallest card.
+  // Card width from the screen.
   useLayoutEffect(() => {
     const el = deckRef.current; if (!el) return
-    const measure = () => {
-      setCw(Math.min(340, el.clientWidth - 64))
-      setDeckH(Math.max(0, ...slotRefs.current.map(s => s?.offsetHeight || 0)))
-    }
+    const measure = () => setCw(Math.min(340, el.clientWidth - 64))
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el); slotRefs.current.forEach(s => s && ro.observe(s))
+    ro.observe(el)
     return () => ro.disconnect()
-  }, [items.length])
+  }, [])
 
   /* ---------- swipe and spin ----------
-     Owner, 2026-10-29: only a drag that starts ON the swimmer turns it;
-     anywhere else on the card -- the pool, the sky, the card below -- swipes
-     to the next card. The deck follows the finger 1:1 and, on release,
-     settles with a spring that starts at the finger's speed, so there is no
-     jolt between dragging and settling. One card per swipe.
+     Owner, 2026-10-29: "completely smooth, no stutter". Two script-driven
+     versions (cards moved by JavaScript on every finger move) still
+     stuttered on the iPhone: whatever else the page does on its main thread
+     -- drawing the 3D swimmer, React, the phone's own work -- delays the
+     next move. So the cards are now a native horizontal scroller with
+     snapping: iOS moves them itself, off the main thread, exactly like any
+     scrolling list in the phone. The curve and the dimming of the side cards
+     are CSS driven by the scroll position (no script either).
 
-     Smoothness (owner: "completely smooth"): while the cards slide nothing
-     else happens. No React render (positions go straight to style, once a
-     frame), no 3D drawing (the live canvas holds its last frame), no work
-     when the finger lands (the hit test is one tiny GPU frame). The swap of
-     the live swimmer to the new middle card -- a React render, a picture of
-     the swimmer being left -- waits until the slide has come to rest. */
-  const posRef = useRef(0)
-  const anim = useRef(0)
+     Turning the swimmer (owner: only when the finger is ON the swimmer):
+     the live card carries invisible "grab" boxes over the swimmer, from
+     engine.swimmerBoxes(), with touch-action: none. A finger that lands
+     there turns the swimmer and the page does not scroll; a finger anywhere
+     else -- pool, sky, the card below -- scrolls the cards, decided by the
+     phone itself without asking any script. One card per swipe
+     (scroll-snap-stop). The live swimmer moves to the new middle card only
+     once the cards have stopped. */
+  const GAP = 12
   const dotsRef = useRef<HTMLDivElement>(null)
-  const placing = useRef(0)
-  const place = useCallback(() => {
-    const p = posRef.current
-    slotRefs.current.forEach((el, i) => {
-      if (!el) return
-      const off = i - p, a = Math.abs(off)
-      el.style.transform = `translate3d(${off * cw * 0.8 - cw / 2}px,0,${-a * 140}px) rotateY(${-off * 30}deg) scale(${1 - Math.min(a, 1.5) * 0.05})`
-      el.style.zIndex = String(100 - Math.round(a * 10))
-      el.style.opacity = String(a > 1.7 ? 0 : 1 - Math.max(0, a - 1) * 0.6)
-      el.style.width = cw + 'px'
-      const dim = el.lastElementChild as HTMLElement | null
-      if (dim?.classList.contains('sw-dim')) dim.style.opacity = String(Math.min(a, 1) * 0.12)
-    })
-  }, [cw])
-  // Every render lays the cards out again (new cards, a new width).
-  useLayoutEffect(() => { place() })
-  // Finger moves can come faster than the screen draws: lay out once per frame.
-  const placeSoon = useCallback(() => {
-    if (placing.current) return
-    placing.current = requestAnimationFrame(() => { placing.current = 0; place() })
-  }, [place])
+  const grabRefs = useRef<(HTMLDivElement | null)[]>([])
   const centerRef = useRef(center)
   useEffect(() => { centerRef.current = center }, [center])
-  const moving = useCallback((on: boolean) => { if (engine && engine !== 'loading') engine.setMoving(on) }, [engine])
-
-  const settle = useCallback((target: number, v0 = 0) => {
-    const n = items.length
-    target = Math.max(0, Math.min(n - 1, target))
-    // The dots answer at once (straight to the page); the cards follow the spring.
-    dotsRef.current?.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-current', String(i === target)))
-    cancelAnimationFrame(anim.current)
-    moving(true)
-    const done = () => {
-      const was = centerRef.current
-      if (target !== was && engine && engine !== 'loading') {
-        // A picture of the swimmer being left, turned as it was left, then the swap.
-        const leaving = items[was] ? chars.current.get(items[was].id) : undefined
-        if (leaving && engine.turnedSinceSnapshot(leaving.ch)) {
-          const url = engine.snapshot(leaving.ch); setSnaps(sn => ({ ...sn, [items[was].id]: url }))
-        }
-        setCenter(target)
+  const restTimer = useRef(0)
+  const nearest = useCallback(() => {
+    const el = deckRef.current
+    if (!el) return 0
+    return Math.max(0, Math.min(items.length - 1, Math.round(el.scrollLeft / (cw + GAP))))
+  }, [cw, items.length])
+  const rest = useCallback(() => {
+    window.clearTimeout(restTimer.current)
+    if (!engine || engine === 'loading') return
+    const i = nearest(), was = centerRef.current
+    if (i !== was) {
+      // A picture of the swimmer being left, as it was left (only if it was turned), then the swap.
+      const leaving = items[was] ? chars.current.get(items[was].id) : undefined
+      if (leaving && engine.turnedSinceSnapshot(leaving.ch)) {
+        const url = engine.snapshot(leaving.ch); setSnaps(sn => ({ ...sn, [items[was].id]: url }))
       }
-      moving(false)
+      setCenter(i)
     }
-    // A critically damped spring: no wobble, and it keeps the flick's speed.
-    const k = 190, c = 2 * Math.sqrt(k)
-    let v = Math.max(-9, Math.min(9, v0)), last = performance.now()
-    const step = (now: number) => {
-      const dt = Math.min(0.032, (now - last) / 1000); last = now
-      const x = posRef.current
-      v += (-k * (x - target) - c * v) * dt
-      posRef.current = x + v * dt
-      if (Math.abs(posRef.current - target) < 0.0015 && Math.abs(v) < 0.02) { posRef.current = target; place(); done(); return }
-      place()
-      anim.current = requestAnimationFrame(step)
-    }
-    anim.current = requestAnimationFrame(step)
-  }, [items, place, moving, engine])
-  const goTo = settle
-  useEffect(() => () => { cancelAnimationFrame(anim.current); cancelAnimationFrame(placing.current) }, [])
+    engine.setMoving(false)
+  }, [engine, items, nearest])
+  const onScroll = () => {
+    const i = nearest()
+    dotsRef.current?.querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)))
+    if (engine && engine !== 'loading') engine.setMoving(true)
+    window.clearTimeout(restTimer.current)
+    restTimer.current = window.setTimeout(rest, 140)
+  }
+  useEffect(() => {
+    const el = deckRef.current
+    if (!el || !('onscrollend' in window)) return
+    el.addEventListener('scrollend', rest)
+    return () => el.removeEventListener('scrollend', rest)
+  }, [rest])
+  useEffect(() => () => window.clearTimeout(restTimer.current), [])
+  const goTo = (i: number) => {
+    const el = deckRef.current
+    if (el) el.scrollTo({ left: i * (cw + GAP), behavior: 'smooth' })
+  }
+  // A tap on a side card brings it to the middle.
+  const onSlotClick = (i: number) => (e: React.MouseEvent) => {
+    if (i === centerRef.current) return
+    e.preventDefault(); e.stopPropagation(); goTo(i)
+  }
 
-  const drag = useRef<null | {
-    mode: 'spin' | 'swipe'; x: number; y: number; last: number; t: number; v: number; start: number; slot: number; moved: boolean; id: number
-    trail: { t: number; x: number }[]
-  }>(null)
-  // A drag must not end as a tap on whatever button is under the finger.
-  const dragged = useRef(false)
-  const onClickCapture = (e: React.MouseEvent) => {
-    if (dragged.current) { e.stopPropagation(); e.preventDefault(); dragged.current = false }
+  // The grab boxes over the live swimmer.
+  useLayoutEffect(() => {
+    if (!engine || engine === 'loading') return
+    const boxes = engine.swimmerBoxes()
+    grabRefs.current.forEach((g, k) => {
+      if (!g) return
+      const b = boxes[k]
+      g.style.display = b ? 'block' : 'none'
+      if (b) { g.style.left = b.x + 'px'; g.style.top = b.y + 'px'; g.style.width = b.w + 'px'; g.style.height = b.h + 'px' }
+    })
+  })
+  const spin = useRef<null | { id: number; last: number; t: number; v: number }>(null)
+  const onGrabDown = (e: React.PointerEvent) => {
+    if (!engine || engine === 'loading') return
+    e.preventDefault()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    spin.current = { id: e.pointerId, last: e.clientX, t: performance.now(), v: 0 }
+    engine.setDragging(true)
   }
-  const onDown = (e: React.PointerEvent) => {
-    dragged.current = false
-    const target = e.target as HTMLElement
-    const slot = target.closest('.sw-slot') as HTMLElement | null
-    if (!slot) return
-    const i = slotRefs.current.indexOf(slot as HTMLDivElement)
-    if (i === center && target.closest('button, a, input, select, textarea')) return
-    const ready = engine && engine !== 'loading'
-    // Turning is for the swimmer only: the finger has to land on the swimmer itself.
-    const onSwimmer = ready && i === center && !!target.closest('.sw-stage') && !target.closest('.sw-ask')
-      && Math.abs(posRef.current - center) < 0.05 && engine.hitSwimmer(e.clientX, e.clientY)
-    cancelAnimationFrame(anim.current)
-    if (onSwimmer) { posRef.current = center; place(); moving(false) }
-    const now = performance.now()
-    drag.current = {
-      mode: onSwimmer ? 'spin' : 'swipe', x: e.clientX, y: e.clientY, last: e.clientX, t: now, v: 0, start: posRef.current, slot: i,
-      moved: false, id: e.pointerId, trail: [{ t: now, x: e.clientX }],
-    }
+  const onGrabMove = (e: React.PointerEvent) => {
+    const d = spin.current
+    if (!d || d.id !== e.pointerId || !engine || engine === 'loading') return
+    const now = performance.now(), dx = e.clientX - d.last
+    d.v = dx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
+    engine.spin(dx)
+    if (dx) setHinted(true)
   }
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d || e.pointerId !== d.id) return
-    const dx = e.clientX - d.x, dy = e.clientY - d.y
-    if (!d.moved) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
-      if (Math.abs(dy) > Math.abs(dx)) {   // the page is being scrolled
-        drag.current = null
-        if (d.mode === 'swipe') settle(Math.round(posRef.current))
-        return
-      }
-      d.moved = true
-      deckRef.current?.setPointerCapture(e.pointerId)
-      if (d.mode === 'spin' && engine && engine !== 'loading') engine.setDragging(true)
-      if (d.mode === 'swipe') moving(true)
-    }
-    const now = performance.now(), ddx = e.clientX - d.last
-    d.v = ddx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
-    d.trail.push({ t: now, x: e.clientX }); while (d.trail.length > 2 && now - d.trail[0].t > 90) d.trail.shift()
-    if (d.mode === 'spin' && engine && engine !== 'loading') { engine.spin(ddx); setHinted(true); return }
-    if (items.length < 2) return
-    // The card under the finger moves with it; past either end it gives, like a rubber band.
-    let p = d.start - dx / (cw * 0.8)
-    const max = items.length - 1
-    if (p < 0) p = -Math.min(0.35, -p * 0.35)
-    else if (p > max) p = max + Math.min(0.35, (p - max) * 0.35)
-    posRef.current = p
-    placeSoon()
-  }
-  const onUp = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d || e.pointerId !== d.id) return
-    drag.current = null
-    if (d.mode === 'spin' && engine && engine !== 'loading') { engine.setDragging(false); if (d.moved) engine.fling(d.v) }
-    if (d.moved) dragged.current = true
-    if (d.mode !== 'swipe') return
-    // A tap: a side card comes to the middle; anywhere else, finish whatever slide the tap stopped.
-    if (!d.moved) { settle(d.slot !== center ? d.slot : Math.round(posRef.current)); return }
-    // The finger's speed over its last ~90ms, in cards per second.
-    const a = d.trail[0], b = d.trail[d.trail.length - 1]
-    const pxPerMs = b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0
-    const vCards = -pxPerMs * 1000 / (cw * 0.8)
-    const from = Math.round(d.start)
-    let to = Math.round(posRef.current)
-    if (Math.abs(pxPerMs) > 0.25) to = from + (pxPerMs < 0 ? 1 : -1)   // a flick always moves one card
-    settle(Math.max(from - 1, Math.min(from + 1, to)), vCards)
+  const onGrabUp = (e: React.PointerEvent) => {
+    const d = spin.current
+    if (!d || d.id !== e.pointerId || !engine || engine === 'loading') return
+    spin.current = null
+    engine.setDragging(false); engine.fling(d.v)
   }
 
   /* ---------- dressing ---------- */
@@ -427,8 +385,8 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   return (
     <>
       <style>{CSS}</style>
-      <div ref={deckRef} className="sw-deck" style={{ height: deckH || undefined }} aria-roledescription="carousel"
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onClickCapture={onClickCapture}>
+      <div ref={deckRef} className="sw-deck" style={{ '--cw': cw + 'px' } as React.CSSProperties} aria-roledescription="carousel"
+        onScroll={onScroll}>
         {items.map((it, i) => {
           const on = i === center
           const stage = (
@@ -436,6 +394,10 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
               {on && ready ? <div className="sw-live" ref={liveHost} role="img" aria-label={t('swimmer.stageLabel', { name: it.name })} />
                 : snaps[it.id] ? <img className="sw-snap" src={snaps[it.id]} alt={t('swimmer.stageLabel', { name: it.name })} />
                 : <div className="sw-msg">{t('swimmer.loading')}</div>}
+              {on && ready && [0, 1, 2].map(k => (
+                <div key={k} className="sw-hold" aria-hidden="true" style={{ display: 'none' }} ref={el => { grabRefs.current[k] = el }}
+                  onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp} />
+              ))}
               {on && ready && it.look && (
                 <button type="button" className="sw-dress tap-auto" onClick={openSheet}>{ICON_DRESS}{t('swimmer.dress')}</button>
               )}
@@ -454,7 +416,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
           )
           return (
             <div key={it.id} ref={el => { slotRefs.current[i] = el }} className={'sw-slot' + (on ? ' on' : '')}
-              role="group" aria-roledescription="slide" aria-label={it.name}>
+              role="group" aria-roledescription="slide" aria-label={it.name} onClickCapture={onSlotClick(i)}>
               {renderCard(it, stage)}
               <div className="sw-dim" aria-hidden="true" />
             </div>

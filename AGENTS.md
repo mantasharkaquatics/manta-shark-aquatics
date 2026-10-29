@@ -564,20 +564,26 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   turntable back without asking.
 - **The swimmer's turning speed is the owner's** (2026-10-29, after "not
   fast" and then "a little faster"): the constants at the top of engine.ts.
-  A swipe moves one card, however fast the flick.
+- **The cards are a native scroller, on purpose** (owner, 2026-10-29:
+  "completely smooth, no stutter"). Two versions that moved the cards with
+  JavaScript on every finger move (one through React, one writing styles
+  directly, with a spring) both stuttered on the iPhone -- anything on the
+  main thread (3D drawing, React, the phone) delays the next move. Now the
+  deck is `overflow-x: auto` with scroll-snap (center, snap-stop always),
+  so iOS moves it itself. The curve and the side-card dimming are CSS
+  scroll-driven animations (view timeline); a phone without them shows the
+  cards flat. Do not put touch or pointer listeners on the deck that could
+  stop the scroll (non-passive ones make iOS wait for the main thread).
 - **Only a finger that lands ON the swimmer turns it** (owner, 2026-10-29);
-  the pool, the sky and the card below all swipe. engine.hitSwimmer() draws
-  the swimmer alone into a 24x24 window round the finger and looks for any
-  covered pixel (one tiny GPU frame). A CPU ray test walked every skinned
-  triangle and was felt at the start of each swipe -- do not go back to it.
-- **Nothing else happens while the cards slide** (owner: "completely
-  smooth, no stutter"). Positions go straight to the cards' style once a
-  frame (no React render); the live canvas stops drawing and holds its last
-  frame (engine.setMoving); the swap of the live swimmer to the new middle
-  card -- one React render, plus a new picture of the swimmer being left
-  only if it was turned -- waits until the spring has come to rest. Release
-  hands the finger's speed to a critically damped spring. Each swimmer keeps
-  its own turn (Character.yaw), so its picture and live view match.
+  the pool, the sky and the card below all scroll. The live card carries
+  invisible `.sw-hold` boxes over the swimmer (engine.swimmerBoxes(): head,
+  body and legs, measured once per look from the posed body) with
+  `touch-action: none`, so the phone itself decides scroll-or-turn.
+- While the cards move the live canvas stops drawing (engine.setMoving);
+  when they rest, the live swimmer moves to the new middle card (one React
+  render; a new picture of the swimmer being left only if it was turned).
+  Each swimmer keeps its own turn (Character.yaw), so picture and live view
+  match.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.

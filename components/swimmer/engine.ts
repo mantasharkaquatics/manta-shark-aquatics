@@ -44,6 +44,8 @@ export interface Character {
   yaw?: number
   /** The turn its last picture was taken at. */
   snapYaw?: number
+  /** Its outline as bands (holder space): radius round the turning axis per height band. */
+  bands?: { y0: number; y1: number; r: number }[]
 }
 
 export interface Engine {
@@ -56,8 +58,8 @@ export interface Engine {
   attach(host: HTMLElement | null): void
   /** The character drawn live, or none. */
   show(ch: Character | null): void
-  /** Is this screen point (clientX/Y) on the live swimmer itself -- not the pool or the sky? */
-  hitSwimmer(x: number, y: number): boolean
+  /** Where the live swimmer is on its card, as up to three boxes (head, body, legs) in the card's CSS pixels. */
+  swimmerBoxes(): { x: number; y: number; w: number; h: number }[]
   /** While the cards slide, stop drawing (the canvas keeps its last frame), so the slide has the phone to itself. */
   setMoving(on: boolean): void
   spin(dx: number): void
@@ -247,6 +249,7 @@ export async function createEngine(): Promise<Engine | null> {
   }
 
   function dress(ch: Character, look: SwimmerLook) {
+    ch.bands = undefined   // a new hairstyle or fins change the outline
     const on = new Set<string>()
     if (look.cap) on.add('Cap'); else HAIR_PARTS[look.hair].forEach(p => on.add(p))
     on.add(SUIT_PARTS[look.suit])
@@ -304,33 +307,53 @@ export async function createEngine(): Promise<Engine | null> {
     live.renderer.render(live.scene, live.cam)
   }
 
-  /* Is a screen point on the swimmer? Drawn, not computed: the swimmer alone
-     (no pool, no shadow) into a tiny 24x24 window around the finger, and any
-     pixel it covers counts. The GPU does the skinning, so this costs about one
-     small frame -- the ray test it replaces walked every triangle on the CPU,
-     which a phone felt at the start of each swipe. */
-  const PICK = 24
-  const pickTarget = new THREE.WebGLRenderTarget(PICK, PICK)
-  const pickPixels = new Uint8Array(PICK * PICK * 4)
-  const clearWas = new THREE.Color()
-  function hitSwimmer(x: number, y: number) {
-    if (!current || !host) return false
-    const r = host.getBoundingClientRect()
-    if (!r.width || !r.height) return false
-    const px = x - r.left, py = y - r.top
-    if (px < 0 || py < 0 || px > r.width || py > r.height) return false
-    const R = live.renderer
-    live.scenery.forEach(o => { o.visible = false })
-    live.cam.setViewOffset(r.width, r.height, px - PICK / 2, py - PICK / 2, PICK, PICK)
-    R.getClearColor(clearWas); const alphaWas = R.getClearAlpha()
-    R.setRenderTarget(pickTarget); R.setClearColor(0x000000, 0); R.clear()
-    R.render(live.scene, live.cam)
-    R.readRenderTargetPixels(pickTarget, 0, 0, PICK, PICK, pickPixels)
-    R.setRenderTarget(null); R.setClearColor(clearWas, alphaWas)
-    live.cam.clearViewOffset()
-    live.scenery.forEach(o => { o.visible = true })
-    for (let i = 3; i < pickPixels.length; i += 4) if (pickPixels[i] > 0) return true
-    return false
+  /* Where the swimmer is on screen, for the invisible grab boxes that let a
+     finger turn it (anywhere else on the card scrolls). Worked out once per
+     look from the posed body -- every 6th vertex, skinned on the CPU, at
+     rest, never during a gesture -- as three height bands (head, body, legs),
+     each a cylinder round the turning axis so the box fits whatever way the
+     swimmer faces. */
+  const v3 = new THREE.Vector3()
+  function measure(ch: Character) {
+    ch.holder.updateMatrixWorld(true)
+    const hx = ch.holder.position.x, hz = ch.holder.position.z, hy = ch.holder.position.y
+    const pts: [number, number][] = []
+    ch.holder.traverseVisible(o => {
+      const m = o as T.SkinnedMesh
+      if (!m.isMesh || !m.geometry?.attributes?.position) return
+      const n = m.geometry.attributes.position.count
+      for (let i = 0; i < n; i += 6) {
+        if (m.isSkinnedMesh) m.getVertexPosition(i, v3); else v3.fromBufferAttribute(m.geometry.attributes.position, i)
+        v3.applyMatrix4(m.matrixWorld)
+        pts.push([v3.y - hy, Math.hypot(v3.x - hx, v3.z - hz)])
+      }
+    })
+    if (!pts.length) { ch.bands = []; return }
+    let lo = Infinity, hi = -Infinity
+    for (const [y] of pts) { lo = Math.min(lo, y); hi = Math.max(hi, y) }
+    const cuts = [lo, lo + (hi - lo) * 0.38, lo + (hi - lo) * 0.62, hi]   // legs | body | head
+    ch.bands = [0, 1, 2].map(k => {
+      let r = 0
+      for (const [y, d] of pts) if (y >= cuts[k] && y <= cuts[k + 1]) r = Math.max(r, d)
+      return { y0: cuts[k], y1: cuts[k + 1], r }
+    })
+  }
+  function swimmerBoxes() {
+    if (!current || !host) return []
+    if (!current.bands) measure(current)
+    const w = host.clientWidth, h = host.clientHeight
+    if (!w || !h) return []
+    const hp = current.holder.position
+    const PAD = 8
+    return (current.bands || []).filter(b => b.r > 0).map(b => {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const yy of [b.y0, b.y1]) {
+        v3.set(hp.x + sx * b.r, hp.y + yy, hp.z + sz * b.r).project(live.cam)
+        const px = (v3.x + 1) / 2 * w, py = (1 - v3.y) / 2 * h
+        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py)
+      }
+      return { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 }
+    })
   }
 
   function loop() {
@@ -352,7 +375,7 @@ export async function createEngine(): Promise<Engine | null> {
   raf = requestAnimationFrame(loop)
 
   return {
-    make, dress, snapshot, attach, show, hitSwimmer,
+    make, dress, snapshot, attach, show, swimmerBoxes,
     turnedSinceSnapshot(ch) { return Math.abs((ch === current ? yaw : (ch.yaw ?? REST_YAW)) - (ch.snapYaw ?? REST_YAW)) > 0.01 },
     setMoving(on) { moving = on },
     spin(dx) {
@@ -365,7 +388,7 @@ export async function createEngine(): Promise<Engine | null> {
     dispose() {
       cancelAnimationFrame(raf); io.disconnect(); ro.disconnect()
       live.renderer.domElement.remove()
-      pickTarget.dispose(); live.renderer.dispose(); snap.renderer.dispose()
+      live.renderer.dispose(); snap.renderer.dispose()
       live.renderer.forceContextLoss(); snap.renderer.forceContextLoss()
     },
   }
