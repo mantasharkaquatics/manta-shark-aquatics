@@ -17,7 +17,8 @@ Rebuild (any machine with Python 3.13 and Node):
 pip install bpy==5.2.3
 MSA_BODY=bean python3 -c "import sys; sys.argv=['x','/tmp/swimmer.glb']; exec(open('scripts/swimmer/swimmer.py').read())"
 mkdir -p /tmp/pack && cd /tmp/pack && npm init -y >/dev/null && npm i @gltf-transform/core@4 @gltf-transform/extensions@4 @gltf-transform/functions@4 meshoptimizer@0.22
-node /path/to/repo/scripts/swimmer/pack.mjs /tmp/swimmer.glb /path/to/repo/public/3d/swimmer-v1.glb
+cp /path/to/repo/scripts/swimmer/pack.mjs /tmp/pack/   # run from there, where its packages are
+node /tmp/pack/pack.mjs /tmp/swimmer.glb /path/to/repo/public/3d/swimmer-v1.glb
 ```
 
 Part names the page relies on (engine.ts): HairShort, HairSpiky, HairBob,
