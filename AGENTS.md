@@ -583,10 +583,12 @@ asked for no wave/cheer actions -- only a slow breathing.
   the lists in lib/swimmer-look.ts; cleanLook() refuses the rest.
 - **No look yet:** the card starts from students.gender (boy: short hair and
   jammers; girl: ponytail and a one-piece; colours from the swimmer's id). A
-  swimmer with no gender wears a swim cap and the card asks "boy or girl?";
-  the answer fills students.gender only while it is empty.
-- **Gender is asked when a swimmer is added** (owner, 2026-10-29): the register
-  form and My Account (components/GenderQuestion.tsx, 'male' / 'female', the
-  values lib/monthly-reports.ts reads); optional on Admin > Members. The
-  servers accept a missing answer (a page loaded before the question existed)
-  and store none.
+  swimmer with no gender wears a swim cap and the card asks "a boy's or a
+  girl's look?"; the answer is saved as avatar_look only. **The look never
+  writes students.gender** (owner, 2026-10-29: a look is not a statement
+  about the child).
+- **Gender is optional** (owner, 2026-10-29, after first making it
+  required): the register form and My Account ask it with "prefer not to
+  say" beside boy and girl (components/GenderQuestion.tsx); blank or 'none'
+  stores nothing. 'male' / 'female' are the values lib/monthly-reports.ts
+  reads. Optional on Admin > Members too.

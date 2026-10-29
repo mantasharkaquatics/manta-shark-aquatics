@@ -9,15 +9,16 @@
    name with ‹ › and the dots under the card do the same. 換造型 dresses the
    swimmer in front -- anyone in the family may, view-only members too.
 
-   A swimmer with no look and no gender on file wears a cap and asks "boy or
-   girl?"; the answer fills students.gender (POST /api/parent/swimmer-look).
+   A swimmer with no look and no gender on file wears a cap and asks "a boy's
+   or a girl's look?"; the answer is saved as the look only, never as the
+   child's gender (owner, 2026-10-29: gender is optional).
    Without WebGL, or if the model will not load, the plain cards show
    instead (the website's swipe row). */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import {
-  GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type Gender, type SwimmerLook,
+  GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type SwimmerLook,
 } from '@/lib/swimmer-look'
 import type { Engine } from './engine'
 
@@ -104,14 +105,12 @@ const ICON_DRESS = (
 type Tab = 'gender' | 'hair' | 'suit' | 'goggles' | 'cap' | 'fins' | 'skin'
 const TABS: Tab[] = ['gender', 'hair', 'suit', 'goggles', 'cap', 'fins', 'skin']
 
-export default function SwimmerDeck({ items, renderCard, onLook, onGender, fallback, after }: {
+export default function SwimmerDeck({ items, renderCard, onLook, fallback, after }: {
   items: DeckItem[]
   /** The swimmer's card (the second argument is always null now: the swimmers stand on the pool above). */
   renderCard: (item: DeckItem, stage: React.ReactNode) => React.ReactNode
   /** A look the server has saved. */
   onLook: (id: string, look: SwimmerLook) => void
-  /** A gender the server has saved (from the boy/girl question). */
-  onGender: (id: string, gender: Gender) => void
   /** What to show when the phone cannot draw 3D: the plain cards. */
   fallback: React.ReactNode
   /** Shown under the card and dots (the add-a-swimmer link); the fallback brings its own. */
@@ -188,14 +187,14 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender, fallb
     }
     return nd
   })
-  const answer = async (it: DeckItem, gender: Gender) => {
+  const answer = async (it: DeckItem, style: 'boy' | 'girl') => {
     setBusy(it.id)
     const res = await fetch('/api/parent/swimmer-look', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: it.id, gender }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: it.id, style }),
     }).catch(() => null)
     setBusy(null)
     const j = res?.ok ? await res.json().catch(() => null) : null
-    if (j?.gender) onGender(it.id, j.gender)
+    if (j?.look) onLook(it.id, j.look)
     else say(t('swimmer.saveFailed'))
   }
 
@@ -236,10 +235,10 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender, fallb
         {ready && cur.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>{t(n > 1 ? 'swimmer.hintPool' : 'swimmer.hintOne')}</span>}
         {ready && !cur.look && (
           <div className="sw-ask">
-            <p>{t('swimmer.gender.q', { name: cur.name })}</p>
+            <p>{t('swimmer.style.q', { name: cur.name })}</p>
             <div className="sw-ask-row">
-              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'male')}>{t('swimmer.gender.male')}</button>
-              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'female')}>{t('swimmer.gender.female')}</button>
+              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'boy')}>{t('swimmer.style.boy')}</button>
+              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'girl')}>{t('swimmer.style.girl')}</button>
             </div>
             <small>{t('swimmer.askHint', { name: cur.name })}</small>
           </div>

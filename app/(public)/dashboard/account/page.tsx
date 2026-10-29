@@ -10,7 +10,7 @@ import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
-import { GenderQuestion, type Gender } from '@/components/GenderQuestion'
+import { GenderQuestion, type GenderAnswer } from '@/components/GenderQuestion'
 import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
@@ -44,7 +44,7 @@ export default function AccountPage() {
   const [newMe, setNewMe] = useState(false)
   // The new swimmer's answer to the safety question (owner, 2026-10-22).
   const [newMedical, setNewMedical] = useState<MedicalAnswer | null>(null)
-  const [newGender, setNewGender] = useState<Gender | null>(null)
+  const [newGender, setNewGender] = useState<GenderAnswer>(null)
   // What is on file for the family's safety (lib/safety-info.ts).
   type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]; missing: boolean }
   const [safety, setSafety] = useState<Safety | null>(null)
@@ -353,7 +353,7 @@ export default function AccountPage() {
                     onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setNewMedical(null); setNewGender(null); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
-                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob || !newGender || medicalToStore(newMedical) === undefined}>
+                  <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob || medicalToStore(newMedical) === undefined}>
                     {t('account.submit')}
                   </button>
                 </div>

@@ -40,7 +40,7 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { appLook } from '@/lib/native-app'
-import { lookOf, type Gender, type SwimmerLook } from '@/lib/swimmer-look'
+import { lookOf, type SwimmerLook } from '@/lib/swimmer-look'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -3632,7 +3632,6 @@ export default function DashboardPage() {
                   return s ? studentCard(s, stage) : null
                 }}
                 onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
-                onGender={(id: string, gender: Gender) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, gender } : s)))}
                 fallback={rail}
                 after={addKid(' sw-add')}
               />
