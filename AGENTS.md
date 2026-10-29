@@ -561,7 +561,7 @@ a slow breathing.
 - **The model is made by code.** public/3d/swimmer-v1.glb comes from
   scripts/swimmer/swimmer.py (Blender) and pack.mjs; scripts/swimmer/README.md
   says how to rebuild it and which part and material names the page relies
-  on. Do not hand-edit the GLB. A changed model gets a new file name.
+  on. Do not hand-edit the GLB; rebuild it over the same name.
 - **three.js loads only there.** SwimmerDeck is a dynamic import, mounted only
   when `appLook()` and view === 'home'; engine.ts is its only importer of
   three. One live WebGL canvas moves to the middle card; the others show still

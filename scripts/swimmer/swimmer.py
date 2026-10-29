@@ -57,8 +57,8 @@ BODIES = {
                  torso=[((0, 0, 0.9), (0.33, 0.26, 0.42), 2.0)],
                  neck=((0, 0, 1.2), (0, 0, 1.5), 0.11, 2.0),
                  SH=(0.26, 0, 1.1), EL=(0.43, 0, 0.92), WR=(0.55, -0.02, 0.75), HA=(0.6, -0.03, 0.67),
-                 HIP=(0.15, 0, 0.6), KN=(0.155, 0, 0.34), AN=(0.155, 0, 0.06),
-                 arm_r=(0.095, 0.083), leg_r=(0.135, 0.11),
+                 HIP=(0.15, 0, 0.6), KN=(0.155, 0, 0.36), AN=(0.155, 0, 0.12),
+                 arm_r=(0.095, 0.083), leg_r=(0.13, 0.098),
                  waist=0.8, leg_cut=0.54, top=1.12, armhole=0.29, jam_bottom=0.4),
     # 短頸圓肩: a short, thick neck and round shoulder caps, like a little child
     'kid': dict(HC=1.9,
@@ -260,7 +260,9 @@ for x in (1, -1):
     rot = Matrix((w, nn, a)).transposed().to_quaternion()
     mb_ell(mbd, wr + a * 0.06, (0.062, 0.04, 0.07), rot, 2.6)
     hip, kn, an = (mirror(P[k], x) for k in ('HIP', 'KN', 'AN'))
-    mb_cap(mbd, hip, an, (P['leg_r'][0] + P['leg_r'][1]) / 2, 2.2)
+    # Thigh then a slimmer shin, ending inside the heel so no leg shows below the foot or the fin.
+    mb_cap(mbd, hip, kn, P['leg_r'][0], 2.2)
+    mb_cap(mbd, kn, an, P['leg_r'][1], 2.6)
 bpy.ops.object.select_all(action='DESELECT')
 mbo.select_set(True); bpy.context.view_layer.objects.active = mbo
 bpy.ops.object.convert(target='MESH')
@@ -549,8 +551,9 @@ for s, x in (('L', 1), ('R', -1)):
     bone('forearm.' + s, el, wr, 'upperarm.' + s, True)
     bone('hand.' + s, wr, wr + (ha - wr) * 1.6, 'forearm.' + s, True)
     bone('thigh.' + s, hip + Vector((0, 0, 0.04)), kn, 'hips')
-    bone('shin.' + s, kn, an + Vector((0, 0, 0.06)), 'thigh.' + s, True)
-    bone('foot.' + s, an + Vector((0, 0, 0.06)), an + Vector((0, -0.15, 0.0)), 'shin.' + s, True)
+    ankle = Vector((an.x, an.y, 0.1))      # the ankle sits in the heel, whatever the leg's end
+    bone('shin.' + s, kn, ankle, 'thigh.' + s, True)
+    bone('foot.' + s, ankle, Vector((an.x, -0.15, 0.04)), 'shin.' + s, True)
 bpy.ops.object.mode_set(mode='OBJECT')
 
 # body: automatic weights
@@ -641,8 +644,13 @@ for s, x in (('L', 1), ('R', -1)):
     bv = fo.modifiers.new('Bevel', 'BEVEL'); bv.width = 0.012; bv.segments = 3
     bpy.context.view_layer.objects.active = fo
     bpy.ops.object.modifier_apply(modifier='Bevel')
-    pocket = ellipsoid('FinPocket' + s, Vector((P['AN'][0] * x, -0.09, 0.085)), (0.13, 0.2, 0.09), FIN, 24, 14)
-    f = join([fo, pocket], 'Fins' + s)
+    # The foot pocket is the foot itself, a little bigger, so the whole foot --
+    # heel included -- is inside the fin (owner, 2026-10-29: the heel showed).
+    cx = P['AN'][0] * x
+    pocket = [ellipsoid('FinSole' + s, Vector((cx + 0.005 * x, -0.07, 0.072)), (0.128, 0.2, 0.09), FIN, 28, 18),
+              ellipsoid('FinHeel' + s, Vector((cx, 0.0, 0.1)), (0.108, 0.108, 0.098), FIN, 24, 16),
+              ellipsoid('FinToes' + s, Vector((cx, -0.215, 0.058)), (0.12, 0.08, 0.062), FIN, 24, 14)]
+    f = join([fo] + pocket, 'Fins' + s)
     rigid(f, 'foot.' + s)
 fins = join([bpy.data.objects['FinsL'], bpy.data.objects['FinsR']], 'Fins')
 
