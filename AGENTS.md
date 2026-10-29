@@ -587,8 +587,10 @@ asked for no wave/cheer actions -- only a slow breathing.
   girl's look?"; the answer is saved as avatar_look only. **The look never
   writes students.gender** (owner, 2026-10-29: a look is not a statement
   about the child).
-- **Gender is optional** (owner, 2026-10-29, after first making it
-  required): the register form and My Account ask it with "prefer not to
-  say" beside boy and girl (components/GenderQuestion.tsx); blank or 'none'
-  stores nothing. 'male' / 'female' are the values lib/monthly-reports.ts
-  reads. Optional on Admin > Members too.
+- **Families are not asked a gender** (owner, 2026-10-29: first required,
+  then optional, then "don't ask, it's simpler"). The register form and My
+  Account do not ask; components/GenderQuestion.tsx is unused, kept only
+  until someone can delete it. students.gender is filled only by the desk
+  (optional on Admin > Members); 'male' / 'female' are the values
+  lib/monthly-reports.ts reads. The servers still accept a gender from an
+  older page and store only 'male' / 'female'.

@@ -10,7 +10,6 @@ import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { isAdultOn, missingHolderColumn } from '@/lib/account-holder'
 import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
-import { GenderQuestion, type GenderAnswer } from '@/components/GenderQuestion'
 import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
@@ -44,7 +43,6 @@ export default function AccountPage() {
   const [newMe, setNewMe] = useState(false)
   // The new swimmer's answer to the safety question (owner, 2026-10-22).
   const [newMedical, setNewMedical] = useState<MedicalAnswer | null>(null)
-  const [newGender, setNewGender] = useState<GenderAnswer>(null)
   // What is on file for the family's safety (lib/safety-info.ts).
   type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]; missing: boolean }
   const [safety, setSafety] = useState<Safety | null>(null)
@@ -150,7 +148,7 @@ export default function AccountPage() {
     try {
       res = await fetch('/api/parent/students', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob, gender: newGender, is_account_holder: newMe && isAdultOn(newDob, todayLA()), medical: newMedical }),
+        body: JSON.stringify({ full_name: newName.trim(), date_of_birth: newDob, is_account_holder: newMe && isAdultOn(newDob, todayLA()), medical: newMedical }),
       })
       j = await res.json().catch(() => ({}))
     } catch { res = null }
@@ -174,7 +172,6 @@ export default function AccountPage() {
     setNewDob('')
     setNewMe(false)
     setNewMedical(null)
-    setNewGender(null)
     setShowAddForm(false)
     setConfirmingAdd(false)
     setAdding(false)
@@ -341,16 +338,13 @@ export default function AccountPage() {
                   </label>
                 )}
                 <div style={{ marginBottom: 14 }}>
-                  <GenderQuestion id="ac-gender" name={newName.trim()} value={newGender} onChange={setNewGender} />
-                </div>
-                <div style={{ marginBottom: 14 }}>
                   <MedicalQuestion id="ac-med" name={newName.trim()} value={newMedical} onChange={setNewMedical} />
                 </div>
                 {/* role="alert": a failure closes the confirm, so nothing else says it failed. */}
                 {addError && <div className="ac-err" role="alert" style={{ marginTop: 0, marginBottom: 12 }}>{addError}</div>}
                 <div className="ac-pair">
                   <button type="button" className="ac-btn line"
-                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setNewMedical(null); setNewGender(null); setAddError(null) }}>
+                    onClick={() => { setShowAddForm(false); setNewName(''); setNewDob(''); setNewMe(false); setNewMedical(null); setAddError(null) }}>
                     {t('common.cancel')}
                   </button>
                   <button type="button" className="ac-btn gold" onClick={() => setConfirmingAdd(true)} disabled={!newName.trim() || !newDob || medicalToStore(newMedical) === undefined}>

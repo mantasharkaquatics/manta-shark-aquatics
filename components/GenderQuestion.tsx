@@ -3,13 +3,15 @@
 import { useT } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
 
-/* "Is {name} a boy or a girl?" -- optional (owner, 2026-10-29). Asked
-   wherever a family adds a swimmer (the register form and My Account), with
-   "prefer not to say" beside the two answers; leaving it blank is fine too.
-   Stored in students.gender as 'male' or 'female', the values
-   lib/monthly-reports.ts reads; 'none' and no answer both store nothing.
-   The app's 3D swimmer does not depend on it: with no gender the card asks
-   which look to start from instead. */
+/* NOT USED (owner, 2026-10-29): families are no longer asked a swimmer's
+   gender at all -- first it was required, then optional, then "just don't
+   ask, it's simpler". The register form and My Account no longer show this.
+   The file stays only because changes reach the owner's computer as patches
+   that cannot delete files; delete it, with the swimmer.gender.q and
+   swimmer.gender.none keys in the three site locales, whenever convenient.
+
+   It asked "Is {name} a boy or a girl?" with boy / girl / prefer not to say,
+   stored as students.gender 'male' / 'female' or nothing. */
 
 export type { Gender } from '@/lib/swimmer-look'
 import type { Gender } from '@/lib/swimmer-look'

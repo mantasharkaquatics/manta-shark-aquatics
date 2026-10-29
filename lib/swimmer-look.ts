@@ -4,9 +4,10 @@
  * written only by POST /api/parent/swimmer-look, which anyone in the family may
  * call -- view-only members too (owner: changing clothes costs nothing).
  * A swimmer with no saved look gets one from students.gender, with colours
- * picked from the swimmer's id so two children in one family differ. Gender is
- * optional (owner, 2026-10-29), so a swimmer with neither asks on the card
- * which look to start from -- saved as the look, never as the gender.
+ * picked from the swimmer's id so two children in one family differ. Families
+ * are not asked a gender (owner, 2026-10-29), so a swimmer with neither asks
+ * on the card which look to start from -- saved as the look, never as the
+ * gender.
  *
  * Every value is from a fixed list; cleanLook() refuses anything else, so the
  * column can never hold more than these few words and colours. */

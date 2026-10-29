@@ -2,7 +2,6 @@
 
 import { MedicalQuestion, EmergencyContactFields, safetyErrorKey } from '@/components/SafetyFields'
 import { contactProblem, medicalToStore, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
-import { GenderQuestion, type GenderAnswer } from '@/components/GenderQuestion'
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -210,7 +209,7 @@ export default function RegisterClient() {
   // `me`: "this swimmer is me" (F15). Offered only for an adult swimmer
   // (lib/account-holder.ts), and only one per family: ticking one unticks the rest.
   // medical: the safety question each swimmer must answer (owner, 2026-10-22).
-  const [students, setStudents] = useState<{ fullName: string; dateOfBirth: string; me: boolean; medical: MedicalAnswer | null; gender: GenderAnswer }[]>([{ fullName: '', dateOfBirth: '', me: false, medical: null, gender: null }])
+  const [students, setStudents] = useState<{ fullName: string; dateOfBirth: string; me: boolean; medical: MedicalAnswer | null }[]>([{ fullName: '', dateOfBirth: '', me: false, medical: null }])
   const [emergency, setEmergency] = useState<EmergencyContact>({ name: '', relation: '', phone: '' })
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [waiverAccepted, setWaiverAccepted] = useState(false)
@@ -325,7 +324,7 @@ export default function RegisterClient() {
   }
 
   function addStudent() {
-    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '', me: false, medical: null, gender: null }])
+    if (students.length < MAX_STUDENTS) setStudents([...students, { fullName: '', dateOfBirth: '', me: false, medical: null }])
   }
 
   function updateStudent(i: number, field: string, value: string) {
@@ -518,7 +517,7 @@ export default function RegisterClient() {
           media_release_accepted: mediaAccepted, newsletter_subscribed: newsletter,
           preferred_language: locale,
           students: students.filter(s => s.fullName.trim()).map(s => ({ full_name: s.fullName.trim(), date_of_birth: s.dateOfBirth,
-            gender: s.gender, is_account_holder: s.me && isAdultOn(s.dateOfBirth, getTodayLA()), medical: s.medical })),
+            is_account_holder: s.me && isAdultOn(s.dateOfBirth, getTodayLA()), medical: s.medical })),
           emergency_contact: emergency,
           // Best effort on the server: a code that fails must not block the
           // account. lib/referrals re-checks everything.
@@ -817,8 +816,6 @@ export default function RegisterClient() {
                       <span className="text-sm text-[#16294a]">{t('register.isMe')}</span>
                     </label>
                   )}
-                  <GenderQuestion id={`reg-gender-${i}`} name={s.fullName.trim()} value={s.gender}
-                    onChange={v => setStudents(students.map((x, j) => (j === i ? { ...x, gender: v } : x)))} />
                   <MedicalQuestion id={`reg-med-${i}`} name={s.fullName.trim()} value={s.medical}
                     onChange={v => setStudents(students.map((x, j) => (j === i ? { ...x, medical: v } : x)))} />
                 </div>
