@@ -1,22 +1,25 @@
 'use client'
 
-/* The app's home cards as a curved deck, each with its 3D swimmer on top
-   (owner, 2026-10-29: 版本一 豆豆身, app home only, the card's own content
-   below the swimmer). Several swimmers swipe left and right on a curve; the
-   one in the middle can be turned with a finger and dressed ("Change look").
-   Anyone in the family may dress them, view-only members too.
+/* The app's home (owner, 2026-10-29): every swimmer in the family stands in
+   one little pool that turns like a turntable, and ONE student card under it
+   shows whoever is in front (owner: "one turntable; turn it and the card
+   below changes", after a first version with one swimmer per card).
+   Dragging on the swimmer in front turns that swimmer; dragging elsewhere on
+   the pool turns it to the next swimmer (components/swimmer/engine.ts). The
+   name with ‹ › and the dots under the card do the same. 換造型 dresses the
+   swimmer in front -- anyone in the family may, view-only members too.
 
-   A swimmer with no look and no gender on file asks "boy or girl?" on its
-   card; the answer fills students.gender (POST /api/parent/swimmer-look).
-   Without WebGL, or if the model will not load, the cards show without a
-   swimmer, as they did before. */
+   A swimmer with no look and no gender on file wears a cap and asks "boy or
+   girl?"; the answer fills students.gender (POST /api/parent/swimmer-look).
+   Without WebGL, or if the model will not load, the plain cards show
+   instead (the website's swipe row). */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import {
   GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type Gender, type SwimmerLook,
 } from '@/lib/swimmer-look'
-import type { Character, Engine } from './engine'
+import type { Engine } from './engine'
 
 export interface DeckItem { id: string; name: string; look: SwimmerLook | null }
 
@@ -29,17 +32,16 @@ const NEUTRAL: SwimmerLook = {
 const lookKey = (l: SwimmerLook) => JSON.stringify(l)
 
 const CSS = `
-.sw-deck { position: relative; perspective: 1100px; touch-action: pan-y; margin: 0 -20px; overflow-x: clip; overflow-y: visible;
-  -webkit-user-select: none; user-select: none }
-.sw-slot { position: absolute; top: 0; left: 50%; transform-origin: 50% 50%; will-change: transform; transition: filter .2s }
-.sw-slot:not(.on) .msa-mcard * { pointer-events: none }
-.sw-slot:not(.on) { cursor: pointer }
-.sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden; touch-action: pan-y;
-  background: radial-gradient(120% 90% at 50% 18%, #e9f6fd, #c3e4f5) }
-.sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 46px; pointer-events: none;
-  background: linear-gradient(180deg, rgba(29,63,124,0), rgba(29,63,124,.16)) }
-.sw-stage .sw-snap { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block }
-.sw-live { position: absolute; inset: 0 }
+.sw-tt { position: relative; height: 340px; margin: 0 -20px; overflow: hidden; touch-action: pan-y; -webkit-user-select: none; user-select: none;
+  background: radial-gradient(120% 90% at 50% 15%, #e9f6fd, #c3e4f5) }
+.sw-name { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 3; display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 999px; background: rgba(18,37,74,.88); color: #fff; font-weight: 900; font-size: 15px; white-space: nowrap }
+.sw-name span { padding: 0 6px }
+.sw-name button { width: 32px; height: 32px; min-height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff;
+  font: inherit; font-size: 18px; cursor: pointer; display: grid; place-items: center; padding: 0 }
+.sw-card { position: relative; z-index: 2; margin-top: -24px; animation: swIn .24s ease }
+@keyframes swIn { from { opacity: 0; transform: translateY(10px) } }
+.sw-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 .sw-msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #12254a }
 .sw-dress { position: absolute; top: 12px; left: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 36px;
   padding: 0 14px 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.94); color: #12254a; font: inherit;
@@ -47,7 +49,7 @@ const CSS = `
 .sw-dress svg { width: 18px; height: 18px }
 .sw-hint { position: absolute; top: 18px; right: 12px; z-index: 3; font-size: 12px; font-weight: 700; color: #12254a;
   background: rgba(255,255,255,.8); border-radius: 999px; padding: 4px 10px; transition: opacity .4s; pointer-events: none }
-.sw-ask { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3; background: rgba(255,255,255,.95); border-radius: 16px;
+.sw-ask { position: absolute; left: 12px; right: 12px; bottom: 80px; z-index: 3; background: rgba(255,255,255,.95); border-radius: 16px;
   padding: 12px; color: #12254a; box-shadow: 0 6px 18px rgba(18,37,74,.16); text-align: center }
 .sw-ask p { margin: 0 0 10px; font-size: 15px; font-weight: 800 }
 .sw-ask small { display: block; margin-top: 8px; font-size: 12px; color: #56647d; line-height: 1.45 }
@@ -90,7 +92,7 @@ const CSS = `
   opacity: 0; background: #12254a; color: #fff; font-size: 14px; font-weight: 700; padding: 10px 16px; border-radius: 999px;
   transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap }
 .sw-toast.on { opacity: 1; transform: translateX(-50%) }
-@media (prefers-reduced-motion: reduce) { .sw-slot, .sw-sheet, .sw-scrim, .sw-dots button { transition: none !important } }
+@media (prefers-reduced-motion: reduce) { .sw-card, .sw-sheet, .sw-scrim, .sw-dots button { transition: none !important } }
 `
 
 const ICON_DRESS = (
@@ -102,173 +104,70 @@ const ICON_DRESS = (
 type Tab = 'gender' | 'hair' | 'suit' | 'goggles' | 'cap' | 'fins' | 'skin'
 const TABS: Tab[] = ['gender', 'hair', 'suit', 'goggles', 'cap', 'fins', 'skin']
 
-export default function SwimmerDeck({ items, renderCard, onLook, onGender }: {
+export default function SwimmerDeck({ items, renderCard, onLook, onGender, fallback, after }: {
   items: DeckItem[]
-  /** The swimmer's card, with the stage as its first child. */
+  /** The swimmer's card (the second argument is always null now: the swimmers stand on the pool above). */
   renderCard: (item: DeckItem, stage: React.ReactNode) => React.ReactNode
   /** A look the server has saved. */
   onLook: (id: string, look: SwimmerLook) => void
-  /** A gender the server has saved (from the card's boy/girl question). */
+  /** A gender the server has saved (from the boy/girl question). */
   onGender: (id: string, gender: Gender) => void
+  /** What to show when the phone cannot draw 3D: the plain cards. */
+  fallback: React.ReactNode
+  /** Shown under the card and dots (the add-a-swimmer link); the fallback brings its own. */
+  after?: React.ReactNode
 }) {
   const t = useT()
   const [engine, setEngine] = useState<Engine | null | 'loading'>('loading')
-  const chars = useRef(new Map<string, { ch: Character; key: string }>())
-  const [snaps, setSnaps] = useState<Record<string, string>>({})
-  const [pos, setPos] = useState(0)
-  const center = Math.max(0, Math.min(items.length - 1, Math.round(pos)))
+  const [idx, setIdx] = useState(0)
   const [hinted, setHinted] = useState(false)
   const [draft, setDraft] = useState<SwimmerLook | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('gender')
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const deckRef = useRef<HTMLDivElement>(null)
-  const slotRefs = useRef<(HTMLDivElement | null)[]>([])
-  const liveHost = useRef<HTMLDivElement | null>(null)
-  const [deckH, setDeckH] = useState(0)
-  const [cw, setCw] = useState(320)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const n = items.length
+  const cur = items[Math.min(idx, Math.max(0, n - 1))]
 
-  // Load three.js and the model once.
+  // Load three.js, the model and the pool once.
   useEffect(() => {
     let gone = false
     let made: Engine | null = null
-    import('./engine').then(m => m.createEngine()).then(e => {
-      made = e
-      if (gone) { e?.dispose(); return }
-      setEngine(e)
-    }).catch(err => { console.warn('[swimmer] 3D not available', err); if (!gone) setEngine(null) })
+    import('./engine')
+      .then(m => m.createEngine({ onIndex: i => setIdx(i), onTouched: () => setHinted(true) }))
+      .then(e => { made = e; if (gone) { e?.dispose(); return } setEngine(e) })
+      .catch(err => { console.warn('[swimmer] 3D not available', err); if (!gone) setEngine(null) })
     return () => { gone = true; made?.dispose() }
   }, [])
 
-  // Make, dress and photograph each swimmer when the engine is ready or a look changes.
-  const snapKeys = useRef(new Map<string, string>())
+  // The pool goes in the stage once both exist.
+  useLayoutEffect(() => {
+    if (!engine || engine === 'loading') return
+    engine.attach(stageRef.current)
+    return () => engine.attach(null)
+  }, [engine])
+
+  // Who stands on the pool, dressed as saved (or as the sheet has them now).
   useEffect(() => {
     if (!engine || engine === 'loading') return
-    const next: Record<string, string> = {}
-    for (const it of items) {
-      // The swimmer being dressed shows the sheet's choices, not the saved look.
-      if (draft && it.id === editing) continue
-      const look = it.look ?? NEUTRAL
-      const k = lookKey(look)
-      const had = chars.current.get(it.id)
-      const ch = had ? had.ch : engine.make(look)
-      if (had && had.key !== k) engine.dress(ch, look)
-      chars.current.set(it.id, { ch, key: k })
-      if (snapKeys.current.get(it.id) !== k) { next[it.id] = engine.snapshot(ch); snapKeys.current.set(it.id, k) }
-    }
-    if (!Object.keys(next).length) return
-    // Pictures go in on the next frame, not inside this effect's render pass.
-    const f = requestAnimationFrame(() => setSnaps(s => ({ ...s, ...next })))
-    return () => cancelAnimationFrame(f)
+    engine.setSwimmers(items.map(it => ({ id: it.id, look: draft && it.id === editing ? draft : it.look ?? NEUTRAL })))
   }, [engine, items, draft, editing])
 
-  // The live canvas follows the centre card.
-  useLayoutEffect(() => {
-    if (!engine || engine === 'loading') return
-    const it = items[center]
-    engine.attach(liveHost.current)
-    engine.show(it ? chars.current.get(it.id)?.ch ?? null : null)
-  }, [engine, center, items, snaps])
+  const go = (i: number) => { if (engine && engine !== 'loading') engine.goTo(((i % n) + n) % n) }
 
-  // Dressing shows on the live swimmer straight away.
-  useEffect(() => {
-    if (!engine || engine === 'loading' || !draft) return
-    const id = items[center]?.id
-    const had = id ? chars.current.get(id) : undefined
-    if (id && had) { engine.dress(had.ch, draft); chars.current.set(id, { ch: had.ch, key: lookKey(draft) }) }
-  }, [engine, draft, items, center])
-
-  // The deck's size: card width from the screen, height from the tallest card.
-  useLayoutEffect(() => {
-    const el = deckRef.current; if (!el) return
-    const measure = () => {
-      setCw(Math.min(340, el.clientWidth - 64))
-      setDeckH(Math.max(0, ...slotRefs.current.map(s => s?.offsetHeight || 0)))
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el); slotRefs.current.forEach(s => s && ro.observe(s))
-    return () => ro.disconnect()
-  }, [items.length])
-
-  /* ---------- swipe and spin ---------- */
-  const anim = useRef(0)
-  const posRef = useRef(pos)
-  useEffect(() => { posRef.current = pos }, [pos])
-  const goTo = useCallback((i: number) => {
-    i = Math.max(0, Math.min(items.length - 1, i))
-    const from = posRef.current, t0 = performance.now(), dur = 380
-    cancelAnimationFrame(anim.current)
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3)
-      setPos(from + (i - from) * e)
-      if (k < 1) anim.current = requestAnimationFrame(step)
-    }
-    anim.current = requestAnimationFrame(step)
-  }, [items.length])
-
-  const drag = useRef<null | { mode: 'spin' | 'swipe'; x: number; y: number; last: number; t: number; v: number; start: number; slot: number; moved: boolean; id: number }>(null)
-  // A drag must not end as a tap on whatever button is under the finger.
-  const dragged = useRef(false)
-  const onClickCapture = (e: React.MouseEvent) => {
-    if (dragged.current) { e.stopPropagation(); e.preventDefault(); dragged.current = false }
-  }
-  const onDown = (e: React.PointerEvent) => {
-    dragged.current = false
-    const target = e.target as HTMLElement
-    const slot = target.closest('.sw-slot') as HTMLElement | null
-    if (!slot) return
-    const i = slotRefs.current.indexOf(slot as HTMLDivElement)
-    if (i === center && target.closest('button, a, input, select, textarea')) return
-    const ready = engine && engine !== 'loading'
-    const onStage = !!target.closest('.sw-stage') && i === center && ready && !target.closest('.sw-ask')
-    drag.current = { mode: onStage ? 'spin' : 'swipe', x: e.clientX, y: e.clientY, last: e.clientX, t: performance.now(), v: 0, start: posRef.current, slot: i, moved: false, id: e.pointerId }
-  }
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d || e.pointerId !== d.id) return
-    const dx = e.clientX - d.x, dy = e.clientY - d.y
-    if (!d.moved) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
-      if (Math.abs(dy) > Math.abs(dx)) { drag.current = null; return }   // the page is being scrolled
-      d.moved = true
-      deckRef.current?.setPointerCapture(e.pointerId)
-      if (d.mode === 'spin' && engine && engine !== 'loading') engine.setDragging(true)
-      if (d.mode === 'swipe') cancelAnimationFrame(anim.current)
-    }
-    const now = performance.now(), ddx = e.clientX - d.last
-    d.v = ddx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
-    if (d.mode === 'spin' && engine && engine !== 'loading') { engine.spin(ddx); setHinted(true) }
-    else if (items.length > 1) setPos(Math.max(-0.35, Math.min(items.length - 0.65, d.start - dx / (cw * 0.8))))
-  }
-  const onUp = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d || e.pointerId !== d.id) return
-    drag.current = null
-    if (d.mode === 'spin' && engine && engine !== 'loading') { engine.setDragging(false); if (d.moved) engine.fling(d.v) }
-    if (d.moved) dragged.current = true
-    if (d.mode === 'swipe') {
-      // One card per swipe, however fast the flick.
-      const from = Math.round(d.start)
-      const to = Math.round(posRef.current - Math.max(-0.5, Math.min(0.5, d.v * 0.5)))
-      if (d.moved) goTo(Math.max(from - 1, Math.min(from + 1, to)))
-      else if (d.slot !== center) goTo(d.slot)
-    }
-  }
-
-  /* ---------- dressing ---------- */
+  /* ---------- dressing (the swimmer in front) ---------- */
   const say = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(m => (m === msg ? null : m)), 1900) }
   const openSheet = () => {
-    const it = items[center]; if (!it?.look) return
-    setDraft({ ...it.look }); setEditing(it.id); setTab('gender')
-    const el = deckRef.current
+    if (!cur?.look) return
+    setDraft({ ...cur.look }); setEditing(cur.id); setTab('gender')
+    const el = stageRef.current
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
   }
   const closeSheet = async () => {
-    const it = items[center]
+    const it = items.find(x => x.id === editing)
     const d = draft
-    setDraft(null)
+    setDraft(null); setEditing(null)
     if (!it || !d || !it.look || lookKey(d) === lookKey(it.look)) return
     // Shown as saved at once; put back if the server says no.
     const before = it.look
@@ -281,13 +180,13 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender }: {
   }
   const set = <K extends keyof SwimmerLook>(k: K, v: SwimmerLook[K]) => setDraft(d => {
     if (!d) return d
-    const n = { ...d, [k]: v }
+    const nd = { ...d, [k]: v }
     if (k === 'gender') {
-      n.suit = v === 'girl' ? 'onepiece' : 'jammer'
-      if (v === 'girl' && (n.hair === 'short' || n.hair === 'spiky')) n.hair = 'ponytail'
-      if (v === 'boy' && n.hair !== 'short' && n.hair !== 'spiky') n.hair = 'short'
+      nd.suit = v === 'girl' ? 'onepiece' : 'jammer'
+      if (v === 'girl' && (nd.hair === 'short' || nd.hair === 'spiky')) nd.hair = 'ponytail'
+      if (v === 'boy' && nd.hair !== 'short' && nd.hair !== 'spiky') nd.hair = 'short'
     }
-    return n
+    return nd
   })
   const answer = async (it: DeckItem, gender: Gender) => {
     setBusy(it.id)
@@ -314,8 +213,8 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender }: {
     <>
       <div className="sw-lab">{label}</div>
       <div className="sw-swatches">
-        {list.map((c, n) => (
-          <button key={c} type="button" className="tap-auto" aria-label={t('swimmer.colorN', { n: n + 1 })} aria-pressed={draft?.[k] === c}
+        {list.map((c, j) => (
+          <button key={c} type="button" className="tap-auto" aria-label={t('swimmer.colorN', { n: j + 1 })} aria-pressed={draft?.[k] === c}
             style={{ background: c }} onClick={() => set(k, c as SwimmerLook[K])} />
         ))}
       </div>
@@ -323,61 +222,43 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender }: {
   )
 
   const ready = engine && engine !== 'loading'
-  const n = items.length
-  const transforms = useMemo(() => items.map((_, i) => {
-    const off = i - pos, a = Math.abs(off)
-    return {
-      transform: `translateX(${off * cw * 0.8 - cw / 2}px) translateZ(${-a * 140}px) rotateY(${-off * 30}deg) scale(${1 - Math.min(a, 1.5) * 0.05})`,
-      zIndex: 100 - Math.round(a * 10),
-      opacity: a > 1.7 ? 0 : 1 - Math.max(0, a - 1) * 0.6,
-      filter: a > 0.05 ? `brightness(${1 - Math.min(a, 1) * 0.12})` : undefined,
-      width: cw,
-    }
-  }), [items, pos, cw])
+  if (engine === null || !cur) return <>{fallback}</>
 
   return (
     <>
       <style>{CSS}</style>
-      <div ref={deckRef} className="sw-deck" style={{ height: deckH || undefined }} aria-roledescription="carousel"
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onClickCapture={onClickCapture}>
-        {items.map((it, i) => {
-          const on = i === center
-          const stage = engine === null ? null : (
-            <div className="sw-stage">
-              {on && ready ? <div className="sw-live" ref={liveHost} role="img" aria-label={t('swimmer.stageLabel', { name: it.name })} />
-                : snaps[it.id] ? <img className="sw-snap" src={snaps[it.id]} alt={t('swimmer.stageLabel', { name: it.name })} />
-                : <div className="sw-msg">{t('swimmer.loading')}</div>}
-              {on && ready && it.look && (
-                <button type="button" className="sw-dress tap-auto" onClick={openSheet}>{ICON_DRESS}{t('swimmer.dress')}</button>
-              )}
-              {on && ready && it.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.spin')}</span>}
-              {!it.look && ready && (
-                <div className="sw-ask">
-                  <p>{t('swimmer.gender.q', { name: it.name })}</p>
-                  <div className="sw-ask-row">
-                    <button type="button" className="tap-auto" disabled={busy === it.id} onClick={() => answer(it, 'male')}>{t('swimmer.gender.male')}</button>
-                    <button type="button" className="tap-auto" disabled={busy === it.id} onClick={() => answer(it, 'female')}>{t('swimmer.gender.female')}</button>
-                  </div>
-                  <small>{t('swimmer.askHint', { name: it.name })}</small>
-                </div>
-              )}
+      <div ref={stageRef} className="sw-tt" aria-roledescription="carousel">
+        <span className="sw-sr">{t('swimmer.stageLabel', { name: cur.name })}</span>
+        {!ready && <div className="sw-msg">{t('swimmer.loading')}</div>}
+        {ready && cur.look && (
+          <button type="button" className="sw-dress tap-auto" onClick={openSheet}>{ICON_DRESS}{t('swimmer.dress')}</button>
+        )}
+        {ready && cur.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>{t(n > 1 ? 'swimmer.hintPool' : 'swimmer.hintOne')}</span>}
+        {ready && !cur.look && (
+          <div className="sw-ask">
+            <p>{t('swimmer.gender.q', { name: cur.name })}</p>
+            <div className="sw-ask-row">
+              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'male')}>{t('swimmer.gender.male')}</button>
+              <button type="button" className="tap-auto" disabled={busy === cur.id} onClick={() => answer(cur, 'female')}>{t('swimmer.gender.female')}</button>
             </div>
-          )
-          return (
-            <div key={it.id} ref={el => { slotRefs.current[i] = el }} className={'sw-slot' + (on ? ' on' : '')}
-              style={transforms[i]} role="group" aria-roledescription="slide" aria-label={it.name}>
-              {renderCard(it, stage)}
-            </div>
-          )
-        })}
+            <small>{t('swimmer.askHint', { name: cur.name })}</small>
+          </div>
+        )}
+        <div className="sw-name">
+          {n > 1 && <button type="button" className="tap-auto" aria-label={t('swimmer.prev')} onClick={() => go(idx - 1)}>‹</button>}
+          <span>{cur.name}</span>
+          {n > 1 && <button type="button" className="tap-auto" aria-label={t('swimmer.next')} onClick={() => go(idx + 1)}>›</button>}
+        </div>
       </div>
+      <div className="sw-card" key={cur.id}>{renderCard(cur, null)}</div>
       {n > 1 && (
         <div className="sw-dots">
           {items.map((it, i) => (
-            <button key={it.id} type="button" aria-label={it.name} aria-current={i === center} onClick={() => goTo(i)} />
+            <button key={it.id} type="button" aria-label={it.name} aria-current={i === idx} onClick={() => go(i)} />
           ))}
         </div>
       )}
+      {after}
 
       <div className={'sw-scrim' + (draft ? ' on' : '')} onClick={closeSheet} />
       <div className={'sw-sheet' + (draft ? ' on' : '')} role="dialog" aria-modal="true" aria-labelledby="sw-sheet-t" aria-hidden={!draft}>
@@ -423,4 +304,3 @@ export default function SwimmerDeck({ items, renderCard, onLook, onGender }: {
     </>
   )
 }
-

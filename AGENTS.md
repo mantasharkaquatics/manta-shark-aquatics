@@ -549,25 +549,34 @@ button. docs/migration-app-inbox.sql.
 
 # The 3D swimmer on the app's home cards (owner, 2026-10-29)
 
-Inside the app, 首頁's swimmer cards are a curved deck (components/swimmer/
-SwimmerDeck.tsx): each card has a 3D cartoon swimmer on top and the card's
-usual content below it. Several swimmers swipe left and right on a curve; the
-middle one turns with a finger and is dressed with 換造型 (boy/girl, hair,
-swimsuit, goggles, cap, fins, colours). The website, and 課表, keep the plain
-cards (Rail). The owner chose this look from three (版本一 豆豆身: a rounded
-trunk and a barely visible neck) and asked for no wave/cheer actions -- only
-a slow breathing.
+Inside the app, 首頁 shows every swimmer in the family standing in one little
+square pool (lane ropes, a ladder) that turns like a turntable, with ONE
+student card under it for whoever is in front (components/swimmer/
+SwimmerDeck.tsx and engine.ts; owner: "one turntable, turn it and the card
+below changes"). Dragging on the swimmer in front spins that swimmer;
+dragging anywhere else on the pool turns it to the next swimmer; the name
+pill's ‹ ›, the dots and a tap on a swimmer do the same. 換造型 dresses the
+one in front (boy/girl, hair, swimsuit, goggles, cap, fins, colours). The
+website, and 課表, keep the plain cards (Rail). The owner chose this look
+from three (版本一 豆豆身: a rounded trunk and a barely visible neck) and
+asked for no wave/cheer actions -- only a slow breathing.
 
+- **Speeds are the owner's** (2026-10-29, after "too fast" and then "a
+  little faster"): the constants at the top of engine.ts. The table moves at
+  most one swimmer per swipe, after 20% of a step or a flick.
+- The pool's blue edge once flickered: faces that share a plane fight
+  (z-fighting). Keep new parts off each other's surfaces and the camera's
+  near plane at 2.
 - **The model is made by code.** public/3d/swimmer-v1.glb comes from
   scripts/swimmer/swimmer.py (Blender) and pack.mjs; scripts/swimmer/README.md
   says how to rebuild it and which part and material names the page relies
   on. Do not hand-edit the GLB; rebuild it over the same name.
 - **three.js loads only there.** SwimmerDeck is a dynamic import, mounted only
   when `appLook()` and view === 'home'; engine.ts is its only importer of
-  three. One live WebGL canvas moves to the middle card; the others show still
-  pictures. Nothing is drawn while the deck is off screen or the app is in
-  the background; breathing is drawn at 30 frames a second. No WebGL, or a
-  model that will not load: the cards show as before, without a swimmer.
+  three. One WebGL canvas draws the whole pool. Nothing is drawn while it is
+  off screen or the app is in the background; at rest it draws 30 frames a
+  second. No WebGL, or a model that will not load: the plain cards show
+  (the `fallback` prop), as on the website.
 - **The look is students.avatar_look** (docs/migration-swimmer-look.sql),
   written only by POST /api/parent/swimmer-look, which anyone in the family may
   call -- view-only members too (owner: it costs nothing). Every value is from

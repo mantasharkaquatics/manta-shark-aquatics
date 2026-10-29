@@ -3618,26 +3618,26 @@ export default function DashboardPage() {
                 <span>{t('account.addSwimmer')}</span>
               </Link>
             )
-            if (inApp && view === 'home' && students.length > 0) return (
-              <>
-                <SwimmerDeck
-                  items={swimmerItems}
-                  renderCard={(it, stage) => {
-                    const s = students.find(x => x.id === it.id)
-                    return s ? studentCard(s, stage) : null
-                  }}
-                  onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
-                  onGender={(id: string, gender: Gender) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, gender } : s)))}
-                />
-                {addKid(' sw-add')}
-              </>
-            )
-            return (
+            const rail = (
               <Rail variant="students" count={students.length + (students.length < MAX_SWIMMERS ? 1 : 0)}>
                 {students.map(s => studentCard(s))}
                 {addKid()}
               </Rail>
             )
+            if (inApp && view === 'home' && students.length > 0) return (
+              <SwimmerDeck
+                items={swimmerItems}
+                renderCard={(it, stage) => {
+                  const s = students.find(x => x.id === it.id)
+                  return s ? studentCard(s, stage) : null
+                }}
+                onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
+                onGender={(id: string, gender: Gender) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, gender } : s)))}
+                fallback={rail}
+                after={addKid(' sw-add')}
+              />
+            )
+            return rail
           })()}
 
           {/* The two things a family comes here to do most, under the
