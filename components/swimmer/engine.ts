@@ -40,18 +40,26 @@ export interface Character {
   mats: Record<string, T.MeshStandardMaterial[]>
   parts: Record<string, T.Object3D>
   mixer: T.AnimationMixer
+  /** Where it was turned to when it last stood live, so its picture and the live view agree. */
+  yaw?: number
+  /** The turn its last picture was taken at. */
+  snapYaw?: number
 }
 
 export interface Engine {
   make(look: SwimmerLook): Character
   dress(ch: Character, look: SwimmerLook): void
   snapshot(ch: Character): string
+  /** Has this swimmer been turned since its picture was taken? (A new picture costs a moment; skip it when nothing changed.) */
+  turnedSinceSnapshot(ch: Character): boolean
   /** Put the live canvas in this element (or take it out with null). */
   attach(host: HTMLElement | null): void
   /** The character drawn live, or none. */
   show(ch: Character | null): void
   /** Is this screen point (clientX/Y) on the live swimmer itself -- not the pool or the sky? */
   hitSwimmer(x: number, y: number): boolean
+  /** While the cards slide, stop drawing (the canvas keeps its last frame), so the slide has the phone to itself. */
+  setMoving(on: boolean): void
   spin(dx: number): void
   fling(velocity: number): void
   setDragging(on: boolean): void
@@ -175,12 +183,12 @@ export async function createEngine(): Promise<Engine | null> {
     const key = new THREE.DirectionalLight('#fff4e6', 2.1); key.position.set(2.5, 5, 4); scene.add(key)
     const fill = new THREE.DirectionalLight('#fff8f0', 1.1); fill.position.set(-0.6, 1.5, 6); scene.add(fill)
     const back = new THREE.DirectionalLight('#bfe6ff', 1.6); back.position.set(-3, 2.5, -3); scene.add(back)
-    scene.add(makePool())
+    const pool = makePool(); scene.add(pool)
     const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.3), new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false }))
     sh.rotation.x = -Math.PI / 2; sh.position.y = SURFACE * POOL_SCALE + 0.004; scene.add(sh)
     // A tight depth range (near 2) keeps close faces from flickering.
     const cam = new THREE.PerspectiveCamera(28, 1, 2, 40); cam.position.set(0, 2.6, 8.6); cam.lookAt(0, 0.86, 0)
-    return { scene, cam }
+    return { scene, cam, scenery: [pool, sh] as T.Object3D[] }
   }
 
   const live = { renderer: new THREE.WebGLRenderer({ antialias: true, alpha: true }), ...makeScene() }
@@ -192,7 +200,8 @@ export async function createEngine(): Promise<Engine | null> {
   snap.cam.aspect = SNAP_W / SNAP_H; snap.cam.updateProjectionMatrix()
 
   let current: Character | null = null
-  let yaw = -0.3, vel = 0, dragging = false, spunAt = 0
+  const REST_YAW = -0.3
+  let yaw = REST_YAW, vel = 0, dragging = false, spunAt = 0, moving = false
   let host: HTMLElement | null = null
   let onScreen = true
   let frame = 0
@@ -206,6 +215,9 @@ export async function createEngine(): Promise<Engine | null> {
     if (!host) return
     const w = host.clientWidth, h = host.clientHeight
     if (!w || !h) return
+    // Resizing clears the canvas (a blank frame), so only when the size really changed.
+    const px = live.renderer.getPixelRatio()
+    if (live.renderer.domElement.width === Math.floor(w * px) && live.renderer.domElement.height === Math.floor(h * px)) return
     live.renderer.setSize(w, h, false)
     live.cam.aspect = w / h; live.cam.updateProjectionMatrix()
   }
@@ -253,7 +265,9 @@ export async function createEngine(): Promise<Engine | null> {
     const wasLive = current === ch
     if (wasLive) live.scene.remove(ch.holder)
     const keep = ch.holder.rotation.y
-    ch.holder.rotation.y = -0.3
+    // The picture shows the swimmer as it was last left (or the resting turn).
+    ch.holder.rotation.y = wasLive ? yaw : (ch.yaw ?? REST_YAW)
+    ch.snapYaw = ch.holder.rotation.y
     snap.scene.add(ch.holder)
     snap.renderer.render(snap.scene, snap.cam)
     const url = snap.renderer.domElement.toDataURL('image/png')
@@ -271,30 +285,51 @@ export async function createEngine(): Promise<Engine | null> {
     el.appendChild(live.renderer.domElement)
     ro.observe(el); io.observe(el)
     size()
+    draw()
   }
 
   function show(ch: Character | null) {
     if (ch === current) return
-    if (current) live.scene.remove(current.holder)
+    if (current) { current.yaw = yaw; live.scene.remove(current.holder) }
     current = ch
+    // Each swimmer keeps its own turn, so the live view starts exactly like its picture.
+    yaw = ch?.yaw ?? REST_YAW; vel = 0
     if (ch) { ch.holder.rotation.y = yaw; live.scene.add(ch.holder) }
+    draw()
+  }
+  /** One frame now (the canvas is about to be seen). */
+  function draw() {
+    if (!current || !host) return
+    current.holder.rotation.y = yaw
+    live.renderer.render(live.scene, live.cam)
   }
 
-  const ray = new THREE.Raycaster()
-  const ndc = new THREE.Vector2()
+  /* Is a screen point on the swimmer? Drawn, not computed: the swimmer alone
+     (no pool, no shadow) into a tiny 24x24 window around the finger, and any
+     pixel it covers counts. The GPU does the skinning, so this costs about one
+     small frame -- the ray test it replaces walked every triangle on the CPU,
+     which a phone felt at the start of each swipe. */
+  const PICK = 24
+  const pickTarget = new THREE.WebGLRenderTarget(PICK, PICK)
+  const pickPixels = new Uint8Array(PICK * PICK * 4)
+  const clearWas = new THREE.Color()
   function hitSwimmer(x: number, y: number) {
     if (!current || !host) return false
     const r = host.getBoundingClientRect()
     if (!r.width || !r.height) return false
-    const meshes: T.Object3D[] = []
-    current.holder.traverseVisible(o => { if ((o as T.Mesh).isMesh) meshes.push(o) })
-    current.holder.updateMatrixWorld(true)
-    // The finger is wide: a point a little beside an arm or a leg still counts.
-    for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]]) {
-      ndc.set(((x + dx - r.left) / r.width) * 2 - 1, -((y + dy - r.top) / r.height) * 2 + 1)
-      ray.setFromCamera(ndc, live.cam)
-      if (ray.intersectObjects(meshes, false).length) return true
-    }
+    const px = x - r.left, py = y - r.top
+    if (px < 0 || py < 0 || px > r.width || py > r.height) return false
+    const R = live.renderer
+    live.scenery.forEach(o => { o.visible = false })
+    live.cam.setViewOffset(r.width, r.height, px - PICK / 2, py - PICK / 2, PICK, PICK)
+    R.getClearColor(clearWas); const alphaWas = R.getClearAlpha()
+    R.setRenderTarget(pickTarget); R.setClearColor(0x000000, 0); R.clear()
+    R.render(live.scene, live.cam)
+    R.readRenderTargetPixels(pickTarget, 0, 0, PICK, PICK, pickPixels)
+    R.setRenderTarget(null); R.setClearColor(clearWas, alphaWas)
+    live.cam.clearViewOffset()
+    live.scenery.forEach(o => { o.visible = true })
+    for (let i = 3; i < pickPixels.length; i += 4) if (pickPixels[i] > 0) return true
     return false
   }
 
@@ -304,6 +339,7 @@ export async function createEngine(): Promise<Engine | null> {
     const dt = Math.min((nowMs - last) / 1000, 0.05)
     last = nowMs
     if (!current || !host || !onScreen || document.hidden) return
+    if (moving && !dragging) return
     if (!dragging) { yaw += vel * dt; vel *= Math.pow(0.01, dt) }
     current.holder.rotation.y = yaw
     ripple.offset.set((nowMs / 9000) % 1, (nowMs / 13000) % 1)
@@ -317,6 +353,8 @@ export async function createEngine(): Promise<Engine | null> {
 
   return {
     make, dress, snapshot, attach, show, hitSwimmer,
+    turnedSinceSnapshot(ch) { return Math.abs((ch === current ? yaw : (ch.yaw ?? REST_YAW)) - (ch.snapYaw ?? REST_YAW)) > 0.01 },
+    setMoving(on) { moving = on },
     spin(dx) {
       const now = performance.now()
       const most = SWIMMER_MAX_PER_S * Math.max(1, Math.min(100, now - spunAt)) / 1000
@@ -327,7 +365,7 @@ export async function createEngine(): Promise<Engine | null> {
     dispose() {
       cancelAnimationFrame(raf); io.disconnect(); ro.disconnect()
       live.renderer.domElement.remove()
-      live.renderer.dispose(); snap.renderer.dispose()
+      pickTarget.dispose(); live.renderer.dispose(); snap.renderer.dispose()
       live.renderer.forceContextLoss(); snap.renderer.forceContextLoss()
     },
   }

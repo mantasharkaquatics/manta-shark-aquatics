@@ -35,7 +35,7 @@ const CSS = `
 .sw-deck { position: relative; perspective: 1100px; touch-action: pan-y; margin: 0 -20px; overflow-x: clip; overflow-y: visible;
   -webkit-user-select: none; user-select: none }
 .sw-slot { position: absolute; top: 0; left: 50%; transform-origin: 50% 50%; will-change: transform, opacity; backface-visibility: hidden }
-.sw-dim { position: absolute; inset: 0; z-index: 5; border-radius: 20px; background: #0b1a36; opacity: 0; pointer-events: none }
+.sw-dim { position: absolute; inset: 0; z-index: 5; border-radius: 20px; background: #0b1a36; opacity: 0; pointer-events: none; will-change: opacity }
 .sw-slot:not(.on) .msa-mcard * { pointer-events: none }
 .sw-slot:not(.on) { cursor: pointer }
 .sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden; touch-action: pan-y;
@@ -206,9 +206,18 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
      anywhere else on the card -- the pool, the sky, the card below -- swipes
      to the next card. The deck follows the finger 1:1 and, on release,
      settles with a spring that starts at the finger's speed, so there is no
-     jolt between dragging and settling. One card per swipe. */
+     jolt between dragging and settling. One card per swipe.
+
+     Smoothness (owner: "completely smooth"): while the cards slide nothing
+     else happens. No React render (positions go straight to style, once a
+     frame), no 3D drawing (the live canvas holds its last frame), no work
+     when the finger lands (the hit test is one tiny GPU frame). The swap of
+     the live swimmer to the new middle card -- a React render, a picture of
+     the swimmer being left -- waits until the slide has come to rest. */
   const posRef = useRef(0)
   const anim = useRef(0)
+  const dotsRef = useRef<HTMLDivElement>(null)
+  const placing = useRef(0)
   const place = useCallback(() => {
     const p = posRef.current
     slotRefs.current.forEach((el, i) => {
@@ -224,12 +233,34 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   }, [cw])
   // Every render lays the cards out again (new cards, a new width).
   useLayoutEffect(() => { place() })
+  // Finger moves can come faster than the screen draws: lay out once per frame.
+  const placeSoon = useCallback(() => {
+    if (placing.current) return
+    placing.current = requestAnimationFrame(() => { placing.current = 0; place() })
+  }, [place])
+  const centerRef = useRef(center)
+  useEffect(() => { centerRef.current = center }, [center])
+  const moving = useCallback((on: boolean) => { if (engine && engine !== 'loading') engine.setMoving(on) }, [engine])
 
   const settle = useCallback((target: number, v0 = 0) => {
     const n = items.length
     target = Math.max(0, Math.min(n - 1, target))
-    setCenter(target)
+    // The dots answer at once (straight to the page); the cards follow the spring.
+    dotsRef.current?.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-current', String(i === target)))
     cancelAnimationFrame(anim.current)
+    moving(true)
+    const done = () => {
+      const was = centerRef.current
+      if (target !== was && engine && engine !== 'loading') {
+        // A picture of the swimmer being left, turned as it was left, then the swap.
+        const leaving = items[was] ? chars.current.get(items[was].id) : undefined
+        if (leaving && engine.turnedSinceSnapshot(leaving.ch)) {
+          const url = engine.snapshot(leaving.ch); setSnaps(sn => ({ ...sn, [items[was].id]: url }))
+        }
+        setCenter(target)
+      }
+      moving(false)
+    }
     // A critically damped spring: no wobble, and it keeps the flick's speed.
     const k = 190, c = 2 * Math.sqrt(k)
     let v = Math.max(-9, Math.min(9, v0)), last = performance.now()
@@ -238,14 +269,14 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       const x = posRef.current
       v += (-k * (x - target) - c * v) * dt
       posRef.current = x + v * dt
-      if (Math.abs(posRef.current - target) < 0.0015 && Math.abs(v) < 0.02) { posRef.current = target; place(); return }
+      if (Math.abs(posRef.current - target) < 0.0015 && Math.abs(v) < 0.02) { posRef.current = target; place(); done(); return }
       place()
       anim.current = requestAnimationFrame(step)
     }
     anim.current = requestAnimationFrame(step)
-  }, [items.length, place])
+  }, [items, place, moving, engine])
   const goTo = settle
-  useEffect(() => () => cancelAnimationFrame(anim.current), [])
+  useEffect(() => () => { cancelAnimationFrame(anim.current); cancelAnimationFrame(placing.current) }, [])
 
   const drag = useRef<null | {
     mode: 'spin' | 'swipe'; x: number; y: number; last: number; t: number; v: number; start: number; slot: number; moved: boolean; id: number
@@ -268,6 +299,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     const onSwimmer = ready && i === center && !!target.closest('.sw-stage') && !target.closest('.sw-ask')
       && Math.abs(posRef.current - center) < 0.05 && engine.hitSwimmer(e.clientX, e.clientY)
     cancelAnimationFrame(anim.current)
+    if (onSwimmer) { posRef.current = center; place(); moving(false) }
     const now = performance.now()
     drag.current = {
       mode: onSwimmer ? 'spin' : 'swipe', x: e.clientX, y: e.clientY, last: e.clientX, t: now, v: 0, start: posRef.current, slot: i,
@@ -282,12 +314,13 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
       if (Math.abs(dy) > Math.abs(dx)) {   // the page is being scrolled
         drag.current = null
-        if (d.mode === 'swipe' && Math.abs(posRef.current - Math.round(posRef.current)) > 0.001) settle(Math.round(posRef.current))
+        if (d.mode === 'swipe') settle(Math.round(posRef.current))
         return
       }
       d.moved = true
       deckRef.current?.setPointerCapture(e.pointerId)
       if (d.mode === 'spin' && engine && engine !== 'loading') engine.setDragging(true)
+      if (d.mode === 'swipe') moving(true)
     }
     const now = performance.now(), ddx = e.clientX - d.last
     d.v = ddx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
@@ -300,7 +333,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     if (p < 0) p = -Math.min(0.35, -p * 0.35)
     else if (p > max) p = max + Math.min(0.35, (p - max) * 0.35)
     posRef.current = p
-    place()
+    placeSoon()
   }
   const onUp = (e: React.PointerEvent) => {
     const d = drag.current
@@ -309,7 +342,8 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     if (d.mode === 'spin' && engine && engine !== 'loading') { engine.setDragging(false); if (d.moved) engine.fling(d.v) }
     if (d.moved) dragged.current = true
     if (d.mode !== 'swipe') return
-    if (!d.moved) { if (d.slot !== center) goTo(d.slot); else if (Math.abs(posRef.current - center) > 0.001) settle(center); return }
+    // A tap: a side card comes to the middle; anywhere else, finish whatever slide the tap stopped.
+    if (!d.moved) { settle(d.slot !== center ? d.slot : Math.round(posRef.current)); return }
     // The finger's speed over its last ~90ms, in cards per second.
     const a = d.trail[0], b = d.trail[d.trail.length - 1]
     const pxPerMs = b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0
@@ -428,7 +462,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
         })}
       </div>
       {n > 1 && (
-        <div className="sw-dots">
+        <div className="sw-dots" ref={dotsRef}>
           {items.map((it, i) => (
             <button key={it.id} type="button" aria-label={it.name} aria-current={i === center} onClick={() => goTo(i)} />
           ))}

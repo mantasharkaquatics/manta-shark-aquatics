@@ -566,13 +566,18 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   fast" and then "a little faster"): the constants at the top of engine.ts.
   A swipe moves one card, however fast the flick.
 - **Only a finger that lands ON the swimmer turns it** (owner, 2026-10-29);
-  the pool, the sky and the card below all swipe. engine.hitSwimmer() casts
-  rays at the visible parts of the live swimmer (with a few pixels to spare).
-- **Swiping never goes through React.** The deck's position lives in a ref
-  and is written straight to the cards' style each frame; React re-renders
-  once, when the middle card changes. Release hands the finger's speed to a
-  critically damped spring. Re-rendering every card per frame is what made
-  it feel heavy -- keep it this way.
+  the pool, the sky and the card below all swipe. engine.hitSwimmer() draws
+  the swimmer alone into a 24x24 window round the finger and looks for any
+  covered pixel (one tiny GPU frame). A CPU ray test walked every skinned
+  triangle and was felt at the start of each swipe -- do not go back to it.
+- **Nothing else happens while the cards slide** (owner: "completely
+  smooth, no stutter"). Positions go straight to the cards' style once a
+  frame (no React render); the live canvas stops drawing and holds its last
+  frame (engine.setMoving); the swap of the live swimmer to the new middle
+  card -- one React render, plus a new picture of the swimmer being left
+  only if it was turned -- waits until the spring has come to rest. Release
+  hands the finger's speed to a critically damped spring. Each swimmer keeps
+  its own turn (Character.yaw), so its picture and live view match.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.
