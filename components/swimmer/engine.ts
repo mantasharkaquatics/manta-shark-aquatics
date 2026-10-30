@@ -247,7 +247,15 @@ export async function createEngine(): Promise<Engine | null> {
     ro.observe(host); io.observe(host)
     size(ch.view)
     draw(ch)
+    later(ch)
   }
+  /* The swimmer's outline for the grab boxes costs a little CPU work; do it
+     while the phone is idle after loading or dressing, never at the moment a
+     card arrives (owner, 2026-10-30: the card jerked on arrival). */
+  const idle: (f: () => void) => void = (window as unknown as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback
+    ? f => (window as unknown as { requestIdleCallback: (f: () => void, o?: object) => void }).requestIdleCallback(f, { timeout: 1500 })
+    : f => { window.setTimeout(f, 300) }
+  function later(ch: Character) { idle(() => { if (!ch.bands && chars.has(ch)) measure(ch) }) }
   function unmount(ch: Character) {
     const v = ch.view
     if (!v) return
@@ -285,6 +293,7 @@ export async function createEngine(): Promise<Engine | null> {
   function dress(ch: Character, look: SwimmerLook) {
     ch.bands = undefined   // a new hairstyle or fins change the outline
     ch.dirty = true
+    if (ch.view) later(ch)
     const on = new Set<string>()
     if (look.cap) on.add('Cap'); else HAIR_PARTS[look.hair].forEach(p => on.add(p))
     on.add(SUIT_PARTS[look.suit])

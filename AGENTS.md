@@ -570,9 +570,13 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   directly, with a spring) both stuttered on the iPhone -- anything on the
   main thread (3D drawing, React, the phone) delays the next move. Now the
   deck is `overflow-x: auto` with scroll-snap (center, snap-stop always),
-  so iOS moves it itself. The curve and the side-card dimming are CSS
-  scroll-driven animations (view timeline); a phone without them shows the
-  cards flat. Do not put touch or pointer listeners on the deck that could
+  so iOS moves it itself. **No scroll-driven effects on the cards** (owner,
+  2026-10-30): a curve and side-card dimming done with CSS scroll-driven
+  animations were worked out on the page's main thread on the iPhone, and
+  the whole card jerked as it arrived; the cards are now a flat row. The
+  scroll handler only sets a timer (and the dots when the nearest card
+  changes); the grab-box outline is measured while the phone is idle, never
+  on arrival. Do not put touch or pointer listeners on the deck that could
   stop the scroll (non-passive ones make iOS wait for the main thread).
 - **Only a finger that lands ON the swimmer turns it** (owner, 2026-10-29);
   the pool, the sky and the card below all scroll. The live card carries

@@ -39,19 +39,10 @@ const CSS = `
 /* Room so the first and last card can come to the middle. */
 .sw-deck::before, .sw-deck::after { content: ''; flex: 0 0 calc((100% - var(--cw)) / 2 - var(--gap)) }
 .sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always }
-.sw-dim { position: absolute; inset: 0; z-index: 5; border-radius: 20px; background: #0b1a36; opacity: 0; pointer-events: none }
-/* The curve: cards beside the middle one turn away and shrink a little.
-   Driven by the scroll itself (no script), so it moves with the finger. */
-@supports (animation-timeline: view()) {
-  .sw-slot { view-timeline: --sw-v inline; animation: sw-curve linear both; animation-timeline: --sw-v }
-  .sw-dim { animation: sw-dim linear both; animation-timeline: --sw-v }
-  @keyframes sw-curve {
-    0% { transform: perspective(900px) rotateY(-24deg) scale(.9); transform-origin: 0% 50% }
-    50% { transform: none; transform-origin: 50% 50% }
-    100% { transform: perspective(900px) rotateY(24deg) scale(.9); transform-origin: 100% 50% }
-  }
-  @keyframes sw-dim { 0% { opacity: .14 } 50% { opacity: 0 } 100% { opacity: .14 } }
-}
+/* No curve or dimming driven by the scroll: on the iPhone those effects are
+   worked out by the page's own thread, and any work there made the whole
+   card jerk as it arrived (owner, 2026-10-30). The cards are a plain native
+   row, which iOS moves entirely by itself. */
 .sw-slot:not([data-on]) .msa-mcard * { pointer-events: none }
 .sw-slot:not([data-on]) { cursor: pointer }
 .sw-hold { position: absolute; z-index: 2; display: none; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
@@ -265,8 +256,11 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     if (i !== centerRef.current) activate(i)
     engine.setMoving(false)
   }, [engine, nearest, activate])
+  // As little as possible per scroll event: a timer, and the dots only when the nearest card changes.
+  const lastNear = useRef(0)
   const onScroll = () => {
-    markDots(nearest())
+    const i = nearest()
+    if (i !== lastNear.current) { lastNear.current = i; markDots(i) }
     if (engine && engine !== 'loading') engine.setMoving(true)
     window.clearTimeout(restTimer.current)
     restTimer.current = window.setTimeout(rest, 140)
@@ -426,7 +420,6 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
             <div key={it.id} ref={el => { if (el) slotEls.current.set(it.id, el); else slotEls.current.delete(it.id) }} className="sw-slot"
               role="group" aria-roledescription="slide" aria-label={it.name} onClickCapture={onSlotClick(i)}>
               {renderCard(it, stage)}
-              <div className="sw-dim" aria-hidden="true" />
             </div>
           )
         })}
