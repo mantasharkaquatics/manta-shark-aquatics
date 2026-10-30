@@ -576,7 +576,8 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   the whole card jerked as it arrived; the cards are now a flat row. The
   scroll handler only sets a timer (and the dots when the nearest card
   changes); the grab-box outline is measured while the phone is idle, never
-  on arrival. Do not put touch or pointer listeners on the deck that could
+  on arrival. Each pool's water has its own clock that runs only while that
+  card is drawn, so the ripples never jump when a card starts again. Do not put touch or pointer listeners on the deck that could
   stop the scroll (non-passive ones make iOS wait for the main thread).
 - **Only a finger that lands ON the swimmer turns it** (owner, 2026-10-29);
   the pool, the sky and the card below all scroll. The live card carries

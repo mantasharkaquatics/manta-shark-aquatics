@@ -55,7 +55,7 @@ export interface Character {
   bands?: { y0: number; y1: number; r: number }[]
 }
 
-export interface View { renderer: T.WebGLRenderer; scene: T.Scene; cam: T.PerspectiveCamera; host: HTMLElement }
+export interface View { renderer: T.WebGLRenderer; scene: T.Scene; cam: T.PerspectiveCamera; host: HTMLElement; water?: T.Texture; waterT: number }
 
 export interface Engine {
   make(look: SwimmerLook): Character
@@ -151,7 +151,9 @@ export async function createEngine(): Promise<Engine | null> {
     const water = new THREE.Mesh(new THREE.PlaneGeometry(WATER * 2, WATER * 2),
       new THREE.MeshStandardMaterial({ color: '#33aee4', roughness: 0.15, metalness: 0, transparent: true, opacity: 0.62, depthWrite: false }))
     water.rotation.x = -Math.PI / 2; water.position.y = SURFACE; g.add(water)
-    const sheen = new THREE.Mesh(new THREE.PlaneGeometry(WATER * 2, WATER * 2), new THREE.MeshBasicMaterial({ map: ripple, transparent: true, opacity: 0.55, depthWrite: false }))
+    // Each pool its own copy of the ripples, so each card's water moves on from exactly where it stopped.
+    const waterTex = ripple.clone(); g.userData.water = waterTex
+    const sheen = new THREE.Mesh(new THREE.PlaneGeometry(WATER * 2, WATER * 2), new THREE.MeshBasicMaterial({ map: waterTex, transparent: true, opacity: 0.55, depthWrite: false }))
     sheen.rotation.x = -Math.PI / 2; sheen.position.y = SURFACE + 0.002; g.add(sheen)
     {
       // Lane ropes: floats, red near the walls, blue and white between.
@@ -240,9 +242,9 @@ export async function createEngine(): Promise<Engine | null> {
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }) } catch (err) { console.warn('[swimmer] no canvas for this card', err); return }
     renderer.setPixelRatio(PIXEL_RATIO)
     renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block'
-    const { scene, cam } = makeScene()
+    const { scene, cam, scenery } = makeScene()
     scene.add(ch.holder)
-    ch.view = { renderer, scene, cam, host }
+    ch.view = { renderer, scene, cam, host, water: scenery[0].userData.water as T.Texture | undefined, waterT: 0 }
     host.appendChild(renderer.domElement)
     ro.observe(host); io.observe(host)
     size(ch.view)
@@ -373,7 +375,10 @@ export async function createEngine(): Promise<Engine | null> {
     const busy = dragging || Math.abs(a.vel) > 0.01
     frame++
     if (!busy && !a.dirty && frame % 2) return            // breathing only: 30 a second
-    ripple.offset.set((nowMs / 9000) % 1, (nowMs / 13000) % 1)
+    // The water's own clock runs only while it is drawn: no jump when a card starts moving again.
+    const v = a.view
+    v.waterT += busy ? dt : dt * 2
+    v.water?.offset.set((v.waterT / 9) % 1, (v.waterT / 13) % 1)
     if (!still) a.mixer.update(busy ? dt : dt * 2)
     draw(a)
   }
