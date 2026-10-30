@@ -51,7 +51,8 @@ export interface Character {
 export interface Engine {
   make(look: SwimmerLook): Character
   dress(ch: Character, look: SwimmerLook): void
-  snapshot(ch: Character): string
+  /** Draw the swimmer's still picture into this 2D canvas (a straight pixel copy: no image encoding). */
+  snapshot(ch: Character, into: HTMLCanvasElement): void
   /** Has this swimmer been turned since its picture was taken? (A new picture costs a moment; skip it when nothing changed.) */
   turnedSinceSnapshot(ch: Character): boolean
   /** Put the live canvas in this element (or take it out with null). */
@@ -264,7 +265,7 @@ export async function createEngine(): Promise<Engine | null> {
     paint('EarInner', '#' + new THREE.Color(look.skin).multiplyScalar(0.9).getHexString())
   }
 
-  function snapshot(ch: Character) {
+  function snapshot(ch: Character, into: HTMLCanvasElement) {
     const wasLive = current === ch
     if (wasLive) live.scene.remove(ch.holder)
     const keep = ch.holder.rotation.y
@@ -273,11 +274,13 @@ export async function createEngine(): Promise<Engine | null> {
     ch.snapYaw = ch.holder.rotation.y
     snap.scene.add(ch.holder)
     snap.renderer.render(snap.scene, snap.cam)
-    const url = snap.renderer.domElement.toDataURL('image/png')
+    const src = snap.renderer.domElement
+    if (into.width !== src.width || into.height !== src.height) { into.width = src.width; into.height = src.height }
+    const g = into.getContext('2d')
+    if (g) { g.clearRect(0, 0, into.width, into.height); g.drawImage(src, 0, 0) }
     snap.scene.remove(ch.holder)
     ch.holder.rotation.y = keep
     if (wasLive) live.scene.add(ch.holder)
-    return url
   }
 
   function attach(el: HTMLElement | null) {

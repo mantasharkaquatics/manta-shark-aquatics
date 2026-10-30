@@ -579,11 +579,17 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   invisible `.sw-hold` boxes over the swimmer (engine.swimmerBoxes(): head,
   body and legs, measured once per look from the posed body) with
   `touch-action: none`, so the phone itself decides scroll-or-turn.
-- While the cards move the live canvas stops drawing (engine.setMoving);
-  when they rest, the live swimmer moves to the new middle card (one React
-  render; a new picture of the swimmer being left only if it was turned).
-  Each swimmer keeps its own turn (Character.yaw), so picture and live view
-  match.
+- **Arriving on a card changes nothing React draws** (owner, 2026-10-30:
+  換造型 popped in with a pause after each swipe). Every card always carries
+  its own 換造型 button, hint, still picture (a 2D canvas, copied from the
+  picture renderer -- no PNG encoding) and an empty place for the live
+  canvas. Which card is in the middle lives in a ref, not React state;
+  activate() moves the live canvas there, hides that card's picture under
+  it, places the grab boxes and marks the dots -- all by hand, in one go,
+  after the cards stop and the finger has lifted. The live canvas stops
+  drawing while the cards move (engine.setMoving). Each swimmer keeps its
+  own turn (Character.yaw), and the card being left is redrawn only if it
+  was turned. Do not put the middle card back into React state.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.

@@ -52,15 +52,15 @@ const CSS = `
   }
   @keyframes sw-dim { 0% { opacity: .14 } 50% { opacity: 0 } 100% { opacity: .14 } }
 }
-.sw-slot:not(.on) .msa-mcard * { pointer-events: none }
-.sw-slot:not(.on) { cursor: pointer }
-.sw-hold { position: absolute; z-index: 2; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
+.sw-slot:not([data-on]) .msa-mcard * { pointer-events: none }
+.sw-slot:not([data-on]) { cursor: pointer }
+.sw-hold { position: absolute; z-index: 2; display: none; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
 .sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden;
   background: radial-gradient(120% 90% at 50% 18%, #e9f6fd, #c3e4f5) }
 .sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 46px; pointer-events: none;
   background: linear-gradient(180deg, rgba(29,63,124,0), rgba(29,63,124,.16)) }
 .sw-stage .sw-snap { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block }
-.sw-live { position: absolute; inset: 0 }
+.sw-live { position: absolute; inset: 0; z-index: 1 }
 .sw-msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #12254a }
 .sw-dress { position: absolute; top: 12px; left: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 36px;
   padding: 0 14px 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.94); color: #12254a; font: inherit;
@@ -137,9 +137,6 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const t = useT()
   const [engine, setEngine] = useState<Engine | null | 'loading'>('loading')
   const chars = useRef(new Map<string, { ch: Character; key: string }>())
-  const [snaps, setSnaps] = useState<Record<string, string>>({})
-  // Which card is in the middle, once the cards have come to rest.
-  const [center, setCenter] = useState(0)
   const [hinted, setHinted] = useState(false)
   const [draft, setDraft] = useState<SwimmerLook | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -147,9 +144,18 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const deckRef = useRef<HTMLDivElement>(null)
-  const slotRefs = useRef<(HTMLDivElement | null)[]>([])
-  const liveHost = useRef<HTMLDivElement | null>(null)
+  const dotsRef = useRef<HTMLDivElement>(null)
   const [cw, setCw] = useState(320)
+  // Per card, by swimmer id: the card, its still picture, the place for the live canvas, the grab boxes.
+  const slotEls = useRef(new Map<string, HTMLDivElement>())
+  const snapEls = useRef(new Map<string, HTMLCanvasElement>())
+  const liveEls = useRef(new Map<string, HTMLDivElement>())
+  const holdEls = useRef(new Map<string, (HTMLDivElement | null)[]>())
+  // Which card is in the middle. Kept out of React on purpose: changing card
+  // must not re-render anything (owner, 2026-10-30: 換造型 popping in with a
+  // pause when a new card arrived). Every card already carries everything it
+  // shows; arriving only moves the live canvas and the grab boxes.
+  const centerRef = useRef(0)
 
   // Load three.js and the model once.
   useEffect(() => {
@@ -163,11 +169,49 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     return () => { gone = true; made?.dispose() }
   }, [])
 
+  /* ---------- the middle card, done by hand ---------- */
+  const placeHolds = useCallback((id: string, show: boolean) => {
+    if (!engine || engine === 'loading') return
+    const boxes = show ? engine.swimmerBoxes() : []
+    ;(holdEls.current.get(id) || []).forEach((g, k) => {
+      if (!g) return
+      const b = boxes[k]
+      g.style.display = b ? 'block' : 'none'
+      if (b) { g.style.left = b.x + 'px'; g.style.top = b.y + 'px'; g.style.width = b.w + 'px'; g.style.height = b.h + 'px' }
+    })
+  }, [engine])
+  const markDots = (i: number) => {
+    dotsRef.current?.querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)))
+  }
+  /** Make card i the live one: all in one go, before the next frame is drawn. */
+  const activate = useCallback((i: number) => {
+    if (!engine || engine === 'loading') return
+    const it = items[i]; if (!it) return
+    const was = items[centerRef.current]
+    if (was && was.id !== it.id) {
+      // The card being left keeps a picture of its swimmer as it was left
+      // (redrawn only if it was turned) -- drawn before it is uncovered.
+      const pc = chars.current.get(was.id), pic = snapEls.current.get(was.id)
+      if (pc && pic && engine.turnedSinceSnapshot(pc.ch)) engine.snapshot(pc.ch, pic)
+      if (pic) pic.style.visibility = ''
+      slotEls.current.get(was.id)?.removeAttribute('data-on')
+      placeHolds(was.id, false)
+    }
+    centerRef.current = i
+    slotEls.current.get(it.id)?.setAttribute('data-on', '')
+    const c = chars.current.get(it.id)
+    engine.attach(liveEls.current.get(it.id) ?? null)
+    engine.show(c ? c.ch : null)            // draws one frame at once
+    const pic = snapEls.current.get(it.id)
+    if (pic && c) pic.style.visibility = 'hidden'   // the live canvas is on top now; hide the picture under it
+    placeHolds(it.id, !!c)
+    markDots(i)
+  }, [engine, items, placeHolds])
+
   // Make, dress and photograph each swimmer when the engine is ready or a look changes.
   const snapKeys = useRef(new Map<string, string>())
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!engine || engine === 'loading') return
-    const next: Record<string, string> = {}
     for (const it of items) {
       // The swimmer being dressed shows the sheet's choices, not the saved look.
       if (draft && it.id === editing) continue
@@ -177,29 +221,18 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       const ch = had ? had.ch : engine.make(look)
       if (had && had.key !== k) engine.dress(ch, look)
       chars.current.set(it.id, { ch, key: k })
-      if (snapKeys.current.get(it.id) !== k) { next[it.id] = engine.snapshot(ch); snapKeys.current.set(it.id, k) }
+      const pic = snapEls.current.get(it.id)
+      if (pic && snapKeys.current.get(it.id) !== k) { engine.snapshot(ch, pic); snapKeys.current.set(it.id, k) }
     }
-    if (!Object.keys(next).length) return
-    // Pictures go in on the next frame, not inside this effect's render pass.
-    const f = requestAnimationFrame(() => setSnaps(s => ({ ...s, ...next })))
-    return () => cancelAnimationFrame(f)
-  }, [engine, items, draft, editing])
-
-  // The live canvas follows the centre card.
-  useLayoutEffect(() => {
-    if (!engine || engine === 'loading') return
-    const it = items[center]
-    engine.attach(liveHost.current)
-    engine.show(it ? chars.current.get(it.id)?.ch ?? null : null)
-  }, [engine, center, items, snaps])
+    activate(Math.min(centerRef.current, items.length - 1))
+  }, [engine, items, draft, editing, activate])
 
   // Dressing shows on the live swimmer straight away.
   useEffect(() => {
-    if (!engine || engine === 'loading' || !draft) return
-    const id = items[center]?.id
-    const had = id ? chars.current.get(id) : undefined
-    if (id && had) { engine.dress(had.ch, draft); chars.current.set(id, { ch: had.ch, key: lookKey(draft) }) }
-  }, [engine, draft, items, center])
+    if (!engine || engine === 'loading' || !draft || !editing) return
+    const had = chars.current.get(editing)
+    if (had) { engine.dress(had.ch, draft); chars.current.set(editing, { ch: had.ch, key: lookKey(draft) }); placeHolds(editing, true) }
+  }, [engine, draft, editing, placeHolds])
 
   // Card width from the screen.
   useLayoutEffect(() => {
@@ -216,56 +249,54 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
      versions (cards moved by JavaScript on every finger move) still
      stuttered on the iPhone: whatever else the page does on its main thread
      -- drawing the 3D swimmer, React, the phone's own work -- delays the
-     next move. So the cards are now a native horizontal scroller with
-     snapping: iOS moves them itself, off the main thread, exactly like any
-     scrolling list in the phone. The curve and the dimming of the side cards
-     are CSS driven by the scroll position (no script either).
+     next move. So the cards are a native horizontal scroller with snapping:
+     iOS moves them itself, off the main thread, like any scrolling list on
+     the phone. The curve and the dimming of the side cards are CSS driven by
+     the scroll position (no script either).
 
      Turning the swimmer (owner: only when the finger is ON the swimmer):
-     the live card carries invisible "grab" boxes over the swimmer, from
+     the live card carries invisible grab boxes over the swimmer, from
      engine.swimmerBoxes(), with touch-action: none. A finger that lands
      there turns the swimmer and the page does not scroll; a finger anywhere
      else -- pool, sky, the card below -- scrolls the cards, decided by the
-     phone itself without asking any script. One card per swipe
-     (scroll-snap-stop). The live swimmer moves to the new middle card only
-     once the cards have stopped. */
+     phone itself without asking any script. The live swimmer moves to the
+     new middle card once the cards have stopped (activate). */
   const GAP = 12
-  const dotsRef = useRef<HTMLDivElement>(null)
-  const grabRefs = useRef<(HTMLDivElement | null)[]>([])
-  const centerRef = useRef(center)
-  useEffect(() => { centerRef.current = center }, [center])
   const restTimer = useRef(0)
   const nearest = useCallback(() => {
     const el = deckRef.current
     if (!el) return 0
     return Math.max(0, Math.min(items.length - 1, Math.round(el.scrollLeft / (cw + GAP))))
   }, [cw, items.length])
+  // A finger still on the cards means they have not come to rest, even if they stand still.
+  const touching = useRef(false)
   const rest = useCallback(() => {
     window.clearTimeout(restTimer.current)
-    if (!engine || engine === 'loading') return
-    const i = nearest(), was = centerRef.current
-    if (i !== was) {
-      // A picture of the swimmer being left, as it was left (only if it was turned), then the swap.
-      const leaving = items[was] ? chars.current.get(items[was].id) : undefined
-      if (leaving && engine.turnedSinceSnapshot(leaving.ch)) {
-        const url = engine.snapshot(leaving.ch); setSnaps(sn => ({ ...sn, [items[was].id]: url }))
-      }
-      setCenter(i)
-    }
-    engine.setMoving(false)
-  }, [engine, items, nearest])
-  const onScroll = () => {
+    if (!engine || engine === 'loading' || touching.current) return
     const i = nearest()
-    dotsRef.current?.querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)))
+    if (i !== centerRef.current) activate(i)
+    engine.setMoving(false)
+  }, [engine, nearest, activate])
+  const onScroll = () => {
+    markDots(nearest())
     if (engine && engine !== 'loading') engine.setMoving(true)
     window.clearTimeout(restTimer.current)
     restTimer.current = window.setTimeout(rest, 140)
   }
   useEffect(() => {
     const el = deckRef.current
-    if (!el || !('onscrollend' in window)) return
-    el.addEventListener('scrollend', rest)
-    return () => el.removeEventListener('scrollend', rest)
+    if (!el) return
+    // Passive: these only listen, so the phone never waits for them before scrolling.
+    const down = () => { touching.current = true }
+    const up = () => { touching.current = false; window.clearTimeout(restTimer.current); restTimer.current = window.setTimeout(rest, 140) }
+    el.addEventListener('touchstart', down, { passive: true })
+    el.addEventListener('touchend', up, { passive: true })
+    el.addEventListener('touchcancel', up, { passive: true })
+    if ('onscrollend' in window) el.addEventListener('scrollend', rest)
+    return () => {
+      el.removeEventListener('touchstart', down); el.removeEventListener('touchend', up); el.removeEventListener('touchcancel', up)
+      el.removeEventListener('scrollend', rest)
+    }
   }, [rest])
   useEffect(() => () => window.clearTimeout(restTimer.current), [])
   const goTo = (i: number) => {
@@ -278,17 +309,6 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     e.preventDefault(); e.stopPropagation(); goTo(i)
   }
 
-  // The grab boxes over the live swimmer.
-  useLayoutEffect(() => {
-    if (!engine || engine === 'loading') return
-    const boxes = engine.swimmerBoxes()
-    grabRefs.current.forEach((g, k) => {
-      if (!g) return
-      const b = boxes[k]
-      g.style.display = b ? 'block' : 'none'
-      if (b) { g.style.left = b.x + 'px'; g.style.top = b.y + 'px'; g.style.width = b.w + 'px'; g.style.height = b.h + 'px' }
-    })
-  })
   const spin = useRef<null | { id: number; last: number; t: number; v: number }>(null)
   const onGrabDown = (e: React.PointerEvent) => {
     if (!engine || engine === 'loading') return
@@ -303,7 +323,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     const now = performance.now(), dx = e.clientX - d.last
     d.v = dx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
     engine.spin(dx)
-    if (dx) setHinted(true)
+    if (dx && !hinted) setHinted(true)
   }
   const onGrabUp = (e: React.PointerEvent) => {
     const d = spin.current
@@ -314,16 +334,16 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
 
   /* ---------- dressing ---------- */
   const say = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(m => (m === msg ? null : m)), 1900) }
-  const openSheet = () => {
-    const it = items[center]; if (!it?.look) return
+  const openSheet = (it: DeckItem) => {
+    if (!it.look) return
     setDraft({ ...it.look }); setEditing(it.id); setTab('gender')
     const el = deckRef.current
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
   }
   const closeSheet = async () => {
-    const it = items[center]
+    const it = items.find(x => x.id === editing)
     const d = draft
-    setDraft(null)
+    setDraft(null); setEditing(null)
     if (!it || !d || !it.look || lookKey(d) === lookKey(it.look)) return
     // Shown as saved at once; put back if the server says no.
     const before = it.look
@@ -388,20 +408,21 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       <div ref={deckRef} className="sw-deck" style={{ '--cw': cw + 'px' } as React.CSSProperties} aria-roledescription="carousel"
         onScroll={onScroll}>
         {items.map((it, i) => {
-          const on = i === center
+          // Every card carries everything it can show, so arriving in the middle changes nothing React draws.
           const stage = (
-            <div className="sw-stage">
-              {on && ready ? <div className="sw-live" ref={liveHost} role="img" aria-label={t('swimmer.stageLabel', { name: it.name })} />
-                : snaps[it.id] ? <img className="sw-snap" src={snaps[it.id]} alt={t('swimmer.stageLabel', { name: it.name })} />
-                : <div className="sw-msg">{t('swimmer.loading')}</div>}
-              {on && ready && [0, 1, 2].map(k => (
-                <div key={k} className="sw-hold" aria-hidden="true" style={{ display: 'none' }} ref={el => { grabRefs.current[k] = el }}
+            <div className="sw-stage" role="img" aria-label={t('swimmer.stageLabel', { name: it.name })}>
+              {!ready && <div className="sw-msg">{t('swimmer.loading')}</div>}
+              <canvas className="sw-snap" aria-hidden="true" ref={el => { if (el) snapEls.current.set(it.id, el); else snapEls.current.delete(it.id) }} />
+              <div className="sw-live" ref={el => { if (el) liveEls.current.set(it.id, el); else liveEls.current.delete(it.id) }} />
+              {ready && [0, 1, 2].map(k => (
+                <div key={k} className="sw-hold" aria-hidden="true"
+                  ref={el => { const a = holdEls.current.get(it.id) || []; a[k] = el; holdEls.current.set(it.id, a) }}
                   onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp} />
               ))}
-              {on && ready && it.look && (
-                <button type="button" className="sw-dress tap-auto" onClick={openSheet}>{ICON_DRESS}{t('swimmer.dress')}</button>
+              {ready && it.look && (
+                <button type="button" className="sw-dress tap-auto" onClick={() => openSheet(it)}>{ICON_DRESS}{t('swimmer.dress')}</button>
               )}
-              {on && ready && it.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.hintOne')}</span>}
+              {ready && it.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.hintOne')}</span>}
               {!it.look && ready && (
                 <div className="sw-ask">
                   <p>{t('swimmer.style.q', { name: it.name })}</p>
@@ -415,7 +436,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
             </div>
           )
           return (
-            <div key={it.id} ref={el => { slotRefs.current[i] = el }} className={'sw-slot' + (on ? ' on' : '')}
+            <div key={it.id} ref={el => { if (el) slotEls.current.set(it.id, el); else slotEls.current.delete(it.id) }} className="sw-slot"
               role="group" aria-roledescription="slide" aria-label={it.name} onClickCapture={onSlotClick(i)}>
               {renderCard(it, stage)}
               <div className="sw-dim" aria-hidden="true" />
@@ -426,7 +447,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       {n > 1 && (
         <div className="sw-dots" ref={dotsRef}>
           {items.map((it, i) => (
-            <button key={it.id} type="button" aria-label={it.name} aria-current={i === center} onClick={() => goTo(i)} />
+            <button key={it.id} type="button" aria-label={it.name} onClick={() => goTo(i)} />
           ))}
         </div>
       )}
