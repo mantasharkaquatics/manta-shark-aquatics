@@ -579,17 +579,17 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   invisible `.sw-hold` boxes over the swimmer (engine.swimmerBoxes(): head,
   body and legs, measured once per look from the posed body) with
   `touch-action: none`, so the phone itself decides scroll-or-turn.
-- **Arriving on a card changes nothing React draws** (owner, 2026-10-30:
-  換造型 popped in with a pause after each swipe). Every card always carries
-  its own 換造型 button, hint, still picture (a 2D canvas, copied from the
-  picture renderer -- no PNG encoding) and an empty place for the live
-  canvas. Which card is in the middle lives in a ref, not React state;
-  activate() moves the live canvas there, hides that card's picture under
-  it, places the grab boxes and marks the dots -- all by hand, in one go,
-  after the cards stop and the finger has lifted. The live canvas stops
-  drawing while the cards move (engine.setMoving). Each swimmer keeps its
-  own turn (Character.yaw), and the card being left is redrawn only if it
-  was turned. Do not put the middle card back into React state.
+- **Arriving on a card changes nothing on screen** (owner, 2026-10-30:
+  "still a pause -- can't this be solved?"). Every card has its own live
+  3D view (its own WebGL canvas, never moved; a family has at most three
+  swimmers) and always carries its own 換造型 button and hint. Only the
+  middle swimmer breathes and turns; the others keep their last frame. So
+  arriving swaps nothing -- no picture-to-live switch, no canvas moved, no
+  React render: activate() only tells the engine which swimmer is active,
+  places the grab boxes and marks the dots, after the cards stop and the
+  finger has lifted. Earlier versions moved one canvas between cards over
+  still pictures, and the swap itself was the pause. Keep the middle card
+  out of React state.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.
@@ -599,9 +599,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   on. Do not hand-edit the GLB; rebuild it over the same name.
 - **three.js loads only there.** SwimmerDeck is a dynamic import, mounted only
   when `appLook()` and view === 'home'; engine.ts is its only importer of
-  three. One live WebGL canvas moves to the middle card; the others show still
-  pictures. Nothing is drawn while the deck is off screen or the app is in
-  the background; breathing is drawn at 30 frames a second. No WebGL, or a
+  three. One WebGL canvas per card (pixel ratio 2 at most); only the middle
+  one is redrawn. Nothing is drawn while the cards slide, are off screen or
+  the app is in the background; breathing is drawn at 30 frames a second. No WebGL, or a
   model that will not load: the plain cards show (the `fallback` prop), as
   on the website.
 - **The look is students.avatar_look** (docs/migration-swimmer-look.sql),

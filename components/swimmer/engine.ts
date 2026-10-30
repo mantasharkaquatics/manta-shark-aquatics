@@ -9,10 +9,14 @@
  * styles, suits, goggles, cap, fins -- skinned to one skeleton. A swimmer is a
  * copy of it with the parts it wears shown and its own colours.
  *
- * Only the centre card draws live (one WebGL canvas, moved between cards);
- * the cards beside it show a still picture from a second, hidden renderer.
- * Nothing is drawn while the cards are off screen or the app is in the
- * background, and the slow breathing is drawn 30 times a second, not 60.
+ * Every card has its own live view (its own small WebGL canvas, never
+ * moved); a family has at most three swimmers. Only the middle card's view
+ * moves -- breathing at 30 frames a second, turning under a finger -- the
+ * others keep their last frame. So arriving on a card swaps nothing: the
+ * swimmer there simply starts breathing again from exactly where it was
+ * (owner, 2026-10-30: no pause, no flash when a card arrives). Nothing is
+ * drawn while the cards slide, are off screen, or the app is in the
+ * background.
  *
  * three.js is imported here only, and this file only from SwimmerDeck, which
  * the home page loads on demand inside the app: no other page carries it. */
@@ -40,26 +44,29 @@ export interface Character {
   mats: Record<string, T.MeshStandardMaterial[]>
   parts: Record<string, T.Object3D>
   mixer: T.AnimationMixer
-  /** Where it was turned to when it last stood live, so its picture and the live view agree. */
-  yaw?: number
-  /** The turn its last picture was taken at. */
-  snapYaw?: number
+  /** Its turn, and how fast it is still turning after a flick. */
+  yaw: number
+  vel: number
+  /** Its own canvas, once placed on a card. */
+  view?: View
+  /** Needs one frame drawn (it was dressed) even though it is not the moving one. */
+  dirty?: boolean
   /** Its outline as bands (holder space): radius round the turning axis per height band. */
   bands?: { y0: number; y1: number; r: number }[]
 }
 
+export interface View { renderer: T.WebGLRenderer; scene: T.Scene; cam: T.PerspectiveCamera; host: HTMLElement }
+
 export interface Engine {
   make(look: SwimmerLook): Character
   dress(ch: Character, look: SwimmerLook): void
-  /** Draw the swimmer's still picture into this 2D canvas (a straight pixel copy: no image encoding). */
-  snapshot(ch: Character, into: HTMLCanvasElement): void
-  /** Has this swimmer been turned since its picture was taken? (A new picture costs a moment; skip it when nothing changed.) */
-  turnedSinceSnapshot(ch: Character): boolean
-  /** Put the live canvas in this element (or take it out with null). */
-  attach(host: HTMLElement | null): void
-  /** The character drawn live, or none. */
-  show(ch: Character | null): void
-  /** Where the live swimmer is on its card, as up to three boxes (head, body, legs) in the card's CSS pixels. */
+  /** Give this swimmer its own canvas inside this card element (once; later calls do nothing). */
+  mount(ch: Character, host: HTMLElement): void
+  /** Take its canvas away (the swimmer left the family list). */
+  unmount(ch: Character): void
+  /** The swimmer that breathes and turns (the middle card). */
+  setActive(ch: Character | null): void
+  /** Where the active swimmer is on its card, as up to three boxes (head, body, legs) in the card's CSS pixels. */
   swimmerBoxes(): { x: number; y: number; w: number; h: number }[]
   /** While the cards slide, stop drawing (the canvas keeps its last frame), so the slide has the phone to itself. */
   setMoving(on: boolean): void
@@ -194,35 +201,60 @@ export async function createEngine(): Promise<Engine | null> {
     return { scene, cam, scenery: [pool, sh] as T.Object3D[] }
   }
 
-  const live = { renderer: new THREE.WebGLRenderer({ antialias: true, alpha: true }), ...makeScene() }
-  live.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5))
-  live.renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block'
-  const SNAP_W = 340, SNAP_H = 300
-  const snap = { renderer: new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }), ...makeScene() }
-  snap.renderer.setPixelRatio(2); snap.renderer.setSize(SNAP_W, SNAP_H, false)
-  snap.cam.aspect = SNAP_W / SNAP_H; snap.cam.updateProjectionMatrix()
-
-  let current: Character | null = null
   const REST_YAW = -0.3
-  let yaw = REST_YAW, vel = 0, dragging = false, spunAt = 0, moving = false
-  let host: HTMLElement | null = null
-  let onScreen = true
+  const PIXEL_RATIO = Math.min(window.devicePixelRatio || 1, 2)
+  const chars = new Set<Character>()
+  let active: Character | null = null
+  let dragging = false, spunAt = 0, moving = false
   let frame = 0
   let raf = 0
   let last = performance.now()
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  const io = new IntersectionObserver(es => { onScreen = es.some(e => e.isIntersecting) })
-  const ro = new ResizeObserver(() => size())
-  function size() {
-    if (!host) return
-    const w = host.clientWidth, h = host.clientHeight
+  // Drawn only while some card is on screen.
+  const visible = new Set<Element>()
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) visible.add(e.target); else visible.delete(e.target) }))
+  const ro = new ResizeObserver(es => es.forEach(e => {
+    for (const ch of chars) if (ch.view?.host === e.target) { size(ch.view); ch.dirty = true }
+  }))
+  function size(v: View) {
+    const w = v.host.clientWidth, h = v.host.clientHeight
     if (!w || !h) return
     // Resizing clears the canvas (a blank frame), so only when the size really changed.
-    const px = live.renderer.getPixelRatio()
-    if (live.renderer.domElement.width === Math.floor(w * px) && live.renderer.domElement.height === Math.floor(h * px)) return
-    live.renderer.setSize(w, h, false)
-    live.cam.aspect = w / h; live.cam.updateProjectionMatrix()
+    const c = v.renderer.domElement
+    if (c.width === Math.floor(w * PIXEL_RATIO) && c.height === Math.floor(h * PIXEL_RATIO)) return
+    v.renderer.setSize(w, h, false)
+    v.cam.aspect = w / h; v.cam.updateProjectionMatrix()
+  }
+  function draw(ch: Character) {
+    const v = ch.view
+    if (!v) return
+    ch.holder.rotation.y = ch.yaw
+    v.renderer.render(v.scene, v.cam)
+    ch.dirty = false
+  }
+  function mount(ch: Character, host: HTMLElement) {
+    if (ch.view?.host === host) return
+    if (ch.view) unmount(ch)
+    let renderer: T.WebGLRenderer
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }) } catch (err) { console.warn('[swimmer] no canvas for this card', err); return }
+    renderer.setPixelRatio(PIXEL_RATIO)
+    renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block'
+    const { scene, cam } = makeScene()
+    scene.add(ch.holder)
+    ch.view = { renderer, scene, cam, host }
+    host.appendChild(renderer.domElement)
+    ro.observe(host); io.observe(host)
+    size(ch.view)
+    draw(ch)
+  }
+  function unmount(ch: Character) {
+    const v = ch.view
+    if (!v) return
+    ro.unobserve(v.host); io.unobserve(v.host); visible.delete(v.host)
+    v.scene.remove(ch.holder)
+    v.renderer.domElement.remove(); v.renderer.dispose(); v.renderer.forceContextLoss()
+    ch.view = undefined
   }
 
   function make(look: SwimmerLook): Character {
@@ -244,13 +276,15 @@ export async function createEngine(): Promise<Engine | null> {
     const holder = new THREE.Group(); holder.add(obj); holder.position.y = STAND_Y
     const mixer = new THREE.AnimationMixer(obj)
     if (idleClip) { mixer.clipAction(idleClip).play(); mixer.update(0.35) }
-    const ch = { holder, mats, parts, mixer }
+    const ch: Character = { holder, mats, parts, mixer, yaw: REST_YAW, vel: 0 }
     dress(ch, look)
+    chars.add(ch)
     return ch
   }
 
   function dress(ch: Character, look: SwimmerLook) {
     ch.bands = undefined   // a new hairstyle or fins change the outline
+    ch.dirty = true
     const on = new Set<string>()
     if (look.cap) on.add('Cap'); else HAIR_PARTS[look.hair].forEach(p => on.add(p))
     on.add(SUIT_PARTS[look.suit])
@@ -263,51 +297,6 @@ export async function createEngine(): Promise<Engine | null> {
     paint('Skin', look.skin); paint('Hair', look.hairColor); paint('Suit', look.suitColor); paint('HairTie', look.suitColor)
     paint('Goggle', look.goggleColor); paint('Cap', look.capColor); paint('Fin', look.finColor)
     paint('EarInner', '#' + new THREE.Color(look.skin).multiplyScalar(0.9).getHexString())
-  }
-
-  function snapshot(ch: Character, into: HTMLCanvasElement) {
-    const wasLive = current === ch
-    if (wasLive) live.scene.remove(ch.holder)
-    const keep = ch.holder.rotation.y
-    // The picture shows the swimmer as it was last left (or the resting turn).
-    ch.holder.rotation.y = wasLive ? yaw : (ch.yaw ?? REST_YAW)
-    ch.snapYaw = ch.holder.rotation.y
-    snap.scene.add(ch.holder)
-    snap.renderer.render(snap.scene, snap.cam)
-    const src = snap.renderer.domElement
-    if (into.width !== src.width || into.height !== src.height) { into.width = src.width; into.height = src.height }
-    const g = into.getContext('2d')
-    if (g) { g.clearRect(0, 0, into.width, into.height); g.drawImage(src, 0, 0) }
-    snap.scene.remove(ch.holder)
-    ch.holder.rotation.y = keep
-    if (wasLive) live.scene.add(ch.holder)
-  }
-
-  function attach(el: HTMLElement | null) {
-    if (el === host && (!el || live.renderer.domElement.parentElement === el)) return
-    if (host) { ro.unobserve(host); io.unobserve(host) }
-    host = el
-    if (!el) { live.renderer.domElement.remove(); return }
-    el.appendChild(live.renderer.domElement)
-    ro.observe(el); io.observe(el)
-    size()
-    draw()
-  }
-
-  function show(ch: Character | null) {
-    if (ch === current) return
-    if (current) { current.yaw = yaw; live.scene.remove(current.holder) }
-    current = ch
-    // Each swimmer keeps its own turn, so the live view starts exactly like its picture.
-    yaw = ch?.yaw ?? REST_YAW; vel = 0
-    if (ch) { ch.holder.rotation.y = yaw; live.scene.add(ch.holder) }
-    draw()
-  }
-  /** One frame now (the canvas is about to be seen). */
-  function draw() {
-    if (!current || !host) return
-    current.holder.rotation.y = yaw
-    live.renderer.render(live.scene, live.cam)
   }
 
   /* Where the swimmer is on screen, for the invisible grab boxes that let a
@@ -342,16 +331,17 @@ export async function createEngine(): Promise<Engine | null> {
     })
   }
   function swimmerBoxes() {
-    if (!current || !host) return []
-    if (!current.bands) measure(current)
-    const w = host.clientWidth, h = host.clientHeight
+    const v = active?.view
+    if (!active || !v) return []
+    if (!active.bands) measure(active)
+    const w = v.host.clientWidth, h = v.host.clientHeight
     if (!w || !h) return []
-    const hp = current.holder.position
+    const hp = active.holder.position
     const PAD = 8
-    return (current.bands || []).filter(b => b.r > 0).map(b => {
+    return (active.bands || []).filter(b => b.r > 0).map(b => {
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const yy of [b.y0, b.y1]) {
-        v3.set(hp.x + sx * b.r, hp.y + yy, hp.z + sz * b.r).project(live.cam)
+        v3.set(hp.x + sx * b.r, hp.y + yy, hp.z + sz * b.r).project(v.cam)
         const px = (v3.x + 1) / 2 * w, py = (1 - v3.y) / 2 * h
         x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py)
       }
@@ -364,35 +354,38 @@ export async function createEngine(): Promise<Engine | null> {
     const nowMs = performance.now()
     const dt = Math.min((nowMs - last) / 1000, 0.05)
     last = nowMs
-    if (!current || !host || !onScreen || document.hidden) return
-    if (moving && !dragging) return
-    if (!dragging) { yaw += vel * dt; vel *= Math.pow(0.01, dt) }
-    current.holder.rotation.y = yaw
-    ripple.offset.set((nowMs / 9000) % 1, (nowMs / 13000) % 1)
-    const busy = dragging || Math.abs(vel) > 0.01
+    if (!visible.size || document.hidden) return
+    // A swimmer that was dressed gets its one new frame, wherever it is.
+    for (const ch of chars) if (ch.dirty && ch !== active) draw(ch)
+    const a = active
+    if (!a?.view) return
+    if (moving && !dragging) { if (a.dirty) draw(a); return }
+    if (!dragging) { a.yaw += a.vel * dt; a.vel *= Math.pow(0.01, dt) }
+    const busy = dragging || Math.abs(a.vel) > 0.01
     frame++
-    if (!busy && frame % 2) return
-    if (!still) current.mixer.update(busy ? dt : dt * 2)
-    live.renderer.render(live.scene, live.cam)
+    if (!busy && !a.dirty && frame % 2) return            // breathing only: 30 a second
+    ripple.offset.set((nowMs / 9000) % 1, (nowMs / 13000) % 1)
+    if (!still) a.mixer.update(busy ? dt : dt * 2)
+    draw(a)
   }
   raf = requestAnimationFrame(loop)
 
   return {
-    make, dress, snapshot, attach, show, swimmerBoxes,
-    turnedSinceSnapshot(ch) { return Math.abs((ch === current ? yaw : (ch.yaw ?? REST_YAW)) - (ch.snapYaw ?? REST_YAW)) > 0.01 },
+    make, dress, mount, unmount, swimmerBoxes,
+    setActive(ch) { if (active && active !== ch) active.vel = 0; active = ch },
     setMoving(on) { moving = on },
     spin(dx) {
+      if (!active) return
       const now = performance.now()
       const most = SWIMMER_MAX_PER_S * Math.max(1, Math.min(100, now - spunAt)) / 1000
-      yaw += Math.max(-most, Math.min(most, dx * SWIMMER_PER_PX)); spunAt = now
+      active.yaw += Math.max(-most, Math.min(most, dx * SWIMMER_PER_PX)); spunAt = now
     },
-    fling(v) { vel = Math.max(-SWIMMER_FLING_MAX, Math.min(SWIMMER_FLING_MAX, v * 5)) },
-    setDragging(on) { dragging = on; if (on) { vel = 0; spunAt = performance.now() } },
+    fling(v) { if (active) active.vel = Math.max(-SWIMMER_FLING_MAX, Math.min(SWIMMER_FLING_MAX, v * 5)) },
+    setDragging(on) { dragging = on; if (on) { if (active) active.vel = 0; spunAt = performance.now() } },
     dispose() {
       cancelAnimationFrame(raf); io.disconnect(); ro.disconnect()
-      live.renderer.domElement.remove()
-      live.renderer.dispose(); snap.renderer.dispose()
-      live.renderer.forceContextLoss(); snap.renderer.forceContextLoss()
+      for (const ch of chars) unmount(ch)
+      chars.clear()
     },
   }
 }

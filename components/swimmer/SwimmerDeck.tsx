@@ -59,7 +59,6 @@ const CSS = `
   background: radial-gradient(120% 90% at 50% 18%, #e9f6fd, #c3e4f5) }
 .sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 46px; pointer-events: none;
   background: linear-gradient(180deg, rgba(29,63,124,0), rgba(29,63,124,.16)) }
-.sw-stage .sw-snap { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block }
 .sw-live { position: absolute; inset: 0; z-index: 1 }
 .sw-msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #12254a }
 .sw-dress { position: absolute; top: 12px; left: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 36px;
@@ -146,15 +145,15 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const deckRef = useRef<HTMLDivElement>(null)
   const dotsRef = useRef<HTMLDivElement>(null)
   const [cw, setCw] = useState(320)
-  // Per card, by swimmer id: the card, its still picture, the place for the live canvas, the grab boxes.
+  // Per card, by swimmer id: the card, the place for its own 3D canvas, the grab boxes.
   const slotEls = useRef(new Map<string, HTMLDivElement>())
-  const snapEls = useRef(new Map<string, HTMLCanvasElement>())
   const liveEls = useRef(new Map<string, HTMLDivElement>())
   const holdEls = useRef(new Map<string, (HTMLDivElement | null)[]>())
   // Which card is in the middle. Kept out of React on purpose: changing card
   // must not re-render anything (owner, 2026-10-30: 換造型 popping in with a
   // pause when a new card arrived). Every card already carries everything it
-  // shows; arriving only moves the live canvas and the grab boxes.
+  // shows, its own 3D view included; arriving only says which swimmer
+  // breathes and turns, and moves the grab boxes.
   const centerRef = useRef(0)
 
   // Load three.js and the model once.
@@ -183,33 +182,20 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const markDots = (i: number) => {
     dotsRef.current?.querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)))
   }
-  /** Make card i the live one: all in one go, before the next frame is drawn. */
+  /** Make card i the live one: nothing is drawn differently, the swimmer there just starts to breathe. */
   const activate = useCallback((i: number) => {
     if (!engine || engine === 'loading') return
     const it = items[i]; if (!it) return
     const was = items[centerRef.current]
-    if (was && was.id !== it.id) {
-      // The card being left keeps a picture of its swimmer as it was left
-      // (redrawn only if it was turned) -- drawn before it is uncovered.
-      const pc = chars.current.get(was.id), pic = snapEls.current.get(was.id)
-      if (pc && pic && engine.turnedSinceSnapshot(pc.ch)) engine.snapshot(pc.ch, pic)
-      if (pic) pic.style.visibility = ''
-      slotEls.current.get(was.id)?.removeAttribute('data-on')
-      placeHolds(was.id, false)
-    }
+    if (was && was.id !== it.id) { slotEls.current.get(was.id)?.removeAttribute('data-on'); placeHolds(was.id, false) }
     centerRef.current = i
     slotEls.current.get(it.id)?.setAttribute('data-on', '')
-    const c = chars.current.get(it.id)
-    engine.attach(liveEls.current.get(it.id) ?? null)
-    engine.show(c ? c.ch : null)            // draws one frame at once
-    const pic = snapEls.current.get(it.id)
-    if (pic && c) pic.style.visibility = 'hidden'   // the live canvas is on top now; hide the picture under it
-    placeHolds(it.id, !!c)
+    engine.setActive(chars.current.get(it.id)?.ch ?? null)
+    placeHolds(it.id, true)
     markDots(i)
   }, [engine, items, placeHolds])
 
-  // Make, dress and photograph each swimmer when the engine is ready or a look changes.
-  const snapKeys = useRef(new Map<string, string>())
+  // Make and dress each swimmer and give it its own canvas on its card.
   useLayoutEffect(() => {
     if (!engine || engine === 'loading') return
     for (const it of items) {
@@ -221,9 +207,11 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
       const ch = had ? had.ch : engine.make(look)
       if (had && had.key !== k) engine.dress(ch, look)
       chars.current.set(it.id, { ch, key: k })
-      const pic = snapEls.current.get(it.id)
-      if (pic && snapKeys.current.get(it.id) !== k) { engine.snapshot(ch, pic); snapKeys.current.set(it.id, k) }
+      const host = liveEls.current.get(it.id)
+      if (host) engine.mount(ch, host)
     }
+    // A swimmer no longer in the list gives its canvas back.
+    for (const [id, c] of chars.current) if (!items.some(it => it.id === id)) { engine.unmount(c.ch); chars.current.delete(id) }
     activate(Math.min(centerRef.current, items.length - 1))
   }, [engine, items, draft, editing, activate])
 
@@ -412,7 +400,6 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
           const stage = (
             <div className="sw-stage" role="img" aria-label={t('swimmer.stageLabel', { name: it.name })}>
               {!ready && <div className="sw-msg">{t('swimmer.loading')}</div>}
-              <canvas className="sw-snap" aria-hidden="true" ref={el => { if (el) snapEls.current.set(it.id, el); else snapEls.current.delete(it.id) }} />
               <div className="sw-live" ref={el => { if (el) liveEls.current.set(it.id, el); else liveEls.current.delete(it.id) }} />
               {ready && [0, 1, 2].map(k => (
                 <div key={k} className="sw-hold" aria-hidden="true"
