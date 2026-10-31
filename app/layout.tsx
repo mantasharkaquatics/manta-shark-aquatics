@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Figtree, Fraunces, Nunito_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
@@ -12,20 +12,33 @@ import { placeName } from "@/lib/location-place";
 import { publicLocations } from "@/lib/public-locations";
 import { translate } from "@/lib/i18n/all";
 
-const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
+/* The fonts live in the project (app/fonts, the Latin variable files from
+   Google Fonts via Fontsource, SIL Open Font License) rather than being
+   fetched from Google at build time: that fetch failed now and then on
+   Vercel and turned deployments red with nothing wrong in the code
+   (owner, 2026-10-31). Same faces, same weights, same CSS variables. */
+const figtree = localFont({ src: './fonts/figtree-latin-wght-normal.woff2', weight: '300 900', variable: '--font-sans' });
 
 // The parent-facing site's faces (lib/brand.ts): Fraunces for headings -- soft,
 // rounded serifs close to the logo's lettering -- and Nunito Sans for reading.
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-display', weight: ['700', '800', '900'], style: ['normal', 'italic'] });
-const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-body', weight: ['400', '500', '600', '700', '800'] });
+const fraunces = localFont({
+  src: [
+    { path: './fonts/fraunces-latin-wght-normal.woff2', weight: '700 900', style: 'normal' },
+    { path: './fonts/fraunces-latin-wght-italic.woff2', weight: '700 900', style: 'italic' },
+  ],
+  variable: '--font-display',
+  adjustFontFallback: 'Times New Roman',
+});
+const nunitoSans = localFont({ src: './fonts/nunito-sans-latin-wght-normal.woff2', weight: '400 800', variable: '--font-body' });
 
 // Tailwind's font-mono (globals.css --font-mono): figures on admin and coach
 // screens and the referral code on the register page. Not preloaded -- every
 // public page would otherwise download it before first paint, for nothing.
 // (Geist Sans was removed 2026-10-08: --font-geist-sans was used nowhere.)
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: './fonts/geist-mono-latin-wght-normal.woff2',
+  weight: '100 900',
   variable: "--font-geist-mono",
-  subsets: ["latin"],
   preload: false,
 });
 

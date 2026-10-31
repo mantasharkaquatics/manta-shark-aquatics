@@ -23,6 +23,16 @@ temporarily set `document.body.style.width = '360px'`, measure, then restore
 `cssText`. Fixed-position elements track the viewport, not the body, so exclude
 them from any overflow scan.
 
+# The fonts are in the project, not fetched from Google
+
+app/layout.tsx loads Figtree, Fraunces, Nunito Sans and Geist Mono with
+next/font/local from app/fonts (the Latin variable files, from Fontsource's
+@fontsource-variable packages; SIL Open Font License, the *-OFL.txt files
+beside them). next/font/google fetched them from Google during every build,
+and that fetch failed now and then on Vercel -- red deployments with nothing
+wrong in the code (owner, 2026-10-31). Do not go back to next/font/google; a
+new face or a new language's letters go into app/fonts the same way.
+
 # Shared responsive rules live in app/globals.css
 
 That file is the only stylesheet the root layout imports, and its tail holds
