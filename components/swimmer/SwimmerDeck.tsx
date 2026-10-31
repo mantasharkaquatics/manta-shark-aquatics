@@ -32,13 +32,22 @@ const NEUTRAL: SwimmerLook = {
 const lookKey = (l: SwimmerLook) => JSON.stringify(l)
 
 const CSS = `
-.sw-deck { --gap: 12px; display: flex; align-items: flex-start; gap: var(--gap); margin: 0 -20px -18px; padding: 4px 0 18px;
+/* The home screen does not scroll up and down (owner, 2026-10-31, version C):
+   the cards take whatever height is left between the greeting and the row of
+   tiles under them, and the swimmer's picture is the part that grows or
+   shrinks to fit (--sw-stage-h, worked out once on load and on resize, never
+   while the cards move). */
+.sw-fit { position: relative; flex: 1 0 var(--sw-fit-min, 0px); min-height: 0 }
+.sw-deck { --gap: 12px; display: flex; align-items: stretch; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
   overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; -webkit-user-select: none; user-select: none }
 .sw-deck::-webkit-scrollbar { display: none }
 /* Room so the first and last card can come to the middle. */
 .sw-deck::before, .sw-deck::after { content: ''; flex: 0 0 calc((100% - var(--cw)) / 2 - var(--gap)) }
-.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always }
+.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always;
+  display: flex; flex-direction: column }
+/* Every card as tall as the tallest, so the row reads as one set. */
+.sw-slot > * { flex: 1 0 auto }
 /* No curve or dimming driven by the scroll: on the iPhone those effects are
    worked out by the page's own thread, and any work there made the whole
    card jerk as it arrived (owner, 2026-10-30). The cards are a plain native
@@ -46,19 +55,26 @@ const CSS = `
 .sw-slot:not([data-on]) .msa-mcard * { pointer-events: none }
 .sw-slot:not([data-on]) { cursor: pointer }
 .sw-hold { position: absolute; z-index: 2; display: none; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
-.sw-stage { position: relative; height: 300px; margin: -20px -20px 14px; overflow: hidden;
+/* A shadow short enough to end inside the row's own bottom padding (the row clips what spills out). */
+.sw-slot .msa-mcard { padding: 12px 14px; min-height: 0; box-shadow: 0 10px 20px rgba(18,37,74,.22) }
+.sw-stage { position: relative; height: var(--sw-stage-h, 300px); margin: -12px -14px 12px; overflow: hidden; container-type: size;
   background: radial-gradient(120% 90% at 50% 18%, #e9f6fd, #c3e4f5) }
-.sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 46px; pointer-events: none;
-  background: linear-gradient(180deg, rgba(29,63,124,0), rgba(29,63,124,.16)) }
+/* The name sits on the bottom of the picture, on a band that runs into the card's navy. */
+.sw-stage::after { content: ''; position: absolute; inset: auto 0 0 0; height: 104px; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(27,58,114,0), rgba(27,58,114,.62) 52%, #1b3a72) }
+.sw-over { position: absolute; inset: 0; z-index: 3; pointer-events: none }
+.sw-over button, .sw-over a { pointer-events: auto }
 .sw-live { position: absolute; inset: 0; z-index: 1 }
 .sw-msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #12254a }
 .sw-dress { position: absolute; top: 12px; left: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 36px;
   padding: 0 14px 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.94); color: #12254a; font: inherit;
   font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(18,37,74,.16) }
 .sw-dress svg { width: 18px; height: 18px }
-.sw-hint { position: absolute; top: 18px; right: 12px; z-index: 3; font-size: 12px; font-weight: 700; color: #12254a;
+.sw-hint { position: absolute; top: 56px; left: 12px; white-space: nowrap; z-index: 3; font-size: 12px; font-weight: 700; color: #12254a;
   background: rgba(255,255,255,.8); border-radius: 999px; padding: 4px 10px; transition: opacity .4s; pointer-events: none }
-.sw-ask { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3; background: rgba(255,255,255,.95); border-radius: 16px;
+/* On a short phone the picture is short too: the hint would sit on the swimmer. */
+@container (max-height: 250px) { .sw-hint { display: none } }
+.sw-ask { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 4; background: rgba(255,255,255,.95); border-radius: 16px;
   padding: 12px; color: #12254a; box-shadow: 0 6px 18px rgba(18,37,74,.16); text-align: center }
 .sw-ask p { margin: 0 0 10px; font-size: 15px; font-weight: 800 }
 .sw-ask small { display: block; margin-top: 8px; font-size: 12px; color: #56647d; line-height: 1.45 }
@@ -66,7 +82,11 @@ const CSS = `
 .sw-ask-row button { flex: 1; min-height: 44px; border: 0; border-radius: 12px; background: #12254a; color: #fff; font: inherit;
   font-size: 15px; font-weight: 800; cursor: pointer }
 .sw-ask-row button:disabled { opacity: .6 }
-.sw-dots { display: flex; justify-content: center; gap: 7px; margin-top: 12px }
+/* The dots, and the small "add a swimmer" link at their right. */
+.sw-foot { position: relative; display: flex; align-items: center; justify-content: center; min-height: 26px; margin-top: 8px }
+.sw-foot > :not(.sw-dots) { position: absolute; right: 0; top: 50% ; transform: translateY(-50%) }
+.sw-foot > :only-child { position: static; transform: none }
+.sw-dots { display: flex; justify-content: center; gap: 7px }
 .sw-dots button { width: 8px; height: 8px; min-height: 0; padding: 0; border: 0; border-radius: 99px; background: #b7c5da; cursor: pointer;
   transition: width .25s, background .25s }
 .sw-dots button[aria-current="true"] { width: 26px; background: #2050a0 }
@@ -113,10 +133,12 @@ const ICON_DRESS = (
 type Tab = 'gender' | 'hair' | 'suit' | 'goggles' | 'cap' | 'fins' | 'skin'
 const TABS: Tab[] = ['gender', 'hair', 'suit', 'goggles', 'cap', 'fins', 'skin']
 
-export default function SwimmerDeck({ items, renderCard, onLook, fallback, after }: {
+export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, fallback, after }: {
   items: DeckItem[]
   /** The swimmer's card, with the stage as its first child. */
   renderCard: (item: DeckItem, stage: React.ReactNode) => React.ReactNode
+  /** Laid over the swimmer's picture: the name along the bottom, check-in at the top right. */
+  renderOverlay?: (item: DeckItem) => React.ReactNode
   /** A look the server has saved. */
   onLook: (id: string, look: SwimmerLook) => void
   /** What to show when the phone cannot draw 3D: the plain cards. */
@@ -127,13 +149,15 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   const t = useT()
   const [engine, setEngine] = useState<Engine | null | 'loading'>('loading')
   const chars = useRef(new Map<string, { ch: Character; key: string }>())
-  const [hinted, setHinted] = useState(false)
+  // "Drag to spin" shows until the first spin on this phone, not on every visit.
+  const [hinted, setHinted] = useState(() => { try { return localStorage.getItem('msa_swimmer_spun') === '1' } catch { return false } })
   const [draft, setDraft] = useState<SwimmerLook | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('gender')
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const deckRef = useRef<HTMLDivElement>(null)
+  const fitRef = useRef<HTMLDivElement>(null)
   const dotsRef = useRef<HTMLDivElement>(null)
   const [cw, setCw] = useState(320)
   // Per card, by swimmer id: the card, the place for its own 3D canvas, the grab boxes.
@@ -223,6 +247,37 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     return () => ro.disconnect()
   }, [])
 
+  /* The picture's height: what is left of the room for the cards once the
+     tallest card's own lines (bar, tiles, check-in) are counted. The room
+     never depends on the picture (flex-basis is those lines plus the
+     smallest picture), so measuring cannot feed back on itself; on a screen
+     too short even for the smallest picture the room stays that big and the
+     page scrolls rather than cutting a card. Only on load and on a size
+     change (ResizeObserver), never during a swipe. */
+  const STAGE_MIN = 150, STAGE_MAX = 440
+  useLayoutEffect(() => {
+    const fit = fitRef.current, deck = deckRef.current
+    if (!fit || !deck) return
+    let raf = 0
+    const measure = () => {
+      let rest = 0
+      deck.querySelectorAll<HTMLElement>('.sw-slot').forEach(slot => {
+        const card = slot.firstElementChild as HTMLElement | null
+        const st = slot.querySelector<HTMLElement>('.sw-stage')
+        if (card && st) rest = Math.max(rest, card.offsetHeight - st.offsetHeight)
+      })
+      const pad = 4 // the deck's top padding
+      fit.style.setProperty('--sw-fit-min', rest + pad + STAGE_MIN + 'px')
+      const h = Math.floor(Math.max(STAGE_MIN, Math.min(STAGE_MAX, fit.clientHeight - rest - pad)))
+      if (deck.style.getPropertyValue('--sw-stage-h') !== h + 'px') deck.style.setProperty('--sw-stage-h', h + 'px')
+    }
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure) })
+    ro.observe(fit)
+    deck.querySelectorAll('.sw-slot > *').forEach(c => ro.observe(c))
+    measure()
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [items, engine])
+
   /* ---------- swipe and spin ----------
      Owner, 2026-10-29: "completely smooth, no stutter". Two script-driven
      versions (cards moved by JavaScript on every finger move) still
@@ -305,7 +360,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
     const now = performance.now(), dx = e.clientX - d.last
     d.v = dx / Math.max(1, now - d.t); d.last = e.clientX; d.t = now
     engine.spin(dx)
-    if (dx && !hinted) setHinted(true)
+    if (dx && !hinted) { setHinted(true); try { localStorage.setItem('msa_swimmer_spun', '1') } catch { /* fine */ } }
   }
   const onGrabUp = (e: React.PointerEvent) => {
     const d = spin.current
@@ -387,6 +442,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
   return (
     <>
       <style>{CSS}</style>
+      <div ref={fitRef} className="sw-fit">
       <div ref={deckRef} className="sw-deck" style={{ '--cw': cw + 'px' } as React.CSSProperties} aria-roledescription="carousel"
         onScroll={onScroll}>
         {items.map((it, i) => {
@@ -414,6 +470,7 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
                   <small>{t('swimmer.askHint', { name: it.name })}</small>
                 </div>
               )}
+              {renderOverlay && <div className="sw-over">{renderOverlay(it)}</div>}
             </div>
           )
           return (
@@ -424,14 +481,19 @@ export default function SwimmerDeck({ items, renderCard, onLook, fallback, after
           )
         })}
       </div>
-      {n > 1 && (
-        <div className="sw-dots" ref={dotsRef}>
-          {items.map((it, i) => (
-            <button key={it.id} type="button" aria-label={it.name} onClick={() => goTo(i)} />
-          ))}
+      </div>
+      {(n > 1 || after) && (
+        <div className="sw-foot">
+          {n > 1 && (
+            <div className="sw-dots" ref={dotsRef}>
+              {items.map((it, i) => (
+                <button key={it.id} type="button" aria-label={it.name} onClick={() => goTo(i)} />
+              ))}
+            </div>
+          )}
+          {after}
         </div>
       )}
-      {after}
 
       <div className={'sw-scrim' + (draft ? ' on' : '')} onClick={closeSheet} />
       <div className={'sw-sheet' + (draft ? ' on' : '')} role="dialog" aria-modal="true" aria-labelledby="sw-sheet-t" aria-hidden={!draft}>

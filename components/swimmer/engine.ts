@@ -187,6 +187,10 @@ export async function createEngine(): Promise<Engine | null> {
   }
   /** Where the swimmer's feet are: a little under the water. */
   const STAND_Y = (SURFACE - 0.1) * POOL_SCALE
+  /* Framing: the name and level are laid over the bottom of the picture and
+     two buttons over its top (owner, 2026-10-31), so the camera looks a
+     little higher and a little wider than it did, keeping the swimmer between them. */
+  const LOOK_Y = 1.0, FOV = 30
 
   /** The pool the swimmer stands in, its lights and camera. */
   function makeScene() {
@@ -199,7 +203,7 @@ export async function createEngine(): Promise<Engine | null> {
     const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.3), new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false }))
     sh.rotation.x = -Math.PI / 2; sh.position.y = SURFACE * POOL_SCALE + 0.004; scene.add(sh)
     // A tight depth range (near 2) keeps close faces from flickering.
-    const cam = new THREE.PerspectiveCamera(28, 1, 2, 40); cam.position.set(0, 2.6, 8.6); cam.lookAt(0, 0.86, 0)
+    const cam = new THREE.PerspectiveCamera(28, 1, 2, 40); cam.position.set(0, 2.6, 8.6); cam.lookAt(0, LOOK_Y, 0)
     return { scene, cam, scenery: [pool, sh] as T.Object3D[] }
   }
 
@@ -226,7 +230,14 @@ export async function createEngine(): Promise<Engine | null> {
     const c = v.renderer.domElement
     if (c.width === Math.floor(w * PIXEL_RATIO) && c.height === Math.floor(h * PIXEL_RATIO)) return
     v.renderer.setSize(w, h, false)
-    v.cam.aspect = w / h; v.cam.updateProjectionMatrix()
+    /* A tall picture (the home screen gives the swimmer what height it has,
+       owner 2026-10-31) keeps the pool's width in view: the camera opens up
+       only as far as it must to keep 86% of the width it was framed for
+       (331 x 300), so the swimmer still grows with the height. */
+    const aspect = w / h, tanV = Math.tan(THREE.MathUtils.degToRad(FOV / 2))
+    v.cam.aspect = aspect
+    v.cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.max(tanV, Math.tan(THREE.MathUtils.degToRad(14)) * (331 / 300) * 0.86 / aspect)))
+    v.cam.updateProjectionMatrix()
   }
   function draw(ch: Character) {
     const v = ch.view

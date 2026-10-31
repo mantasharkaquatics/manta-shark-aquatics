@@ -1919,7 +1919,7 @@
   "swimmer.askHint": "Pick one and {name}'s swimmer appears. You can change the look any time.",
   "swimmer.dress": "Change look",
   "swimmer.done": "Done",
-  "swimmer.hintOne": "Drag the swimmer to spin",
+  "swimmer.hintOne": "Drag to spin",
   "swimmer.loading": "Loading…",
   "swimmer.noGL": "This phone can't show the 3D swimmer.",
   "swimmer.stageLabel": "{name}'s swimmer. Drag left or right to spin.",
@@ -2508,5 +2508,8 @@
   "inbox.ask.yes": "Yes, notify me",
   "inbox.ask.no": "Not now",
   "push.settings.news": "School news and events",
-  "push.settings.newsDesc": "Sign-ups, events and other news from the school"
+  "push.settings.newsDesc": "Sign-ups, events and other news from the school",
+  "dash.pointsLow": "Running low",
+  "dash.invite.bannerOne": "A partner booking invitation is waiting for you",
+  "dash.invite.banner": "{n} partner booking invitations are waiting for you"
 }

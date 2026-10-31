@@ -595,6 +595,31 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   finger has lifted. Earlier versions moved one canvas between cards over
   still pictures, and the swap itself was the pause. Keep the middle card
   out of React state.
+- **The app's home is one screen that does not scroll up and down**
+  (owner, 2026-10-31, version C of three mockups: "only the cards move
+  sideways"). No 學生資料 heading (it stays as the section's aria-label).
+  The greeting is one line; `.msa-root[data-view="home"]` is exactly the
+  screen between the top bar and the tabs (globals' `--app-tab-h`), and
+  `.msa-main` is a column whose middle (`.sw-fit`) the cards fill.
+  SwimmerDeck sizes the swimmer's picture (`--sw-stage-h`, 150-440px) to
+  what is left once the tallest card's own lines are counted -- on load and
+  on resize only (ResizeObserver), never during a swipe; `.sw-fit`'s
+  flex-basis is those lines plus the smallest picture, so measuring cannot
+  feed back, and on a phone too short even for that the middle scrolls
+  instead of cutting anything. On the card: name, level and 報到 are laid
+  over the picture (`renderOverlay` → deckOverlay), 換造型 top left; under
+  it only the progress bar and one row of small tiles (next lesson, 學習地圖,
+  上課紀錄, the monthly report, the assessment report; a new swimmer gets
+  "book the assessment"). Under the cards: 預約 / points / 我的方案 as one row
+  of three (`.msa-trio`); the plans open as a bottom sheet there. Notices
+  that used to be boxes are one line on this screen (safety info; partner
+  invitations, which now live on 課表 -- the line opens
+  /dashboard/schedule#invites). The website keeps studentCard, the booking
+  bar and the folded plans line. Do not add anything to this screen that
+  makes it taller; shrink the picture or make it a line.
+- The camera: FOV 30 looking at y 1.0, widening on a tall picture only far
+  enough to keep 86% of the pool's width (engine.ts size()), so the swimmer
+  stands between the top buttons and the name.
 - The pool's blue edge once flickered: faces that share a plane fight
   (z-fighting). Keep new parts off each other's surfaces and the camera's
   near plane at 2.

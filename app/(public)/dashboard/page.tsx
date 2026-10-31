@@ -88,8 +88,8 @@ ${REPORT_SHEET_CSS}
   color: #2050a0; font-size: 13.5px; font-weight: 800; text-decoration: none;
   transition: border-color .15s, color .15s }
 @media (hover: hover) { .msa-addkid:hover { border-color: #2050a0; background: rgba(32,80,160,0.04) } }
-.msa-addkid.sw-add { min-height: 0; flex-direction: row; padding: 14px; margin-top: 14px }
-.msa-addkid.sw-add .msa-addkid-plus { width: 30px; height: 30px; font-size: 18px }
+.msa-addkid.msa-deck-add { min-height: 0; flex-direction: row; gap: 5px; padding: 3px 10px 3px 4px; border-width: 1px; border-radius: 999px; font-size: 12px }
+.msa-addkid.msa-deck-add .msa-addkid-plus { width: 20px; height: 20px; font-size: 14px }
 .msa-addkid-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   font-size: 22px; font-weight: 400; background: #12254a; color: #fff }
 /* 「我的方案」 (owner, 2026-10-02): what the family already holds -- each fixed
@@ -181,6 +181,72 @@ ${REPORT_SHEET_CSS}
 .msa-hello-in { position: relative; max-width: 1100px; margin: 0 auto; padding: 36px clamp(20px,5vw,48px) 0 }
 .msa-hello h1 { font-family: var(--font-display), 'PingFang TC', serif; font-size: clamp(28px,3vw,36px); font-weight: 900; margin: 0; color: #12254a }
 .msa-hello h1 em { color: #d98900 }
+.msa-hello-date { font-size: 11px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 8px }
+.msa-main { max-width: 1100px; margin: 0 auto; padding: clamp(24px,4vw,40px) clamp(20px,5vw,48px) clamp(40px,5vw,64px) }
+.msa-kids { margin-bottom: 36px }
+
+/* The app's home (owner, 2026-10-31, version C): one screen that does not
+   scroll up and down -- only the cards move, sideways. The page is exactly
+   the screen between the top bar and the tabs; the greeting is one line; the
+   cards take the rest (SwimmerDeck sizes the swimmer's picture to it) and
+   the booking / points / plans tiles sit under them. On a screen too short
+   for all of it the middle scrolls rather than cutting anything off. */
+html.msa-app:has(.msa-root[data-view="home"]) { overscroll-behavior-y: none }
+html.msa-app .msa-root[data-view="home"] { height: calc(100dvh - var(--app-tab-h)); min-height: 0 !important; display: flex; flex-direction: column; overflow: hidden }
+html.msa-app [data-view="home"] .msa-hello-in { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; padding: 12px 20px 0 }
+html.msa-app [data-view="home"] .msa-hello h1 { font-size: 21px; line-height: 1.25 }
+html.msa-app [data-view="home"] .msa-hello-date { order: 1; margin: 0; font-size: 12.5px; letter-spacing: .5px }
+html.msa-app [data-view="home"] .msa-main { flex: 1 1 0; min-height: 0; width: 100%; display: flex; flex-direction: column;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 20px 12px }
+html.msa-app [data-view="home"] .msa-kids { flex: 1 0 auto; display: flex; flex-direction: column; margin: 0 }
+html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .msa-newrep { margin-bottom: 10px }
+/* Over the swimmer's picture: check-in at the top right, the name and level along the bottom. */
+.msa-deck-qr { position: absolute; top: 12px; right: 12px; height: 36px; padding: 0 14px 0 12px; font-size: 14px; box-shadow: 0 4px 14px rgba(18,37,74,.16) }
+.msa-deck-name { position: absolute; left: 14px; right: 14px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; color: #fff }
+.msa-deck-name .msa-mcard-name { min-height: 0; max-width: 100%; -webkit-line-clamp: 1; line-clamp: 1; font-size: 27px; line-height: 1.1;
+  text-shadow: 0 1px 10px rgba(10,24,52,.35) }
+.msa-deck-name .msa-mcard-lv { margin-top: 0; background: rgba(13,30,62,.5) }
+/* The card's own row of small tiles. */
+.msa-mcard-tiles { display: flex; gap: 6px; margin-top: 10px }
+.sw-stage + .msa-mcard-tiles { margin-top: 0 }
+/* Cards of one row are one height: a shorter card's tiles sit at its foot, level with the others'. */
+.sw-slot .msa-mcard-tiles { margin-top: auto; padding-top: 10px }
+.sw-slot .sw-stage + .msa-mcard-tiles { padding-top: 0 }
+.msa-mcard-tiles button { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 54px; padding: 6px 3px; border: 0; border-radius: 12px; background: rgba(255,255,255,0.12); color: #fff; font-family: inherit;
+  font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; cursor: pointer }
+.msa-mcard-tiles button.wide { flex-grow: 1.35 }
+.msa-mcard-tiles i { font-style: normal; font-size: 18px; line-height: 1 }
+.msa-mcard-tiles span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere }
+.msa-mcard-tiles .msa-new-dot { position: absolute; top: 4px; right: 4px; margin: 0 }
+.msa-mcard-tiles button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
+@media (hover: hover) { .msa-mcard-tiles button:hover { background: rgba(255,255,255,0.2) } }
+/* Booking, points, plans: one row of three under the cards. */
+.msa-trio { display: flex; gap: 10px; margin-top: 10px }
+.msa-trio > button { flex: 1 1 0; min-width: 0; min-height: 62px; border-radius: 16px; font-family: inherit; cursor: pointer }
+.msa-trio-book { border: 0; background: #f09800; color: #12254a; font-size: 16px; font-weight: 900 }
+@media (hover: hover) { .msa-trio-book:hover { background: #d98900 } }
+.msa-trio-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 8px 12px;
+  background: #fff; border: 1px solid #d3deec; text-align: left; color: #12254a }
+.msa-trio-tile b { max-width: 100%; font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-trio-tile span { max-width: 100%; font-size: 12.5px; font-weight: 800; color: #2050a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-trio-tile .gift { color: #1f7a57 }
+.msa-trio-tile .when { color: #56647d }
+.msa-trio-tile .soon { color: #a36100 }
+.msa-trio-tile .bad, .msa-trio-tile.owe span, .msa-trio-tile.owe b { color: #c0392b }
+.msa-trio-tile.owe { border-color: #f5c2bd }
+.msa-trio-tile.low { border: 2px solid #f09800; background: #fff8ec; padding: 7px 11px }
+.msa-trio-tile.low b { color: #8a5300 }
+.msa-trio-tile.low span { color: #a36100 }
+.msa-trio > button:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
+/* A short phone (iPhone SE): everything a little tighter, so the swimmer keeps what room there is. */
+@media (max-height: 700px) {
+  html.msa-app [data-view="home"] .msa-hello-in { padding-top: 8px }
+  html.msa-app [data-view="home"] .msa-main { padding-top: 8px; padding-bottom: 8px }
+  .msa-trio > button { min-height: 54px }
+  .msa-mcard-tiles button { min-height: 48px; padding: 4px 3px }
+  .msa-mcard-tiles i { font-size: 16px }
+}
 .msa-mcard { position: relative; overflow: hidden; border-radius: 20px; padding: 20px; color: #fff; min-height: 212px;
   background: linear-gradient(145deg, #1d3f7c, #12254a 65%); box-shadow: 0 16px 34px rgba(18,37,74,0.28);
   display: flex; flex-direction: column }
@@ -210,6 +276,8 @@ ${REPORT_SHEET_CSS}
 .msa-newrep { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 12px; padding: 12px 14px; border: 1px solid #f3c9c2;
   border-radius: 12px; background: #fff5f3; color: #16294a; font-size: 14px; text-align: left; cursor: pointer }
 .msa-newrep b { color: #b4321f; font-size: 13px; white-space: nowrap }
+.msa-newrep.msa-safebar { background: #fff7e6; border-color: #f3dfb4 }
+.msa-newrep.msa-safebar b { color: #8a5300 }
 .msa-viewer .msa-lesson-actions { display: none !important }
 .msa-viewnote { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 24px; padding: 14px 16px; border: 1px solid #c9d8ee;
   border-radius: 14px; background: #eef4fc; color: #16294a; font-size: 14px; line-height: 1.6 }
@@ -1963,6 +2031,8 @@ export default function DashboardPage() {
   // 我的方案 folded into one line (owner, 2026-10-26); null = not touched
   // yet, which opens it when something there needs the family.
   const [plansOpen, setPlansOpen] = useState<boolean | null>(null)
+  // In the app the plans open as a sheet from the bottom instead (owner, 2026-10-31).
+  const [plansSheet, setPlansSheet] = useState(false)
   const [suggestOpen, setSuggestOpen] = useState(false)
   // 我的 -> 意見箱 in the app (/dashboard/me) lands here with ?suggest=1.
   useEffect(() => {
@@ -2161,18 +2231,18 @@ export default function DashboardPage() {
   // sheets. Without it the only ways out were the X or a click on the backdrop,
   // and that click also landed on whatever sat underneath.
   useEffect(() => {
-    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal && !lessonDetail && !daySheet && !voucherSheet && !teamSheet) return
+    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal && !lessonDetail && !daySheet && !voucherSheet && !teamSheet && !plansSheet) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setTreeFor(null); setQrStudent(null); setInfoModal(null)
       setCancelTarget(null); setRescheduleTarget(null); setRescheduleActionModal(null)
       // The calendar's lesson detail and day list, and the voucher list, had
       // no Esc (found 2026-10-08).
-      setLessonDetail(null); setDaySheet(null); setVoucherSheet(false); setVoucherKey(null); setTeamSheet(null)
+      setLessonDetail(null); setDaySheet(null); setVoucherSheet(false); setVoucherKey(null); setTeamSheet(null); setPlansSheet(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet])
+  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet, plansSheet])
   // Focus into each of these dialogs as it opens, and back to what opened it.
   const infoBox = useDialogFocus(!!infoModal)
   /* Points running low (owner, 2026-10-15): a small notice, once per dip --
@@ -2212,6 +2282,7 @@ export default function DashboardPage() {
   const dayBox = useDialogFocus(!!daySheet)
   const detailBox = useDialogFocus(!!lessonDetail)
   const teamBox = useDialogFocus(!!teamSheet)
+  const plansBox = useDialogFocus(plansSheet)
   // These had none (found 2026-10-15). The points sheet waits for the wallet
   // it shows; the reschedule and unpaid-assessment confirms were not dialogs.
   const pointsBox = useDialogFocus(pointsOpen && !!wallet)
@@ -2255,6 +2326,12 @@ export default function DashboardPage() {
   const upcomingRef = useRef<HTMLElement | null>(null)
   const invitesRef = useRef<HTMLElement | null>(null)
   const scrollUpcomingRef = useRef(false)
+  // The home tab's invitation line lands on 課表 at the invitations.
+  useEffect(() => {
+    if (view !== 'schedule' || loading || window.location.hash !== '#invites') return
+    const id = requestAnimationFrame(() => invitesRef.current?.scrollIntoView({ block: 'start' }))
+    return () => cancelAnimationFrame(id)
+  }, [view, loading])
   const collapseUpcoming = () => {
     scrollUpcomingRef.current = true
     setDayWindow(UPCOMING_DAYS)
@@ -3206,6 +3283,88 @@ export default function DashboardPage() {
      when declining above is all it takes (found 2026-10-08). */
   const isInviteToMe = (b: { status?: string; pending_action?: string | null }) =>
     b.status === 'pending_partner' && b.pending_action === 'confirm'
+  /* 我的方案, worked out once for both the website's folded line and the
+     app's tile and sheet. */
+  const appHome = inApp && view === 'home'
+  const hasPlans = fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0
+  const teamBad = (m: any) => (!viewer && !m.is_prepaid && m.status === 'past_due')
+    || (!!m.is_prepaid && (m.status === 'expired' || (!!m.expires_at && new Date(m.expires_at).getTime() < Date.now())))
+  const plansAttention = fixedClasses.filter(f => f.renewOpen).length + teamMemberships.filter(teamBad).length
+  const firstVoucher = vouchers.map(v => v.expiresOn).sort()[0]
+  const planParts: string[] = []
+  if (fixedClasses.length) planParts.push(t(fixedClasses.length === 1 ? 'dash.plans.sumFixedOne' : 'dash.plans.sumFixed', { n: fixedClasses.length }))
+  if (teamMemberships.length) planParts.push(t('dash.plans.sumTeam', { n: teamMemberships.length }))
+  if (vouchers.length) planParts.push(t(vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: vouchers.length }))
+  const plansList = (
+    <>
+      {planGroups.map(g => {
+        const soon = plusDays(getTodayLA(), 7)
+        return (
+          <div key={g.key} className="msa-plan">
+            <div className="msa-plan-h">
+              {g.names.map((n, i) => <span key={i} className="msa-plan-av" aria-hidden="true">{(Array.from(n.trim())[0] || '?').toUpperCase()}</span>)}
+              <span>{g.names.join(' & ')}</span>
+            </div>
+            {g.fixed.map(f => (
+              <div key={f.id} className="msa-plan-row">
+                <span className="msa-plan-ic" aria-hidden="true">📌</span>
+                <span className="msa-plan-tx">
+                  <b>{t('dash.tag.fixed')} · {t('dash.plan.when', {
+                    weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
+                    time: formatTime12h(f.time),
+                  })}</b>
+                  {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })}<PoolLink id={f.locationId} prefix=" · " /> · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
+                </span>
+                {!viewer && <span className="msa-plan-btn">
+                  <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
+                    {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
+                  </Link>
+                </span>}
+              </div>
+            ))}
+            {g.vouchers.length > 0 && (
+              <div className="msa-plan-row">
+                <span className="msa-plan-ic" aria-hidden="true">🎟</span>
+                <span className="msa-plan-tx">
+                  <b>{t(g.vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: g.vouchers.length })}</b>
+                  <span className={g.vouchers[0].expiresOn <= soon ? 'msa-plan-soon' : undefined}>
+                    {t(g.vouchers.length === 1 ? 'dash.plan.expires' : 'dash.plan.firstExpires', { date: shortDate(g.vouchers[0].expiresOn) })}
+                  </span>
+                </span>
+                <span className="msa-plan-btn">
+                  <button className="tap-auto" onClick={() => { setVoucherKey(g.key); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</button>
+                </span>
+              </div>
+            )}
+            {g.team.map((m: any) => {
+              const tier = m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name
+              const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
+              const expDate = exp ? exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) : ''
+              const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < Date.now()))
+              const failed = !viewer && !m.is_prepaid && m.status === 'past_due'
+              const line = failed ? t('dash.plan.teamPastDue')
+                : m.is_prepaid ? (exp ? t(lapsed ? 'team.expired' : 'team.paidThru', { date: expDate }) : t('team.prepaid'))
+                : m.cancels_at ? t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })
+                : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() })
+                : t('team.active')
+              return (
+                <div key={m.id} className="msa-plan-row">
+                  <span className="msa-plan-ic" aria-hidden="true">🏊</span>
+                  <span className="msa-plan-tx">
+                    <b>{t('team.title')}{tier ? ' · ' + tier : ''}</b>
+                    <span className={failed || lapsed ? 'msa-plan-bad' : undefined}>{line}</span>
+                  </span>
+                  <span className="msa-plan-btn">
+                    <button className="tap-auto" onClick={() => setTeamSheet(m.student_id)}>{t(viewer ? 'voucher.lineLink' : 'team.manage')} ›</button>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </>
+  )
   const toInvites = () => invitesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const askWithdraw = (b: { id: string }) => setInfoModal({
     title: t('dash.up.withdrawTitle'),
@@ -3227,7 +3386,7 @@ export default function DashboardPage() {
 
   return (
     <PoolsCtx.Provider value={pools}>
-    <div className={viewer ? 'msa-viewer' : undefined} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
+    <div className={'msa-root' + (viewer ? ' msa-viewer' : '')} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 
@@ -3439,7 +3598,7 @@ export default function DashboardPage() {
       {/* GREETING -- the site's dark top, kept short: this is a working page. */}
       <header className="msa-hello msa-home">
         <div className="msa-hello-in">
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: BRAND.blue, marginBottom: '8px' }}>
+          <div className="msa-hello-date" style={{ color: BRAND.blue }}>
             {/* Today in LA, not the device clock (found 2026-10-05): the school's
                 day, whatever time zone the phone is set to. */}
             {(() => { const [y, m, d] = getTodayLA().split('-').map(Number); const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); return t('date.header', { weekday: t('date.weekday.' + wd), month: t('date.month.' + m), day: d }) })()}
@@ -3450,7 +3609,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-<div style={{ maxWidth: '1100px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) clamp(40px,5vw,64px)' }}>
+<div className="msa-main">
 
         {viewer && (
           <div className="msa-viewnote" role="note">
@@ -3458,7 +3617,15 @@ export default function DashboardPage() {
             <span>{t('dash.viewer.note', { name: mainName })}</span>
           </div>
         )}
-        {safetyMissing && !viewer && (
+        {/* On the app's home, which does not scroll, the same ask as one line. */}
+        {safetyMissing && !viewer && appHome && (
+          <button type="button" className="tap-auto msa-newrep msa-safebar msa-home" onClick={() => setSafetyOpen(true)}>
+            <span aria-hidden="true">🛟</span>
+            <span style={{ flex: 1, minWidth: 0 }}>{t('safety.banner.title')}</span>
+            <b>{t('safety.banner.cta')} ›</b>
+          </button>
+        )}
+        {safetyMissing && !viewer && !appHome && (
           <section role="region" aria-labelledby="safety-banner-h" className="msa-home" style={{ marginBottom: '24px', background: '#fff7e6', border: '1px solid #f3dfb4', borderRadius: '14px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 18px' }}>
             <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <h2 id="safety-banner-h" style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: NAVY }}>{t('safety.banner.title')}</h2>
@@ -3472,10 +3639,23 @@ export default function DashboardPage() {
         )}
         {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={m => setSafetyMissing(m)} />}
         {!viewer && <div className="msa-home"><WaitlistCard /></div>}
+        {/* The app's home does not scroll (owner, 2026-10-31), so invitations
+            to answer are one line here and open on the 課表 tab, where the
+            invitations themselves are. */}
+        {appHome && !viewer && pendingPartnerBookings.length > 0 && (() => {
+          const n = mergePendingInvites(pendingPartnerBookings).length
+          return (
+            <button type="button" className="tap-auto msa-newrep msa-invbar msa-home" onClick={() => router.push('/dashboard/schedule#invites')}>
+              <span aria-hidden="true">🔔</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{t(n === 1 ? 'dash.invite.bannerOne' : 'dash.invite.banner', { n })}</span>
+              <b>{t('dash.newReportsView')} ›</b>
+            </button>
+          )
+        })()}
 
         {/* STUDENTS */}
-        <section className="msa-home" style={{ marginBottom: '36px' }}>
-          <h2 className="msa-sec-h">{t('dash.mySwimmers')}</h2>
+        {/* No heading (owner, 2026-10-31): the cards say what they are. */}
+        <section className="msa-home msa-kids" aria-label={t('dash.mySwimmers')}>
           {students.filter(s => newReportCount(s) > 0).map(s => (
             <button key={s.id} type="button" className="tap-auto msa-newrep" onClick={() => openRecords(s)}>
               <span aria-hidden="true">📋</span>
@@ -3484,9 +3664,9 @@ export default function DashboardPage() {
             </button>
           ))}
           {(() => {
-            /* One swimmer's card. Inside the app the 3D swimmer's stage comes
-               first (SwimmerDeck); on the website there is none. */
-            const studentCard = (student: Student, stage: React.ReactNode = null) => {
+            /* One swimmer's card, on the website (and in the app without 3D).
+               The app's home has its own, deckCard below. */
+            const studentCard = (student: Student) => {
               const hasLevel = student.current_level && Number(student.current_level) >= 1
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
               const levelName = hasLevel ? t(`level.${Number(student.current_level)}.name`) : null
@@ -3503,7 +3683,6 @@ export default function DashboardPage() {
               )
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
-                  {stage}
                   {/* Name and check-in on one line (owner, 2026-10-26: the
                       "MANTA SHARK · SWIMMER" line and the age came off). */}
                   <div className="msa-mcard-top">
@@ -3608,6 +3787,115 @@ export default function DashboardPage() {
                 </div>
               )
             }
+            /* The app's home card (owner, 2026-10-31, version C): the swimmer's
+               picture as big as the screen allows, the name, level and
+               check-in laid over it (deckOverlay), and under it only the
+               progress bar and one row of small tiles -- next lesson,
+               learning map, records, the monthly report, the assessment
+               report. The website keeps studentCard above. */
+            const levelOf = (student: Student) => {
+              const hasLevel = !!student.current_level && Number(student.current_level) >= 1
+              const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [], allPercents: {} }
+              const stages: StageProgress[] = prog.stages.length === 3
+                ? prog.stages
+                : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
+              const curStage = resolveStage(student.current_stage, stages)
+              return { hasLevel, lvl: Number(student.current_level), prog, curStage, curPct: stages[curStage - 1]?.percent ?? 0 }
+            }
+            const deckOverlay = (student: Student) => {
+              const { hasLevel, lvl, curStage } = levelOf(student)
+              return (
+                <>
+                  <button className="tap-auto msa-mcard-qr msa-deck-qr" onClick={() => setQrStudent(student)} aria-label={t('dash.viewQr')}>
+                    <svg width="15" height="15" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3z" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 12h2v2h-2zM15 15h2v2h-2zM15 12h2v2h-2zM12 15h2v2h-2z" fill="currentColor" /></svg>
+                    {t('dash.checkIn')}
+                  </button>
+                  <div className="msa-deck-name">
+                    <div className="msa-mcard-name">{student.full_name}</div>
+                    <span className="msa-mcard-lv"><i />{hasLevel
+                      ? <>{t('level.badge', { n: lvl, name: t(`level.${lvl}.name`) })} · {t('dash.stageN', { n: curStage })}</>
+                      : t('dash.pendingAssessment')}</span>
+                  </div>
+                </>
+              )
+            }
+            const deckCard = (student: Student, stage: React.ReactNode) => {
+              const { hasLevel, lvl, prog, curStage, curPct } = levelOf(student)
+              const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
+              const report = assessReports[student.id]
+              const monthly = monthlyReports.filter(m => m.studentId === student.id)
+              const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
+              const next = upcomingBookings.filter(b => mine(b) && b.status !== 'cancelled')
+                .sort((a, b) => (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
+              const today = getTodayLA()
+              const when = !next ? '' : next.session_date === today ? t('dash.week.today') : next.session_date === plusDays(today, 1) ? t('dash.next.tomorrow')
+                : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { month: 'numeric', day: 'numeric' })
+              const hasPast = pastBookings.some(b => b.student_id === student.id)
+              return (
+                <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
+                  {stage}
+                  {hasLevel && <>
+                    <div className="msa-mcard-bar" style={{ marginTop: 0 }}><i style={{ width: curPct + '%' }} /></div>
+                    <div className="msa-mcard-meta">
+                      <span>{t(stageNameKey(lvl, curStage))}</span>
+                      <b>{curPct}%</b>
+                    </div>
+                  </>}
+                  {(next || hasLevel || hasPast || monthly.length > 0 || !viewer) && (
+                    <div className="msa-mcard-tiles">
+                      {next && (
+                        <button type="button" className="tap-auto wide" onClick={() => setLessonDetail(next)}
+                          aria-label={`${t('dash.next.lesson')}: ${when} ${formatTime(next.start_time)}`}>
+                          <i aria-hidden="true">📅</i><span>{when} {formatTime(next.start_time)}</span>
+                        </button>
+                      )}
+                      {hasLevel && (
+                        <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
+                          <i aria-hidden="true">🗺️</i><span>{t('dash.skillTree')}</span>
+                        </button>
+                      )}
+                      {(hasLevel || hasPast) && (
+                        <button type="button" className="tap-auto" onClick={() => openRecords(student)}>
+                          <i aria-hidden="true">📋</i><span>{t('dash.records')}</span><NewDot n={newReportCount(student)} />
+                        </button>
+                      )}
+                      {monthly.length > 0 && (
+                        <button type="button" className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
+                          <i aria-hidden="true">📝</i>
+                          <span>{t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
+                          <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
+                        </button>
+                      )}
+                      {hasLevel && report && (
+                        <button type="button" className="tap-auto" onClick={() => setReportFor(student)}>
+                          <i aria-hidden="true">🏅</i><span>{t('assess.report.button')}</span>
+                        </button>
+                      )}
+                      {/* A new swimmer with nothing yet: the one thing to do next. */}
+                      {!next && !hasLevel && !hasPast && !viewer && (
+                        <button type="button" className="tap-auto wide" onClick={() => { window.location.href = '/booking' }}>
+                          <i aria-hidden="true">📅</i><span>{t('assess.cta.button')}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {hasLevel && report && creditLive(report) && (
+                    <div className="msa-mcard-credit">
+                      🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
+                    </div>
+                  )}
+                  {here[student.id]?.checkedInTime ? (
+                    <div className="msa-mcard-here done" role="status">✓ {t('dash.here.done', { time: here[student.id].checkedInTime || '' })}</div>
+                  ) : here[student.id]?.open ? (
+                    <button className="tap-auto msa-mcard-here" disabled={hereBusy === student.id} onClick={() => checkInHere(student)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                      {hereBusy === student.id ? t('dash.here.locating') : t('dash.here.button', { name: student.full_name })}
+                    </button>
+                  ) : null}
+                  {hereMsg?.id === student.id && <div className="msa-mcard-heremsg" role="alert">{hereMsg.text}</div>}
+                </div>
+              )
+            }
             /* Adding a child used to live only on the account page, behind a
                footer link. A parent looking to add one looks next to the
                children they already have. Gone at the limit the account page
@@ -3629,11 +3917,15 @@ export default function DashboardPage() {
                 items={swimmerItems}
                 renderCard={(it, stage) => {
                   const s = students.find(x => x.id === it.id)
-                  return s ? studentCard(s, stage) : null
+                  return s ? deckCard(s, stage) : null
+                }}
+                renderOverlay={it => {
+                  const s = students.find(x => x.id === it.id)
+                  return s ? deckOverlay(s) : null
                 }}
                 onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
                 fallback={rail}
-                after={addKid(' sw-add')}
+                after={addKid(' msa-deck-add')}
               />
             )
             return rail
@@ -3643,7 +3935,7 @@ export default function DashboardPage() {
               children they are doing them for. Points open a sheet with the
               whole card -- balance, history, swim team -- so none of it
               is lost, it just stops taking a screen of its own. */}
-          {!viewer && <div className={'msa-act' + (wallet ? '' : ' solo')}>
+          {!appHome && !viewer && <div className={'msa-act' + (wallet ? '' : ' solo')}>
             <button className="tap-auto msa-act-book" onClick={() => { window.location.href = '/booking' }}>
               + {t('quick.book')}
             </button>
@@ -3668,20 +3960,46 @@ export default function DashboardPage() {
               </button>
             )}
           </div>}
-          {(fixedClasses.length > 0 || vouchers.length > 0 || teamMemberships.length > 0) && (() => {
+          {/* The app's home (owner, 2026-10-31, version C): booking, points and
+              plans as one row of three tiles under the cards, so the screen
+              never scrolls; the plans open as a sheet from the bottom. */}
+          {appHome && (!viewer || hasPlans) && (
+            <div className="msa-trio">
+              {!viewer && (
+                <button type="button" className="tap-auto msa-trio-book" onClick={() => { window.location.href = '/booking' }}>
+                  ＋ {t('nav.bookShort')}
+                </button>
+              )}
+              {!viewer && wallet && (() => {
+                const owe = wallet.arrears > 0 || wallet.balance < 0
+                const low = !owe && !!wallet.runway
+                return (
+                  <button type="button" className={'tap-auto msa-trio-tile' + (owe ? ' owe' : low ? ' low' : '')} onClick={() => setPointsOpen(true)}>
+                    <b>{wallet.balancePurchased.toLocaleString()} {t('dash.pointsUnit')}</b>
+                    {!owe && !low && wallet.balanceGranted > 0
+                      ? <span className="gift">{t('dash.pointsGift', { n: wallet.balanceGranted.toLocaleString() })}</span>
+                      : <span>{t(low ? 'dash.pointsLow' : 'dash.topUp')} ›</span>}
+                  </button>
+                )
+              })()}
+              {hasPlans && (
+                <button type="button" className="tap-auto msa-trio-tile" aria-haspopup="dialog" onClick={() => setPlansSheet(true)}>
+                  <b>{t('dash.plans.title')}</b>
+                  {plansAttention > 0 ? <span className="bad">{t('dash.plans.attention', { n: plansAttention })} ›</span>
+                    : firstVoucher ? <span className={firstVoucher <= plusDays(getTodayLA(), 7) ? 'soon' : 'when'}>{t('dash.plan.expires', { date: shortDate(firstVoucher) })} ›</span>
+                    : <span className="when">{planParts[0]} ›</span>}
+                </button>
+              )}
+            </div>
+          )}
+          {!appHome && hasPlans && (() => {
             /* One line that says what is there (owner, 2026-10-26: version 1,
                "fold it"); the cards open under it. Something the family has
                to act on -- a fixed class to renew, a failed or lapsed swim
                team -- is counted in red and opens it to start with. */
-            const teamBad = (m: any) => (!viewer && !m.is_prepaid && m.status === 'past_due')
-              || (!!m.is_prepaid && (m.status === 'expired' || (!!m.expires_at && new Date(m.expires_at).getTime() < Date.now())))
-            const attention = fixedClasses.filter(f => f.renewOpen).length + teamMemberships.filter(teamBad).length
+            const attention = plansAttention
             const open = plansOpen ?? attention > 0
-            const firstVoucher = vouchers.map(v => v.expiresOn).sort()[0]
-            const parts: string[] = []
-            if (fixedClasses.length) parts.push(t(fixedClasses.length === 1 ? 'dash.plans.sumFixedOne' : 'dash.plans.sumFixed', { n: fixedClasses.length }))
-            if (teamMemberships.length) parts.push(t('dash.plans.sumTeam', { n: teamMemberships.length }))
-            if (vouchers.length) parts.push(t(vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: vouchers.length }))
+            const parts = planParts
             return (
             <>
               <button type="button" className="tap-auto msa-plansum" aria-expanded={open} aria-controls="msa-plans-list"
@@ -3697,72 +4015,7 @@ export default function DashboardPage() {
                 <span className={'msa-plansum-chev' + (open ? ' on' : '')} aria-hidden="true">›</span>
               </button>
               {open && <div className="msa-plans" id="msa-plans-list">
-                {planGroups.map(g => {
-                  const soon = plusDays(getTodayLA(), 7)
-                  return (
-                    <div key={g.key} className="msa-plan">
-                      <div className="msa-plan-h">
-                        {g.names.map((n, i) => <span key={i} className="msa-plan-av" aria-hidden="true">{(Array.from(n.trim())[0] || '?').toUpperCase()}</span>)}
-                        <span>{g.names.join(' & ')}</span>
-                      </div>
-                      {g.fixed.map(f => (
-                        <div key={f.id} className="msa-plan-row">
-                          <span className="msa-plan-ic" aria-hidden="true">📌</span>
-                          <span className="msa-plan-tx">
-                            <b>{t('dash.tag.fixed')} · {t('dash.plan.when', {
-                              weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
-                              time: formatTime12h(f.time),
-                            })}</b>
-                            {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })}<PoolLink id={f.locationId} prefix=" · " /> · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
-                          </span>
-                          {!viewer && <span className="msa-plan-btn">
-                            <Link href={`/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`} className={f.renewOpen ? 'renew' : undefined}>
-                              {f.renewOpen ? t('fixed.renew') : t('fixed.manage')} ›
-                            </Link>
-                          </span>}
-                        </div>
-                      ))}
-                      {g.vouchers.length > 0 && (
-                        <div className="msa-plan-row">
-                          <span className="msa-plan-ic" aria-hidden="true">🎟</span>
-                          <span className="msa-plan-tx">
-                            <b>{t(g.vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: g.vouchers.length })}</b>
-                            <span className={g.vouchers[0].expiresOn <= soon ? 'msa-plan-soon' : undefined}>
-                              {t(g.vouchers.length === 1 ? 'dash.plan.expires' : 'dash.plan.firstExpires', { date: shortDate(g.vouchers[0].expiresOn) })}
-                            </span>
-                          </span>
-                          <span className="msa-plan-btn">
-                            <button className="tap-auto" onClick={() => { setVoucherKey(g.key); setVoucherSheet(true) }}>{t('voucher.lineLink')} ›</button>
-                          </span>
-                        </div>
-                      )}
-                      {g.team.map((m: any) => {
-                        const tier = m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name
-                        const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
-                        const expDate = exp ? exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) : ''
-                        const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < Date.now()))
-                        const failed = !viewer && !m.is_prepaid && m.status === 'past_due'
-                        const line = failed ? t('dash.plan.teamPastDue')
-                          : m.is_prepaid ? (exp ? t(lapsed ? 'team.expired' : 'team.paidThru', { date: expDate }) : t('team.prepaid'))
-                          : m.cancels_at ? t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })
-                          : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() })
-                          : t('team.active')
-                        return (
-                          <div key={m.id} className="msa-plan-row">
-                            <span className="msa-plan-ic" aria-hidden="true">🏊</span>
-                            <span className="msa-plan-tx">
-                              <b>{t('team.title')}{tier ? ' · ' + tier : ''}</b>
-                              <span className={failed || lapsed ? 'msa-plan-bad' : undefined}>{line}</span>
-                            </span>
-                            <span className="msa-plan-btn">
-                              <button className="tap-auto" onClick={() => setTeamSheet(m.student_id)}>{t(viewer ? 'voucher.lineLink' : 'team.manage')} ›</button>
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
+                {plansList}
               </div>}
             </>
             )
@@ -3771,7 +4024,7 @@ export default function DashboardPage() {
 
         {/* Pending partner bookings notice */}
         {pendingPartnerBookings.length > 0 && !viewer && (
-          <section ref={invitesRef} style={{ marginBottom: '28px', scrollMarginTop: '100px' }}>
+          <section ref={invitesRef} className="msa-sched" style={{ marginBottom: '28px', scrollMarginTop: '100px' }}>
             <h2 className="msa-sec-h">⏳ {t('dash.invite.section')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {mergePendingInvites(pendingPartnerBookings).map((b: any) => {
@@ -4627,6 +4880,20 @@ export default function DashboardPage() {
 
       </div>
       <style>{MOBILE_CSS}</style>
+      {plansSheet && (
+        <div className="msa-sheet-back" onClick={() => setPlansSheet(false)}>
+          {/* Whatever a row's button opens -- the vouchers, the swim team --
+              opens in place of this sheet, not under it. */}
+          <div ref={plansBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="msa-plans-t"
+            onClickCapture={e => { if ((e.target as HTMLElement).closest('.msa-plan-btn')) setPlansSheet(false) }}>
+            <div className="msa-sheet-head">
+              <b id="msa-plans-t">{t('dash.plans.title')}</b>
+              <button className="msa-sheet-x" onClick={() => setPlansSheet(false)} aria-label={t('common.close')}>✕</button>
+            </div>
+            <div className="msa-plans">{plansList}</div>
+          </div>
+        </div>
+      )}
       {suggestOpen && <SuggestionSheet onClose={() => setSuggestOpen(false)} />}
       {celebrate.length > 0 && (
         <Celebration key={celebrate[0].name + celebrate[0].level + celebrate[0].stage} {...celebrate[0]}
