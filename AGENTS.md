@@ -673,3 +673,34 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   (optional on Admin > Members); 'male' / 'female' are the values
   lib/monthly-reports.ts reads. The servers still accept a gender from an
   older page and store only 'male' / 'female'.
+
+# Booking asks "how" before "when" (owner, 2026-11-01, BK15)
+
+- After the course, 1-on-1, a sibling 1-on-2 and the group class ask **要怎麼上？**
+  (`way` in app/(public)/booking/page.tsx; the step bar becomes 幫誰 / 課程 /
+  怎麼上 / 時間). Not an assessment, a move, a make-up or a 1-on-2 with another
+  family: those are one lesson each. Two cards: **每週固定上課** (推薦; with the
+  latest assessment's course and frequency when it is for this course) and
+  **單次上課**. The 14-day rule for singles is said here, before any calendar.
+- Above them, only when the school can be sure, one dark card that finishes
+  the job: **續報** when the swimmer's fixed class of this course is open for
+  renewal (goes to /dashboard/fixed-class/{id}?renew=1), otherwise **跟上次一樣**
+  -- weekday, time and coach of the swimmer's last lesson of this course
+  (GET /api/parent/last-lesson; taught lessons only, never the assessment),
+  offered as a weekly class. Hidden when that time is not open with that
+  coach in the next two weeks, or when the swimmer already has a running
+  fixed class of the course. The chooser waits for its data, so nothing pops
+  in under a finger.
+- **Every week**: weekday chips, then that weekday's times (each with the
+  first date it is open), then the existing fixed-class panel (dates, total,
+  就選這 N 堂). The month calendar is not shown on this path. 30/60 minutes
+  for 1-on-1 and sibling 1-on-2.
+- **One at a time**: the old calendar, but a date past the 14-day window is
+  drawn closed and a tap opens a sheet saying when it opens, with
+  改選每週固定上課. It no longer silently turns into a fixed class.
+- **No hints that steer a family to a coach** (owner, 2026-11-01: families
+  should not lean on one coach). 不限教練 gives a tapped time to the coach
+  with the most open time that day (`spreadPick`), not the last coach;
+  /api/bookings/openings still returns `preferred` but the page ignores it.
+  Families may still pick a coach themselves. "Same as last time" naming the
+  last coach is the family's own history, not a hint.

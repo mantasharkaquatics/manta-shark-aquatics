@@ -143,6 +143,8 @@ type ResumeSnap = {
   fixed: { start: string; weeks: number; ghost: string[]; only: boolean } | null
   /** The pool the basket's times are at (absent in snapshots from before pools). */
   location?: string | null
+  /** Every week or one at a time, with the weekday looked at (BK15). */
+  way?: 'fixed' | 'single' | null; fixedDow?: number | null
 }
 function dropResume() {
   try { window.sessionStorage.removeItem(RESUME_KEY) } catch {}
@@ -576,6 +578,23 @@ export default function BookingPage() {
   const [fixedStart, setFixedStart] = useState('')
   const [fixedWeeks, setFixedWeeks] = useState(FIXED_WEEKS_STEP)
   const [fixedOnly, setFixedOnly] = useState(false)
+  // How the lessons are taken (owner, 2026-11-01, BK15): every week (a fixed
+  // class) or one at a time. Asked after the course, before any calendar, so
+  // the 14-day rule for singles is said up front instead of found out on a
+  // greyed date. null = not asked yet.
+  const [way, setWay] = useState<null | 'fixed' | 'single'>(null)
+  // The weekday being looked at on the every-week path.
+  const [fixedDow, setFixedDow] = useState<number | null>(null)
+  // A single-lesson date past the window, tapped: the sheet saying when it opens.
+  const [lockSheet, setLockSheet] = useState<string | null>(null)
+  // What the "ready for you" card is made from: the swimmer's last lesson of
+  // this course, the family's fixed classes, and the assessment advice.
+  type LastLesson = { date: string; weekday: number; time: string; minutes: 30 | 60; coachId: string; coachName: string }
+  const [lastLesson, setLastLesson] = useState<{ key: string; last: LastLesson | null } | null>(null)
+  const [myFixed, setMyFixed] = useState<any[] | null>(null)
+  const [myReports, setMyReports] = useState<any[] | null>(null)
+  // Which openings question the last answer (or failure) was for.
+  const [openingsFor, setOpeningsFor] = useState('')
   // Booking a make-up with a voucher (/booking?voucher=<id>): one lesson of the
   // voucher's kind, for its child(ren), on or before its date, no points.
   const [makeUp, setMakeUp] = useState<{ id: string; studentId: string; student2Id: string | null; studentNames: string[]; courseSlug: string; minutes: number; expiresOn: string; usableFrom?: string | null } | null>(null)
@@ -1097,6 +1116,15 @@ export default function BookingPage() {
     && (selectedCourse?.slug === '1on1' || siblingPair)
   const fixedFlow = batchFlow || hourFixedFlow
   const planMinutes: 30 | 60 = isHourLesson ? 60 : 30
+  // "How will you come?" (owner, 2026-11-01, BK15): every course a fixed class
+  // exists for asks it -- 1-on-1, a sibling 1-on-2, the group class. Not an
+  // assessment, a move or a make-up (each is one lesson), and not a 1-on-2
+  // with another family (settled lesson by lesson).
+  const wayFlow = !isTrial && !isReschedule && !makeUp
+    && (groupFlow || selectedCourse?.slug === '1on1' || siblingPair)
+  const askWay = wayFlow && way === null
+  const fixedPath = wayFlow && way === 'fixed'
+  const singlePath = wayFlow && way === 'single'
 
   const balance = wallet?.balance ?? 0
 
@@ -1275,13 +1303,13 @@ export default function BookingPage() {
       .then(r => r.ok ? r.json() : null)
       .then((j: Openings | null) => {
         if (!live) return
-        setOpenings(j)
+        setOpenings(j); setOpeningsFor(q)
         // Kept for the notice too: back at the other pool, this one is "elsewhere".
         if (j && location) otherReads.current.set(`o|${q}|${slotsRefresh}`, j)
         // One coach is no choice: behave as if they had been picked.
         if (j && j.coaches.length === 1) setCoachFilter(j.coaches[0].id)
       })
-      .catch(() => { if (live) setOpenings(null) })
+      .catch(() => { if (live) { setOpenings(null); setOpeningsFor(q) } })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling, location])
@@ -1396,6 +1424,11 @@ export default function BookingPage() {
     if (selectedCourse.slug !== link.course || isTrial || makeUp || isReschedule) { slotLinkRef.current = null; return }
     const ds = link.date, tm = link.time
     const d = new Date(ds + 'T00:00:00')
+    // A link names a lesson, so the "how" question is answered by its date:
+    // inside the single-lesson window one lesson, past it a weekly class.
+    if (wayFlow && way === null) {
+      if (ds > singleMax) { setWay('fixed'); setFixedDow(d.getDay()) } else setWay('single')
+    }
     if (privateFlow) {
       if (!openings || lessonLength !== 30) return
       slotLinkRef.current = null
@@ -1407,7 +1440,7 @@ export default function BookingPage() {
       if (ids.length === 0 || !bookableNow(ds, tm)) return
       // The grid disables a time the basket cannot pay for; so does this.
       if (batchFlow && dueOf([{ date: ds, time: tm, label: '', points: priceAt(ds, tm, 30)?.charged ?? 0, coachId: '' }], 30) > balance) return
-      const c = coaches.find(x => x.id === (link.coach && ids.includes(link.coach) ? link.coach : openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0]))
+      const c = coaches.find(x => x.id === (link.coach && ids.includes(link.coach) ? link.coach : spreadPick(ds, ids)))
       if (c) choosePrivate(ds, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse.max_students ?? 1, within24h: isWithin24Hours(ds, tm) }, c)
     } else if (groupFlow) {
       if (groupWeeks.length === 0) return
@@ -1462,6 +1495,16 @@ export default function BookingPage() {
       </div>
     )
   }
+  /** 不限教練: which coach a tapped time goes to. It used to be the family's
+   *  last coach; the school does not want families leaning on one coach
+   *  (owner, 2026-11-01), so it is now whoever has the most open time that
+   *  day, which spreads lessons across the coaches. The family can still
+   *  pick a coach themselves. */
+  function spreadPick(ds: string, ids: string[]): string {
+    const day = openings?.days[ds] || {}
+    const free = (id: string) => Object.values(day).reduce((n, l) => n + (l.includes(id) ? 1 : 0), 0)
+    return [...ids].sort((a, b) => free(b) - free(a) || coachRank(a) - coachRank(b))[0]
+  }
   /** Coaches with an open time on a date, under the current filter. */
   function coachesOn(ds: string): string[] {
     const day = openings?.days[ds]
@@ -1500,6 +1543,8 @@ export default function BookingPage() {
   /** Choose (or, in a batch, toggle) one private lesson with one coach. The
    *  coach grid, the any-coach grid and the "next openings" chips all end here. */
   function choosePrivate(ds: string, slot: TimeSlot, coach: Coach) {
+    // One at a time, a date past the window is not open yet: say when it is.
+    if (singlePath && ds > singleMax) { setLockSheet(ds); return }
     toEnd.current = true
     setSelectedCoach(coach)
     setSelectedSlot(slot)
@@ -1534,7 +1579,7 @@ export default function BookingPage() {
    *  startDate. `weeks` grows when the parent asks to see further out; the
    *  ticks they already made are kept then, and only the first opening
    *  pre-ticks ten. */
-  async function openFixed(startDate: string, time: string, coachId: string, weeks: number = FIXED_WEEKS_STEP, keep?: Set<string>) {
+  async function openFixed(startDate: string, time: string, coachId: string, weeks: number = FIXED_WEEKS_STEP, keep?: Set<string>, mins: 30 | 60 = planMinutes) {
     if (!selectedStudent) return
     setRecurBusy(true); setRecurMsg('')
     try {
@@ -1544,7 +1589,7 @@ export default function BookingPage() {
           action: 'preview', student_id: selectedStudent.id, coach_id: coachId,
           student2_id: siblingPair ? selectedStudent2!.id : null,
           start_time: time, start_date: startDate, weeks,
-          course_slug: selectedCourse?.slug ?? '1on4', minutes: planMinutes,
+          course_slug: selectedCourse?.slug ?? '1on4', minutes: mins,
           location: location ?? null,
         }),
       })
@@ -1595,6 +1640,7 @@ export default function BookingPage() {
 
   function clearTime() {
     setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
+    setWay(null); setFixedDow(null)
     // The 30/60 switch belongs to the course it was set on. Kept, a 60 set on
     // 1-on-1 priced a 1-on-4 at 80 and hid its vouchers (found 2026-10-03).
     setLessonLength(30); setSelectedHour(null)
@@ -1621,6 +1667,267 @@ export default function BookingPage() {
   function changeStudent() {
     setLockedStudent(false); setSelectedStudent(null); setSelectedStudent2(null)
     setIsTrial(false); setSelectedCourse(null); setSelectedCoach(null); clearTime(); setStep(0)
+  }
+
+  // ---- "How will you come?" (owner, 2026-11-01, BK15) ---------------------
+  // After the course: every week (a fixed class, recommended) or one at a
+  // time. Above the two, only when the school can be sure of it, one dark
+  // card that finishes the job: renew a fixed class whose renewal is open,
+  // or "same as last time" -- the weekday, time and coach of the swimmer's
+  // last lesson of this course, as a weekly class. Nothing else on the page
+  // points a family at a coach (owner, 2026-11-01).
+  const lastKey = (() => {
+    if (!wayFlow || !selectedStudent || !selectedCourse) return ''
+    const qs = new URLSearchParams({ student_id: selectedStudent.id, course_slug: selectedCourse.slug })
+    if (siblingPair && selectedStudent2) qs.set('student2_id', selectedStudent2.id)
+    return qs.toString()
+  })()
+  useEffect(() => {
+    if (step !== 3 || !lastKey || lastLesson?.key === lastKey) return
+    let live = true
+    fetch(`/api/parent/last-lesson?${lastKey}`).then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(j => { if (live) setLastLesson({ key: lastKey, last: j?.last ?? null }) })
+    return () => { live = false }
+  }, [step, lastKey, lastLesson])
+  useEffect(() => {
+    if (step !== 3 || !wayFlow || myFixed) return
+    let live = true
+    Promise.all([
+      fetch('/api/parent/fixed-classes').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/parent/assessments?lang=${locale}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([fc, ar]) => {
+      if (!live) return
+      setMyFixed(fc?.classes || []); setMyReports(ar?.reports || [])
+    })
+    return () => { live = false }
+  }, [step, wayFlow, myFixed, locale])
+  // The chooser waits for everything its cards are made from, so nothing
+  // appears a beat later under the parent's finger.
+  const wayReady = !!lastKey && lastLesson?.key === lastKey && myFixed !== null && myReports !== null
+    && (privateFlow ? openingsFor === openingsQs(location ?? null) : groupWeeksFor === groupClassesUrl(location ?? null))
+
+  const dowOfDs = (ds: string) => new Date(ds + 'T00:00:00').getDay()
+  const wkName = (dow: number) => new Date(2026, 10, 1 + dow).toLocaleDateString(dateLoc, { weekday: 'long' })
+  const mdOf = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'numeric', day: 'numeric' })
+  const addMin = (tm: string, n: number) => {
+    const [h, m] = tm.split(':').map(Number); const x = h * 60 + m + n
+    return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
+  }
+  // A 60-minute lesson is two cells of the 35-minute grid with the same coach.
+  const fixedMins: 30 | 60 = lessonLength === 60 && !groupFlow ? 60 : 30
+
+  /** The every-week path's times for one weekday: each time with the first
+   *  date it is open on and the coaches open then. Private lessons read the
+   *  openings, a group class the group calendar. */
+  type FixedTime = { key: string; time: string; ds: string; ids: string[]; slot?: any }
+  function fixedTimes(dow: number, mins: 30 | 60 = fixedMins): FixedTime[] {
+    const out = new Map<string, FixedTime>()
+    if (privateFlow && openings) {
+      for (const ds of Object.keys(openings.days).filter(x => dowOfDs(x) === dow).sort()) {
+        const day = openings.days[ds]
+        for (const [tm, list] of Object.entries(day)) {
+          if (out.has(tm) || !bookableNow(ds, tm)) continue
+          let ids = list.filter(id => coachFilter === 'any' || id === coachFilter)
+          if (mins === 60) { const later = day[addMin(tm, SLOT_STEP_MINUTES)] || []; ids = ids.filter(id => later.includes(id)) }
+          if (ids.length > 0) out.set(tm, { key: tm, time: tm, ds, ids })
+        }
+      }
+    } else if (groupFlow) {
+      for (const d of [...groupWeeks].sort((a: any, b: any) => a.date.localeCompare(b.date))) {
+        if (dowOfDs(d.date) !== dow) continue
+        for (const c of d.classes || []) {
+          const k = `${String(c.time).slice(0, 5)}|${c.coach_id}`
+          if (out.has(k) || c.full || c.already_booked || !meetsLeadTime(d.date, c.time)) continue
+          out.set(k, { key: k, time: c.time, ds: d.date, ids: [c.coach_id], slot: c })
+        }
+      }
+    }
+    return [...out.values()].sort((a, b) => String(a.time).localeCompare(String(b.time)) || coachRank(a.ids[0]) - coachRank(b.ids[0]))
+  }
+  const fixedPanelRef = useRef<HTMLDivElement>(null)
+  const toPanel = useRef(false)
+  useEffect(() => {
+    if (!recurOpen || !toPanel.current) return
+    toPanel.current = false
+    const id = requestAnimationFrame(() => scrollTo(fixedPanelRef.current))
+    return () => cancelAnimationFrame(id)
+  }, [recurOpen])
+  /** A time on the every-week path: the fixed-class panel opens on it. */
+  function pickFixedTime(ds: string, time: string, coachId: string, slot?: any, mins: 30 | 60 = fixedMins) {
+    const c = coaches.find(x => x.id === coachId)
+    if (!c) return
+    setSelectedDate(new Date(ds + 'T00:00:00')); setSelectedCoach(c); setSelectedHour(null)
+    setSelectedSlot({
+      time, label: mins === 60 ? `${formatTime(time)} – ${formatTime(addMin(String(time).slice(0, 5), 60))}` : formatTime(time),
+      available: true, enrolled: slot?.enrolled ?? 0, max: slot?.max ?? selectedCourse?.max_students ?? 1,
+      session_id: slot?.session_id, within24h: isWithin24Hours(ds, time),
+    })
+    setFixedOnly(false); setRecurMsg('')
+    toPanel.current = true
+    openFixed(ds, time, c.id, FIXED_WEEKS_STEP, undefined, mins)
+  }
+
+  /** Where "same as last time" would start: the first or second coming
+   *  weekday on which that time is open with that coach. Neither: the card
+   *  is not shown, rather than offering a time that is taken. */
+  function nextFor(l: LastLesson): { ds: string; slot?: any } | null {
+    if (privateFlow && openings) {
+      for (const ds of Object.keys(openings.days).filter(x => dowOfDs(x) === l.weekday).sort().slice(0, 2)) {
+        const day = openings.days[ds]
+        if (!bookableNow(ds, l.time) || !(day[l.time] || []).includes(l.coachId)) continue
+        if (l.minutes === 60 && !(day[addMin(l.time, SLOT_STEP_MINUTES)] || []).includes(l.coachId)) continue
+        return { ds }
+      }
+    } else if (groupFlow) {
+      const days = [...groupWeeks].filter((d: any) => dowOfDs(d.date) === l.weekday).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 2)
+      for (const d of days) {
+        const c = (d.classes || []).find((x: any) => String(x.time).slice(0, 5) === l.time && x.coach_id === l.coachId)
+        if (c && !c.full && !c.already_booked && meetsLeadTime(d.date, c.time)) return { ds: d.date, slot: c }
+      }
+    }
+    return null
+  }
+  const myFixedHere = (myFixed || []).filter((f: any) => !!selectedStudent && !!selectedCourse
+    && f.studentId === selectedStudent.id && f.courseSlug === selectedCourse.slug
+    && (siblingPair ? f.student2Id === selectedStudent2?.id : !f.student2Id))
+  const renewFc = myFixedHere.find((f: any) => f.renewOpen) || null
+  // Already in a weekly class of this course (and not at renewal): nothing to suggest.
+  const inFixed = myFixedHere.some((f: any) => !f.renewOpen && f.left > 0)
+  const sameLast = !renewFc && !inFixed && lastLesson?.key === lastKey ? lastLesson.last : null
+  const sameNext = sameLast ? nextFor(sameLast) : null
+  // The latest assessment's advice, when it is for this course.
+  const advice = (() => {
+    const r = (myReports || []).filter((x: any) => x.studentId === selectedStudent?.id)
+      .sort((a: any, b: any) => String(b.assessedOn).localeCompare(String(a.assessedOn)))[0]
+    return r && r.course === selectedCourse?.slug && r.frequency ? r : null
+  })()
+  function chooseWay(w: 'fixed' | 'single') {
+    setWay(w); setLockSheet(null)
+    setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
+    if (w === 'fixed') setFixedDow(null)
+    requestAnimationFrame(() => scrollTo(doneRef.current))
+  }
+  function takeSameAsLast() {
+    if (!sameLast || !sameNext) return
+    setWay('fixed'); setFixedDow(sameLast.weekday)
+    setLessonLength(sameLast.minutes === 60 && !groupFlow ? 60 : 30)
+    setCoachFilter('any')
+    pickFixedTime(sameNext.ds, sameNext.slot?.time ?? sameLast.time, sameLast.coachId, sameNext.slot, sameLast.minutes === 60 && !groupFlow ? 60 : 30)
+  }
+  const fixedTimesRef = useRef<HTMLDivElement>(null)
+  const toFixedTimes = useRef(false)
+  useEffect(() => {
+    if (!toFixedTimes.current || fixedDow == null) return
+    toFixedTimes.current = false
+    const id = requestAnimationFrame(() => scrollTo(fixedTimesRef.current))
+    return () => cancelAnimationFrame(id)
+  }, [fixedDow])
+  /** The every-week path (BK15): which weekday, then which time on it. The
+   *  fixed-class panel below takes it from there (start, which dates, total). */
+  function renderFixedPicker() {
+    const dows = [1, 2, 3, 4, 5, 6, 0]
+    const have = new Map(dows.map(d => [d, fixedTimes(d).length]))
+    const loadingTimes = privateFlow ? openingsFor !== openingsQs(location ?? null) : groupWeeksFor !== groupClassesUrl(location ?? null)
+    const list = fixedDow == null ? [] : fixedTimes(fixedDow)
+    const lenSwitch = !groupFlow && (selectedCourse?.slug === '1on1' || siblingPair)
+    const label: React.CSSProperties = { fontSize: '14px', fontWeight: 700, color: '#56647d', marginBottom: '10px' }
+    const selDow = selectedDate ? selectedDate.getDay() : null
+    const cur = selectedSlot && selDow === fixedDow ? list.find(ft => String(ft.time) === String(selectedSlot.time) && !!selectedCoach && ft.ids.includes(selectedCoach.id)) : null
+    return (
+      <div style={{ marginBottom: '16px' }}>
+        <div style={label}>{t('booking.fixed.dayQ')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '6px' }}>
+          {dows.map(d => {
+            const n = have.get(d) || 0
+            const on = fixedDow === d
+            return (
+              <button key={d} type="button" className="kb-focus" disabled={n === 0 || loadingTimes} aria-pressed={on}
+                aria-label={wkName(d)}
+                onClick={() => { if (on) return; toFixedTimes.current = true; setFixedDow(d); setRecurOpen(false); setSelectedSlot(null) }}
+                style={{ minHeight: '46px', borderRadius: '12px', fontSize: '16px', fontWeight: 800, cursor: n === 0 ? 'not-allowed' : 'pointer',
+                  border: `1.5px solid ${on ? NAVY : n === 0 ? '#e3ebf6' : '#d3deec'}`, background: on ? NAVY : n === 0 ? '#f6f9fd' : '#fff',
+                  color: on ? '#fff' : n === 0 ? '#b7c2d4' : NAVY }}>
+                {t('date.weekdayShort.' + d)}
+              </button>
+            )
+          })}
+        </div>
+        {loadingTimes ? <MascotLoading text={t('booking.loading')} />
+          : dows.every(d => !have.get(d)) ? (
+            <p style={{ margin: '14px 0 0', fontSize: '14px', color: '#56647d', textAlign: 'center' }}>{t('booking.fixed.noDays')}</p>
+          ) : fixedDow == null ? (
+            <p style={{ margin: '12px 2px 0', fontSize: '13px', color: '#56647d', lineHeight: 1.5 }}>{t('booking.fixed.dayHint')}</p>
+          ) : null}
+        {fixedDow != null && !loadingTimes && (
+          <div ref={fixedTimesRef} style={{ marginTop: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              <div style={{ ...label, marginBottom: 0 }}>{t('booking.fixed.timesFor', { weekday: wkName(fixedDow) })}</div>
+              {lenSwitch && (
+                <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
+                  {([30, 60] as const).map(v => {
+                    const lockedLen = recurSel.size > 0 && lessonLength !== v
+                    return (
+                      <button key={v} type="button" disabled={lockedLen} aria-pressed={lessonLength === v} className="kb-focus-in"
+                        onClick={() => { setLessonLength(v); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false) }}
+                        style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: lockedLen ? 'not-allowed' : 'pointer', opacity: lockedLen ? 0.45 : 1,
+                          background: lessonLength === v ? NAVY : '#fff', color: lessonLength === v ? '#fff' : '#56647d' }}>
+                        {t('booking.lenMin', { n: v })}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            {list.length === 0 ? (
+              <p style={{ margin: 0, padding: '18px', textAlign: 'center', fontSize: '14px', color: '#56647d', background: '#fff', borderRadius: '12px', border: '1px dashed #e3ebf6' }}>{t('booking.fixed.noTimes')}</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
+                {list.map(ft => {
+                  const on = cur?.key === ft.key
+                  const lead = ft.slot ? ft.ids[0] : coachFilter !== 'any' ? coachFilter : spreadPick(ft.ds, ft.ids)
+                  const pr = priceAt(ft.ds, String(ft.time), fixedMins)
+                  return (
+                    <button key={ft.key} type="button" disabled={recurBusy}
+                      onClick={() => { if (on && recurOpen) return; pickFixedTime(ft.ds, String(ft.time), on && selectedCoach ? selectedCoach.id : lead, ft.slot) }}
+                      style={{ padding: '8px 4px', borderRadius: '10px', textAlign: 'center', minWidth: 0, cursor: 'pointer',
+                        border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a',
+                        fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatTime(String(ft.time))}
+                      {pr && <PriceTag price={pr} onlyOff />}
+                      <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</div>
+                      <CoachNames ids={on && selectedCoach ? [selectedCoach.id] : ft.ids} first={on && selectedCoach ? selectedCoach.id : lead} />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {cur && !cur.slot && coachFilter === 'any' && cur.ids.length > 1 && (
+              <div style={{ marginTop: '12px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
+                <div style={{ fontSize: '13.5px', color: '#56647d', marginBottom: '10px' }}>{t('booking.coachesAt', { time: formatTime(String(cur.time)) })}</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[...cur.ids].sort((a, b) => coachRank(a) - coachRank(b)).map(id => {
+                    const on = selectedCoach?.id === id
+                    return (
+                      <button key={id} type="button" disabled={recurBusy}
+                        onClick={() => { if (!on) pickFixedTime(cur.ds, String(cur.time), id) }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '40px', padding: '0 14px 0 6px', borderRadius: '999px', cursor: on ? 'default' : 'pointer',
+                          border: `1.5px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : 'transparent', color: on ? '#16294a' : '#56647d', fontSize: '14px', fontWeight: 700 }}>
+                        <Face id={id} size={26} />{coachName(id)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+  function resetWay() {
+    setWay(null); setFixedDow(null); setLockSheet(null)
+    setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
   }
 
   // ---- Make-up vouchers in an ordinary booking ---------------------------
@@ -1783,6 +2090,7 @@ export default function BookingPage() {
    *  ways of pressing the same thing, so they must not drift apart. */
   function toggleSlot(ds: string, dt: Date, sl: any) {
     if (sl.full || sl.already_booked) return
+    if (singlePath && ds > singleMax) { setLockSheet(ds); return }
     const c = coaches.find(x => x.id === sl.coach_id)
     if (!c) return
     const key = slotKey(ds, sl.time, c.id)
@@ -1860,6 +2168,7 @@ export default function BookingPage() {
       fixed: recurOpen && selectedSlot && selectedCoach
         ? { start: fixedStart, weeks: fixedWeeks, ghost: [...ghostSel], only: fixedOnly } : null,
       location: location ?? null,
+      way, fixedDow,
     }
     try { window.sessionStorage.setItem(RESUME_KEY, JSON.stringify(snap)); savedResumeRef.current = true } catch {}
   }
@@ -1904,6 +2213,10 @@ export default function BookingPage() {
         }
       }
     }
+    // Back on the same path: a snapshot from before BK15 had a fixed-class
+    // panel open (every week) or was picking singles.
+    setWay(r.way === 'fixed' || r.way === 'single' ? r.way : r.fixed ? 'fixed' : 'single')
+    setFixedDow(typeof r.fixedDow === 'number' ? r.fixedDow : ds ? new Date(ds + 'T00:00:00').getDay() : null)
     const plan = (Array.isArray(r.plan) ? r.plan : []).filter(live)
     if (r.step === 4 && plan.length > 0) { setRecurPlan(plan); setStep(4) } else setStep(3)
   }
@@ -2491,8 +2804,10 @@ export default function BookingPage() {
 .bk-steps li.done { color: #56647d; border-color: #9fb3d3 }
 .bk-steps li.on { color: #16294a; border-color: #f09800 }`}</style>
           <ol className="bk-steps" aria-label={t('booking.steps.label')}>
-            {(['who', 'course', 'time'] as const).map((k, i) => {
-              const at = step === 0 ? 0 : step <= 2 ? 1 : 2
+            {/* Four steps where "how" is asked (BK15); until the course is
+                known, the four most families will see. */}
+            {(((selectedCourse ? wayFlow : !isTrial) ? ['who', 'course', 'way', 'time'] : ['who', 'course', 'time']) as string[]).map((k, i, all) => {
+              const at = step === 0 ? 0 : step <= 2 ? 1 : all.length === 4 && askWay ? 2 : all.length - 1
               return (
                 <li key={k} className={i === at ? 'on' : i < at ? 'done' : undefined} aria-current={i === at ? 'step' : undefined}>
                   {i + 1} {t('booking.steps.' + k)}
@@ -2512,6 +2827,10 @@ export default function BookingPage() {
               <DoneRow label={t('booking.sum.course')} changeLabel={t('booking.change')}
                 value={isTrial ? t('common.assessment') : tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name)}
                 onChange={isReschedule || makeUp ? undefined : () => { clearTime(); setStep(1) }} />
+            )}
+            {step === 3 && wayFlow && way && (
+              <DoneRow label={t('booking.sum.way')} changeLabel={t('booking.change')}
+                value={t(way === 'fixed' ? 'booking.way.fixed' : 'booking.way.single')} onChange={resetWay} />
             )}
           </div>
         )}
@@ -2753,9 +3072,136 @@ export default function BookingPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 3 && askWay && (() => {
+          const tick = (s: string) => (
+            <li style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', fontSize: '13.5px', lineHeight: 1.5, color: '#2c3d5c' }}>
+              <span aria-hidden style={{ color: '#1f7a57', fontWeight: 900 }}>✓</span><span>{s}</span>
+            </li>
+          )
+          const seats = paidSeats
+          const from1 = cheapestFor(selectedCourse?.slug, seats, 30)
+          const card = (w: 'fixed' | 'single', body: React.ReactNode) => (
+            <button type="button" onClick={() => chooseWay(w)} className="kb-focus"
+              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '16px', padding: '16px 18px',
+                border: `2px solid ${w === 'fixed' ? AMBER : '#e3ebf6'}`, background: w === 'fixed' ? '#fff8ec' : '#fff', color: NAVY }}>
+              {body}
+            </button>
+          )
+          const dark = (eyebrow: string, title: string, sub: string, cta: string, go: () => void) => (
+            <div style={{ borderRadius: '18px', padding: '16px 18px 18px', background: 'linear-gradient(145deg,#1d3f7c,#12254a 70%)', color: '#fff', boxShadow: '0 10px 22px rgba(18,37,74,.22)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#c9d6ec', lineHeight: 1.5 }}>{eyebrow}</div>
+              <div style={{ fontSize: '19px', fontWeight: 800, marginTop: '4px', lineHeight: 1.35 }}>{title}</div>
+              <div style={{ fontSize: '13px', color: '#c9d6ec', marginTop: '4px' }}>{sub}</div>
+              <button type="button" onClick={go} className="kb-focus"
+                style={{ marginTop: '14px', minHeight: '44px', padding: '0 22px', borderRadius: '999px', border: 'none', background: AMBER, color: NAVY, fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
+                {cta}
+              </button>
+            </div>
+          )
+          const who = selectedStudent?.full_name.split(' ')[0] || ''
+          const ready = renewFc ? dark(
+            renewFc.holdUntil
+              ? t('booking.way.renewEyebrow', { name: who, date: mdOf(renewFc.last), hold: mdOf(renewFc.holdUntil) })
+              : t('booking.way.renewEyebrowNoHold', { name: who, date: mdOf(renewFc.last) }),
+            t('booking.way.renewTitle', { weekday: wkName(renewFc.weekday), time: formatTime(renewFc.time), coach: renewFc.coachName }),
+            t('booking.way.renewSub', { n: FIXED_CLASS_MIN_LESSONS }),
+            t('booking.way.renewCta'),
+            () => router.push(`/dashboard/fixed-class/${renewFc.id}?renew=1`),
+          ) : sameLast && sameNext ? dark(
+            t('booking.way.sameEyebrow', { name: who }),
+            t('booking.way.sameTitle', {
+              weekday: wkName(sameLast.weekday),
+              time: sameLast.minutes === 60 && !groupFlow ? `${formatTime(sameLast.time)} – ${formatTime(addMin(sameLast.time, 60))}` : formatTime(sameLast.time),
+              coach: sameLast.coachName,
+            }),
+            t('booking.way.sameSub', {
+              date: mdOf(sameNext.ds), n: FIXED_CLASS_MIN_LESSONS,
+              points: ((priceAt(sameNext.ds, sameLast.time, sameLast.minutes === 60 && !groupFlow ? 60 : 30)?.charged ?? 0) * FIXED_CLASS_MIN_LESSONS).toLocaleString('en-US'),
+            }),
+            t('booking.way.sameCta'),
+            takeSameAsLast,
+          ) : null
+          return (
+            <div>
+              <SectionTitle title={t('booking.way.title')} />
+              {arrearsNotice}
+              {!wayReady ? <MascotLoading text={t('booking.loading')} /> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {ready}
+                  {ready && <div style={{ fontSize: '13px', fontWeight: 700, color: '#56647d', margin: '6px 2px 0' }}>{t('booking.way.or')}</div>}
+                  {card('fixed', <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '17px', fontWeight: 800 }}>{t('booking.way.fixed')}</span>
+                      <span style={{ fontSize: '12px', fontWeight: 800, background: AMBER, color: NAVY, borderRadius: '999px', padding: '2px 9px' }}>{t('booking.way.recommended')}</span>
+                    </div>
+                    {advice && (
+                      <div style={{ marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#8a5300', background: '#fff', border: `1px solid ${AMBER}66`, borderRadius: '8px', padding: '6px 10px' }}>
+                        {t('booking.way.advice', { course: t('assess.course.' + advice.course), freq: t('assess.freq.' + advice.frequency) })}
+                      </div>
+                    )}
+                    <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {tick(t('booking.way.fixed1'))}{tick(t('booking.way.fixed2'))}{tick(t('booking.way.fixed3'))}
+                    </ul>
+                    <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
+                      {t('booking.way.fixedFrom', { n: FIXED_CLASS_MIN_LESSONS, points: (from1 * FIXED_CLASS_MIN_LESSONS).toLocaleString('en-US') })} ›
+                    </div>
+                  </>)}
+                  {card('single', <>
+                    <div style={{ fontSize: '17px', fontWeight: 800 }}>{t('booking.way.single')}</div>
+                    <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {tick(t('booking.way.single1', { n: SINGLE_DAYS }))}{tick(t('booking.way.single2'))}
+                    </ul>
+                    <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
+                      {t('booking.way.singleFrom', { points: from1.toLocaleString('en-US') })} ›
+                    </div>
+                  </>)}
+                </div>
+              )}
+              {/* Not stuck to the screen: here it only covered the cards. */}
+              <div style={{ marginTop: '24px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+                <button onClick={() => { setStep(1); clearTime() }}
+                  style={{ width: '100%', padding: '14px', background: '#fff', color: '#16294a', border: '1px solid #d3deec', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                  {t('booking.back')}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* A single-lesson date past the window, tapped (BK15): when it
+            opens, and the way to hold it now. */}
+        {lockSheet && (() => {
+          const o = new Date(lockSheet + 'T12:00:00Z'); o.setUTCDate(o.getUTCDate() - SINGLE_DAYS)
+          const opens = o.toISOString().slice(0, 10)
+          return (
+            <div role="presentation" onClick={() => setLockSheet(null)}
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(18,37,74,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div role="dialog" aria-modal="true" aria-labelledby="bk-lock-t" onClick={e => e.stopPropagation()}
+                onKeyDown={e => { if (e.key === 'Escape') setLockSheet(null) }}
+                style={{ width: '100%', maxWidth: '520px', background: '#fff', borderRadius: '22px 22px 0 0', padding: '22px 20px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -10px 30px rgba(18,37,74,.2)' }}>
+                <div id="bk-lock-t" style={{ fontSize: '18px', fontWeight: 800, color: NAVY, lineHeight: 1.4 }}>
+                  {t('booking.lock.title', { date: mdOf(lockSheet) })}
+                </div>
+                <p style={{ margin: '8px 0 18px', fontSize: '14.5px', color: '#3c4b66', lineHeight: 1.65 }}>
+                  {t('booking.lock.body', { n: SINGLE_DAYS, date: mdOf(lockSheet), opens: mdOf(opens) })}
+                </p>
+                <button type="button" autoFocus onClick={() => { const d = dowOfDs(lockSheet); chooseWay('fixed'); toFixedTimes.current = true; setFixedDow(d) }}
+                  style={{ width: '100%', minHeight: '48px', borderRadius: '12px', border: 'none', background: AMBER, color: NAVY, fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
+                  {t('booking.lock.toFixed')}
+                </button>
+                <button type="button" onClick={() => setLockSheet(null)}
+                  style={{ width: '100%', minHeight: '44px', marginTop: '8px', borderRadius: '12px', border: '1px solid #e3ebf6', background: '#fff', color: '#56647d', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+                  {t('booking.lock.ok')}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {step === 3 && !askWay && (
           <div>
-            {!groupFlow && <SectionTitle title={t('booking.s4.title')} />}
+            {!groupFlow && !fixedPath && <SectionTitle title={t('booking.s4.title')} />}
+            {fixedPath && <SectionTitle title={t('booking.fixed.title')} />}
             {arrearsNotice}
             {/* Drawn at once, with only 不限教練 until the coaches arrive: the row
                 used to appear a beat after the calendar and push it down under
@@ -2786,10 +3232,11 @@ export default function BookingPage() {
                 </div>
               </div>
             )}
-            {!groupFlow && elsewhereNote(elsewhereMonth(), r => voucherRange
+            {fixedPath && renderFixedPicker()}
+            {!groupFlow && !fixedPath && elsewhereNote(elsewhereMonth(), r => voucherRange
               ? t('booking.loc.elsewhereRange', { here: herePoolName, there: r.name, n: r.n })
               : t('booking.loc.elsewhereMonth', { here: herePoolName, there: r.name, n: r.n, month: t('date.month.' + (calMonth + 1)) }))}
-            {!groupFlow && <div ref={calCardRef}
+            {!groupFlow && !fixedPath && <div ref={calCardRef}
               onTouchStart={e => { const t0 = e.touches[0]; calTouchRef.current = { x: t0.clientX, y: t0.clientY } }}
               onTouchEnd={e => {
                 const s0 = calTouchRef.current; calTouchRef.current = null
@@ -2840,7 +3287,10 @@ export default function BookingPage() {
                   const elsewhere = openHere && openHere.length === 0 && isDateAvailable(date) ? elsewhereOpen(dsC) : []
                   // A voucher's calendar shows only days with a time it can book,
                   // so a 60-minute make-up also needs a free hour that day.
-                  const available = isDateAvailable(date) && (openHere == null || openHere.length > 0 || elsewhere.length > 0)
+                  // One lesson at a time, a date past the window is not open
+                  // yet (BK15): drawn as closed, and a tap says when it opens.
+                  const locked = singlePath && dsC > singleMax && isDateAvailable(date)
+                  const available = !locked && isDateAvailable(date) && (openHere == null || openHere.length > 0 || elsewhere.length > 0)
                     && !(makeUp && dotsHere != null && dotsHere.length === 0 && elsewhere.length === 0)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
@@ -2866,8 +3316,9 @@ export default function BookingPage() {
                       aria-label={date.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
                       aria-pressed={isSelected}
                       aria-current={isTodayDate ? 'date' : undefined}
-                      aria-disabled={!available || undefined}
+                      aria-disabled={(!available && !locked) || undefined}
                       onClick={() => {
+                        if (locked) { setLockSheet(dsC); return }
                         // Re-clicking the day already open would clear its times and never refetch them.
                         if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
                         toTimes.current = true
@@ -2881,10 +3332,10 @@ export default function BookingPage() {
                         background: isSelected ? NAVY : hasPick ? `${GOLD}20` : 'transparent',
                         color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#7b879c' : available ? NAVY : '#b7c2d4',
                         fontSize: '16px', fontWeight: isSelected || hasPick ? 700 : 500,
-                        cursor: available ? 'pointer' : 'not-allowed',
+                        cursor: available || locked ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
                       }}
-                    >{monthTag && <span style={{ display: 'block', fontSize: '10px', fontWeight: 800, lineHeight: 1.2, color: isSelected ? '#fff' : GOLD }}>{date.toLocaleDateString(dateLoc, { month: 'short' })}</span>}<span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && (
+                    >{monthTag && <span style={{ display: 'block', fontSize: '10px', fontWeight: 800, lineHeight: 1.2, color: isSelected ? '#fff' : GOLD }}>{date.toLocaleDateString(dateLoc, { month: 'short' })}</span>}<span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && !locked && (
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
                         {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
@@ -2896,6 +3347,9 @@ export default function BookingPage() {
                   )
                 })}
               </div>
+              {singlePath && (
+                <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{t('booking.lock.legend', { n: SINGLE_DAYS })}</p>
+              )}
               {voucherMonthEmpty() && elsewhereMonth().length === 0 && (
                 <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: '13px', color: '#56647d' }}>{t('booking.makeUp.noDays')}</p>
               )}
@@ -2904,7 +3358,7 @@ export default function BookingPage() {
             {/* Only while the picked day is in the month on screen. Paging to
                 the next month used to leave last month's day and its times
                 underneath, reading as if they belonged to the new month. */}
-            {!groupFlow && selectedDate && (voucherRange || (selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth)) && (
+            {!groupFlow && !fixedPath && selectedDate && (voucherRange || (selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth)) && (
               <div ref={timesRef}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
@@ -2947,7 +3401,11 @@ export default function BookingPage() {
                       // Same order as the coach chips and the 30-minute faces.
                       .sort((a: any, b: any) => coachRank(a.coach1_id) - coachRank(b.coach1_id)) }))
                     .filter((h: any) => h.opts.length > 0)
-                    .map((h: any) => ({ ...h, pick: h.opts.find((o: any) => !o.relay && o.coach1_id === openings?.preferred) || h.opts.find((o: any) => !o.relay) || h.opts[0] }))
+                    .map((h: any) => {
+                      const solo = h.opts.filter((o: any) => !o.relay)
+                      const lead = solo.length ? spreadPick(localDs(selectedDate), solo.map((o: any) => o.coach1_id)) : null
+                      return { ...h, pick: solo.find((o: any) => o.coach1_id === lead) || h.opts[0] }
+                    })
                   // The server prices every hour slot and sends the figure with
                   // it, so nothing here has to guess. The cheapest one on offer
                   // decides whether the family can book an hour at all; when
@@ -3032,7 +3490,7 @@ export default function BookingPage() {
                                 {/* Every coach who can teach the whole hour, not only
                                     the one pre-picked -- the same faces the 30-minute
                                     grid shows. The coach is chosen below once a time is. */}
-                                <CoachNames ids={(h.opts as { coach1_id: string }[]).map(x => x.coach1_id)} first={h.opts[0]?.coach1_id} />
+                                <CoachNames ids={(h.opts as { coach1_id: string }[]).map(x => x.coach1_id)} first={h.pick?.coach1_id} />
                               </button>
                             )
                           })}
@@ -3202,7 +3660,7 @@ export default function BookingPage() {
                             <button key={tm} disabled={!affordable0}
                               onClick={() => {
                                 const cid = chosenCoach
-                                  || (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0])
+                                  || spreadPick(ds0, ids)
                                 const c = coaches.find(x => x.id === cid)
                                 if (!c) return
                                 choosePrivate(ds0, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse?.max_students ?? 1, within24h: w24 }, c)
@@ -3221,7 +3679,7 @@ export default function BookingPage() {
                               )}
                               {!isTrial && w24 && <div style={{ fontSize: '11.5px', color: GOLD, marginTop: '2px', fontWeight: 700 }}>24h</div>}
                               <CoachNames ids={chosenCoach ? [chosenCoach] : ids}
-                                first={chosenCoach || (openings.preferred && ids.includes(openings.preferred) ? openings.preferred : ids[0])} />
+                                first={chosenCoach || spreadPick(ds0, ids)} />
                             </button>
                           )
                         })}
@@ -3348,7 +3806,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            {groupFlow && (() => {
+            {groupFlow && !fixedPath && (() => {
               const byDate: Record<string, any[]> = {}
               for (const d of groupWeeks) byDate[d.date] = d.classes || []
               const todayDs = localDs(today)
@@ -3438,7 +3896,7 @@ export default function BookingPage() {
                               && (!makeUp || (!c.full && !c.already_booked))) : []
                             return (
                               <React.Fragment key={ds}>
-                              <div style={{ visibility: hideDay ? 'hidden' : undefined, backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : '#e3ebf6'}`, borderRadius: isPhone ? '9px' : '10px', padding: isPhone ? '0' : '8px 6px 7px', minHeight: isPhone ? '60px' : '100px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
+                              <div style={{ visibility: hideDay ? 'hidden' : undefined, opacity: singlePath && ds > singleMax ? 0.45 : undefined, backgroundColor: '#fff', backgroundImage: isPast ? 'repeating-linear-gradient(135deg, rgba(18,37,74,0.05) 0px, rgba(18,37,74,0.05) 2px, transparent 2px, transparent 10px)' : 'none', border: `1px solid ${open ? GOLD : anyPicked && isPhone ? GOLD + '77' : isToday2 ? GOLD + '66' : '#e3ebf6'}`, borderRadius: isPhone ? '9px' : '10px', padding: isPhone ? '0' : '8px 6px 7px', minHeight: isPhone ? '60px' : '100px', minWidth: 0, position: 'relative', marginTop: rowEdge[row] ? `${EXTRA}px` : 0 }}>
                                 {!isPhone && (idx === 0 || (edgeTop && idx % 7 === 0)) && (
                                   // On a wide screen the month sits in the margin, level with
                                   // the start of its line. A phone has no margin to spare, so
@@ -3567,6 +4025,9 @@ export default function BookingPage() {
                       {t('booking.group.loadMore')}
                     </button>
                   )}
+                  {singlePath && (
+                    <div style={{ fontSize: '12.5px', color: '#56647d', marginBottom: '8px', lineHeight: 1.5 }}>{t('booking.lock.legend', { n: SINGLE_DAYS })}</div>
+                  )}
                   <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>
                     {myGroupBand ? t('booking.group.showingBand', { name: selectedStudent?.full_name || '', min: myGroupBand.min, max: myGroupBand.max }) : t('booking.group.showing', { name: selectedStudent?.full_name || '' })}
                   </div>
@@ -3639,7 +4100,7 @@ export default function BookingPage() {
                 {recurMsg && (
                   <div style={{ marginTop: '10px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', padding: '12px 16px', color: '#1f7a57', fontSize: '14px', fontWeight: 600 }}>{recurMsg}</div>
                 )}
-                {fixedFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && (
+                {fixedFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && !fixedPath && (
                   <button disabled={recurBusy}
                     onClick={() => { setFixedOnly(false); openFixed(localDs(selectedDate), selectedSlot.time, selectedCoach.id) }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
@@ -3647,7 +4108,7 @@ export default function BookingPage() {
                   </button>
                 )}
                 {fixedFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
-                  <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '16px', boxShadow: '0 12px 30px rgba(18,37,74,0.12)' }}>
+                  <div ref={fixedPanelRef} style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '16px', boxShadow: '0 12px 30px rgba(18,37,74,0.12)' }}>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
                       {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                       {/* A fixed class is one coach, so the panel names them. */}
@@ -3813,6 +4274,8 @@ export default function BookingPage() {
                   // course is fixed -- a make-up is booked as the voucher's own kind
                   // of lesson), so its way out is back to the family's page.
                   if (isReschedule || makeUp) { window.location.href = '/dashboard'; return }
+                  // Back to "how", which is the step before this one (BK15).
+                  if (wayFlow && way) { resetWay(); return }
                   setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
                 }} style={{
                   flex: 1, padding: '14px', background: '#fff',
