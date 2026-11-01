@@ -2511,5 +2511,11 @@
   "push.settings.newsDesc": "Sign-ups, events and other news from the school",
   "dash.pointsLow": "Running low",
   "dash.invite.bannerOne": "A partner booking invitation is waiting for you",
-  "dash.invite.banner": "{n} partner booking invitations are waiting for you"
+  "dash.invite.banner": "{n} partner booking invitations are waiting for you",
+  "booking.steps.label": "Booking steps",
+  "booking.steps.who": "Who",
+  "booking.steps.course": "Lesson",
+  "booking.steps.time": "Time",
+  "dash.nextLine.inMin": "starts in {n} min",
+  "dash.nextLine.now": "in the pool now"
 }

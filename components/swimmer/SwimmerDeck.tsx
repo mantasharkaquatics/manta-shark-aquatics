@@ -38,16 +38,13 @@ const CSS = `
    shrinks to fit (--sw-stage-h, worked out once on load and on resize, never
    while the cards move). */
 .sw-fit { position: relative; flex: 1 0 var(--sw-fit-min, 0px); min-height: 0 }
-.sw-deck { --gap: 12px; display: flex; align-items: stretch; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
+.sw-deck { --gap: 12px; display: flex; align-items: flex-start; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
   overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; -webkit-user-select: none; user-select: none }
 .sw-deck::-webkit-scrollbar { display: none }
 /* Room so the first and last card can come to the middle. */
 .sw-deck::before, .sw-deck::after { content: ''; flex: 0 0 calc((100% - var(--cw)) / 2 - var(--gap)) }
-.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always;
-  display: flex; flex-direction: column }
-/* Every card as tall as the tallest, so the row reads as one set. */
-.sw-slot > * { flex: 1 0 auto }
+.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always }
 /* No curve or dimming driven by the scroll: on the iPhone those effects are
    worked out by the page's own thread, and any work there made the whole
    card jerk as it arrived (owner, 2026-10-30). The cards are a plain native
@@ -70,7 +67,7 @@ const CSS = `
   padding: 0 14px 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.94); color: #12254a; font: inherit;
   font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(18,37,74,.16) }
 .sw-dress svg { width: 18px; height: 18px }
-.sw-hint { position: absolute; top: 56px; left: 12px; white-space: nowrap; z-index: 3; font-size: 12px; font-weight: 700; color: #12254a;
+.sw-hint { position: absolute; top: 18px; right: 12px; white-space: nowrap; z-index: 3; font-size: 12px; font-weight: 700; color: #12254a;
   background: rgba(255,255,255,.8); border-radius: 999px; padding: 4px 10px; transition: opacity .4s; pointer-events: none }
 /* On a short phone the picture is short too: the hint would sit on the swimmer. */
 @container (max-height: 250px) { .sw-hint { display: none } }

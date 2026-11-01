@@ -2511,5 +2511,11 @@
   "push.settings.newsDesc": "报名、活动等学校消息",
   "dash.pointsLow": "快用完了",
   "dash.invite.bannerOne": "有 1 个共同预约邀请等您回复",
-  "dash.invite.banner": "有 {n} 个共同预约邀请等您回复"
+  "dash.invite.banner": "有 {n} 个共同预约邀请等您回复",
+  "booking.steps.label": "预约步骤",
+  "booking.steps.who": "帮谁",
+  "booking.steps.course": "课程",
+  "booking.steps.time": "时间",
+  "dash.nextLine.inMin": "{n} 分钟后开始",
+  "dash.nextLine.now": "正在上课"
 }

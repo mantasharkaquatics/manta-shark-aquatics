@@ -27,6 +27,8 @@ import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import SiblingBooking from './SiblingBooking'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
+import SwimmerFace from '@/components/swimmer/SwimmerFace'
+import { lookOf } from '@/lib/swimmer-look'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -56,7 +58,7 @@ const PAGE_BG: React.CSSProperties = {
 const COACH_COLORS = ['#c9a84c', '#4a90c4', '#e05a4a', '#4caf72', '#a78bfa', '#e0a04a']
 type Openings = { coaches: { id: string; first_name: string }[]; preferred: string | null; days: Record<string, Record<string, string[]>> }
 
-interface Student { id: string; full_name: string; current_level: number; parent_id?: string }
+interface Student { id: string; full_name: string; current_level: number; parent_id?: string; gender?: string | null; avatar_look?: unknown }
 interface PartnerStudent { id: string; full_name: string; current_level: number; parent_id: string; isPartner: true; partnerParentId: string; partnershipId: string }
 interface CourseType { id: string; name: string; slug: string; duration_minutes: number; max_students: number; description: string }
 interface Coach { id: string; first_name: string; last_name: string }
@@ -736,7 +738,7 @@ export default function BookingPage() {
 
 
       const [{ data: studs }, { data: cts }, { data: coachs }] = await Promise.all([
-        supabase.from('students').select('id, full_name, current_level').eq('parent_id', parent.id).eq('is_active', true).order('sort_order'),
+        supabase.from('students').select('id, full_name, current_level, gender, avatar_look').eq('parent_id', parent.id).eq('is_active', true).order('sort_order'),
         supabase.from('course_types').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('coaches').select('id, first_name, last_name').eq('is_active', true),
       ])
@@ -2437,6 +2439,28 @@ export default function BookingPage() {
           </div>
         )}
 
+        {/* Where the family is in the booking (owner, 2026-11-01, version 2):
+            who, then which lesson, then when. Not for a move or a make-up,
+            which start with the lesson already chosen. */}
+        {!isReschedule && !makeUp && !siblingMode && (
+          <>
+          <style>{`.bk-steps { display: flex; gap: 8px; list-style: none; margin: 0 0 22px; padding: 0 }
+.bk-steps li { flex: 1; text-align: center; padding: 0 0 8px; border-bottom: 3px solid #d3deec; font-size: 13.5px; font-weight: 800; color: #8a97ad }
+.bk-steps li.done { color: #56647d; border-color: #9fb3d3 }
+.bk-steps li.on { color: #16294a; border-color: #f09800 }`}</style>
+          <ol className="bk-steps" aria-label={t('booking.steps.label')}>
+            {(['who', 'course', 'time'] as const).map((k, i) => {
+              const at = step === 0 ? 0 : step <= 2 ? 1 : 2
+              return (
+                <li key={k} className={i === at ? 'on' : i < at ? 'done' : undefined} aria-current={i === at ? 'step' : undefined}>
+                  {i + 1} {t('booking.steps.' + k)}
+                </li>
+              )
+            })}
+          </ol>
+          </>
+        )}
+
         {step > 0 && selectedStudent && (
           <div style={{ marginBottom: '28px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
@@ -2474,13 +2498,8 @@ export default function BookingPage() {
               {students.map(s => (
                 <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => { if (selectedStudent?.id !== s.id) setSelectedStudent2(null); setSelectedStudent(s); setStep(1) }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{
-                      width: '44px', height: '44px', borderRadius: '50%',
-                      background: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: FONT_DISPLAY, fontSize: '16px', fontWeight: 900, color: '#fff',
-                    }}>
-                      {s.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                    </div>
+                    {/* The child's own swimmer, as on the app's home (owner, 2026-11-01). */}
+                    <SwimmerFace look={lookOf(s)} size={48} />
                     <div>
                       <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a' }}>{s.full_name}</div>
                       <div style={{ fontSize: '13px', color: '#56647d' }}>

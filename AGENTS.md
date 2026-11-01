@@ -616,17 +616,29 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   on resize only (ResizeObserver), never during a swipe; `.sw-fit`'s
   flex-basis is those lines plus the smallest picture, so measuring cannot
   feed back, and on a phone too short even for that the middle scrolls
-  instead of cutting anything. On the card: name, level and 報到 are laid
-  over the picture (`renderOverlay` → deckOverlay), 換造型 top left; under
-  it only the progress bar and one row of small tiles (next lesson, 學習地圖,
-  上課紀錄, the monthly report, the assessment report; a new swimmer gets
-  "book the assessment"). Under the cards: 預約 / points / 我的方案 as one row
-  of three (`.msa-trio`); the plans open as a bottom sheet there. Notices
-  that used to be boxes are one line on this screen (safety info; partner
-  invitations, which now live on 課表 -- the line opens
+  instead of cutting anything.
+- **Each tab does one job, and every button sits where its reason is**
+  (owner, 2026-11-01, version 2 of five whole-app layouts). 首頁 = the
+  children: the card has name and level over the picture (`renderOverlay`
+  → deckOverlay), 換造型 top left, the spin hint top right, and one row of
+  tiles (學習地圖, 上課紀錄, the monthly report, the assessment report; a new
+  swimmer gets "book the assessment") -- no progress bar, stage name or
+  percentage (the learning map says that). Under the cards one line, the
+  family's next lesson (`.msa-nextline`): plain on other days, amber with
+  **報到** on the day of the lesson -- check-in belongs to a lesson, not to a
+  child, so the card has no 報到 any more (the button shows the swimmer's QR,
+  or the one-tap "I'm here" once a pool is set up). No booking button on
+  首頁 (預約 is a tab). 課表: a lesson whose check-in is open shows a 報到
+  button instead of the "check-in open" label. 我的 holds all the money:
+  points (tap: statement; 儲值) and 我的方案, each plan a row that goes where
+  it is used (fixed class → its page, vouchers → /booking?voucher=, swim
+  team → /dashboard?team=). 預約: a 幫誰 / 課程 / 時間 step bar and each child's
+  own swimmer face (components/swimmer/SwimmerFace.tsx, from the same look).
+  Notices that used to be boxes are one line on 首頁 (safety info; partner
+  invitations, which live on 課表 -- the line opens
   /dashboard/schedule#invites). The website keeps studentCard, the booking
-  bar and the folded plans line. Do not add anything to this screen that
-  makes it taller; shrink the picture or make it a line.
+  bar and the folded plans line. Do not add anything to 首頁 that makes it
+  taller; shrink the picture or make it a line.
 - The camera: FOV 30 looking at y 1.0, widening on a tall picture only far
   enough to keep 86% of the pool's width (engine.ts size()), so the swimmer
   stands between the top buttons and the name.
