@@ -346,6 +346,13 @@ html.msa-app .rn { top: var(--app-bar-h) !important; left: 0 !important; right: 
    floating tabs once a page is scrolled to its end. */
 html.msa-app, html.msa-app body { background: #e9eff7; }
 html.msa-app body { padding-bottom: var(--app-tab-h); }
+/* A page is exactly the screen between the top bar and the tabs until its
+   content needs more; only then does it scroll (owner, 2026-11-01). Page
+   roots that used to be "at least 100vh" (.ac-root, .msa-fill) were that
+   tall plus the tabs' room, so even a short page moved. No rubber-band
+   either: a page that fits does not move under the finger. */
+html.msa-app, html.msa-app body { overscroll-behavior-y: none; }
+html.msa-app .ac-root, html.msa-app .msa-fill { min-height: calc(100dvh - var(--app-tab-h)) !important; }
 /* The dashboard is two tabs: 首頁 without the lesson list, 課表 with only it. */
 html.msa-app [data-view="home"] .msa-sched,
 html.msa-app [data-view="schedule"] .msa-home { display: none !important; }

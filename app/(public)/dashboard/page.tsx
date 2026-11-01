@@ -3216,7 +3216,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     // dvh: iOS 100vh includes the area behind Safari's bars (found 2026-10-15).
-    <div style={{ minHeight: '100dvh', background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="msa-fill" style={{ minHeight: '100dvh', background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <style>{`@keyframes msaPulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .55; transform: scale(.94) } }`}</style>
         <img src="/logo.png" alt="Manta Shark Aquatics" width={72} height={72}
@@ -3384,7 +3384,7 @@ export default function DashboardPage() {
 
   return (
     <PoolsCtx.Provider value={pools}>
-    <div className={'msa-root' + (viewer ? ' msa-viewer' : '')} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
+    <div className={'msa-root msa-fill' + (viewer ? ' msa-viewer' : '')} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
       {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
 

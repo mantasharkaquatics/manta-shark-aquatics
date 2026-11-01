@@ -2237,7 +2237,7 @@ export default function BookingPage() {
   if (loading) return (
     // dvh, less the nav spacer above it: 100vh is taller than what Safari
     // shows, so the centre sat well below the middle (found 2026-10-15).
-    <div style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="msa-fill" style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <MascotLoading text={t('booking.loading')} />
       </div>
@@ -2245,7 +2245,7 @@ export default function BookingPage() {
   )
 
   if (success) return (
-    <div style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '24px' }}>
+    <div className="msa-fill" style={{ minHeight: 'calc(100dvh - var(--nav-space, 0px))', ...PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '24px' }}>
       <div style={{
         background: '#fff', borderRadius: '20px', padding: '48px', boxShadow: '0 16px 40px rgba(18,37,74,0.12)',
         textAlign: 'center', maxWidth: '480px', width: '100%',
@@ -2367,7 +2367,7 @@ export default function BookingPage() {
   )
 
   return (
-    <div style={{ fontFamily: FONT_BODY, ...PAGE_BG, minHeight: '100vh', color: '#16294a' }}>
+    <div className="msa-fill" style={{ fontFamily: FONT_BODY, ...PAGE_BG, minHeight: '100vh', color: '#16294a' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) 0' }}>
         {/* The page's own heading and the way back, where 我的帳戶 and 共同預約
             put theirs -- the dark strip that used to hold them read as a second
