@@ -3587,8 +3587,10 @@ export default function BookingPage() {
             })()}
 
                 {/* The basket. Without it, picking a second weekday looks like
-                    it replaced the first, and the family books twice. */}
-                {fixedFlow && recurSel.size > 0 && !recurOpen && (
+                    it replaced the first, and the family books twice. Only
+                    from the second lesson on (owner, 2026-11-01): with one,
+                    the bar at the foot already says "1 lesson · 65 points". */}
+                {fixedFlow && recurSel.size > 1 && !recurOpen && (
                   <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                       {/* The sticky bar carries the total; this line carries
