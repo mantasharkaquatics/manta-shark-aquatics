@@ -1180,6 +1180,33 @@ export default function BookingPage() {
   }, [step, courseStepReady, selectedCourse, isTrial, advanceTick])
   useEffect(() => { if (step !== 1) advanceRef.current = false }, [step])
 
+  /* The page follows the family down (owner, 2026-11-01): once the lesson
+     is chosen, to the picked swimmer and lesson with the calendar under them;
+     once a day is tapped, to that day's times. In the app the top bar slides
+     away as the page scrolls, so the target sits just under the screen's
+     top; on the website, under the site bar. */
+  const doneRef = useRef<HTMLDivElement>(null)
+  const timesRef = useRef<HTMLDivElement>(null)
+  const scrollTo = (el: HTMLElement | null) => {
+    if (!el) return
+    const inApp = document.documentElement.classList.contains('msa-app')
+    const top = el.getBoundingClientRect().top + window.scrollY - (inApp ? 8 : 92)
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }
+  const lastStep = useRef(step)
+  useEffect(() => {
+    const was = lastStep.current
+    lastStep.current = step
+    if (was === 1 && step === 3) { const id = requestAnimationFrame(() => scrollTo(doneRef.current)); return () => cancelAnimationFrame(id) }
+  }, [step])
+  const toTimes = useRef(false)
+  useEffect(() => {
+    if (!toTimes.current || !selectedDate) return
+    toTimes.current = false
+    const id = requestAnimationFrame(() => scrollTo(timesRef.current))
+    return () => cancelAnimationFrame(id)
+  }, [selectedDate])
+
   // The clock for the lead-time filters (bookableNow): while times are on
   // screen the page re-renders every 30 seconds, so a time that has come
   // inside 30 minutes drops out of every grid. A single time already picked
@@ -1418,7 +1445,7 @@ export default function BookingPage() {
     if (ids.length === 0) return null
     const lead = first && ids.includes(first) ? first : [...ids].sort((a, b) => coachRank(a) - coachRank(b))[0]
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '6px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '3px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
         <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: coachColor(lead), flexShrink: 0 }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {coachName(lead)}{ids.length > 1 ? ` · +${ids.length - 1}` : ''}
@@ -1882,8 +1909,13 @@ export default function BookingPage() {
   /** The gold "58 pts" with the struck-out list price beside it. Without the
    *  original the discount may as well not have happened, so it is shown
    *  wherever a discounted price is. */
-  const PriceTag = ({ price, dim = false }: { price: PriceBreakdown; dim?: boolean }) => {
+  /* A time's own price only when it differs from the lesson's usual one
+     (the course card already says "65 點") in the two time grids (onlyOff):
+     repeating it under every time made each cell three lines (owner,
+     2026-11-01: too tall). The group-class rows keep theirs. */
+  const PriceTag = ({ price, dim = false, onlyOff = false }: { price: PriceBreakdown; dim?: boolean; onlyOff?: boolean }) => {
     const full = price.base * price.seats
+    if (onlyOff && price.charged === full) return null
     return (
       <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: dim ? '#9aa6ba' : GOLD }}>
         {price.charged < full && (
@@ -2462,7 +2494,7 @@ export default function BookingPage() {
         )}
 
         {step > 0 && selectedStudent && (
-          <div style={{ marginBottom: '28px' }}>
+          <div ref={doneRef} style={{ marginBottom: '28px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
               value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && pair2 ? ` ＋ ${pair2.full_name}` : '')}
               onChange={isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent} />
@@ -2828,6 +2860,7 @@ export default function BookingPage() {
                       onClick={() => {
                         // Re-clicking the day already open would clear its times and never refetch them.
                         if (!available || (selectedDate && selectedDate.getTime() === date.getTime())) return
+                        toTimes.current = true
                         setSelectedDate(date); setSelectedSlot(null); setTimeSlots([]); setSlotsLoading(true)
                       }}
                       style={{
@@ -2862,7 +2895,7 @@ export default function BookingPage() {
                 the next month used to leave last month's day and its times
                 underneath, reading as if they belonged to the new month. */}
             {!groupFlow && selectedDate && (voucherRange || (selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth)) && (
-              <div>
+              <div ref={timesRef}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
                     {t('booking.availableTimes', { date: selectedDate.toLocaleDateString(dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
@@ -3143,7 +3176,7 @@ export default function BookingPage() {
                       {batchFlow && (
                         <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                       )}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
                         {times.map(tm => {
                           const ids = day[tm]
                           const hit0 = basketAt(ds0, tm)
@@ -3165,14 +3198,14 @@ export default function BookingPage() {
                                 choosePrivate(ds0, { time: tm, label: formatTime(tm), available: true, enrolled: 0, max: selectedCourse?.max_students ?? 1, within24h: w24 }, c)
                               }}
                               style={{
-                                padding: '12px 8px', borderRadius: '10px', textAlign: 'center',
+                                padding: '8px 4px', borderRadius: '10px', textAlign: 'center', minWidth: 0,
                                 border: `2px ${batchFlow && !affordable0 ? 'dashed' : 'solid'} ${on ? GOLD : affordable0 ? '#e3ebf6' : '#e3ebf6'}`,
                                 background: on ? `${GOLD}20` : affordable0 ? '#fff' : '#f6f9fd',
                                 color: on ? GOLD : affordable0 ? '#16294a' : '#9aa6ba',
-                                fontSize: '14px', fontWeight: 600, cursor: affordable0 ? 'pointer' : 'not-allowed',
+                                fontSize: '15px', fontWeight: 700, cursor: affordable0 ? 'pointer' : 'not-allowed', fontVariantNumeric: 'tabular-nums',
                               }}>
                               {inBasket ? '✓ ' : ''}{formatTime(tm)}
-                              {pr && <PriceTag price={pr} dim={!affordable0} />}
+                              {pr && <PriceTag price={pr} dim={!affordable0} onlyOff />}
                               {pr?.offPeak && (
                                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: '#56647d', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                               )}
@@ -3224,7 +3257,7 @@ export default function BookingPage() {
                   {batchFlow && (
                     <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
                     {(lessonLength === 60 ? [] : shownTimeSlots).map(slot => {
                       const ds0 = selectedDate ? localDs(selectedDate) : ''
                       // This grid is ONE coach's times: only that coach's lesson
@@ -3263,12 +3296,12 @@ export default function BookingPage() {
                         disabled={!usable0}
                         style={{
                           width: '100%', boxSizing: 'border-box',
-                          padding: '12px 8px', borderRadius: '10px',
+                          padding: '10px 4px', borderRadius: '10px',
                           border: `2px ${batchFlow && !affordable0 && !inBasket && slot.available ? 'dashed' : 'solid'} ${on ? GOLD : usable0 ? (slot.fill ? slot.fill + '55' : '#e3ebf6') : '#e3ebf6'}`,
                           background: on ? `${GOLD}20` : usable0 ? (slot.fill ? slot.fill + '22' : '#fff') : '#f6f9fd',
                           color: on ? GOLD : usable0 ? '#16294a' : '#9aa6ba',
-                          fontSize: '14px', fontWeight: 600, cursor: usable0 ? 'pointer' : 'not-allowed',
-                          textAlign: 'center',
+                          fontSize: '15px', fontWeight: 700, cursor: usable0 ? 'pointer' : 'not-allowed',
+                          textAlign: 'center', fontVariantNumeric: 'tabular-nums',
                         }}
                       >
                         {inBasket ? '✓ ' : ''}{slot.label}
@@ -3278,7 +3311,7 @@ export default function BookingPage() {
                           if (!pr) return null
                           return (
                             <>
-                              <PriceTag price={pr} dim={!slot.available} />
+                              <PriceTag price={pr} dim={!slot.available} onlyOff />
                               {pr.offPeak && (
                                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: slot.available ? '#56647d' : '#9aa6ba', marginTop: '3px' }}>{t('booking.offPeak')}</div>
                               )}
