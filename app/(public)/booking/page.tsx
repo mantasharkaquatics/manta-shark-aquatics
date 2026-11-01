@@ -1199,6 +1199,15 @@ export default function BookingPage() {
     lastStep.current = step
     if (was === 1 && step === 3) { const id = requestAnimationFrame(() => scrollTo(doneRef.current)); return () => cancelAnimationFrame(id) }
   }, [step])
+  // A time tapped: on to the end of the page -- the coach, the lessons
+  // chosen and 繼續 (owner, 2026-11-01).
+  const toEnd = useRef(false)
+  useEffect(() => {
+    if (!toEnd.current || !selectedSlot) return
+    toEnd.current = false
+    const id = requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }))
+    return () => cancelAnimationFrame(id)
+  }, [selectedSlot, selectedCoach])
   const toTimes = useRef(false)
   useEffect(() => {
     if (!toTimes.current || !selectedDate) return
@@ -1491,6 +1500,7 @@ export default function BookingPage() {
   /** Choose (or, in a batch, toggle) one private lesson with one coach. The
    *  coach grid, the any-coach grid and the "next openings" chips all end here. */
   function choosePrivate(ds: string, slot: TimeSlot, coach: Coach) {
+    toEnd.current = true
     setSelectedCoach(coach)
     setSelectedSlot(slot)
     if (!batchFlow) return
