@@ -351,8 +351,12 @@ html.msa-app [data-view="home"] .msa-sched,
 html.msa-app [data-view="schedule"] .msa-home { display: none !important; }
 /* The booking page's bar along the bottom sits on the tabs, not under them. */
 html.msa-app .msa-book-bar { bottom: var(--app-tab-now) !important; transition: bottom .22s ease; }
-/* The tabs shrink while the page is scrolled down (components/AppShell). */
-html.msa-app.msa-tabs-small { --app-tab-now: calc(60px + var(--app-tab-gap)); }
+/* The tabs shrink while the page is scrolled down (components/AppShell),
+   and the top bar slides away: what stuck under the bar (the pool-closed
+   banner, sticky headers using --nav-cover) moves up into its place. */
+html.msa-app.msa-tabs-small { --app-tab-now: calc(60px + var(--app-tab-gap)); --nav-cover: var(--closure-h, 0px) !important; }
+html.msa-app .rn { transition: top .25s ease; }
+html.msa-app.msa-tabs-small .rn { top: 0 !important; }
 /* The booking bar sits on the tabs inside the app, so the home indicator is
    not under it: no room for it. */
 html.msa-app .msa-book-bar { padding-bottom: 12px !important; }

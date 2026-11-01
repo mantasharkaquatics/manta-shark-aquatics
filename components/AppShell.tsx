@@ -52,7 +52,11 @@ const ICONS = {
 const css = `
   /* The top bar: the website's floating white card (Navbar .rn-bar, phone size). */
   .msa-ab { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 60; height: 56px; display: flex; align-items: center; gap: 4px;
-    padding: 0 8px 0 16px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16); font-family: ${FONT_BODY}; }
+    padding: 0 8px 0 16px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16); font-family: ${FONT_BODY};
+    transition: transform .25s ease, box-shadow .25s ease; }
+  /* Scrolling down hides it; any scroll up brings it back (owner, 2026-11-01),
+     on the same signal that shrinks the tabs. */
+  html.msa-tabs-small .msa-ab { transform: translateY(calc(-100% - 16px)); box-shadow: none; }
   .msa-ab.sub { padding-left: 4px; }
   .msa-ab-word { flex: 1; min-width: 0; display: inline-flex; align-items: center; font-weight: 800; font-size: 13.5px; letter-spacing: .26em;
     color: ${BRAND.navy}; text-decoration: none; white-space: nowrap; padding: 8px 0; }
@@ -86,7 +90,7 @@ const css = `
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
   html.msa-tabs-small .msa-tb .ic { transform: scale(.9); }
-  @media (prefers-reduced-motion: reduce) { .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .msa-ab, .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
   .msa-tb a { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     border-radius: 26px; padding: 0; font-size: 10.5px; font-weight: 800; color: #7a869b; text-decoration: none;
     cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
@@ -169,7 +173,8 @@ export default function AppShell() {
     return () => { live = false; clearInterval(id); document.removeEventListener('visibilitychange', ask) }
   }, [app, signedIn, pathname])
 
-  /* Down a little: small. Up a little, or back near the top: full size.
+  /* Down a little: the tabs small and the top bar gone. Up a little, or back
+     near the top: both back.
      A few pixels either way are ignored, so a resting thumb does not make
      the bar flicker. Left on <html> (msa-tabs-small) so the booking page's
      bottom bar follows it (app/globals.css). */
@@ -186,7 +191,7 @@ export default function AppShell() {
         const y = window.scrollY
         const dy = y - last
         if (y < 40) root.classList.remove('msa-tabs-small')
-        else if (dy > 8) root.classList.add('msa-tabs-small')
+        else if (dy > 8) { root.classList.add('msa-tabs-small'); setLangOpen(false) }
         else if (dy < -8) root.classList.remove('msa-tabs-small')
         if (Math.abs(dy) > 8 || y < 40) last = y
       })
