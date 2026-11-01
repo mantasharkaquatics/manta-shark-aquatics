@@ -355,7 +355,7 @@ html.msa-app .msa-book-bar { bottom: var(--app-tab-now) !important; transition: 
    and the top bar slides away: what stuck under the bar (the pool-closed
    banner, sticky headers using --nav-cover) moves up into its place. */
 html.msa-app.msa-tabs-small { --app-tab-now: calc(60px + var(--app-tab-gap)); --nav-cover: var(--closure-h, 0px) !important; }
-html.msa-app .rn { transition: top .25s ease; }
+html.msa-app .rn { transition: top .55s cubic-bezier(.25,.8,.25,1); }
 html.msa-app.msa-tabs-small .rn { top: 0 !important; }
 /* The booking bar sits on the tabs inside the app, so the home indicator is
    not under it: no room for it. */

@@ -53,10 +53,11 @@ const css = `
   /* The top bar: the website's floating white card (Navbar .rn-bar, phone size). */
   .msa-ab { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 60; height: 56px; display: flex; align-items: center; gap: 4px;
     padding: 0 8px 0 16px; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(10,22,48,.16); font-family: ${FONT_BODY};
-    transition: transform .25s ease, box-shadow .25s ease; }
+    transition: transform .55s cubic-bezier(.25,.8,.25,1), opacity .45s ease, box-shadow .45s ease; will-change: transform; }
   /* Scrolling down hides it; any scroll up brings it back (owner, 2026-11-01),
-     on the same signal that shrinks the tabs. */
-  html.msa-tabs-small .msa-ab { transform: translateY(calc(-100% - 16px)); box-shadow: none; }
+     on the same signal that shrinks the tabs. Slow and eased, fading as it
+     goes, both ways (owner: "it went too fast -- smooth out and smooth in"). */
+  html.msa-tabs-small .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
   .msa-ab.sub { padding-left: 4px; }
   .msa-ab-word { flex: 1; min-width: 0; display: inline-flex; align-items: center; font-weight: 800; font-size: 13.5px; letter-spacing: .26em;
     color: ${BRAND.navy}; text-decoration: none; white-space: nowrap; padding: 8px 0; }
