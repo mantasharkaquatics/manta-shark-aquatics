@@ -1487,7 +1487,7 @@ export default function BookingPage() {
     if (ids.length === 0) return null
     const lead = first && ids.includes(first) ? first : [...ids].sort((a, b) => coachRank(a) - coachRank(b))[0]
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: side ? 'flex-end' : 'center', gap: side ? '3px' : '4px', marginTop: side ? 0 : '3px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: side ? 'flex-start' : 'center', gap: side ? '3px' : '4px', marginTop: side ? 0 : '3px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
         <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: coachColor(lead), flexShrink: 0 }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {coachName(lead)}{ids.length > 1 ? `${side ? ' ' : ' · '}+${ids.length - 1}` : ''}
@@ -1822,6 +1822,12 @@ export default function BookingPage() {
     const id = requestAnimationFrame(() => scrollTo(fixedTimesRef.current))
     return () => cancelAnimationFrame(id)
   }, [fixedDow])
+  /** 9:10 -> "09:10", 14:00 -> "02:00": a 12-hour clock with two-digit
+   *  hours and no AM/PM, for a list already headed 上午 / 下午. */
+  const hh12 = (tm: string) => {
+    const [h, m] = tm.slice(0, 5).split(':').map(Number)
+    return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
   /** The every-week path (BK15): which weekday, then which time on it. The
    *  fixed-class panel below takes it from there (start, which dates, total). */
   function renderFixedPicker() {
@@ -1913,13 +1919,17 @@ export default function BookingPage() {
                     <button key={ft.key} type="button" disabled={recurBusy}
                       onClick={() => { if (on && recurOpen) return; pickFixedTime(ft.ds, String(ft.time), on && selectedCoach ? selectedCoach.id : lead, ft.slot) }}
                       // One line: the time on the left, who teaches it on the
-                      // right (owner, 2026-11-02).
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px',
-                        minHeight: '48px', padding: '8px 8px', borderRadius: '10px', textAlign: 'left', minWidth: 0, cursor: 'pointer',
+                      // right, each in its own straight column, clear of the
+                      // edge (owner, 2026-11-02). No AM/PM -- the column says
+                      // 上午 or 下午 -- and two-digit hours, so 02:00 lines up
+                      // under 12:05.
+                      aria-label={`${formatTime(String(ft.time))} ${coachName(on && selectedCoach ? selectedCoach.id : lead)}`}
+                      style={{ display: 'grid', gridTemplateColumns: '3em minmax(0, 1fr)', columnGap: '10px', alignItems: 'center',
+                        minHeight: '48px', padding: '8px 14px', borderRadius: '10px', textAlign: 'left', minWidth: 0, cursor: 'pointer',
                         border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a',
-                        fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                      <span style={{ flexShrink: 0 }}>
-                        <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{formatTime(String(ft.time))}</span>
+                        fontSize: '16px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      <span>
+                        <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{hh12(String(ft.time))}</span>
                         {pr && <PriceTag price={pr} onlyOff />}
                         {ft.ds !== mainStart && <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</span>}
                       </span>

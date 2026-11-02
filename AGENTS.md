@@ -698,7 +698,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   in the right (owner, 2026-11-02: he tried stacked 上午 / 下午 sections and
   went back to the columns, though the afternoon one runs longer). Each
   time is one line: the time on the left, who teaches it on the right
-  ("Mitch +2").
+  ("Mitch +2"), each in its own straight column, 14px from the edge. No
+  AM/PM in the cells (the column says 上午 / 下午) and two-digit hours,
+  02:00 not 2:00, so they line up (owner, 2026-11-02).
   The start date is said once under the heading (the date most times start
   on); only a time that starts on another date shows its own (owner,
   2026-11-02: on every cell it repeated).
