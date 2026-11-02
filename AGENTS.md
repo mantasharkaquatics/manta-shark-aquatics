@@ -723,7 +723,10 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   (/dashboard/fixed-class; tested on the preview 2026-11-02); the class line adds "(其中 N 堂其他教練)". Nothing is moved
   by itself. The server takes a fixed group whose weeks share weekday and
   time; its coach (fixed_classes.coach_id, and what a renewal must keep) is
-  the one most of its weeks are with.
+  the one most of its weeks are with. The class starts on the first week
+  its coach is free (weeks before that are not offered to others), and a
+  week moved adds a lesson -- the count and the points go up, nothing is
+  dropped from the end (owner, 2026-11-02).
 - **Keep the words short** (owner, 2026-11-02: "shorten whatever can be
   shortened, so the screen is not so long"): the panel's totals are one line,
   the hints are a few words, the coach hint is gone on these two paths, and
