@@ -457,6 +457,8 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   it a class and a `bottom: var(--app-tab-h)` rule there, as `.msa-book-bar`.
 - 我的 links into the dashboard's sheets with ?points=1, ?points=refer and
   ?suggest=1. Notification switches live on 我的 (they only exist in the app).
+  No language section on 我的: the top bar's language button is the one
+  place to switch (owner, 2026-11-02).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone

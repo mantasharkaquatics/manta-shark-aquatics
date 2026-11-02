@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useLocale, useSetLocale, useT, rememberExplicitLocale, clearExplicitLocale } from '@/lib/i18n/provider'
-import { LOCALES, tDb, type Locale } from '@/lib/i18n'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { tDb } from '@/lib/i18n'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import PushSettings from '@/components/PushSettings'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
@@ -15,7 +15,8 @@ import { BRAND } from '@/lib/brand'
    that is not a lesson -- the account, points and receipts, notifications,
    booking with another family, referring a friend, the suggestion box -- and
    the school's own pages (programs, prices, policies), which the app has no
-   website bar for. Language and signing out are here too. In a browser the
+   website bar for. Signing out is here too; the language is the top bar's
+   button, not a section here (owner, 2026-11-02). In a browser the
    page works as well; nothing links to it there.
    Owner, 2026-11-01 (version 2): the family's money is all here -- the points
    at the top (tap: the statement; 儲值: top up) and 我的方案 under them, each
@@ -38,13 +39,9 @@ const css = `
 .me-list .ico { width: 24px; text-align: center; flex-shrink: 0; }
 .me-list .go { margin-left: auto; color: #b4bfd0; }
 .me-cap { font-size: 12.5px; font-weight: 800; letter-spacing: .08em; color: ${BRAND.mute}; margin: 8px 4px -4px; }
-.me-lang { display: flex; gap: 8px; }
-.me-lang button { flex: 1; padding: 11px 0; border-radius: 10px; border: 1px solid ${BRAND.line}; background: #fff; font: inherit; font-weight: 800;
-  font-size: 15px; color: ${BRAND.ink}; cursor: pointer; }
-.me-lang button[aria-pressed="true"] { background: ${BRAND.navy}; border-color: ${BRAND.navy}; color: #fff; }
 .me-out { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid ${BRAND.line}; background: #fff; font: inherit; font-weight: 800;
   font-size: 15.5px; color: #c0392b; cursor: pointer; }
-.me-lang button:focus-visible, .me-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
+.me-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
 .me-wal { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 18px; border-radius: 18px; color: #fff;
   background: linear-gradient(135deg, ${BRAND.navy}, #1d3f7a); }
 .me-wal-main { flex: 1; min-width: 0; color: #fff; text-decoration: none; }
@@ -79,11 +76,9 @@ const time12 = (t: string) => { const [h, m] = t.split(':').map(Number); return 
 export default function MePage() {
   const t = useT()
   const locale = useLocale()
-  const setLocale = useSetLocale()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const [me, setMe] = useState<{ name: string; email: string } | null>(null)
-  const [parentId, setParentId] = useState<string | null>(null)
   const [role, setRole] = useState<'main' | 'full' | 'viewer' | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [plans, setPlans] = useState<{ fixed: Fixed[]; vouchers: Voucher[]; team: Team[]; at: number } | null>(null)
@@ -100,7 +95,7 @@ export default function MePage() {
         name = [data?.first_name, data?.last_name].filter(Boolean).join(' ')
       }
       if (!live) return
-      setParentId(pid); setRole(r)
+      setRole(r)
       setMe({ name, email: user.email || '' })
       const get = (u: string) => fetch(u, { cache: 'no-store' }).then(x => (x.ok ? x.json() : null)).catch(() => null)
       const [w, f, v, tm] = await Promise.all([r === 'viewer' ? null : get('/api/parent/wallet'), get('/api/parent/fixed-classes'),
@@ -129,17 +124,6 @@ export default function MePage() {
     { href: '/about', ico: '🦈', label: t('page.about') },
     { href: '/policies', ico: '📄', label: t('page.policies') },
   ]
-
-  // As the site bar's language menu does (components/Navbar.tsx): the main
-  // account's saved language follows; anyone else's choice is kept on this
-  // phone, since only the main account may change the account.
-  async function changeLocale(next: Locale) {
-    setLocale(next)
-    if (role !== 'main' || !parentId) { rememberExplicitLocale(next); return }
-    clearExplicitLocale()
-    const { error } = await supabase.from('parents').update({ preferred_language: next }).eq('id', parentId)
-    if (error) console.warn('[i18n] failed to save preferred_language', error.message)
-  }
 
   async function signOut() {
     // This phone only, as the site bar does.
@@ -239,15 +223,6 @@ export default function MePage() {
 
           <p className="me-cap">{t('app.me.school')}</p>
           {list(school)}
-
-          <p className="me-cap">{t('nav.language')}</p>
-          <div className="me-lang" role="group" aria-label={t('nav.language')}>
-            {LOCALES.map(l => (
-              <button key={l} type="button" aria-pressed={l === locale} onClick={() => changeLocale(l)}>
-                {t('locale.' + l + '.native')}
-              </button>
-            ))}
-          </div>
 
           <button type="button" className="me-out" onClick={signOut}>{t('nav.signOut')}</button>
         </div>
