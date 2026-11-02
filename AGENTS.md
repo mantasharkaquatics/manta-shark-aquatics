@@ -694,7 +694,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
 - **Every week**: weekday chips, then that weekday's times (each with the
   first date it is open), then the existing fixed-class panel (dates, total,
   就選這 N 堂). The month calendar is not shown on this path. 30/60 minutes
-  for 1-on-1 and sibling 1-on-2.
+  for 1-on-1 and sibling 1-on-2. The times sit under 上午 and 下午 headings,
+  three across (owner, 2026-11-02; he first asked for morning left and
+  afternoon right, then chose this over two columns of unequal length).
 - **One at a time**: the old calendar, but a date past the 14-day window is
   drawn closed and a tap opens a sheet saying when it opens, with
   改選每週固定上課. It no longer silently turns into a fixed class.

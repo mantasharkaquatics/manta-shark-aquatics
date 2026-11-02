@@ -2553,5 +2553,8 @@
   "booking.lock.body": "Single lessons open {n} days ahead, so {date} opens on {opens}. To hold this time now, book it as a weekly class.",
   "booking.lock.toFixed": "Switch to every week",
   "booking.lock.ok": "Got it",
-  "booking.lock.legend": "Single lessons can be booked up to {n} days ahead. Tap a later day to see when it opens."
+  "booking.lock.legend": "Single lessons can be booked up to {n} days ahead. Tap a later day to see when it opens.",
+  "booking.fixed.am": "Morning",
+  "booking.fixed.pm": "Afternoon",
+  "booking.fixed.count": "{n} open"
 }

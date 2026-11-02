@@ -2553,5 +2553,8 @@
   "booking.lock.body": "单次上课开放预约 {n} 天内的课，{date} 会在 {opens} 开放。想现在就把时间排好，可以改选每周固定上课。",
   "booking.lock.toFixed": "改选每周固定上课",
   "booking.lock.ok": "知道了",
-  "booking.lock.legend": "单次上课只能预约 {n} 天内的课；点后面的日子，会告诉您什么时候开放。"
+  "booking.lock.legend": "单次上课只能预约 {n} 天内的课；点后面的日子，会告诉您什么时候开放。",
+  "booking.fixed.am": "上午",
+  "booking.fixed.pm": "下午",
+  "booking.fixed.count": "{n} 个时段"
 }

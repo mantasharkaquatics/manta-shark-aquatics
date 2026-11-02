@@ -2553,5 +2553,8 @@
   "booking.lock.body": "單次上課開放預約 {n} 天內的課，{date} 會在 {opens} 開放。想現在就把時間排好，可以改選每週固定上課。",
   "booking.lock.toFixed": "改選每週固定上課",
   "booking.lock.ok": "知道了",
-  "booking.lock.legend": "單次上課只能預約 {n} 天內的課；點後面的日子，會告訴您什麼時候開放。"
+  "booking.lock.legend": "單次上課只能預約 {n} 天內的課；點後面的日子，會告訴您什麼時候開放。",
+  "booking.fixed.am": "上午",
+  "booking.fixed.pm": "下午",
+  "booking.fixed.count": "{n} 個時段"
 }
