@@ -507,16 +507,16 @@ at best, the iPhone as its settings say.
   on the site's own address, so the web view keeps it, cannot open it and
   shows offline.html, the "no internet" page (found 2026-11-02). Android
   and iPhone builds made before the plugin offer Google only.
-- **Google on a phone mails the link** (owner, 2026-11-02): Google
-  Calendar's phone app cannot subscribe to a link -- the ?cid= page sent
-  the owner to a Google sales page -- so on a phone (the app or a phone
-  browser) Google 日曆 opens a sheet: 寄連結到我的信箱 (POST
-  /api/parent/calendar-feed) and 複製連結. It mails only the person signed
-  in, at their own login address (owner, 2026-11-02: some family members
-  do not want the lessons in their calendar -- a version that let one
-  parent tick the others was built and dropped the same day); a second
-  guardian or a grandparent signs in and presses it themselves. Added
-  once on a computer, the phone's Google Calendar shows it too.
+- **Google 日曆 is on a computer only** (owner, 2026-11-02). Google
+  Calendar's phone app cannot subscribe to a link (the ?cid= page sent the
+  owner to a Google sales page). Mailing the link to open on a computer was
+  built and dropped the same day as too fiddly, and so was letting one
+  parent mail it to the others. Planned instead: "sign in with Google"
+  (OAuth, Google Calendar API) -- the family signs in with whichever Google
+  account the phone uses, allows it, and the server writes the lessons into
+  that account; it needs Google's review first. Until then a phone shows
+  iPhone 行事曆 only, and a phone with no button it can use (Android, an
+  iPhone app built before CalendarAdd) shows no card.
 - **To stop**, the family deletes the "Manta Shark 課程" calendar in its
   calendar app (iPhone: Calendars › ⓘ › Delete Calendar; Google on a
   computer: the calendar's settings › Unsubscribe); every lesson in it goes
