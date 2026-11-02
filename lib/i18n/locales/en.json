@@ -2561,5 +2561,6 @@
   "booking.recur.pickedFrom": "{n} lessons, starting {date}",
   "booking.recur.pickedNone": "No dates chosen yet",
   "booking.recur.offShort": "off",
-  "booking.recur.later": "Later dates ›"
+  "booking.recur.later": "Later dates ›",
+  "booking.fixed.oneOnly": "One weekly class at a time: choosing another day or time replaces this one."
 }

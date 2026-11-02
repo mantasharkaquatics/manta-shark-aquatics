@@ -703,6 +703,10 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   The start date is said once under the heading (the date most times start
   on); only a time that starts on another date shows its own (owner,
   2026-11-02: on every cell it repeated).
+- **Every week is one fixed class at a time** (owner, 2026-11-02: two at
+  once "seems to break"): one weekday, one time. Accepting a new one
+  replaces the basket; the wallet arithmetic and the pre-ticks ignore what
+  was chosen before; the 已選的課程 box says a new choice replaces it.
 - **The dates of a fixed class are a calendar, one row a month** (owner,
   2026-11-02, version A of three): the day of the month only, no points in
   the cells (the total is below), every date read so far on screen with no

@@ -1614,14 +1614,17 @@ export default function BookingPage() {
         // What the parent already chose at this slot is ticked first, so the
         // fill can never crowd it out.
         // (Keys now end in the coach, so "this time" is matched on v.time.)
-        let run = [...recurSel.values()]
+        // Every week, one fixed class at a time (owner, 2026-11-02): this
+        // one will replace the basket, so nothing in it counts here.
+        const keepBasket = !fixedPath
+        let run = keepBasket ? [...recurSel.values()]
           .filter(v => v.time !== time)
-          .reduce((a, v) => a + v.points, 0)
+          .reduce((a, v) => a + v.points, 0) : 0
         for (const c of cands) {
           // Proposal keys carry this panel's coach; a basket lesson at this
           // date and time with any coach counts as already chosen, as before.
           const key = slotKey(c.date, time, coachId)
-          if (c.status === 'ok' && [...recurSel.values()].some(v => v.date === c.date && v.time === time)) {
+          if (keepBasket && c.status === 'ok' && [...recurSel.values()].some(v => v.date === c.date && v.time === time)) {
             pre.add(key); run += quote.get(c.date) ?? 0
           }
         }
@@ -2140,7 +2143,9 @@ export default function BookingPage() {
   // the panel replaces whatever the basket holds at those dates and times.
   const slotKeys = new Set(recurCandidates.map((c: any) => `${c.date}|${selectedSlot?.time ?? ''}`))
   // planMinutes, not 30 (found 2026-10-05) -- see basketTotal.
-  const otherTotal = dueOf(basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)), planMinutes)
+  // Every week, the panel's class replaces the basket (one fixed class at a
+  // time, owner 2026-11-02), so nothing else is counted against the wallet.
+  const otherTotal = fixedPath ? 0 : dueOf(basket.filter(x => !slotKeys.has(`${x.date}|${x.time}`)), planMinutes)
   const chosen = (() => {
     const out = new Map<string, number>()
     if (!selectedSlot) return out
@@ -4127,7 +4132,7 @@ export default function BookingPage() {
                     it replaced the first, and the family books twice. Only
                     from the second lesson on (owner, 2026-11-01): with one,
                     the bar at the foot already says "1 lesson · 65 points". */}
-                {fixedFlow && recurSel.size > 1 && !recurOpen && (
+                {fixedFlow && (fixedPath ? recurSel.size > 0 : recurSel.size > 1) && !recurOpen && (
                   <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                       {/* The sticky bar carries the total; this line carries
@@ -4169,7 +4174,7 @@ export default function BookingPage() {
                       {/* A voucher books one lesson and takes no points: the
                           ordinary basket line ("add more, charged at once,
                           balance after") was wrong for it. */}
-                      {makeUp ? t('booking.makeUp.basketHint') : t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
+                      {makeUp ? t('booking.makeUp.basketHint') : fixedPath ? t('booking.fixed.oneOnly') : t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
                     </div>
                   </div>
                 )}
@@ -4301,7 +4306,10 @@ export default function BookingPage() {
                         onClick={() => {
                           const fixedKey = `${selectedDate.getDay()}|${selectedSlot.time}|${selectedCoach.id}`
                           setRecurSel(prev => {
-                            const n = new Map(prev)
+                            // Every week: one weekday, one time -- a new class
+                            // replaces the one chosen before (owner, 2026-11-02:
+                            // two at once "seems to break").
+                            const n = fixedPath ? new Map<string, PlanSlot>() : new Map(prev)
                             // Whatever the grid says about this slot is now the
                             // truth about it, so unticking the anchor date in
                             // here actually drops it.

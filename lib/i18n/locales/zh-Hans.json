@@ -2561,5 +2561,6 @@
   "booking.recur.pickedFrom": "已选 {n} 堂，从 {date} 开始",
   "booking.recur.pickedNone": "还没选日期",
   "booking.recur.offShort": "休息",
-  "booking.recur.later": "再往后看 ›"
+  "booking.recur.later": "再往后看 ›",
+  "booking.fixed.oneOnly": "一次报一个固定班：选别的星期或时间，会换掉这一个。"
 }

@@ -2561,5 +2561,6 @@
   "booking.recur.pickedFrom": "已選 {n} 堂，從 {date} 開始",
   "booking.recur.pickedNone": "還沒選日期",
   "booking.recur.offShort": "休息",
-  "booking.recur.later": "再往後看 ›"
+  "booking.recur.later": "再往後看 ›",
+  "booking.fixed.oneOnly": "一次報一個固定班：選別的星期或時間，會換掉這一個。"
 }
