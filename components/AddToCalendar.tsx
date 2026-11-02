@@ -17,7 +17,17 @@ import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
      and Android (app or browser) offer Google only. On a computer the same
      link reads "Apple／Outlook 行事曆".
    - 複製連結 for any other calendar.
-   Once a calendar reads the feed, the card folds to one line. */
+
+   The full card shows once (owner, 2026-11-02: "it takes too much room --
+   show it the first time, then fold it"): the first time this phone or
+   computer opens the schedule, with a ✕ to fold it at once. After that, or
+   once a calendar reads the feed, it is one line (version C of three) that
+   opens the card again. "Seen" is kept in this browser (localStorage), so
+   another phone shows the card once too. */
+
+const SEEN_KEY = 'msa_cal_card_seen'
+const wasSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } }
+const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ } }
 
 type Feed = { webcal: string; https: string; google: string; synced: boolean }
 
@@ -29,7 +39,8 @@ export default function AddToCalendar() {
   const t = useT()
   const [feed, setFeed] = useState<Feed | null>(null)
   const [failed, setFailed] = useState(false)
-  const [open, setOpen] = useState(false)
+  // null until the feed is in: nothing shows, so the card never jumps.
+  const [full, setFull] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
   // Which second button this phone or computer gets -- only known in the
   // browser, so nothing until after hydration.
@@ -44,12 +55,19 @@ export default function AddToCalendar() {
     let live = true
     fetch('/api/parent/calendar-feed', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
-      .then(j => { if (!live) return; if (j?.webcal) setFeed(j); else setFailed(true) })
+      .then(j => {
+        if (!live) return
+        if (!j?.webcal) { setFailed(true); return }
+        setFeed(j)
+        const first = !j.synced && !wasSeen()
+        if (first) markSeen()
+        setFull(first)
+      })
       .catch(() => { if (live) setFailed(true) })
     return () => { live = false }
   }, [])
 
-  if (failed) return null
+  if (failed || full === null) return null
 
   const subscribeApple = async () => {
     const plugin = calendarAddPlugin()
@@ -64,20 +82,25 @@ export default function AddToCalendar() {
     borderRadius: '10px', border: '1px solid #cfdcef', background: '#fff', color: '#16294a', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
     cursor: 'pointer', fontFamily: 'inherit', opacity: feed ? 1 : 0.55, whiteSpace: 'nowrap' }
 
-  const folded = feed?.synced && !open
+  // The one line: tap to open the card.
+  if (!full) return (
+    <button type="button" className="msa-cal-sync tap-auto" aria-expanded={false} onClick={() => setFull(true)}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', marginBottom: '14px', padding: '10px 14px',
+        background: '#fff', border: '1px solid #dbe6f4', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        fontSize: '14px', fontWeight: 700, color: feed?.synced ? '#1d6b45' : '#2050a0' }}>
+      {feed?.synced ? <span aria-hidden="true" style={{ width: '18px', textAlign: 'center' }}>✓</span> : <CalIcon size={18} />}
+      <span style={{ minWidth: 0, flex: 1 }}>{feed?.synced ? t('dash.sync.on') : t('dash.sync.title')}</span>
+      <span aria-hidden="true" style={{ color: '#9aa6ba', fontSize: '18px', lineHeight: 1 }}>›</span>
+    </button>
+  )
+
   return (
-    <div className="msa-cal-sync" style={{ background: '#f4f8fd', border: '1px solid #dbe6f4', borderRadius: '14px', padding: folded ? '10px 14px' : '14px', marginBottom: '16px' }}>
-      {folded ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1d6b45' }}>✓ {t('dash.sync.on')}</span>
-          <button type="button" className="tap-auto" onClick={() => setOpen(true)}
-            style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t('dash.sync.more')}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+    <div className="msa-cal-sync" style={{ position: 'relative', background: '#f4f8fd', border: '1px solid #dbe6f4', borderRadius: '14px', padding: '14px', marginBottom: '16px' }}>
+      <button type="button" className="tap-auto" aria-label={t('common.close')} onClick={() => setFull(false)}
+        style={{ position: 'absolute', top: '6px', right: '6px', width: '32px', height: '32px', border: 'none', background: 'none', color: '#8a96aa',
+          fontSize: '17px', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>✕</button>
+      <>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px', paddingRight: '24px' }}>
             <CalIcon />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '15px', fontWeight: 800, color: '#16294a' }}>{t('dash.sync.title')}</div>
@@ -107,15 +130,14 @@ export default function AddToCalendar() {
               {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
             </button>
           </div>
-        </>
-      )}
+      </>
     </div>
   )
 }
 
-function CalIcon() {
+function CalIcon({ size = 22 }: { size?: number }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2050a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2050a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }}>
       <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
     </svg>
   )

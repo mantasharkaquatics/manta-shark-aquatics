@@ -507,8 +507,12 @@ at best, the iPhone as its settings say.
   on the site's own address, so the web view keeps it, cannot open it and
   shows offline.html, the "no internet" page (found 2026-11-02). Android
   and iPhone builds made before the plugin offer Google only.
+- **The card shows in full once** (owner, 2026-11-02: "it takes too much
+  room"): the first time this browser opens the schedule (localStorage
+  msa_cal_card_seen), with a ✕. After that it is one line, 把課表加進行事曆 ›
+  (version C of three), that opens the card again.
 - Once a calendar has read the feed (fetched_at within FRESH_DAYS, 14) the
-  card folds to one line, and the family's lesson emails carry no .ics file
+  line reads ✓ 課表已同步到行事曆, and the family's lesson emails carry no .ics file
   (sendEmailWithId drops payload.calendar): the same lesson would show
   twice. Feed events have their own UIDs (feed-...) for the same reason.
 - No per-lesson "add to calendar" button (owner, 2026-11-02: it was built,
