@@ -2557,5 +2557,6 @@
   "booking.fixed.am": "上午",
   "booking.fixed.pm": "下午",
   "booking.fixed.count": "{n} 個時段",
-  "booking.fixed.fromDate": "{date} 開始"
+  "booking.fixed.fromDate": "{date} 開始",
+  "booking.fixed.halfNone": "沒有空檔"
 }

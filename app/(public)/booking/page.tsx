@@ -1890,18 +1890,21 @@ export default function BookingPage() {
             {list.length === 0 ? (
               <p style={{ margin: 0, padding: '18px', textAlign: 'center', fontSize: '14px', color: '#56647d', background: '#fff', borderRadius: '12px', border: '1px dashed #e3ebf6' }}>{t('booking.fixed.noTimes')}</p>
             ) : (
-              // Morning, then afternoon, each under its own small heading
-              // (owner, 2026-11-02, version B of two: kept three across, not
-              // two side-by-side columns of unequal length).
-              ([['am', list.filter(ft => String(ft.time).slice(0, 5) < '12:00')], ['pm', list.filter(ft => String(ft.time).slice(0, 5) >= '12:00')]] as const)
-                .filter(([, part]) => part.length > 0).map(([half, part]) => (
+              // Morning on the left, afternoon on the right (owner, 2026-11-02:
+              // shown stacked sections and side-by-side columns, he chose the
+              // columns, though the afternoon one runs longer). A column on a
+              // wide screen holds more than one time per row.
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', marginTop: '14px', alignItems: 'start' }}>
+              {([['am', list.filter(ft => String(ft.time).slice(0, 5) < '12:00')], ['pm', list.filter(ft => String(ft.time).slice(0, 5) >= '12:00')]] as const).map(([half, part]) => (
               <section key={half} aria-label={t('booking.fixed.' + half)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: half === 'am' ? '14px 0 8px' : '16px 0 8px' }}>
-                  <span style={{ fontSize: '13.5px', fontWeight: 800, color: NAVY }}>{t('booking.fixed.' + half)}</span>
-                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#7b879c' }}>{t('booking.fixed.count', { n: part.length })}</span>
-                  <span aria-hidden style={{ flex: 1, height: '1px', background: '#d3deec' }} />
+                <div style={{ textAlign: 'center', padding: '6px 4px', borderRadius: '9px', background: '#dfe7f3', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: NAVY }}>{t('booking.fixed.' + half)}</span>
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#56647d', marginLeft: '6px' }}>{t('booking.fixed.count', { n: part.length })}</span>
                 </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
+                {part.length === 0 && (
+                  <p style={{ margin: 0, padding: '14px 6px', textAlign: 'center', fontSize: '13px', color: '#7b879c', borderRadius: '10px', border: '1px dashed #d3deec' }}>{t('booking.fixed.halfNone')}</p>
+                )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                 {part.map(ft => {
                   const on = cur?.key === ft.key
                   const lead = ft.slot ? ft.ids[0] : coachFilter !== 'any' ? coachFilter : spreadPick(ft.ds, ft.ids)
@@ -1921,7 +1924,8 @@ export default function BookingPage() {
                 })}
               </div>
               </section>
-              ))
+              ))}
+              </div>
             )}
             {cur && !cur.slot && coachFilter === 'any' && cur.ids.length > 1 && (
               <div style={{ marginTop: '12px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>

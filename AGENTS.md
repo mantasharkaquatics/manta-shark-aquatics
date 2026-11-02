@@ -694,9 +694,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
 - **Every week**: weekday chips, then that weekday's times (each with the
   first date it is open), then the existing fixed-class panel (dates, total,
   就選這 N 堂). The month calendar is not shown on this path. 30/60 minutes
-  for 1-on-1 and sibling 1-on-2. The times sit under 上午 and 下午 headings,
-  three across (owner, 2026-11-02; he first asked for morning left and
-  afternoon right, then chose this over two columns of unequal length).
+  for 1-on-1 and sibling 1-on-2. Morning times in the left column, afternoon
+  in the right (owner, 2026-11-02: he tried stacked 上午 / 下午 sections and
+  went back to the columns, though the afternoon one runs longer).
   The start date is said once under the heading (the date most times start
   on); only a time that starts on another date shows its own (owner,
   2026-11-02: on every cell it repeated).

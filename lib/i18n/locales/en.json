@@ -2557,5 +2557,6 @@
   "booking.fixed.am": "Morning",
   "booking.fixed.pm": "Afternoon",
   "booking.fixed.count": "{n} open",
-  "booking.fixed.fromDate": "Starting {date}"
+  "booking.fixed.fromDate": "Starting {date}",
+  "booking.fixed.halfNone": "None open"
 }
