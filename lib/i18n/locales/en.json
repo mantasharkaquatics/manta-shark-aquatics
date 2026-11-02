@@ -2556,5 +2556,6 @@
   "booking.lock.legend": "Single lessons can be booked up to {n} days ahead. Tap a later day to see when it opens.",
   "booking.fixed.am": "Morning",
   "booking.fixed.pm": "Afternoon",
-  "booking.fixed.count": "{n} open"
+  "booking.fixed.count": "{n} open",
+  "booking.fixed.fromDate": "Starting {date}"
 }

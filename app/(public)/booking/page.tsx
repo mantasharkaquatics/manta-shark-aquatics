@@ -1832,6 +1832,12 @@ export default function BookingPage() {
     const lenSwitch = !groupFlow && (selectedCourse?.slug === '1on1' || siblingPair)
     const label: React.CSSProperties = { fontSize: '14px', fontWeight: 700, color: '#56647d', marginBottom: '10px' }
     const selDow = selectedDate ? selectedDate.getDay() : null
+    // The date most of the times start on is said once, under the heading
+    // (owner, 2026-11-02: on every cell it repeated); a time that starts
+    // on another date keeps its own.
+    const startCount = new Map<string, number>()
+    for (const ft of list) startCount.set(ft.ds, (startCount.get(ft.ds) || 0) + 1)
+    const mainStart = [...startCount.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null
     const cur = selectedSlot && selDow === fixedDow ? list.find(ft => String(ft.time) === String(selectedSlot.time) && !!selectedCoach && ft.ids.includes(selectedCoach.id)) : null
     return (
       <div style={{ marginBottom: '16px' }}>
@@ -1861,7 +1867,10 @@ export default function BookingPage() {
         {fixedDow != null && !loadingTimes && (
           <div ref={fixedTimesRef} style={{ marginTop: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-              <div style={{ ...label, marginBottom: 0 }}>{t('booking.fixed.timesFor', { weekday: wkName(fixedDow) })}</div>
+              <div>
+                <div style={{ ...label, marginBottom: 0 }}>{t('booking.fixed.timesFor', { weekday: wkName(fixedDow) })}</div>
+                {mainStart && <div style={{ fontSize: '13px', fontWeight: 700, color: NAVY, marginTop: '3px' }}>{t('booking.fixed.fromDate', { date: mdOf(mainStart) })}</div>}
+              </div>
               {lenSwitch && (
                 <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                   {([30, 60] as const).map(v => {
@@ -1887,7 +1896,7 @@ export default function BookingPage() {
               ([['am', list.filter(ft => String(ft.time).slice(0, 5) < '12:00')], ['pm', list.filter(ft => String(ft.time).slice(0, 5) >= '12:00')]] as const)
                 .filter(([, part]) => part.length > 0).map(([half, part]) => (
               <section key={half} aria-label={t('booking.fixed.' + half)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: half === 'am' ? '4px 0 8px' : '16px 0 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: half === 'am' ? '14px 0 8px' : '16px 0 8px' }}>
                   <span style={{ fontSize: '13.5px', fontWeight: 800, color: NAVY }}>{t('booking.fixed.' + half)}</span>
                   <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#7b879c' }}>{t('booking.fixed.count', { n: part.length })}</span>
                   <span aria-hidden style={{ flex: 1, height: '1px', background: '#d3deec' }} />
@@ -1905,7 +1914,7 @@ export default function BookingPage() {
                         fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                       {formatTime(String(ft.time))}
                       {pr && <PriceTag price={pr} onlyOff />}
-                      <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</div>
+                      {ft.ds !== mainStart && <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</div>}
                       <CoachNames ids={on && selectedCoach ? [selectedCoach.id] : ft.ids} first={on && selectedCoach ? selectedCoach.id : lead} />
                     </button>
                   )

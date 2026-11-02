@@ -2556,5 +2556,6 @@
   "booking.lock.legend": "单次上课只能预约 {n} 天内的课；点后面的日子，会告诉您什么时候开放。",
   "booking.fixed.am": "上午",
   "booking.fixed.pm": "下午",
-  "booking.fixed.count": "{n} 个时段"
+  "booking.fixed.count": "{n} 个时段",
+  "booking.fixed.fromDate": "{date} 开始"
 }
