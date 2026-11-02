@@ -1727,7 +1727,9 @@ export default function BookingPage() {
 
   const dowOfDs = (ds: string) => new Date(ds + 'T00:00:00').getDay()
   const wkName = (dow: number) => new Date(2026, 10, 1 + dow).toLocaleDateString(dateLoc, { weekday: 'long' })
-  const mdOf = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'numeric', day: 'numeric' })
+  // Two-digit month and day, 11/03, so dates line up like the 02:00 times
+  // (owner, 2026-11-02).
+  const mdOf = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString(dateLoc, { month: '2-digit', day: '2-digit' })
   const addMin = (tm: string, n: number) => {
     const [h, m] = tm.split(':').map(Number); const x = h * 60 + m + n
     return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
@@ -2116,7 +2118,7 @@ export default function BookingPage() {
       text: t('booking.recur.fixedLine', {
         weekday: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { weekday: 'long' }),
         time: g[0].label, coach: coachName(key.split('|')[2] || '') || g[0].coachName || '',
-        date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: 'numeric', day: 'numeric' }),
+        date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: '2-digit', day: '2-digit' }),
         n: g.length,
       }),
       points: g.reduce((a, x) => a + x.points, 0),
@@ -4301,16 +4303,16 @@ export default function BookingPage() {
                             {firstOn ? t('booking.recur.pickedFrom', { n: chosen.size, date: mdOf(firstOn.date) }) : t('booking.recur.pickedNone')}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {/* One row a month, each cell its own 11/03 -- no month
+                                column (owner, 2026-11-02). Five columns: a month
+                                has at most five of one weekday. */}
                             {months.map(m => (
-                              <div key={m.ym} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ width: '44px', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: '#56647d' }}>
-                                  {new Date(m.ym + '-01T00:00:00').toLocaleDateString(dateLoc, { month: 'short' })}
-                                </span>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              <div key={m.ym} role="group" aria-label={new Date(m.ym + '-01T00:00:00').toLocaleDateString(dateLoc, { month: 'long' })}
+                                style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '6px' }}>
                                   {m.days.map((c: any) => {
                                     const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
-                                    const dd = Number(String(c.date).slice(8, 10))
-                                    const cell: React.CSSProperties = { width: '44px', height: '44px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', padding: 0 }
+                                    const dd = mdOf(c.date)
+                                    const cell: React.CSSProperties = { minWidth: 0, height: '46px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '14.5px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', padding: 0 }
                                     // A week this coach cannot take: closed, saying
                                     // why -- or, moved to another coach, in that
                                     // coach's own colour and name (tap to undo).
@@ -4321,12 +4323,12 @@ export default function BookingPage() {
                                           aria-label={`${new Date(c.date + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'long', day: 'numeric' })} ${coachName(sub)}`}
                                           onClick={() => setSubSel(prev => { const n = new Map(prev); n.delete(c.date); return n })}
                                           style={{ ...cell, border: `2px solid ${SUB_COLOR}`, background: SUB_COLOR, color: '#fff', fontSize: '14px', lineHeight: 1.05, cursor: 'pointer' }}>
-                                          {dd}<span style={{ fontSize: '9.5px', fontWeight: 800, maxWidth: '40px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coachName(sub)}</span>
+                                          {dd}<span style={{ fontSize: '10px', fontWeight: 800, maxWidth: '100%', padding: '0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coachName(sub)}</span>
                                         </button>
                                       )
                                       const why = c.status === 'time_off' ? t('booking.recur.offShort') : c.status === 'no_class' ? t('booking.recur.noClassShort') : t('booking.recur.takenShort')
                                       return (
-                                        <div key={key} data-fd={c.date} title={why} style={{ ...cell, border: '1px solid #e8edf4', background: '#f1f3f7', color: '#9aa6ba', fontSize: '12.5px', lineHeight: 1.1 }}>
+                                        <div key={key} data-fd={c.date} title={why} style={{ ...cell, border: '1px solid #e8edf4', background: '#f1f3f7', color: '#9aa6ba', fontSize: '13.5px', lineHeight: 1.1 }}>
                                           {dd}<span style={{ fontSize: '9.5px', fontWeight: 700 }}>{why}</span>
                                         </div>
                                       )
@@ -4351,7 +4353,6 @@ export default function BookingPage() {
                                       </button>
                                     )
                                   })}
-                                </div>
                               </div>
                             ))}
                           </div>

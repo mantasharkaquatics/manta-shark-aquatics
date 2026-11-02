@@ -732,7 +732,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   the hints are a few words, the coach hint is gone on these two paths, and
   the every-week basket box has no heading row (the bar says the count).
 - **The dates of a fixed class are a calendar, one row a month** (owner,
-  2026-11-02, version A of three): the day of the month only, no points in
+  2026-11-02, version A of three): each cell is the date as 11/03 -- two
+  digits each, so they line up like 02:00, and no month column beside the
+  rows (owner, 2026-11-02, after the day alone) -- five columns, no points in
   the cells (the total is below), every date read so far on screen with no
   inner scroll box; a tap skips that week. 再往後看 adds the next weeks and
   moves the page to the first of them -- the old "show 26 more weeks" added
