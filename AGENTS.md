@@ -711,6 +711,10 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   opens again with its dates ticked. While a panel is open on this path
   there is no bottom bar (its 繼續 used to book the class chosen before),
   and the panel says which class it would replace (owner, 2026-11-02).
+- **Keep the words short** (owner, 2026-11-02: "shorten whatever can be
+  shortened, so the screen is not so long"): the panel's totals are one line,
+  the hints are a few words, the coach hint is gone on these two paths, and
+  the every-week basket box has no heading row (the bar says the count).
 - **The dates of a fixed class are a calendar, one row a month** (owner,
   2026-11-02, version A of three): the day of the month only, no points in
   the cells (the total is below), every date read so far on screen with no

@@ -2101,7 +2101,7 @@ export default function BookingPage() {
       text: t('booking.recur.fixedLine', {
         weekday: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { weekday: 'long' }),
         time: g[0].label, coach: g[0].coachName || '',
-        date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: 'short', day: 'numeric' }),
+        date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: 'numeric', day: 'numeric' }),
         n: g.length,
       }),
       points: g.reduce((a, x) => a + x.points, 0),
@@ -3327,9 +3327,9 @@ export default function BookingPage() {
                     )
                   })}
                 </div>
-                <div style={{ fontSize: '13px', color: '#56647d', marginTop: '6px', lineHeight: 1.5 }}>
+                {!wayFlow && <div style={{ fontSize: '13px', color: '#56647d', marginTop: '6px', lineHeight: 1.5 }}>
                   {coachFilter === 'any' ? t('booking.anyCoachHint') : t('booking.oneCoachHint', { name: coachName(coachFilter) })}
-                </div>
+                </div>}
               </div>
             )}
             {fixedPath && renderFixedPicker()}
@@ -4152,8 +4152,10 @@ export default function BookingPage() {
                     from the second lesson on (owner, 2026-11-01): with one,
                     the bar at the foot already says "1 lesson · 65 points". */}
                 {fixedFlow && (fixedPath ? recurSel.size > 0 : recurSel.size > 1) && !recurOpen && (
-                  <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '12px', padding: fixedPath ? '4px 12px 12px' : '14px 16px' }}>
+                    {/* Every week holds one class, and the bar below says the
+                        count and total: no heading row there. */}
+                    {!fixedPath && <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                       {/* The sticky bar carries the total; this line carries
                           the count, because the chips below it are the thing
                           being counted and "8 lessons" is what the parent is
@@ -4168,7 +4170,7 @@ export default function BookingPage() {
                         style={{ background: 'none', border: 'none', padding: 0, fontSize: '13px', color: '#56647d', cursor: 'pointer', textDecoration: 'underline' }}>
                         {t('booking.recur.clearAll')}
                       </button>
-                    </div>
+                    </div>}
                     {basketSplit.lines.map(l => (
                       <div key={l.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '10px', padding: '9px 11px', borderRadius: '8px', background: `${GOLD}12`, border: `1px solid ${GOLD}44` }}>
                         {/* Tap the class to open it again and change its dates
@@ -4308,7 +4310,7 @@ export default function BookingPage() {
                       style={{ marginTop: '10px', background: 'none', border: 'none', padding: '4px 0', fontSize: '14px', fontWeight: 700, color: GOLD, cursor: recurBusy ? 'wait' : 'pointer' }}>
                       {recurBusy ? t('booking.recur.loading') : t('booking.recur.later')}
                     </button>
-                    <div style={{ fontSize: '12px', color: '#56647d', marginTop: '6px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '12.5px', color: '#56647d', marginTop: '4px', lineHeight: 1.5 }}>
                       {t('booking.recur.gridHint', { n: FIXED_CLASS_MIN_LESSONS })}
                     </div>
                     {/* Ten is the smallest class. If the wallet cannot cover
@@ -4321,19 +4323,10 @@ export default function BookingPage() {
                       </div>
                     )}
 
-                    <div style={{ marginTop: '13px', padding: '11px 12px', borderRadius: '9px', background: '#f6f9fd', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                        <span style={{ color: '#56647d' }}>{t('booking.recur.wouldAdd')}</span>
-                        <span style={{ fontWeight: 700, color: '#16294a' }}>{chosen.size}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                        <span style={{ color: '#56647d' }}>{t('booking.recur.wouldTotal')}</span>
-                        <span style={{ fontWeight: 700, color: '#16294a', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: otherTotal + chosenTotal })}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                        <span style={{ color: '#56647d' }}>{t('booking.price.after')}</span>
-                        <span style={{ fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - otherTotal - chosenTotal) })}</span>
-                      </div>
+                    {/* One line, not three (owner, 2026-11-02: shorter screens). */}
+                    <div style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '9px', background: '#f6f9fd', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ fontWeight: 800, color: '#16294a' }}>{t('booking.recur.basket', { n: chosen.size, points: otherTotal + chosenTotal })}</span>
+                      <span style={{ color: '#56647d' }}>{t('booking.recur.leftAfter', { n: Math.max(0, balance - otherTotal - chosenTotal) })}</span>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '13px' }}>
