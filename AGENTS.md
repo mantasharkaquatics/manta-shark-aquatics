@@ -511,8 +511,11 @@ at best, the iPhone as its settings say.
   Calendar's phone app cannot subscribe to a link -- the ?cid= page sent
   the owner to a Google sales page -- so on a phone (the app or a phone
   browser) Google 日曆 opens a sheet: 寄連結到我的信箱 (POST
-  /api/parent/calendar-feed, to the signed-in person's own address only)
-  and 複製連結. Added once on a computer, the phone's Google Calendar shows
+  /api/parent/calendar-feed) and 複製連結. When the family has more than
+  one person, the sheet lists them -- main account, second guardian,
+  view-only -- to tick (owner, 2026-11-02: so grandparents get it without
+  signing in); you are ticked, the others' addresses are masked (bob•••@),
+  and the server only ever mails the family's own addresses. Added once on a computer, the phone's Google Calendar shows
   it too. On a computer the button is the ?cid= link itself.
 - **The card shows in full once** (owner, 2026-11-02: "it takes too much
   room"): the first time this browser opens the schedule (localStorage

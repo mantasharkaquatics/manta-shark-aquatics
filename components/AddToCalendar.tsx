@@ -34,7 +34,8 @@ const SEEN_KEY = 'msa_cal_card_seen'
 const wasSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } }
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ } }
 
-type Feed = { webcal: string; https: string; google: string; synced: boolean }
+type Person = { id: string; name: string; email: string; role: 'main' | 'full' | 'viewer'; me: boolean }
+type Feed = { webcal: string; https: string; google: string; synced: boolean; people?: Person[] }
 
 const iosBrowser = () => typeof navigator !== 'undefined' &&
   (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
@@ -52,6 +53,9 @@ export default function AddToCalendar() {
   // the link to the family, to add once on a computer.
   const [gSheet, setGSheet] = useState(false)
   const [mail, setMail] = useState<{ busy?: boolean; sentTo?: string; failed?: boolean }>({})
+  // Who gets the link (owner, 2026-11-02: the second guardian and the
+  // grandparents too, without signing in themselves). Starts as just you.
+  const [sendTo, setSendTo] = useState<Set<string>>(new Set())
   // Which second button this phone or computer gets -- only known in the
   // browser, so nothing until after hydration.
   const client = useSyncExternalStore(() => () => {}, () => true, () => false)
@@ -91,7 +95,7 @@ export default function AddToCalendar() {
   const mailMe = async () => {
     setMail({ busy: true })
     try {
-      const r = await fetch('/api/parent/calendar-feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'email' }) })
+      const r = await fetch('/api/parent/calendar-feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'email', to: [...sendTo] }) })
       const j = await r.json().catch(() => ({}))
       setMail(r.ok && j.to ? { sentTo: j.to } : { failed: true })
     } catch { setMail({ failed: true }) }
@@ -128,7 +132,7 @@ export default function AddToCalendar() {
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {phone ? (
-              <button type="button" disabled={!feed} onClick={() => { setMail({}); setGSheet(true) }} style={btn}>
+              <button type="button" disabled={!feed} onClick={() => { setMail({}); setSendTo(new Set((feed?.people || []).filter(x => x.me).map(x => x.id))); setGSheet(true) }} style={btn}>
                 <GoogleG />{t('dash.sync.google')}
               </button>
             ) : (
@@ -168,13 +172,33 @@ export default function AddToCalendar() {
               <p role="status" style={{ margin: '0 0 8px', padding: '12px', borderRadius: '10px', background: '#eaf6ef', color: '#1d6b45', fontSize: '14px', fontWeight: 700, lineHeight: 1.5 }}>
                 ✓ {t('dash.sync.mailed', { email: mail.sentTo })}
               </p>
-            ) : (
-              <button type="button" disabled={mail.busy} onClick={mailMe}
+            ) : (<>
+              {(feed?.people?.length || 0) > 1 && (
+                <div role="group" aria-label={t('dash.sync.sendTo')} style={{ textAlign: 'left', margin: '0 0 14px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#3c4b66', marginBottom: '6px' }}>{t('dash.sync.sendTo')}</div>
+                  {feed!.people!.map(x => {
+                    const on = sendTo.has(x.id)
+                    return (
+                      <label key={x.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 4px', cursor: 'pointer', borderBottom: '1px solid #eef2f8' }}>
+                        <input type="checkbox" checked={on} onChange={() => setSendTo(prev => { const n = new Set(prev); if (n.has(x.id)) n.delete(x.id); else n.add(x.id); return n })} />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: '#16294a' }}>
+                            {x.me ? t('dash.sync.me') : (x.name || t('dash.sync.role.' + x.role))}
+                            <span style={{ fontWeight: 600, color: '#7a879c', fontSize: '12.5px' }}> · {t('dash.sync.role.' + x.role)}</span>
+                          </span>
+                          <span style={{ display: 'block', fontSize: '12.5px', color: '#7a879c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.email}</span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+              <button type="button" disabled={mail.busy || ((feed?.people?.length || 0) > 1 && sendTo.size === 0)} onClick={mailMe}
                 style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', background: '#f09800', color: '#12254a', fontSize: '15px', fontWeight: 800,
                   cursor: mail.busy ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: mail.busy ? 0.7 : 1 }}>
-                ✉ {t('dash.sync.mail')}
+                ✉ {(feed?.people?.length || 0) > 1 ? t('dash.sync.send', { n: sendTo.size }) : t('dash.sync.mail')}
               </button>
-            )}
+            </>)}
             {mail.failed && <p role="alert" style={{ margin: '8px 0 0', fontSize: '13px', color: '#c0392b' }}>{t('dash.sync.mailFail')}</p>}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', marginTop: '10px' }}>
               <button type="button" className="tap-auto" onClick={() => copy('google')}
