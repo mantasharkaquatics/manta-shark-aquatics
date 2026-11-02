@@ -69,7 +69,10 @@ export async function lessonCalendar(svc: SupabaseClient, parentId: string | nul
     const coachName = new Map((coaches || []).map((c: any) => [c.id, `${c.first_name || ''} ${c.last_name || ''}`.trim()]))
 
     // Group: a lesson is its group (60 minutes) or its session; the same
-    // family's bookings at the same date and start are one lesson too.
+    // family's bookings at the same date, start and coach are one lesson too.
+    // Not across coaches: two swimmers at the same time with two coaches are
+    // two lessons (found 2026-11-02 in the calendar feed: a week of BB's
+    // fixed class moved to Mitzi was folded into AA's lesson with Mitch).
     const key = (b: typeof all[number]) => b.lesson_group_id || b.class_session_id
     const groups = new Map<string, typeof all>()
     for (const b of all) groups.set(key(b), [...(groups.get(key(b)) || []), b])
@@ -79,7 +82,7 @@ export async function lessonCalendar(svc: SupabaseClient, parentId: string | nul
       const ss = (live.length ? live : g).map(b => sById.get(b.class_session_id)).filter(Boolean)
       if (!ss.length) continue
       const first = ss.reduce((a: any, s: any) => (mins(s.start_time) < mins(a.start_time) ? s : a))
-      const at = `${first.session_date} ${hm(first.start_time)}`
+      const at = `${first.session_date} ${hm(first.start_time)} ${first.coach_id}`
       merged.set(at, [...(merged.get(at) || []), ...g])
     }
 
