@@ -25,7 +25,7 @@ type FC = {
   left: number; next: string | null; last: string | null
   renewOpen: boolean; holdUntil: string | null
   locationId?: string | null
-  lessons: { date: string; start: string; coachName: string; within24h: boolean; bookingId: string | null; locationId?: string | null }[]
+  lessons: { date: string; start: string; coachId?: string; coachName: string; within24h: boolean; bookingId: string | null; locationId?: string | null }[]
 }
 type Cand = { date: string; status: string; points: number | null }
 type Opt = { weekday: number; time: string; coachId: string; startDate: string; okWeeks: number; weeks: number }
@@ -47,10 +47,13 @@ const PAGE_CSS = `
 .fc-lessons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .fc-lesson { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 7px; background: #eef4fc; color: #16294a; }
 .fc-lesson em { font-style: normal; font-weight: 700; color: #b06a00; margin-left: 4px; }
+/* A week with another coach than the class's own (owner, 2026-11-02). */
+.fc-lesson.sub { background: #7b61c4; color: #fff; }
+.fc-lesson.sub em { color: #fff; }
 button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: pointer; }
 /* Hover only where there is a mouse: on a phone a tapped date or slot kept
    the hover look and read as selected (AGENTS.md; found 2026-10-08). */
-@media (hover: hover) { button.fc-lesson:hover { border-color: #2050a0; background: #fff; } }
+@media (hover: hover) { button.fc-lesson:hover { border-color: #2050a0; background: #fff; } button.fc-lesson.sub:hover { background: #6a52b0; } }
 .fc-leave-back { position: fixed; inset: 0; background: rgba(14,29,59,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
 .fc-leave { background: #fff; border-radius: 20px; border: 1px solid #e3ebf6; padding: 28px; max-width: 380px; width: 100%; }
 .fc-leave .eb { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #c0392b; margin-bottom: 8px; }
@@ -158,6 +161,7 @@ export default function FixedClassPage() {
   const poolOf = (id?: string | null) => pools?.find(l => l.id === (id || DEFAULT_LOCATION_ID)) || null
   // One pool for every lesson left (the usual case) is said once, under the
   // title; lessons split across pools say theirs on each date instead.
+  const subOf = (l: { coachId?: string }) => !!fc && !!l.coachId && l.coachId !== fc.coachId
   const poolIds = fc ? [...new Set((fc.lessons.length ? fc.lessons.map(l => l.locationId) : [fc.locationId]).map(x => x || DEFAULT_LOCATION_ID))] : []
   const onePool = pools && poolIds.length === 1 ? poolOf(poolIds[0]) : null
   const perLessonPool = !!pools && poolIds.length > 1
@@ -381,11 +385,11 @@ export default function FixedClassPage() {
               </div>
               <div className="fc-lessons">
                 {fc.lessons.map(l => l.within24h || !l.bookingId ? (
-                  <span key={l.date} className="fc-lesson">{day(l.date, { month: 'short', day: 'numeric' })}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
+                  <span key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'}>{day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
                 ) : (
-                  <button key={l.date} className="fc-lesson" title={t('fixedPage.leave.tap')}
+                  <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} title={t('fixedPage.leave.tap')}
                     onClick={() => { setMsg(null); setLeaveFor({ date: l.date, start: l.start, bookingId: l.bookingId! }) }}>
-                    {day(l.date, { month: 'short', day: 'numeric' })}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}
+                    {day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}
                   </button>
                 ))}
               </div>

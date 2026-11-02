@@ -1223,6 +1223,13 @@ export default function BookingPage() {
      away as the page scrolls, so the target sits just under the screen's
      top; on the website, under the site bar. */
   const doneRef = useRef<HTMLDivElement>(null)
+  // The coaches of the lessons booked, the one with most of them first (a
+  // fixed class's own coach before its substitute weeks; owner, 2026-11-02).
+  const planCoachLine = (() => {
+    const n = new Map<string, number>()
+    for (const x of recurPlan) { const name = x.coachName || coaches.find(c => c.id === x.coachId)?.first_name; if (name) n.set(name, (n.get(name) || 0) + 1) }
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k).join(' · ')
+  })()
   const timesRef = useRef<HTMLDivElement>(null)
   const scrollTo = (el: HTMLElement | null) => {
     if (!el) return
@@ -2734,17 +2741,22 @@ export default function BookingPage() {
               </strong> {t(siblingPair ? 'booking.recur.areBookedForN' : 'booking.recur.isBookedForN', { n: recurBooked })}
             </p>
             <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '12px' }}>
-              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? [...new Set(recurPlan.map(x => x.coachName || coaches.find(c => c.id === x.coachId)?.first_name).filter(Boolean))].join(' · ') : (selectedCoach?.first_name || '') })}
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? planCoachLine : (selectedCoach?.first_name || '') })}
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
-              {recurPlan.map(x => (
-                <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+              {recurPlan.map(x => {
+                // A week with another coach: purple with that coach's name,
+                // as on the confirm page (owner, 2026-11-02).
+                const other = !!x.fixed && x.coachId !== x.fixed.split('|')[2]
+                return (
+                <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: other ? 800 : 600, padding: '5px 10px', borderRadius: '6px', background: other ? SUB_COLOR : `${GOLD}18`, border: `1px solid ${other ? SUB_COLOR : `${GOLD}44`}`, color: other ? '#fff' : GOLD }}>
                   {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                   {/* Always the time: this chip is the only place the success
                       card says when the lesson is. */}
                   {` · ${x.label}`}
+                  {other ? ` · ${x.coachName || coaches.find(c => c.id === x.coachId)?.first_name || ''}` : ''}
                 </span>
-              ))}
+              )})}
             </div>
             {recurSkipped > 0 && (
               <p style={{ fontSize: '14px', color: '#9a5b00', marginBottom: '16px' }}>{t('booking.recur.someSkipped', { m: recurSkipped })}</p>
@@ -2772,7 +2784,7 @@ export default function BookingPage() {
               {t(isReschedule ? 'booking.success.moveDesc' : 'booking.success.invitedDesc')}
             </p>
             <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
-              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? [...new Set(recurPlan.map(x => x.coachName || coaches.find(c => c.id === x.coachId)?.first_name).filter(Boolean))].join(' · ') : (selectedCoach?.first_name || '') })}
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? planCoachLine : (selectedCoach?.first_name || '') })}
             </p>
             <p style={{ fontSize: '15px', color: '#56647d', marginBottom: '20px' }}>
               {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
@@ -2804,7 +2816,7 @@ export default function BookingPage() {
               </strong> {t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && pair2)) ? 'booking.success.areBookedFor' : 'booking.success.isBookedFor')}
             </p>
             <p style={{ fontSize: '15px', color: GOLD, fontWeight: 600, marginBottom: '4px' }}>
-              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? [...new Set(recurPlan.map(x => x.coachName || coaches.find(c => c.id === x.coachId)?.first_name).filter(Boolean))].join(' · ') : (selectedCoach?.first_name || '') })}
+              {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? planCoachLine : (selectedCoach?.first_name || '') })}
             </p>
             <p style={{ fontSize: '15px', color: '#56647d', marginBottom: '20px' }}>
               {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}

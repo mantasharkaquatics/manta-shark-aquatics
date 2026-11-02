@@ -718,8 +718,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   coaches free at that time, one window read); the panel draws those weeks
   closed (訂走 / 休息 / 沒空) and lists, up to the last chosen week, one
   row per coach with the weeks they can take and 改上. A week moved is
-  purple with the coach's name (SUB_COLOR) in the calendar and on the
-  confirm page; the class line adds "(其中 N 堂其他教練)". Nothing is moved
+  purple with the coach's name (SUB_COLOR) in the calendar, on the
+  confirm page, on the success card and on the class's own page
+  (/dashboard/fixed-class; tested on the preview 2026-11-02); the class line adds "(其中 N 堂其他教練)". Nothing is moved
   by itself. The server takes a fixed group whose weeks share weekday and
   time; its coach (fixed_classes.coach_id, and what a renewal must keep) is
   the one most of its weeks are with.
