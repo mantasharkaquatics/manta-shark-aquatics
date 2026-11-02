@@ -53,15 +53,14 @@ export interface PhotoPickerPlugin {
 export const photoPickerPlugin = (): PhotoPickerPlugin | null =>
   (cap()?.Plugins?.PhotoPicker as PhotoPickerPlugin | undefined) ?? null
 
-/* Adding a lesson to the iPhone's calendar (owner, 2026-11-02). Native code
-   in the iOS app (mobile/ios/App/App/CalendarAdd.swift) opens iPhone's own
-   "New Event" screen, filled in; the family taps Add. The web view cannot
-   open an .ics file, so this is the app's way to the iPhone calendar.
-   start/end are ms since 1970. added: saved; denied: iOS 15-16 asked for
-   calendar access and was refused (iOS 17 needs no permission for this).
-   Missing on Android and on iPhone builds made before it. */
+/* Subscribing the iPhone calendar to the family's lessons (owner,
+   2026-11-02). Native code in the iOS app (mobile/ios/App/App/CalendarAdd.swift)
+   hands the webcal:// link to iOS, which asks "Subscribe to calendar?". The
+   web view cannot: the link is on the site's own address, so the app keeps
+   it, fails to open it and shows its offline page. Missing on Android and on
+   iPhone builds made before it. */
 export interface CalendarAddPlugin {
-  add(ev: { title: string; location?: string; notes?: string; start: number; end: number }): Promise<{ added: boolean; denied?: boolean }>
+  subscribe(opts: { url: string }): Promise<{ opened: boolean }>
 }
 export const calendarAddPlugin = (): CalendarAddPlugin | null =>
   (cap()?.Plugins?.CalendarAdd as CalendarAddPlugin | undefined) ?? null

@@ -87,8 +87,8 @@ class SafeAreaContainer: UIViewController {
 }
 
 /// The Capacitor bridge, with the app's own plugins: the chat's
-/// photo-library picker (PhotoPicker.swift) and adding a lesson to the
-/// iPhone calendar (CalendarAdd.swift).
+/// photo-library picker (PhotoPicker.swift) and subscribing the iPhone
+/// calendar to the family's lessons (CalendarAdd.swift).
 class AppViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(PhotoPickerPlugin())

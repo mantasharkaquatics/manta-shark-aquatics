@@ -245,6 +245,14 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
  * reply is never delivered (owner, 2026-10-23).
  */
 export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt?: string } = {}): Promise<string | null> {
+  // A family whose calendar already reads its lesson feed gets no .ics file:
+  // the lesson would show twice (owner, 2026-11-02; lib/calendar-feed.ts).
+  if (payload.calendar?.length) {
+    try {
+      const [{ familySynced }, { serviceClient }] = await Promise.all([import('./calendar-feed'), import('./api-auth')])
+      if (await familySynced(serviceClient(), payload.to)) payload = { ...payload, calendar: undefined }
+    } catch (e) { console.warn('calendar feed check failed', e instanceof Error ? e.message : '') }
+  }
   const { type, to, parentName, studentName, coachName, date, time, amount, code, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
   let subject = ''

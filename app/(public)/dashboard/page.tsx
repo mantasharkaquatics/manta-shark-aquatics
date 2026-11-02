@@ -4114,6 +4114,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+          {/* All the family's lessons into its calendar, kept up to date
+              (owner, 2026-11-02; components/AddToCalendar). */}
+          {upcomingBookings.length > 0 && <AddToCalendar />}
           {lessonView === 'month' ? (() => {
             const todayDs = getTodayLA()
             const mm2 = String(lvMonth + 1).padStart(2, '0')
@@ -4826,12 +4829,6 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   <PoolDetails id={b.location_id} />
-                  {/* Google or the iPhone's own calendar (owner, 2026-11-02); the file is
-                      the same event as the booking emails' (2026-10-22). */}
-                  {!past && b.status === 'confirmed' && b.id && (
-                    <AddToCalendar bookingId={b.id}
-                      style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }} />
-                  )}
                   <button onClick={() => setLessonDetail(null)}
                     style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
                 </div>

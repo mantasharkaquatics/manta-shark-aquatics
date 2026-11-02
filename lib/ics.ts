@@ -65,11 +65,17 @@ export function icsFile(opts: {
   organizer: { name: string; email: string }
   /** The family's address; left out of a file they download themselves (PUBLISH). */
   attendee?: string
+  /** A subscribed calendar's name (the family's lesson feed, lib/calendar-feed.ts).
+   *  It also asks the calendar to read the feed again every hour; Google
+   *  ignores that and reads it when it likes. */
+  name?: string
 }): string {
   // Higher on every send, so a calendar always takes the newest version.
   const seq = Math.max(0, Math.floor(Date.now() / 1000) - 1_790_000_000)
   const stamp = utcStamp()
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Manta Shark Aquatics//Lessons//EN', 'CALSCALE:GREGORIAN', `METHOD:${opts.method}`, ...VTIMEZONE]
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Manta Shark Aquatics//Lessons//EN', 'CALSCALE:GREGORIAN', `METHOD:${opts.method}`,
+    ...(opts.name ? [`X-WR-CALNAME:${text(opts.name)}`, `X-WR-TIMEZONE:${TZ}`, 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'] : []),
+    ...VTIMEZONE]
   for (const e of opts.events) {
     lines.push(
       'BEGIN:VEVENT',

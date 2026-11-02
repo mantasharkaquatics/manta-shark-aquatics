@@ -488,19 +488,32 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   under the tabs. The app is always in light mode (Info.plist
   UIUserInterfaceStyle), so the status bar text stays dark on that white.
 
-# Add to calendar: Google or the iPhone's own (owner, 2026-11-02)
+# Lessons in the family's calendar: a subscription (owner, 2026-11-02)
 
-The lesson sheet's 加入行事曆 (components/AddToCalendar.tsx) opens a choice:
-**Google 日曆** -- Google's "add event" page, filled in (the link comes from
-/api/parent/calendar?format=json), opened outside the app -- and **iPhone
-行事曆**: in the iOS app, iPhone's own New Event screen through the
-CalendarAdd plugin (mobile/ios/App/App/CalendarAdd.swift; iOS 17+ needs no
-permission, 15-16 ask, NSCalendarsUsageDescription); in a browser, the .ics
-file ("其他行事曆" off an iPhone). Never link the app to the .ics file: the
-web view cannot open it, fails the load and shows offline.html, the "no
-internet" page (found 2026-11-02). The Android app and iPhone builds made
-before CalendarAdd offer Google only. A Google event is a copy: unlike the
-emails' .ics (same UID), a moved or cancelled lesson does not update it.
+The owner wanted every lesson in the calendar at once, kept up to date, never
+twice, and a cancelled lesson gone. That is a subscribed calendar, not files:
+lib/calendar-feed.ts, table calendar_feeds (docs/migration-calendar-feed.sql,
+server only). One long random token per family; the feed
+/api/calendar/feed/<token>.ics (no login -- the token is the key) holds the
+family's live lessons from 60 days back, in its language, named "Manta Shark
+課程". Google or the iPhone reads it again by itself: Google every few hours
+at best, the iPhone as its settings say.
+
+- The card at the top of the schedule (components/AddToCalendar.tsx, when
+  there are lessons): **Google 日曆** (Google's "add this calendar" page,
+  ?cid=webcal://...), **iPhone 行事曆** (the webcal:// link; Apple／Outlook on
+  a computer), 複製連結. Inside the iOS app the webcal link must go through
+  the CalendarAdd plugin (mobile/ios/App/App/CalendarAdd.swift): the link is
+  on the site's own address, so the web view keeps it, cannot open it and
+  shows offline.html, the "no internet" page (found 2026-11-02). Android
+  and iPhone builds made before the plugin offer Google only.
+- Once a calendar has read the feed (fetched_at within FRESH_DAYS, 14) the
+  card folds to one line, and the family's lesson emails carry no .ics file
+  (sendEmailWithId drops payload.calendar): the same lesson would show
+  twice. Feed events have their own UIDs (feed-...) for the same reason.
+- No per-lesson "add to calendar" button (owner, 2026-11-02: it was built,
+  then replaced by this the same day). /api/parent/calendar (one lesson's
+  .ics) stays but nothing links to it.
 
 # The app's 訊息 screen (owner, 2026-10-28)
 

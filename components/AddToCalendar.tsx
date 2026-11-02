@@ -1,116 +1,135 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useT } from '@/lib/i18n/provider'
-import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
 
-/* "Add to calendar" on a lesson (owner, 2026-11-02: two choices, Google or
-   the iPhone's own). It used to be a link to the lesson's .ics file, which
-   the phone app cannot open -- its web view gave up and showed the "no
-   internet" page.
+/* 把課表加進行事曆 at the top of the schedule (owner, 2026-11-02: all the
+   family's lessons at once, kept up to date, never twice, a cancelled lesson
+   goes away). The family subscribes its calendar to its own lesson feed
+   (lib/calendar-feed.ts) once; after that the calendar reads it by itself.
+   This replaced a per-lesson "add to calendar" button the same day.
 
-   - Google Calendar: Google's own "add event" page, filled in
-     (/api/parent/calendar?format=json gives the link). Outside the site, so
-     the app hands it to Safari or the Google Calendar app.
-   - iPhone Calendar: in the app, iPhone's own "New Event" screen
-     (mobile/ios/App/App/CalendarAdd.swift); in a browser on an iPhone, the
-     .ics file, which Safari opens as "Add to Calendar".
-   - Elsewhere in a browser the file is offered as "other calendar"
-     (Outlook, Apple Calendar on a Mac). The Android app, and iPhone builds
-     made before CalendarAdd, offer Google only. */
+   - Google 日曆: Google's "add this calendar" page.
+   - iPhone 行事曆: the webcal:// link -- iOS asks "Subscribe?". Inside the iOS
+     app it goes through the CalendarAdd plugin (the web view cannot open it
+     and showed its "no internet" page); iPhone builds made before the plugin
+     and Android (app or browser) offer Google only. On a computer the same
+     link reads "Apple／Outlook 行事曆".
+   - 複製連結 for any other calendar.
+   Once a calendar reads the feed, the card folds to one line. */
 
-type Ev = { title: string; location: string; description: string; start: number; end: number; google: string }
+type Feed = { webcal: string; https: string; google: string; synced: boolean }
 
 const iosBrowser = () => typeof navigator !== 'undefined' &&
   (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+const androidBrowser = () => typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent)
 
-export default function AddToCalendar({ bookingId, style }: { bookingId: string; style?: React.CSSProperties }) {
+export default function AddToCalendar() {
   const t = useT()
+  const [feed, setFeed] = useState<Feed | null>(null)
+  const [failed, setFailed] = useState(false)
   const [open, setOpen] = useState(false)
-  const [ev, setEv] = useState<Ev | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const close = () => { setOpen(false); setMsg(null) }
-  const box = useDialogFocus(open, close)
-  const icsUrl = `/api/parent/calendar?booking=${encodeURIComponent(bookingId)}`
+  const [copied, setCopied] = useState(false)
+  // Which second button this phone or computer gets -- only known in the
+  // browser, so nothing until after hydration.
+  const client = useSyncExternalStore(() => () => {}, () => true, () => false)
+  const p = client ? appPlatform() : null
+  const where: { apple: 'native' | 'link' | null; label: string } = !client ? { apple: null, label: '' }
+    : p === 'ios' ? { apple: calendarAddPlugin() ? 'native' : null, label: 'iphone' }
+    : p === 'android' || androidBrowser() ? { apple: null, label: '' }
+    : { apple: 'link', label: iosBrowser() ? 'iphone' : 'apple' }
 
-  const platform = appPlatform()
-  const native = calendarAddPlugin()
-  // The second choice: the iPhone's own screen, the .ics file, or none.
-  const second: 'native' | 'ics' | null = platform === 'ios' ? (native ? 'native' : null) : platform === 'android' ? null : 'ics'
-  const secondLabel = second === 'native' || iosBrowser() ? t('dash.cal.iphone') : t('dash.cal.other')
+  useEffect(() => {
+    let live = true
+    fetch('/api/parent/calendar-feed', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!live) return; if (j?.webcal) setFeed(j); else setFailed(true) })
+      .catch(() => { if (live) setFailed(true) })
+    return () => { live = false }
+  }, [])
 
-  function show() {
-    setOpen(true); setMsg(null)
-    if (ev) return
-    fetch(`${icsUrl}&format=json`, { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null)).then(j => { if (j?.google) setEv(j); else setMsg(t('dash.cal.failed')) })
-      .catch(() => setMsg(t('dash.cal.failed')))
+  if (failed) return null
+
+  const subscribeApple = async () => {
+    const plugin = calendarAddPlugin()
+    if (plugin && feed) { try { await plugin.subscribe({ url: feed.webcal }) } catch { /* the family can try Google */ } }
+  }
+  const copy = async () => {
+    if (!feed) return
+    try { await navigator.clipboard.writeText(feed.https); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* no clipboard */ }
   }
 
-  async function addNative() {
-    if (!native || !ev) return
-    setBusy(true)
-    try {
-      const r = await native.add({ title: ev.title, location: ev.location, notes: ev.description, start: ev.start, end: ev.end })
-      if (r.denied) setMsg(t('dash.cal.denied'))
-      else if (r.added) { setMsg(t('dash.cal.added')) }
-      else close()
-    } catch { setMsg(t('dash.cal.failed')) }
-    setBusy(false)
-  }
+  const btn: React.CSSProperties = { flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '11px 10px',
+    borderRadius: '10px', border: '1px solid #cfdcef', background: '#fff', color: '#16294a', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
+    cursor: 'pointer', fontFamily: 'inherit', opacity: feed ? 1 : 0.55, whiteSpace: 'nowrap' }
 
-  const choice: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', boxSizing: 'border-box',
-    padding: '13px', borderRadius: '12px', border: '1px solid #cfdcef', background: '#fff', color: '#16294a', fontSize: '15px', fontWeight: 700,
-    textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit' }
-
+  const folded = feed?.synced && !open
   return (
-    <>
-      <button type="button" onClick={show} style={style}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
-        {t('dash.addToCalendar')}
-      </button>
-      {open && (
-        <div onClick={e => { e.stopPropagation(); close() }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div ref={box} role="dialog" aria-modal="true" aria-label={t('dash.addToCalendar')} onClick={e => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: '18px', padding: '22px 20px 16px', width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: 800, color: '#16294a', textAlign: 'center' }}>{t('dash.addToCalendar')}</h3>
-            {msg ? (
-              <p role="status" style={{ margin: '4px 0 8px', fontSize: '14px', color: '#3c4b66', textAlign: 'center', lineHeight: 1.6 }}>{msg}</p>
-            ) : (
-              <>
-                <a href={ev?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!ev || undefined}
-                  onClick={e => { if (!ev) { e.preventDefault(); return } setTimeout(close, 300) }}
-                  style={{ ...choice, opacity: ev ? 1 : 0.55 }}>
-                  <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z" /><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.6-3.8-12.3-9H4.4v5.7C8 41.1 15.4 46 24 46z" /><path fill="#FBBC05" d="M11.7 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-3 .7-4.3V14H4.4C2.9 17 2 20.4 2 24s.9 7 2.4 10l7.3-5.7z" /><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8 6.9 4.4 14l7.3 5.7c1.7-5.2 6.6-9 12.3-9z" /></svg>
-                  {t('dash.cal.google')}
-                </a>
-                {second === 'native' && (
-                  <button type="button" disabled={!ev || busy} onClick={addNative} style={{ ...choice, opacity: ev && !busy ? 1 : 0.55 }}>
-                    <CalIcon />{secondLabel}
-                  </button>
-                )}
-                {second === 'ics' && (
-                  <a href={icsUrl} onClick={() => setTimeout(close, 300)} style={choice}><CalIcon />{secondLabel}</a>
-                )}
-              </>
+    <div className="msa-cal-sync" style={{ background: '#f4f8fd', border: '1px solid #dbe6f4', borderRadius: '14px', padding: folded ? '10px 14px' : '14px', marginBottom: '16px' }}>
+      {folded ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1d6b45' }}>✓ {t('dash.sync.on')}</span>
+          <button type="button" className="tap-auto" onClick={() => setOpen(true)}
+            style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {t('dash.sync.more')}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+            <CalIcon />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#16294a' }}>{t('dash.sync.title')}</div>
+              <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.5, marginTop: '2px' }}>{t('dash.sync.desc')}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <a href={feed?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!feed || undefined}
+              onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
+              <GoogleG />{t('dash.sync.google')}
+            </a>
+            {where.apple === 'native' && (
+              <button type="button" disabled={!feed} onClick={subscribeApple} style={btn}>
+                <AppleCal />{t('dash.sync.iphone')}
+              </button>
             )}
-            <button type="button" onClick={close}
-              style={{ marginTop: '2px', padding: '10px', border: 'none', background: 'transparent', color: '#56647d', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {msg ? t('common.close') : t('common.cancel')}
+            {where.apple === 'link' && (
+              <a href={feed?.webcal || undefined} aria-disabled={!feed || undefined} onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
+                <AppleCal />{where.label === 'iphone' ? t('dash.sync.iphone') : t('dash.sync.apple')}
+              </a>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#7a879c' }}>{t('dash.sync.slow')}</span>
+            <button type="button" className="tap-auto" onClick={copy} disabled={!feed}
+              style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
             </button>
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
   )
 }
 
 function CalIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d93825" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2050a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+    </svg>
+  )
+}
+
+function GoogleG() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" style={{ flexShrink: 0 }}><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z" /><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.6-3.8-12.3-9H4.4v5.7C8 41.1 15.4 46 24 46z" /><path fill="#FBBC05" d="M11.7 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-3 .7-4.3V14H4.4C2.9 17 2 20.4 2 24s.9 7 2.4 10l7.3-5.7z" /><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8 6.9 4.4 14l7.3 5.7c1.7-5.2 6.6-9 12.3-9z" /></svg>
+  )
+}
+
+function AppleCal() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d93825" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
       <rect x="3" y="4" width="18" height="18" rx="3" /><path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   )
