@@ -524,6 +524,38 @@ export async function weeklyCandidates(svc: Svc, o: {
   }))
 }
 
+/**
+ * The weeks a fixed class's coach cannot take, and who else can (owner,
+ * 2026-11-02, version A: "show the same time with other coaches, and make it
+ * clear it is another coach"). For each date, the other coaches free at that
+ * exact time for this swimmer; the family may move those weeks to one of them
+ * and the class keeps its own coach for the rest. One read for all coaches.
+ */
+export async function weeklyAlternatives(svc: Svc, o: {
+  coachIds: string[]; dates: string[]; ct: { id: string; slug: string; max_students: number }
+  studentIds: string[]; level: number; startTime: string; minutes: number; seats: number
+  holds?: Hold[]; locationId?: string | null; pools?: Location[]
+}): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>()
+  const dates = [...o.dates].sort()
+  if (dates.length === 0 || o.coachIds.length === 0) return out
+  const first = dates[0], last = dates[dates.length - 1]
+  const [w, busy] = await Promise.all([
+    loadWindow(svc, o.coachIds, first, last),
+    studentBusy(svc, o.studentIds, first, last),
+  ])
+  const today = getTodayLA(), nowMin = getNowMinutesLA()
+  const startMin = toMin(o.startTime)
+  for (const date of dates) {
+    const ids = o.coachIds.filter(coachId => evalSlot(w, {
+      coachId, date, startMin, minutes: o.minutes, ct: o.ct, level: o.level, seats: o.seats,
+      holds: o.holds, busy, today, nowMin, locationId: o.locationId, pools: o.pools,
+    }).status === 'ok')
+    if (ids.length > 0) out.set(date, ids)
+  }
+  return out
+}
+
 /** The class's own lesson times as halves: an hour is two 30-minute sessions. */
 export function halvesOf(startMin: number, minutes: number, slug: string): { start: string; end: string }[] {
   if (minutes === 60 && slug !== '1on4')

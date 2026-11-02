@@ -45,6 +45,9 @@ type PlanSlot = { date: string; time: string; label: string; points: number; coa
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
 const AMBER = BRAND.amber
+// A fixed-class week with another coach than the class's own (owner,
+// 2026-11-02): its own colour, so "this week is someone else" is plain.
+const SUB_COLOR = '#7b61c4'
 // The page itself: light, starting under the floating nav. One flat colour
 // rather than the home page's gentle gradient, because this page has sticky
 // bars (the week header, the Continue bar) that must match what is behind them.
@@ -431,7 +434,10 @@ export default function BookingPage() {
   const [openings, setOpenings] = useState<Openings | null>(null)
   // Which coach each date of a weekly series would be with (a substitute where
   // the usual coach is away), as the preview returned it.
-  const [recurCoach, setRecurCoach] = useState<Map<string, string>>(new Map())
+  // (The per-date coach map once kept here is now in the basket keys and subSel.)
+  // Weeks of the class's coach that are taken, moved to another coach free at
+  // the same time (date -> coach id; owner, 2026-11-02, version A).
+  const [subSel, setSubSel] = useState<Map<string, string>>(new Map())
   const myLevel = selectedStudent?.current_level != null ? Number(selectedStudent.current_level) : null
   const myGroupBand = myLevel != null ? studentBandOf(myLevel) : null
   const myBandColor = myGroupBand ? (bandColorOf(myGroupBand.min, myGroupBand.max) || ZONE_COLORS.group) : ZONE_COLORS.group
@@ -1582,7 +1588,7 @@ export default function BookingPage() {
    *  startDate. `weeks` grows when the parent asks to see further out; the
    *  ticks they already made are kept then, and only the first opening
    *  pre-ticks ten. */
-  async function openFixed(startDate: string, time: string, coachId: string, weeks: number = FIXED_WEEKS_STEP, keep?: Set<string>, mins: 30 | 60 = planMinutes) {
+  async function openFixed(startDate: string, time: string, coachId: string, weeks: number = FIXED_WEEKS_STEP, keep?: Set<string>, mins: 30 | 60 = planMinutes, subs?: Map<string, string>) {
     if (!selectedStudent) return
     setRecurBusy(true); setRecurMsg('')
     try {
@@ -1604,8 +1610,8 @@ export default function BookingPage() {
           cands.filter((c: any) => c.points != null).map((c: any) => [c.date, Number(c.points)]))
         setRecurList(cands)
         setRecurQuote(quote)
-        setRecurCoach(new Map(cands.filter((c: any) => c.status === 'ok').map((c: any) => [c.date, coachId])))
         setFixedStart(startDate); setFixedWeeks(weeks)
+        setSubSel(new Map(subs || []))
         if (keep) { setGhostSel(keep); setRecurOpen(true); setRecurBusy(false); return }
         // Pre-tick the first ten dates the wallet actually covers: running
         // total, in date order, stopping at the balance. Ten is also the
@@ -2098,14 +2104,17 @@ export default function BookingPage() {
     const loc = locale === 'en' ? 'en-US' : locale
     const lines = [...groups].map(([key, g]) => ({
       key,
+      // The class's coach is the one in its key; weeks with another coach are
+      // counted after it (owner, 2026-11-02).
       text: t('booking.recur.fixedLine', {
         weekday: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { weekday: 'long' }),
-        time: g[0].label, coach: g[0].coachName || '',
+        time: g[0].label, coach: coachName(key.split('|')[2] || '') || g[0].coachName || '',
         date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: 'numeric', day: 'numeric' }),
         n: g.length,
       }),
       points: g.reduce((a, x) => a + x.points, 0),
-    }))
+      subs: g.filter(x => x.coachId !== key.split('|')[2]).length,
+    })).map(l => ({ ...l, text: l.subs > 0 ? `${l.text}${t('booking.recur.withSubs', { n: l.subs })}` : l.text }))
     return { lines, singles }
   }
   const basketSplit = splitPlan(basket)
@@ -2126,7 +2135,8 @@ export default function BookingPage() {
     setFixedOnly(false); setRecurMsg('')
     toPanel.current = true
     openFixed(start, time, coachId, Math.max(FIXED_WEEKS_STEP, Math.ceil(span / FIXED_WEEKS_STEP) * FIXED_WEEKS_STEP),
-      new Set(lessons.map(v => slotKey(v.date, time, coachId))))
+      new Set(lessons.filter(v => v.coachId === coachId).map(v => slotKey(v.date, time, coachId))), planMinutes,
+      new Map(lessons.filter(v => v.coachId !== coachId).map(v => [v.date, v.coachId] as [string, string])))
   }
   const planSplit = splitPlan(recurPlan)
   // The plan's lessons a voucher pays for, and what is left to pay in points.
@@ -2160,7 +2170,7 @@ export default function BookingPage() {
   // what the REST of the basket costs, plus whatever is ticked here.
   // slotKeys are the panel's date|time pairs, coach-free on purpose: accepting
   // the panel replaces whatever the basket holds at those dates and times.
-  const slotKeys = new Set(recurCandidates.map((c: any) => `${c.date}|${selectedSlot?.time ?? ''}`))
+  const slotKeys = new Set([...recurCandidates.map((c: any) => c.date), ...subSel.keys()].map(d => `${d}|${selectedSlot?.time ?? ''}`))
   // planMinutes, not 30 (found 2026-10-05) -- see basketTotal.
   // Every week, the panel's class replaces the basket (one fixed class at a
   // time, owner 2026-11-02), so nothing else is counted against the wallet.
@@ -2172,6 +2182,8 @@ export default function BookingPage() {
       const key = slotKey(c.date, selectedSlot.time, selectedCoach?.id ?? '')
       if (ghostSel.has(key)) out.set(key, recurQuote.get(c.date) ?? 0)
     }
+    // A taken week moved to another coach is one of the class's lessons too.
+    for (const [d, cid] of subSel) out.set(slotKey(d, selectedSlot.time, cid), recurQuote.get(d) ?? 0)
     return out
   })()
   const chosenTotal = [...chosen.values()].reduce((a, n) => a + n, 0)
@@ -2180,7 +2192,9 @@ export default function BookingPage() {
   const ghost = new Map([...chosen].filter(([k]) => !recurSel.has(k)))
   // What the grid draws: the open dates plus the weeks the coach is off.
   const recurShown = (recurOpen && selectedSlot)
-    ? recurList.filter((c: any) => c.status === 'ok' || c.status === 'time_off')
+    // Every week, the ones its coach cannot take too: drawn closed, and
+    // another coach may be chosen for them (owner, 2026-11-02, version A).
+    ? recurList.filter((c: any) => c.status !== 'too_soon')
     : []
   // The first ten open dates, priced: the least a fixed class here can cost.
   const tenCost = recurCandidates.length >= FIXED_CLASS_MIN_LESSONS
@@ -4248,7 +4262,21 @@ export default function BookingPage() {
                         box of its own to scroll. A tap skips that week or
                         takes it back. Ten come pre-ticked. */}
                     {(() => {
-                      const firstOn = recurShown.find((c: any) => c.status === 'ok' && ghostSel.has(slotKey(c.date, selectedSlot.time, selectedCoach.id)))
+                      const firstOn = recurShown.find((c: any) => subSel.has(c.date) || (c.status === 'ok' && ghostSel.has(slotKey(c.date, selectedSlot.time, selectedCoach.id))))
+                      // The weeks this coach cannot take, up to the last week
+                      // chosen (or the first ten when none is), and who could
+                      // take each at the same time. One row per coach, with
+                      // the weeks that coach can take (owner, 2026-11-02, A).
+                      const chosenDates = [...chosen.keys()].map(k => k.split('|')[0]).sort()
+                      const horizon = chosenDates[chosenDates.length - 1] || recurShown[Math.min(recurShown.length, FIXED_CLASS_MIN_LESSONS) - 1]?.date || ''
+                      const gaps = recurShown.filter((c: any) => c.status !== 'ok' && Array.isArray(c.alts) && c.alts.length > 0 && c.date <= horizon)
+                      const altRows = new Map<string, string[]>()
+                      for (const c of gaps) for (const cid of c.alts as string[]) {
+                        const taken = subSel.get(c.date)
+                        if (taken && taken !== cid) continue
+                        altRows.set(cid, [...(altRows.get(cid) || []), c.date])
+                      }
+                      const rows = [...altRows].sort((a, b) => b[1].length - a[1].length || coachRank(a[0]) - coachRank(b[0]))
                       const months: { ym: string; days: any[] }[] = []
                       for (const c of recurShown) {
                         const ym = String(c.date).slice(0, 7)
@@ -4271,13 +4299,26 @@ export default function BookingPage() {
                                     const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
                                     const dd = Number(String(c.date).slice(8, 10))
                                     const cell: React.CSSProperties = { width: '44px', height: '44px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', padding: 0 }
-                                    // A week the coach is off is shown, so the gap
-                                    // has a reason, but it cannot be ticked.
-                                    if (c.status !== 'ok') return (
-                                      <div key={key} data-fd={c.date} title={t('booking.recur.coachOff')} style={{ ...cell, border: '1px dashed #e3ebf6', color: '#b7c2d4', fontSize: '12px', lineHeight: 1.1 }}>
-                                        {dd}<span style={{ fontSize: '10px', fontWeight: 700 }}>{t('booking.recur.offShort')}</span>
-                                      </div>
-                                    )
+                                    // A week this coach cannot take: closed, saying
+                                    // why -- or, moved to another coach, in that
+                                    // coach's own colour and name (tap to undo).
+                                    if (c.status !== 'ok') {
+                                      const sub = subSel.get(c.date)
+                                      if (sub) return (
+                                        <button key={key} data-fd={c.date} type="button" aria-pressed
+                                          aria-label={`${new Date(c.date + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'long', day: 'numeric' })} ${coachName(sub)}`}
+                                          onClick={() => setSubSel(prev => { const n = new Map(prev); n.delete(c.date); return n })}
+                                          style={{ ...cell, border: `2px solid ${SUB_COLOR}`, background: SUB_COLOR, color: '#fff', fontSize: '14px', lineHeight: 1.05, cursor: 'pointer' }}>
+                                          {dd}<span style={{ fontSize: '9.5px', fontWeight: 800, maxWidth: '40px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coachName(sub)}</span>
+                                        </button>
+                                      )
+                                      const why = c.status === 'time_off' ? t('booking.recur.offShort') : c.status === 'no_class' ? t('booking.recur.noClassShort') : t('booking.recur.takenShort')
+                                      return (
+                                        <div key={key} data-fd={c.date} title={why} style={{ ...cell, border: '1px solid #e8edf4', background: '#f1f3f7', color: '#9aa6ba', fontSize: '12.5px', lineHeight: 1.1 }}>
+                                          {dd}<span style={{ fontSize: '9.5px', fontWeight: 700 }}>{why}</span>
+                                        </div>
+                                      )
+                                    }
                                     const on = ghostSel.has(key)
                                     const cost = recurQuote.get(c.date) ?? 0
                                     // A ticked date can always be unticked; only a
@@ -4302,11 +4343,44 @@ export default function BookingPage() {
                               </div>
                             ))}
                           </div>
+                          {rows.length > 0 && (
+                            <div style={{ marginTop: '12px', border: '1px solid #d8cdf3', background: '#f6f3fd', borderRadius: '10px', padding: '10px 12px' }}>
+                              <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#4b3a8c' }}>
+                                {t('booking.recur.altTitle', { coach: selectedCoach.first_name })}
+                              </div>
+                              {rows.map(([cid, ds]) => {
+                                const mine = ds.every(d => subSel.get(d) === cid)
+                                const add = ds.filter(d => !subSel.has(d))
+                                const addCost = add.reduce((a, d) => a + (recurQuote.get(d) ?? 0), 0)
+                                const can = mine || otherTotal + chosenTotal + addCost <= balance
+                                return (
+                                  <div key={cid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '8px', background: '#fff', border: '1px solid #e3dcf6', borderRadius: '9px', padding: '8px 10px' }}>
+                                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#16294a', minWidth: 0 }}>{ds.map(mdOf).join('、')}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13.5px', fontWeight: 800, color: '#16294a' }}>
+                                        <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: coachColor(cid) }} />{coachName(cid)}
+                                      </span>
+                                      <button type="button" disabled={!can} className="tap-auto"
+                                        onClick={() => setSubSel(prev => {
+                                          const n = new Map(prev)
+                                          if (mine) { for (const d of ds) n.delete(d) } else { for (const d of add) n.set(d, cid) }
+                                          return n
+                                        })}
+                                        style={{ minHeight: '34px', padding: '0 12px', borderRadius: '999px', fontSize: '12.5px', fontWeight: 800, cursor: can ? 'pointer' : 'not-allowed', opacity: can ? 1 : 0.5,
+                                          border: `1px solid ${SUB_COLOR}`, background: mine ? SUB_COLOR : '#fff', color: mine ? '#fff' : SUB_COLOR }}>
+                                        {mine ? t('booking.recur.altOn') : t('booking.recur.altAdd')}
+                                      </button>
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </>
                       )
                     })()}
                     <button disabled={recurBusy} type="button"
-                      onClick={() => { moreFromRef.current = recurShown[recurShown.length - 1]?.date ?? ''; openFixed(fixedStart, selectedSlot.time, selectedCoach.id, fixedWeeks + FIXED_WEEKS_STEP, new Set(ghostSel)) }}
+                      onClick={() => { moreFromRef.current = recurShown[recurShown.length - 1]?.date ?? ''; openFixed(fixedStart, selectedSlot.time, selectedCoach.id, fixedWeeks + FIXED_WEEKS_STEP, new Set(ghostSel), planMinutes, new Map(subSel)) }}
                       style={{ marginTop: '10px', background: 'none', border: 'none', padding: '4px 0', fontSize: '14px', fontWeight: 700, color: GOLD, cursor: recurBusy ? 'wait' : 'pointer' }}>
                       {recurBusy ? t('booking.recur.loading') : t('booking.recur.later')}
                     </button>
@@ -4350,7 +4424,7 @@ export default function BookingPage() {
                               // One private lesson per day still holds: this
                               // slot's date displaces anything else that day.
                               if (!groupFlow) for (const k of [...n.keys()]) if (k.startsWith(date + '|')) n.delete(k)
-                              const cid = recurCoach.get(date) || selectedCoach.id
+                              const cid = key.split('|')[2] || selectedCoach.id
                               n.set(slotKey(date, time, cid), { date, time, label: selectedSlot.label, points, coachId: cid, coachName: coachName(cid), fixed: fixedKey })
                             }
                             return n
@@ -4518,14 +4592,19 @@ export default function BookingPage() {
                     {t('booking.recur.sumDates', { n: recurPlan.length })}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {recurPlan.map(x => (
-                      <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: 600, padding: '5px 10px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+                    {recurPlan.map(x => {
+                      // A week with another coach than the class's own, in
+                      // that colour here too (owner, 2026-11-02).
+                      const other = !!x.fixed && x.coachId !== x.fixed.split('|')[2]
+                      return (
+                      <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: other ? 800 : 600, padding: '5px 10px', borderRadius: '6px', background: other ? SUB_COLOR : `${GOLD}18`, border: `1px solid ${other ? SUB_COLOR : `${GOLD}44`}`, color: other ? '#fff' : GOLD }}>
                         {recurCover.has(lessonKey(x)) ? '🎟 ' : ''}
                         {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                         {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
                       </span>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

@@ -2565,5 +2565,11 @@
   "booking.fixed.oneOnly": "Choosing another time replaces this class.",
   "booking.recur.editFixed": "Change dates ›",
   "booking.fixed.replaces": "Replaces: {line} (Cancel keeps it)",
-  "booking.recur.leftAfter": "{n} pts left"
+  "booking.recur.leftAfter": "{n} pts left",
+  "booking.recur.takenShort": "taken",
+  "booking.recur.noClassShort": "n/a",
+  "booking.recur.altTitle": "{coach} is taken these weeks. Same time with:",
+  "booking.recur.altAdd": "Switch",
+  "booking.recur.altOn": "Switched ✓",
+  "booking.recur.withSubs": " (incl. {n} with another coach)"
 }

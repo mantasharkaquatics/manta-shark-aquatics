@@ -711,6 +711,18 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   opens again with its dates ticked. While a panel is open on this path
   there is no bottom bar (its 繼續 used to book the class chosen before),
   and the panel says which class it would replace (owner, 2026-11-02).
+- **A week the class's coach cannot take may go to another coach** (owner,
+  2026-11-02, version A of three -- before, a fixed class was one coach
+  throughout and those weeks were silently left out). The preview gives
+  each such date `alts` (lib/fixed-classes `weeklyAlternatives`: other
+  coaches free at that time, one window read); the panel draws those weeks
+  closed (訂走 / 休息 / 沒空) and lists, up to the last chosen week, one
+  row per coach with the weeks they can take and 改上. A week moved is
+  purple with the coach's name (SUB_COLOR) in the calendar and on the
+  confirm page; the class line adds "(其中 N 堂其他教練)". Nothing is moved
+  by itself. The server takes a fixed group whose weeks share weekday and
+  time; its coach (fixed_classes.coach_id, and what a renewal must keep) is
+  the one most of its weeks are with.
 - **Keep the words short** (owner, 2026-11-02: "shorten whatever can be
   shortened, so the screen is not so long"): the panel's totals are one line,
   the hints are a few words, the coach hint is gone on these two paths, and

@@ -2565,5 +2565,11 @@
   "booking.fixed.oneOnly": "選別的時間會換掉這一班",
   "booking.recur.editFixed": "更改日期 ›",
   "booking.fixed.replaces": "會換掉：{line}（按取消就保留）",
-  "booking.recur.leftAfter": "餘額 {n} 點"
+  "booking.recur.leftAfter": "餘額 {n} 點",
+  "booking.recur.takenShort": "訂走",
+  "booking.recur.noClassShort": "沒空",
+  "booking.recur.altTitle": "{coach} 沒空的週，同一時間可以改上：",
+  "booking.recur.altAdd": "改上",
+  "booking.recur.altOn": "已改上 ✓",
+  "booking.recur.withSubs": "（其中 {n} 堂其他教練）"
 }

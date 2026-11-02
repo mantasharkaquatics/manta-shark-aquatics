@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { randomUUID } from 'crypto'
-import { renewalHolds, weeklyCandidates, lessonsOf, termLastDates, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
+import { renewalHolds, weeklyCandidates, weeklyAlternatives, lessonsOf, termLastDates, classState, halvesOf, FC_COLUMNS, type Cand as WeekCand, type FixedClass } from '@/lib/fixed-classes'
 import { getTodayLA, formatTime12h, isGridStart, GRID_ERROR } from '@/lib/date'
 import { FIXED_CLASS_MIN_LESSONS, singleMaxDate, SINGLE_TOO_FAR_ERROR, SWIMMER_INACTIVE_ERROR } from '@/lib/booking-time'
 import { assignVoucherKeys, attachVoucher, claimVoucher, matchingVouchers, releaseVoucher, usableVoucher, VOUCHER_GONE_ERROR, VOUCHER_TOO_EARLY_ERROR, type Voucher } from '@/lib/vouchers'
@@ -21,7 +21,9 @@ import { isSessionFull, sessionFullBody, fullSessionId, SESSION_FULL_CODE } from
 // preview: ?action=preview  student_id, coach_id, start_time, start_date, weeks?, location?
 //   (location: only weeks the coach teaches that slot at that pool count as open)
 //   → the next `weeks` weekly dates from start_date (default 26) with status --
-//     the fixed-class grid. One coach throughout: no substitutes.
+//     the fixed-class grid. A date the coach cannot take carries `alts`: the
+//     other coaches free at that time that week (owner, 2026-11-02), which the
+//     family may choose for those weeks.
 // commit:  ?action=commit   student_id, coach_id, slots[{date, start_time, coach_id?, fixed?}]
 //   → re-validates each slot; books the still-ok ones, skips the rest, reports both.
 //     Slots sharing a `fixed` key are one fixed class (one weekday, time and
@@ -224,12 +226,27 @@ export async function POST(req: NextRequest) {
     const candidates: (Cand & { coach_id?: string })[] =
       await buildCandidates(svc, coach_id, ct, studentIds, level, start_time, start_date, minutes, seats, weeks, parent.id, location)
     for (const c of candidates) c.coach_id = coach_id
+    // The weeks this coach cannot take, and who can instead (owner,
+    // 2026-11-02, version A). Not a week the swimmer already has or that is
+    // too soon; a week only someone else could take is still the family's
+    // choice -- nothing is swapped in by itself.
+    const gaps = candidates.filter(c => c.status !== 'ok' && c.status !== 'too_soon' && c.status !== 'booked').map(c => c.date)
+    let alts = new Map<string, string[]>()
+    if (gaps.length > 0) {
+      const { data: others } = await svc.from('coaches').select('id').eq('is_active', true).neq('id', coach_id)
+      const ids = (others || []).map((r: any) => r.id as string)
+      if (ids.length > 0) {
+        const lastDate = gaps[gaps.length - 1]
+        const [holds, pools] = await Promise.all([renewalHolds(svc, gaps[0], lastDate, parent.id), getLocations(svc)])
+        alts = await weeklyAlternatives(svc, { coachIds: ids, dates: gaps, ct, studentIds, level, startTime: start_time, minutes, seats, holds, locationId: location, pools })
+      }
+    }
     const wallet = await walletSummary(svc, parent.id)
     // Price every offered date, so the term picker can total up the selection as
     // the parent ticks dates rather than quoting one figure and charging another.
     const { perDate } = priceDates(ct.slug, candidates.map(c => c.date), start_time, minutes, seats)
     return NextResponse.json({
-      candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null })),
+      candidates: candidates.map(c => ({ ...c, points: perDate.get(c.date) ?? null, ...(alts.has(c.date) ? { alts: alts.get(c.date) } : {}) })),
       balance: wallet.balance,
       // Owed from a returned payment: the renewal picker says so up front and
       // keeps its confirm off, as commit would refuse it (F114).
@@ -295,15 +312,22 @@ export async function POST(req: NextRequest) {
     }
     wanted.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
 
-    // A fixed class is one weekday, one time, one coach, and at least ten
-    // lessons. The client builds it that way; this is the server not taking
-    // its word for it.
+    // A fixed class is one weekday, one time and at least ten lessons. Its
+    // coach is the one most of its weeks are with; a week that coach could
+    // not take may be with another (owner, 2026-11-02, version A -- it used
+    // to be one coach throughout). The client builds it that way; this is
+    // the server not taking its word for it.
     const weekdayOf = (d: string) => new Date(d + 'T00:00:00').getDay()
     const groups = new Map<string, Slot[]>()
     for (const w of wanted) if (w.fixed) groups.set(w.fixed, [...(groups.get(w.fixed) || []), w])
+    const mainCoach = (g: Slot[]) => {
+      const n = new Map<string, number>()
+      for (const x of g) n.set(x.coach!, (n.get(x.coach!) || 0) + 1)
+      return [...n].sort((a, b) => b[1] - a[1])[0][0]
+    }
     for (const [, g] of groups) {
       const f = g[0]
-      if (g.some(x => x.time !== f.time || x.coach !== f.coach || weekdayOf(x.date) !== weekdayOf(f.date)))
+      if (g.some(x => x.time !== f.time || weekdayOf(x.date) !== weekdayOf(f.date)))
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
       if (g.length < FIXED_CLASS_MIN_LESSONS)
         return NextResponse.json({ error: 'FIXED_TOO_FEW', need: FIXED_CLASS_MIN_LESSONS, have: g.length }, { status: 400 })
@@ -334,8 +358,8 @@ export async function POST(req: NextRequest) {
       if (fc.course_type_id !== ct.id || fc.minutes !== minutes || want.size !== has.size
           || [...want].some(id => !has.has(id)) || groups.size !== 1 || wanted.some(w => !w.fixed))
         return NextResponse.json({ error: 'Invalid slots' }, { status: 400 })
-      const f0 = [...groups.values()][0][0]
-      if (f0.coach !== fc.coach_id || f0.time !== String(fc.start_time).slice(0, 5) || weekdayOf(f0.date) !== fc.weekday)
+      const g0 = [...groups.values()][0], f0 = g0[0]
+      if (mainCoach(g0) !== fc.coach_id || f0.time !== String(fc.start_time).slice(0, 5) || weekdayOf(f0.date) !== fc.weekday)
         return NextResponse.json({ error: 'A renewal keeps the same weekday, time and coach.' }, { status: 400 })
       const { last } = classState((await lessonsOf(svc, [fc.id])).get(fc.id), undefined, undefined, (await termLastDates(svc, [fc.id])).get(fc.id))
       if (last && f0.date <= last)
@@ -496,10 +520,10 @@ export async function POST(req: NextRequest) {
       const keys = [...groups.keys()]
       const { data: fcRows, error: fcErr } = await svc.from('fixed_classes')
         .insert(keys.map(k => {
-          const f = groups.get(k)![0]
+          const g = groups.get(k)!, f = g[0]
           return {
             parent_id: parent.id, student_id: student.id, student2_id: student2?.id ?? null,
-            course_type_id: ct.id, minutes, coach_id: f.coach, weekday: weekdayOf(f.date), start_time: f.time,
+            course_type_id: ct.id, minutes, coach_id: mainCoach(g), weekday: weekdayOf(f.date), start_time: f.time,
           }
         }))
         .select('id')
