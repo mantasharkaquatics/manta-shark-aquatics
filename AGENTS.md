@@ -511,12 +511,16 @@ at best, the iPhone as its settings say.
   Calendar's phone app cannot subscribe to a link -- the ?cid= page sent
   the owner to a Google sales page -- so on a phone (the app or a phone
   browser) Google 日曆 opens a sheet: 寄連結到我的信箱 (POST
-  /api/parent/calendar-feed) and 複製連結. When the family has more than
-  one person, the sheet lists them -- main account, second guardian,
-  view-only -- to tick (owner, 2026-11-02: so grandparents get it without
-  signing in); you are ticked, the others' addresses are masked (bob•••@),
-  and the server only ever mails the family's own addresses. Added once on a computer, the phone's Google Calendar shows
-  it too. On a computer the button is the ?cid= link itself.
+  /api/parent/calendar-feed) and 複製連結. It mails only the person signed
+  in, at their own login address (owner, 2026-11-02: some family members
+  do not want the lessons in their calendar -- a version that let one
+  parent tick the others was built and dropped the same day); a second
+  guardian or a grandparent signs in and presses it themselves. Added
+  once on a computer, the phone's Google Calendar shows it too.
+- **To stop**, the family deletes the "Manta Shark 課程" calendar in its
+  calendar app (iPhone: Calendars › ⓘ › Delete Calendar; Google on a
+  computer: the calendar's settings › Unsubscribe); every lesson in it goes
+  at once and nothing on our side changes. On a computer the button is the ?cid= link itself.
 - **The card shows in full once** (owner, 2026-11-02: "it takes too much
   room"): the first time this browser opens the schedule (localStorage
   msa_cal_card_seen), with a ✕. After that it is one line, 把課表加進行事曆 ›
