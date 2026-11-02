@@ -338,7 +338,6 @@
   "booking.recur.gridHint": "固定班：每周同一天、同一时间、同一位教练，最少 {n} 堂。先帮您勾了 10 堂，想上更多就往后点；确认之前都不会扣点。",
   "booking.recur.isBookedForN": "的 {n} 堂课已预约完成",
   "booking.recur.loading": "加载中…",
-  "booking.recur.remaining": "接下来 {w} 周有 {n} 天可以上",
   "booking.recur.someSkipped": "其中 {m} 个日期已无法预约，已自动略过。",
   "booking.recur.status.noClass": "没有课",
   "booking.recur.status.timeOff": "停课（教练休假）",
@@ -2544,7 +2543,6 @@
   "booking.way.renewCta": "去续报",
   "booking.fixed.title": "选每周的上课时间",
   "booking.fixed.dayQ": "每周哪一天？",
-  "booking.fixed.dayHint": "可以点的日子就有空的时间。",
   "booking.fixed.timesFor": "每{weekday}可以上的时间",
   "booking.fixed.startsOn": "{date} 起",
   "booking.fixed.noTimes": "这一天没有空的时间，换一天看看。",
@@ -2558,5 +2556,10 @@
   "booking.fixed.pm": "下午",
   "booking.fixed.count": "{n} 个时段",
   "booking.fixed.fromDate": "{date} 开始",
-  "booking.fixed.halfNone": "没有空档"
+  "booking.fixed.halfNone": "没有空档",
+  "booking.recur.skipHint": "点日期可以跳过那一周（例如出游）",
+  "booking.recur.pickedFrom": "已选 {n} 堂，从 {date} 开始",
+  "booking.recur.pickedNone": "还没选日期",
+  "booking.recur.offShort": "休息",
+  "booking.recur.later": "再往后看 ›"
 }

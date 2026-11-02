@@ -696,20 +696,34 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   就選這 N 堂). The month calendar is not shown on this path. 30/60 minutes
   for 1-on-1 and sibling 1-on-2. Morning times in the left column, afternoon
   in the right (owner, 2026-11-02: he tried stacked 上午 / 下午 sections and
-  went back to the columns, though the afternoon one runs longer). Each
-  time is one line: the time on the left, who teaches it on the right
-  ("Mitch +2"), each in its own straight column, 14px from the edge. No
-  AM/PM in the cells (the column says 上午 / 下午) and two-digit hours,
-  02:00 not 2:00, so they line up (owner, 2026-11-02).
+  went back to the columns, though the afternoon one runs longer). A cell
+  is the time alone (the coach is chosen above; a group class still names
+  its coach), no AM/PM (the column says 上午 / 下午), two-digit hours --
+  02:00 not 2:00 -- so they line up (owner, 2026-11-02).
   The start date is said once under the heading (the date most times start
   on); only a time that starts on another date shows its own (owner,
   2026-11-02: on every cell it repeated).
+- **The dates of a fixed class are a calendar, one row a month** (owner,
+  2026-11-02, version A of three): the day of the month only, no points in
+  the cells (the total is below), every date read so far on screen with no
+  inner scroll box; a tap skips that week. 再往後看 adds the next weeks and
+  moves the page to the first of them -- the old "show 26 more weeks" added
+  them inside a scroll box and nothing seemed to happen.
+- **The 要怎麼上 and every-week steps fit one screen** in the app (owner,
+  2026-11-02): no 上一步 on the chooser (更改 on the course line is the way
+  back), no bottom bar on the every-week path until a lesson is chosen, and
+  a tighter page heading in the app (.bk-head / .bk-h1 / .bk-body in
+  globals.css).
 - **One at a time**: the old calendar, but a date past the 14-day window is
   drawn closed and a tap opens a sheet saying when it opens, with
   改選每週固定上課. It no longer silently turns into a fixed class.
-- **No hints that steer a family to a coach** (owner, 2026-11-01: families
-  should not lean on one coach). 不限教練 gives a tapped time to the coach
-  with the most open time that day (`spreadPick`), not the last coach;
-  /api/bookings/openings still returns `preferred` but the page ignores it.
-  Families may still pick a coach themselves. "Same as last time" naming the
-  last coach is the family's own history, not a hint.
+- **A coach is always chosen on these two paths -- no 不限教練** (owner,
+  2026-11-02, reversing 2026-11-01): first the coach of the swimmer's Swim
+  Assessment (`assessCoachId` from /api/parent/last-lesson), then of their
+  last lesson, then whoever has the most open time at this pool -- the first
+  with any time there. Once per swimmer, course and pool; the family can
+  change it, and a coach restored after a top-up is kept. Elsewhere (an
+  assessment, a move, a make-up, a 1-on-2 with another family) 不限教練
+  stays and gives a time to the coach with the most open time that day
+  (`spreadPick`), not the last coach; /api/bookings/openings still returns
+  `preferred` but the page ignores it.

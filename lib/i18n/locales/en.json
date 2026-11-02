@@ -338,7 +338,6 @@
   "booking.recur.gridHint": "A fixed class is the same day, time and coach every week, at least {n} lessons. Ten are ticked to start with; tick more if you like. Nothing is charged until you confirm.",
   "booking.recur.isBookedForN": "is booked for {n} lessons",
   "booking.recur.loading": "Loading…",
-  "booking.recur.remaining": "{n} open dates in the next {w} weeks",
   "booking.recur.someSkipped": "{m} of the dates were no longer available and were skipped.",
   "booking.recur.status.noClass": "No class",
   "booking.recur.status.timeOff": "No class (time off)",
@@ -2544,7 +2543,6 @@
   "booking.way.renewCta": "Renew",
   "booking.fixed.title": "Pick your weekly time",
   "booking.fixed.dayQ": "Which day each week?",
-  "booking.fixed.dayHint": "Days with open times can be tapped.",
   "booking.fixed.timesFor": "Times every {weekday}",
   "booking.fixed.startsOn": "from {date}",
   "booking.fixed.noTimes": "No open times on this day. Try another day.",
@@ -2558,5 +2556,10 @@
   "booking.fixed.pm": "Afternoon",
   "booking.fixed.count": "{n} open",
   "booking.fixed.fromDate": "Starting {date}",
-  "booking.fixed.halfNone": "None open"
+  "booking.fixed.halfNone": "None open",
+  "booking.recur.skipHint": "Tap a date to skip that week (a trip, say).",
+  "booking.recur.pickedFrom": "{n} lessons, starting {date}",
+  "booking.recur.pickedNone": "No dates chosen yet",
+  "booking.recur.offShort": "off",
+  "booking.recur.later": "Later dates ›"
 }

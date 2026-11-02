@@ -367,3 +367,11 @@ html.msa-app.msa-tabs-small .rn { top: 0 !important; }
 /* The booking bar sits on the tabs inside the app, so the home indicator is
    not under it: no room for it. */
 html.msa-app .msa-book-bar { padding-bottom: 12px !important; }
+
+/* The booking page in the app: the top bar already leaves room, so the
+   page heading sits closer under it -- the 要怎麼上 and every-week steps fit
+   one screen (owner, 2026-11-02). */
+html.msa-app .bk-head { padding-top: 12px !important; }
+html.msa-app .bk-h1 { margin-top: 0 !important; }
+html.msa-app .bk-body { padding-top: 18px !important; padding-bottom: 16px !important; }
+html.msa-app .bk-steps { margin-bottom: 16px !important; }

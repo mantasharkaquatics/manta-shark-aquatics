@@ -13,7 +13,10 @@ export const runtime = 'nodejs'
 //
 // GET ?student_id=...&course_slug=1on1|1on2|1on4&student2_id=...
 //   student2_id: a sibling 1-on-2 -- the lesson must be one they shared.
-//   -> { last: { date, weekday, time, minutes, coachId, coachName } | null }
+//   -> { last: { date, weekday, time, minutes, coachId, coachName } | null,
+//        assessCoachId: the coach of the swimmer's latest Swim Assessment, or null }
+// assessCoachId is the coach the booking page picks first (owner, 2026-11-02:
+// "if this family's assessment was with Mitch, choose Mitch for them").
 
 const toMin = (t: string) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
 
@@ -34,7 +37,7 @@ export async function GET(req: NextRequest) {
     ])
     if ((kids || []).length !== ids.length || (kids || []).some((k: any) => k.parent_id !== parent.id))
       return NextResponse.json({ error: 'Student not found' }, { status: 403 })
-    if (!ct) return NextResponse.json({ last: null })
+    if (!ct) return NextResponse.json({ last: null, assessCoachId: null })
 
     const { data: rows } = await allRows(() => svc.from('bookings')
       .select('id, student_id, lesson_group_id, class_session_id, is_trial, class_sessions!bookings_class_session_id_fkey(coach_id, session_date, start_time, end_time, course_type_id)')
@@ -42,6 +45,9 @@ export async function GET(req: NextRequest) {
       .not('status', 'in', '("cancelled","pending_partner")').order('id'))
     const today = getTodayLA()
     const sessOf = (b: any) => Array.isArray(b.class_sessions) ? b.class_sessions[0] : b.class_sessions
+    const trials = (rows || []).filter((b: any) => b.student_id === studentId && b.is_trial && sessOf(b))
+      .map(sessOf).sort((a: any, b: any) => String(b.session_date).localeCompare(String(a.session_date)))
+    const assessCoachId: string | null = trials[0]?.coach_id ?? null
     const mine = (rows || []).filter((b: any) => {
       const s = sessOf(b)
       return b.student_id === studentId && !b.is_trial && s && s.course_type_id === ct.id && s.session_date <= today
@@ -49,7 +55,7 @@ export async function GET(req: NextRequest) {
     // A sibling 1-on-2: only a lesson the second swimmer was in too.
     const theirs = ids.length > 1 ? new Set((rows || []).filter((b: any) => b.student_id === ids[1]).map((b: any) => b.class_session_id)) : null
     const shared = theirs ? mine.filter((b: any) => theirs.has(b.class_session_id)) : mine
-    if (shared.length === 0) return NextResponse.json({ last: null })
+    if (shared.length === 0) return NextResponse.json({ last: null, assessCoachId })
 
     const key = (b: any) => { const s = sessOf(b); return `${s.session_date} ${String(s.start_time).slice(0, 5)}` }
     const latest = shared.reduce((a: any, b: any) => (key(b) > key(a) ? b : a))
@@ -70,6 +76,7 @@ export async function GET(req: NextRequest) {
         coachId: s0.coach_id,
         coachName: coach?.first_name || '',
       },
+      assessCoachId,
     })
   } catch (e) {
     console.error('parent/last-lesson failed:', e)

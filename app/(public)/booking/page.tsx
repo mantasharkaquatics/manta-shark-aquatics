@@ -187,9 +187,9 @@ function useOtherPoolReads(
   return key && ans.key === key ? ans.byPool : null
 }
 
-function SectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
+function SectionTitle({ eyebrow, title, gap = 24 }: { eyebrow?: string; title: string; gap?: number }) {
   return (
-    <div style={{ marginBottom: '24px' }}>
+    <div style={{ marginBottom: `${gap}px` }}>
       {eyebrow && <div style={{
         display: 'inline-flex', alignItems: 'center', gap: '8px',
         fontSize: '11.5px', fontWeight: 600, letterSpacing: '3px',
@@ -590,7 +590,7 @@ export default function BookingPage() {
   // What the "ready for you" card is made from: the swimmer's last lesson of
   // this course, the family's fixed classes, and the assessment advice.
   type LastLesson = { date: string; weekday: number; time: string; minutes: 30 | 60; coachId: string; coachName: string }
-  const [lastLesson, setLastLesson] = useState<{ key: string; last: LastLesson | null } | null>(null)
+  const [lastLesson, setLastLesson] = useState<{ key: string; last: LastLesson | null; assessCoachId: string | null } | null>(null)
   const [myFixed, setMyFixed] = useState<any[] | null>(null)
   const [myReports, setMyReports] = useState<any[] | null>(null)
   // Which openings question the last answer (or failure) was for.
@@ -726,6 +726,9 @@ export default function BookingPage() {
   }, [isTrial])
 
   // The programme page's slot link, until it has been applied (see init).
+  // A coach put back by restoreResume (after a top-up): the default coach
+  // (BK15) leaves it alone.
+  const coachRestoredRef = useRef(false)
   const slotLinkRef = useRef<{ course: string; date: string; time: string; coursePicked: boolean; coach?: string } | null>(null)
 
   useEffect(() => {
@@ -1686,7 +1689,7 @@ export default function BookingPage() {
     if (step !== 3 || !lastKey || lastLesson?.key === lastKey) return
     let live = true
     fetch(`/api/parent/last-lesson?${lastKey}`).then(r => r.ok ? r.json() : null).catch(() => null)
-      .then(j => { if (live) setLastLesson({ key: lastKey, last: j?.last ?? null }) })
+      .then(j => { if (live) setLastLesson({ key: lastKey, last: j?.last ?? null, assessCoachId: j?.assessCoachId ?? null }) })
     return () => { live = false }
   }, [step, lastKey, lastLesson])
   useEffect(() => {
@@ -1745,6 +1748,19 @@ export default function BookingPage() {
     return [...out.values()].sort((a, b) => String(a.time).localeCompare(String(b.time)) || coachRank(a.ids[0]) - coachRank(b.ids[0]))
   }
   const fixedPanelRef = useRef<HTMLDivElement>(null)
+  // "Later dates" adds the next weeks: the page then moves to the first of
+  // them, so the family sees what happened (owner, 2026-11-02: the old "show
+  // 26 more weeks" added them out of sight and nothing seemed to move).
+  const moreFromRef = useRef('')
+  useEffect(() => {
+    const from = moreFromRef.current
+    if (!from) return
+    const next = recurList.find((c: any) => c.date > from)
+    if (!next) return
+    moreFromRef.current = ''
+    const id = requestAnimationFrame(() => document.querySelector(`[data-fd="${next.date}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    return () => cancelAnimationFrame(id)
+  }, [recurList])
   const toPanel = useRef(false)
   useEffect(() => {
     if (!recurOpen || !toPanel.current) return
@@ -1807,11 +1823,32 @@ export default function BookingPage() {
     if (w === 'fixed') setFixedDow(null)
     requestAnimationFrame(() => scrollTo(doneRef.current))
   }
+  /* A coach is always chosen on these paths -- no 不限教練 (owner, 2026-11-02:
+     "if this family's assessment was with Mitch, choose Mitch for them; they
+     can still change"). First the coach of the swimmer's Swim Assessment,
+     then of their last lesson, then whoever has the most open time at this
+     pool -- the first of them who has any time here. Once per swimmer,
+     course and pool; a coach the family picks, or one restored after a
+     top-up, is not overridden. */
+  const coachDefaultFor = useRef('')
+  const coachKey = `${lastKey}|${location ?? ''}`
+  useEffect(() => {
+    if (!wayFlow || !privateFlow || !openings || step !== 3 || lastLesson?.key !== lastKey) return
+    if (coachDefaultFor.current === coachKey) return
+    coachDefaultFor.current = coachKey
+    if (coachRestoredRef.current) { coachRestoredRef.current = false; return }
+    const free = new Map<string, number>()
+    for (const d of Object.values(openings.days)) for (const l of Object.values(d)) for (const id of l) free.set(id, (free.get(id) || 0) + 1)
+    const pick = [lastLesson.assessCoachId, lastLesson.last?.coachId].find(id => !!id && free.has(id))
+      || [...free.keys()].sort((a, b) => (free.get(b)! - free.get(a)!) || coachRank(a) - coachRank(b))[0]
+    if (pick && pick !== coachFilter) pickFilter(pick)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wayFlow, privateFlow, openings, step, lastLesson, coachKey])
   function takeSameAsLast() {
     if (!sameLast || !sameNext) return
     setWay('fixed'); setFixedDow(sameLast.weekday)
     setLessonLength(sameLast.minutes === 60 && !groupFlow ? 60 : 30)
-    setCoachFilter('any')
+    setCoachFilter(sameLast.coachId); coachDefaultFor.current = coachKey
     pickFixedTime(sameNext.ds, sameNext.slot?.time ?? sameLast.time, sameLast.coachId, sameNext.slot, sameLast.minutes === 60 && !groupFlow ? 60 : 30)
   }
   const fixedTimesRef = useRef<HTMLDivElement>(null)
@@ -1867,8 +1904,6 @@ export default function BookingPage() {
         {loadingTimes ? <MascotLoading text={t('booking.loading')} />
           : dows.every(d => !have.get(d)) ? (
             <p style={{ margin: '14px 0 0', fontSize: '14px', color: '#56647d', textAlign: 'center' }}>{t('booking.fixed.noDays')}</p>
-          ) : fixedDow == null ? (
-            <p style={{ margin: '12px 2px 0', fontSize: '13px', color: '#56647d', lineHeight: 1.5 }}>{t('booking.fixed.dayHint')}</p>
           ) : null}
         {fixedDow != null && !loadingTimes && (
           <div ref={fixedTimesRef} style={{ marginTop: '18px' }}>
@@ -1923,9 +1958,12 @@ export default function BookingPage() {
                       // edge (owner, 2026-11-02). No AM/PM -- the column says
                       // 上午 or 下午 -- and two-digit hours, so 02:00 lines up
                       // under 12:05.
+                      // A private lesson's coach is chosen above, so its cell
+                      // is the time alone (owner, 2026-11-02); a group class
+                      // still names its coach -- two can run at one time.
                       aria-label={`${formatTime(String(ft.time))} ${coachName(on && selectedCoach ? selectedCoach.id : lead)}`}
-                      style={{ display: 'grid', gridTemplateColumns: '3em minmax(0, 1fr)', columnGap: '10px', alignItems: 'center',
-                        minHeight: '48px', padding: '8px 14px', borderRadius: '10px', textAlign: 'left', minWidth: 0, cursor: 'pointer',
+                      style={{ display: 'grid', gridTemplateColumns: groupFlow ? '3em minmax(0, 1fr)' : '1fr', columnGap: '10px', alignItems: 'center', justifyItems: groupFlow ? undefined : 'center',
+                        minHeight: '48px', padding: '8px 14px', borderRadius: '10px', textAlign: groupFlow ? 'left' : 'center', minWidth: 0, cursor: 'pointer',
                         border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a',
                         fontSize: '16px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                       <span>
@@ -1933,7 +1971,7 @@ export default function BookingPage() {
                         {pr && <PriceTag price={pr} onlyOff />}
                         {ft.ds !== mainStart && <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</span>}
                       </span>
-                      <CoachNames side ids={on && selectedCoach ? [selectedCoach.id] : ft.ids} first={on && selectedCoach ? selectedCoach.id : lead} />
+                      {groupFlow && <CoachNames side ids={ft.ids} first={lead} />}
                     </button>
                   )
                 })}
@@ -2116,7 +2154,6 @@ export default function BookingPage() {
   // The calendar's dashed overlay is a proposal, so it covers only the dates
   // not already in the basket -- those cells are solid up there already.
   const ghost = new Map([...chosen].filter(([k]) => !recurSel.has(k)))
-  const okCount = recurCandidates.length
   // What the grid draws: the open dates plus the weeks the coach is off.
   const recurShown = (recurOpen && selectedSlot)
     ? recurList.filter((c: any) => c.status === 'ok' || c.status === 'time_off')
@@ -2238,7 +2275,7 @@ export default function BookingPage() {
     if (!(r.step >= 3) || (ct.slug === '1on2' && !s2)) { advanceRef.current = true; setStep(1); return }
     const live = (x: PlanSlot | null | undefined) => !!x && typeof x.date === 'string' && typeof x.time === 'string' && meetsLeadTime(x.date, x.time)
     setRecurSel(new Map<string, PlanSlot>((Array.isArray(r.basket) ? r.basket : []).filter(e => Array.isArray(e) && live(e[1]))))
-    if (typeof r.coachFilter === 'string') setCoachFilter(r.coachFilter)
+    if (typeof r.coachFilter === 'string') { setCoachFilter(r.coachFilter); if (r.coachFilter !== 'any') coachRestoredRef.current = true }
     const coach = r.coachId ? coachs.find(c => c.id === r.coachId) || null : null
     const ds = typeof r.date === 'string' && r.date >= getTodayLA() ? r.date : null
     if (ds) {
@@ -2764,7 +2801,7 @@ export default function BookingPage() {
 
   return (
     <div className="msa-fill" style={{ fontFamily: FONT_BODY, ...PAGE_BG, minHeight: '100vh', color: '#16294a' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) 0' }}>
+      <div className="bk-head" style={{ maxWidth: '800px', margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,5vw,48px) 0' }}>
         {/* The page's own heading and the way back, where 我的帳戶 and 共同預約
             put theirs -- the dark strip that used to hold them read as a second
             masthead under the floating nav. */}
@@ -2772,12 +2809,12 @@ export default function BookingPage() {
         <Link href="/dashboard" className="msa-web-only" style={{ fontSize: '13.5px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
           ← {t('booking.header.dashboard')}
         </Link>
-        <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(28px,3vw,36px)', fontWeight: 900, color: NAVY, margin: '12px 0 0', lineHeight: 1.15 }}>
+        <h1 className="bk-h1" style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(28px,3vw,36px)', fontWeight: 900, color: NAVY, margin: '12px 0 0', lineHeight: 1.15 }}>
           {isReschedule ? t('booking.header.reschedule') : makeUp ? t('booking.header.makeUp') : t('booking.header.book')}
         </h1>
       </div>
 
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px clamp(20px,5vw,48px) clamp(24px,4vw,48px)' }}>
+      <div className="bk-body" style={{ maxWidth: '800px', margin: '0 auto', padding: '24px clamp(20px,5vw,48px) clamp(24px,4vw,48px)' }}>
 
         {isReschedule && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2860,7 +2897,7 @@ export default function BookingPage() {
         )}
 
         {step > 0 && selectedStudent && (
-          <div ref={doneRef} style={{ marginBottom: '28px' }}>
+          <div ref={doneRef} style={{ marginBottom: '20px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
               value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && pair2 ? ` ＋ ${pair2.full_name}` : '')}
               onChange={isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent} />
@@ -3123,7 +3160,7 @@ export default function BookingPage() {
           const from1 = cheapestFor(selectedCourse?.slug, seats, 30)
           const card = (w: 'fixed' | 'single', body: React.ReactNode) => (
             <button type="button" onClick={() => chooseWay(w)} className="kb-focus"
-              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '16px', padding: '16px 18px',
+              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '16px', padding: '14px 18px',
                 border: `2px solid ${w === 'fixed' ? AMBER : '#e3ebf6'}`, background: w === 'fixed' ? '#fff8ec' : '#fff', color: NAVY }}>
               {body}
             </button>
@@ -3164,10 +3201,10 @@ export default function BookingPage() {
           ) : null
           return (
             <div>
-              <SectionTitle title={t('booking.way.title')} />
+              <SectionTitle title={t('booking.way.title')} gap={14} />
               {arrearsNotice}
               {!wayReady ? <MascotLoading text={t('booking.loading')} /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {ready}
                   {ready && <div style={{ fontSize: '13px', fontWeight: 700, color: '#56647d', margin: '6px 2px 0' }}>{t('booking.way.or')}</div>}
                   {card('fixed', <>
@@ -3180,31 +3217,27 @@ export default function BookingPage() {
                         {t('booking.way.advice', { course: t('assess.course.' + advice.course), freq: t('assess.freq.' + advice.frequency) })}
                       </div>
                     )}
-                    <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {tick(t('booking.way.fixed1'))}{tick(t('booking.way.fixed2'))}{tick(t('booking.way.fixed3'))}
                     </ul>
-                    <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
+                    <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
                       {t('booking.way.fixedFrom', { n: FIXED_CLASS_MIN_LESSONS, points: (from1 * FIXED_CLASS_MIN_LESSONS).toLocaleString('en-US') })} ›
                     </div>
                   </>)}
                   {card('single', <>
                     <div style={{ fontSize: '17px', fontWeight: 800 }}>{t('booking.way.single')}</div>
-                    <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {tick(t('booking.way.single1', { n: SINGLE_DAYS }))}{tick(t('booking.way.single2'))}
                     </ul>
-                    <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
+                    <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
                       {t('booking.way.singleFrom', { points: from1.toLocaleString('en-US') })} ›
                     </div>
                   </>)}
                 </div>
               )}
-              {/* Not stuck to the screen: here it only covered the cards. */}
-              <div style={{ marginTop: '24px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-                <button onClick={() => { setStep(1); clearTime() }}
-                  style={{ width: '100%', padding: '14px', background: '#fff', color: '#16294a', border: '1px solid #d3deec', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
-                  {t('booking.back')}
-                </button>
-              </div>
+              {/* No 上一步 here (owner, 2026-11-02: the page must fit the
+                  screen without scrolling): 更改 on the course line above is
+                  the way back. */}
             </div>
           )
         })()}
@@ -3253,7 +3286,9 @@ export default function BookingPage() {
                   {/* With more than one pool, a coach who has no time at this
                       one is left out of the row rather than offering an empty
                       calendar (the one already picked stays, to be undone). */}
-                  {[{ id: 'any', first_name: t('booking.anyCoach') }, ...(openings?.coaches || []).filter(c => !showLoc || c.id === coachFilter
+                  {/* No 不限教練 on the every-week and one-at-a-time paths: a
+                      coach is always chosen there (owner, 2026-11-02). */}
+                  {[...(wayFlow ? [] : [{ id: 'any', first_name: t('booking.anyCoach') }]), ...(openings?.coaches || []).filter(c => !showLoc || c.id === coachFilter
                     || Object.values(openings?.days || {}).some(d => Object.values(d).some(l => l.includes(c.id))))].map(c => {
                     const on = coachFilter === c.id
                     return (
@@ -4156,7 +4191,7 @@ export default function BookingPage() {
                       {` · ${selectedCoach.first_name}`}
                     </div>
                     <div style={{ fontSize: '13px', color: '#56647d', marginTop: '4px' }}>
-                      {t('booking.recur.remaining', { n: okCount, w: fixedWeeks })}
+                      {t('booking.recur.skipHint')}
                     </div>
                     {fixedOnly && (
                       <div style={{ fontSize: '13px', color: '#9a5b00', background: '#fdf3e1', border: '1px solid #f3dcae', borderRadius: '8px', padding: '8px 10px', marginTop: '10px', lineHeight: 1.6 }}>
@@ -4164,57 +4199,74 @@ export default function BookingPage() {
                       </div>
                     )}
 
-                    {/* "8 weeks" is an abstraction: which eight days it means
-                        is an answer the calendar holds, on a month the parent
-                        may not have scrolled to. Laying the slot's actual dates
-                        out as chips means they are looking at the thing they
-                        are buying. Ten come pre-ticked; the rest they tick. */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: '6px', marginTop: '13px', maxHeight: '236px', overflowY: 'auto' }}>
-                      {recurShown.map((c: any) => {
-                        const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
-                        // A week the coach is off is shown, so the gap in the
-                        // dates has a reason, but it cannot be ticked or paid for.
-                        if (c.status !== 'ok') return (
-                          <div key={key} style={{ minHeight: '48px', padding: '6px 4px', borderRadius: '8px', border: '1px dashed #e3ebf6', color: '#9aa6ba', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                              {new Date(c.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
-                            </div>
-                            <div style={{ fontSize: '11.5px', marginTop: '2px' }}>{t('booking.recur.coachOff')}</div>
+                    {/* The dates as a calendar, one row a month (owner,
+                        2026-11-02, version A of three): only the day of the
+                        month in each cell -- no points; the total is below --
+                        and every date the grid has read is on screen, with no
+                        box of its own to scroll. A tap skips that week or
+                        takes it back. Ten come pre-ticked. */}
+                    {(() => {
+                      const firstOn = recurShown.find((c: any) => c.status === 'ok' && ghostSel.has(slotKey(c.date, selectedSlot.time, selectedCoach.id)))
+                      const months: { ym: string; days: any[] }[] = []
+                      for (const c of recurShown) {
+                        const ym = String(c.date).slice(0, 7)
+                        if (months[months.length - 1]?.ym !== ym) months.push({ ym, days: [] })
+                        months[months.length - 1].days.push(c)
+                      }
+                      return (
+                        <>
+                          <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#3c4b66', margin: '14px 0 10px' }}>
+                            {firstOn ? t('booking.recur.pickedFrom', { n: chosen.size, date: mdOf(firstOn.date) }) : t('booking.recur.pickedNone')}
                           </div>
-                        )
-                        const on = ghostSel.has(key)
-                        const cost = recurQuote.get(c.date) ?? 0
-                        // An already-ticked chip can always be unticked; only
-                        // new ones have to fit inside what is left.
-                        const room = on || otherTotal + chosenTotal + cost <= balance
-                        return (
-                          <button key={key} disabled={!room}
-                            onClick={() => setGhostSel(prev => {
-                              const n = new Set(prev)
-                              if (n.has(key)) n.delete(key); else n.add(key)
-                              return n
-                            })}
-                            style={{
-                              minHeight: '48px', padding: '6px 4px', borderRadius: '8px',
-                              cursor: room ? 'pointer' : 'not-allowed',
-                              border: on ? `2px solid ${GOLD}` : `1px dashed ${room ? `${GOLD}73` : '#e3ebf6'}`,
-                              background: on ? `${GOLD}29` : 'transparent',
-                              color: on ? GOLD : room ? '#56647d' : '#9aa6ba',
-                            }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                              {new Date(c.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
-                            </div>
-                            <div style={{ fontSize: '11.5px', marginTop: '2px', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
-                              {t('points.unit', { n: cost })}
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <button disabled={recurBusy}
-                      onClick={() => openFixed(fixedStart, selectedSlot.time, selectedCoach.id, fixedWeeks + FIXED_WEEKS_STEP, new Set(ghostSel))}
-                      style={{ marginTop: '8px', background: 'none', border: 'none', padding: '4px 0', fontSize: '13px', fontWeight: 600, color: GOLD, cursor: recurBusy ? 'wait' : 'pointer', textDecoration: 'underline' }}>
-                      {recurBusy ? t('booking.recur.loading') : t('booking.recur.moreWeeks', { n: FIXED_WEEKS_STEP })}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {months.map(m => (
+                              <div key={m.ym} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ width: '44px', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: '#56647d' }}>
+                                  {new Date(m.ym + '-01T00:00:00').toLocaleDateString(dateLoc, { month: 'short' })}
+                                </span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                  {m.days.map((c: any) => {
+                                    const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
+                                    const dd = Number(String(c.date).slice(8, 10))
+                                    const cell: React.CSSProperties = { width: '44px', height: '44px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 800, fontVariantNumeric: 'tabular-nums', padding: 0 }
+                                    // A week the coach is off is shown, so the gap
+                                    // has a reason, but it cannot be ticked.
+                                    if (c.status !== 'ok') return (
+                                      <div key={key} data-fd={c.date} title={t('booking.recur.coachOff')} style={{ ...cell, border: '1px dashed #e3ebf6', color: '#b7c2d4', fontSize: '12px', lineHeight: 1.1 }}>
+                                        {dd}<span style={{ fontSize: '10px', fontWeight: 700 }}>{t('booking.recur.offShort')}</span>
+                                      </div>
+                                    )
+                                    const on = ghostSel.has(key)
+                                    const cost = recurQuote.get(c.date) ?? 0
+                                    // A ticked date can always be unticked; only a
+                                    // new one has to fit inside what is left.
+                                    const room = on || otherTotal + chosenTotal + cost <= balance
+                                    return (
+                                      <button key={key} data-fd={c.date} type="button" disabled={!room} aria-pressed={on}
+                                        aria-label={new Date(c.date + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'long', day: 'numeric' })}
+                                        onClick={() => setGhostSel(prev => {
+                                          const n = new Set(prev)
+                                          if (n.has(key)) n.delete(key); else n.add(key)
+                                          return n
+                                        })}
+                                        style={{ ...cell, cursor: room ? 'pointer' : 'not-allowed',
+                                          border: on ? `2px solid ${GOLD}` : `1.5px dashed ${room ? '#c3cfe1' : '#e3ebf6'}`,
+                                          background: on ? GOLD : '#fff', color: on ? '#fff' : room ? '#56647d' : '#b7c2d4' }}>
+                                        {dd}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )
+                    })()}
+                    <button disabled={recurBusy} type="button"
+                      onClick={() => { moreFromRef.current = recurShown[recurShown.length - 1]?.date ?? ''; openFixed(fixedStart, selectedSlot.time, selectedCoach.id, fixedWeeks + FIXED_WEEKS_STEP, new Set(ghostSel)) }}
+                      style={{ marginTop: '10px', background: 'none', border: 'none', padding: '4px 0', fontSize: '14px', fontWeight: 700, color: GOLD, cursor: recurBusy ? 'wait' : 'pointer' }}>
+                      {recurBusy ? t('booking.recur.loading') : t('booking.recur.later')}
                     </button>
                     <div style={{ fontSize: '12px', color: '#56647d', marginTop: '6px', lineHeight: 1.6 }}>
                       {t('booking.recur.gridHint', { n: FIXED_CLASS_MIN_LESSONS })}
@@ -4290,6 +4342,10 @@ export default function BookingPage() {
                 only affects browsing, never operating. Collapsing months would
                 not have fixed this, and would have hidden chosen lessons -- the
                 same fault as the pager we removed. */}
+            {/* Every week, nothing chosen yet: no bar. Its 繼續 could only be
+                off, and 更改 on the 上課方式 line is the way back -- so the page
+                fits the screen (owner, 2026-11-02). */}
+            {!(fixedPath && recurSel.size === 0) && (
             <div className="msa-book-bar" style={{
               position: 'sticky', bottom: 0, zIndex: 5, marginTop: '24px',
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
@@ -4337,6 +4393,7 @@ export default function BookingPage() {
                 >{t('booking.continue')}</button>
               </div>
             </div>
+            )}
           </div>
         )}
 
