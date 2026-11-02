@@ -53,6 +53,19 @@ export interface PhotoPickerPlugin {
 export const photoPickerPlugin = (): PhotoPickerPlugin | null =>
   (cap()?.Plugins?.PhotoPicker as PhotoPickerPlugin | undefined) ?? null
 
+/* Adding a lesson to the iPhone's calendar (owner, 2026-11-02). Native code
+   in the iOS app (mobile/ios/App/App/CalendarAdd.swift) opens iPhone's own
+   "New Event" screen, filled in; the family taps Add. The web view cannot
+   open an .ics file, so this is the app's way to the iPhone calendar.
+   start/end are ms since 1970. added: saved; denied: iOS 15-16 asked for
+   calendar access and was refused (iOS 17 needs no permission for this).
+   Missing on Android and on iPhone builds made before it. */
+export interface CalendarAddPlugin {
+  add(ev: { title: string; location?: string; notes?: string; start: number; end: number }): Promise<{ added: boolean; denied?: boolean }>
+}
+export const calendarAddPlugin = (): CalendarAddPlugin | null =>
+  (cap()?.Plugins?.CalendarAdd as CalendarAddPlugin | undefined) ?? null
+
 /** The app's language button (components/AppShell) asks the website bar
  *  (components/Navbar), which stays mounted inside the app, to switch:
  *  detail = the Locale. */

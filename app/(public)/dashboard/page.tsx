@@ -40,6 +40,7 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { appLook } from '@/lib/native-app'
+import AddToCalendar from '@/components/AddToCalendar'
 import { lookOf, type SwimmerLook } from '@/lib/swimmer-look'
 
 /* The phone layout lives here rather than in inline styles, because an inline
@@ -4825,13 +4826,11 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   <PoolDetails id={b.location_id} />
-                  {/* Same event as the booking emails' calendar file (owner, 2026-10-22). */}
+                  {/* Google or the iPhone's own calendar (owner, 2026-11-02); the file is
+                      the same event as the booking emails' (2026-10-22). */}
                   {!past && b.status === 'confirmed' && b.id && (
-                    <a href={`/api/parent/calendar?booking=${encodeURIComponent(b.id)}`}
-                      style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" /></svg>
-                      {t('dash.addToCalendar')}
-                    </a>
+                    <AddToCalendar bookingId={b.id}
+                      style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', boxSizing: 'border-box', padding: '12px', background: '#eef3fb', border: '1px solid #cfdcef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }} />
                   )}
                   <button onClick={() => setLessonDetail(null)}
                     style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>

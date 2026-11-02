@@ -488,6 +488,20 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   under the tabs. The app is always in light mode (Info.plist
   UIUserInterfaceStyle), so the status bar text stays dark on that white.
 
+# Add to calendar: Google or the iPhone's own (owner, 2026-11-02)
+
+The lesson sheet's 加入行事曆 (components/AddToCalendar.tsx) opens a choice:
+**Google 日曆** -- Google's "add event" page, filled in (the link comes from
+/api/parent/calendar?format=json), opened outside the app -- and **iPhone
+行事曆**: in the iOS app, iPhone's own New Event screen through the
+CalendarAdd plugin (mobile/ios/App/App/CalendarAdd.swift; iOS 17+ needs no
+permission, 15-16 ask, NSCalendarsUsageDescription); in a browser, the .ics
+file ("其他行事曆" off an iPhone). Never link the app to the .ics file: the
+web view cannot open it, fails the load and shows offline.html, the "no
+internet" page (found 2026-11-02). The Android app and iPhone builds made
+before CalendarAdd offer Google only. A Google event is a copy: unlike the
+emails' .ics (same UID), a moved or cancelled lesson does not update it.
+
 # The app's 訊息 screen (owner, 2026-10-28)
 
 /dashboard/chat, the app's 訊息 tab: two tabs under a navy header, 通知
