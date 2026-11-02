@@ -2109,6 +2109,25 @@ export default function BookingPage() {
     return { lines, singles }
   }
   const basketSplit = splitPlan(basket)
+  /** Open a fixed class in the basket again, on its own weekday, time and
+   *  coach, with its dates ticked, so the family can change them; 就選這 N 堂
+   *  puts the new set in its place. */
+  function editFixed(key: string) {
+    const lessons = [...recurSel.values()].filter(v => v.fixed === key).sort((a, b) => a.date.localeCompare(b.date))
+    if (lessons.length === 0) return
+    const [dow, time, coachId] = key.split('|')
+    const c = coaches.find(x => x.id === coachId)
+    if (!c) return
+    const start = lessons[0].date, last = lessons[lessons.length - 1].date
+    const span = Math.round((new Date(last + 'T00:00:00').getTime() - new Date(start + 'T00:00:00').getTime()) / (7 * 86400000)) + 1
+    if (wayFlow && way === 'fixed') setFixedDow(Number(dow))
+    setSelectedDate(new Date(start + 'T00:00:00')); setSelectedCoach(c); setSelectedHour(null)
+    setSelectedSlot({ time, label: lessons[0].label, available: true, enrolled: 0, max: selectedCourse?.max_students ?? 1, within24h: isWithin24Hours(start, time) })
+    setFixedOnly(false); setRecurMsg('')
+    toPanel.current = true
+    openFixed(start, time, coachId, Math.max(FIXED_WEEKS_STEP, Math.ceil(span / FIXED_WEEKS_STEP) * FIXED_WEEKS_STEP),
+      new Set(lessons.map(v => slotKey(v.date, time, coachId))))
+  }
   const planSplit = splitPlan(recurPlan)
   // The plan's lessons a voucher pays for, and what is left to pay in points.
   const recurCover = voucherCover(recurPlan, planMinutes)
@@ -4152,7 +4171,13 @@ export default function BookingPage() {
                     </div>
                     {basketSplit.lines.map(l => (
                       <div key={l.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '10px', padding: '9px 11px', borderRadius: '8px', background: `${GOLD}12`, border: `1px solid ${GOLD}44` }}>
-                        <span style={{ fontSize: '13.5px', fontWeight: 700, color: GOLD, lineHeight: 1.5 }}>{l.text}</span>
+                        {/* Tap the class to open it again and change its dates
+                            (owner, 2026-11-02). */}
+                        <button type="button" onClick={() => editFixed(l.key)} disabled={recurBusy}
+                          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: GOLD }}>
+                          <span style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, lineHeight: 1.5 }}>{l.text}</span>
+                          <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, marginTop: '2px', textDecoration: 'underline' }}>{t('booking.recur.editFixed')}</span>
+                        </button>
                         <button aria-label={t('booking.recur.removeFixed')}
                           onClick={() => setRecurSel(prev => { const n = new Map(prev); for (const [k, v] of prev) if (v.fixed === l.key) n.delete(k); return n })}
                           style={{ background: 'none', border: 'none', padding: '2px 6px', fontSize: '15px', color: '#56647d', cursor: 'pointer' }}>×</button>
@@ -4198,6 +4223,16 @@ export default function BookingPage() {
                     <div style={{ fontSize: '13px', color: '#56647d', marginTop: '4px' }}>
                       {t('booking.recur.skipHint')}
                     </div>
+                    {/* Every week holds one class: say which one this replaces. */}
+                    {fixedPath && (() => {
+                      const here = `${selectedDate.getDay()}|${selectedSlot.time}|${selectedCoach.id}`
+                      const old = basketSplit.lines.find(l => l.key !== here)
+                      return old ? (
+                        <div style={{ fontSize: '13px', color: '#9a5b00', background: '#fdf3e1', border: '1px solid #f3dcae', borderRadius: '8px', padding: '8px 10px', marginTop: '10px', lineHeight: 1.6 }}>
+                          {t('booking.fixed.replaces', { line: old.text })}
+                        </div>
+                      ) : null
+                    })()}
                     {fixedOnly && (
                       <div style={{ fontSize: '13px', color: '#9a5b00', background: '#fdf3e1', border: '1px solid #f3dcae', borderRadius: '8px', padding: '8px 10px', marginTop: '10px', lineHeight: 1.6 }}>
                         {t('booking.recur.singleOnly14', { n: SINGLE_DAYS })}
@@ -4353,7 +4388,10 @@ export default function BookingPage() {
             {/* Every week, nothing chosen yet: no bar. Its 繼續 could only be
                 off, and 更改 on the 上課方式 line is the way back -- so the page
                 fits the screen (owner, 2026-11-02). */}
-            {!(fixedPath && recurSel.size === 0) && (
+            {/* Nor while the panel is open: its own 就選這 N 堂 / 取消 decide,
+                and a 繼續 under it booked the class chosen before (owner,
+                2026-11-02: "what happens if I tap 5:25 now?"). */}
+            {!(fixedPath && (recurSel.size === 0 || recurOpen)) && (
             <div className="msa-book-bar" style={{
               position: 'sticky', bottom: 0, zIndex: 5, marginTop: '24px',
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',

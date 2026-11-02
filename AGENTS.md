@@ -707,6 +707,10 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   once "seems to break"): one weekday, one time. Accepting a new one
   replaces the basket; the wallet arithmetic and the pre-ticks ignore what
   was chosen before; the 已選的課程 box says a new choice replaces it.
+  The class in that box can be tapped (更改日期, `editFixed`): its panel
+  opens again with its dates ticked. While a panel is open on this path
+  there is no bottom bar (its 繼續 used to book the class chosen before),
+  and the panel says which class it would replace (owner, 2026-11-02).
 - **The dates of a fixed class are a calendar, one row a month** (owner,
   2026-11-02, version A of three): the day of the month only, no points in
   the cells (the total is below), every date read so far on screen with no

@@ -2562,5 +2562,7 @@
   "booking.recur.pickedNone": "還沒選日期",
   "booking.recur.offShort": "休息",
   "booking.recur.later": "再往後看 ›",
-  "booking.fixed.oneOnly": "一次報一個固定班：選別的星期或時間，會換掉這一個。"
+  "booking.fixed.oneOnly": "一次報一個固定班：選別的星期或時間，會換掉這一個。",
+  "booking.recur.editFixed": "更改日期 ›",
+  "booking.fixed.replaces": "按「就選這」會換掉原本的：{line}。按「取消」就保留原本的。"
 }

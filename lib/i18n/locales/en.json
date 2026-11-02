@@ -2562,5 +2562,7 @@
   "booking.recur.pickedNone": "No dates chosen yet",
   "booking.recur.offShort": "off",
   "booking.recur.later": "Later dates ›",
-  "booking.fixed.oneOnly": "One weekly class at a time: choosing another day or time replaces this one."
+  "booking.fixed.oneOnly": "One weekly class at a time: choosing another day or time replaces this one.",
+  "booking.recur.editFixed": "Change dates ›",
+  "booking.fixed.replaces": "Choosing this replaces: {line}. Cancel keeps it."
 }
