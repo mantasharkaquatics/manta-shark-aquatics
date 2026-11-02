@@ -17,6 +17,11 @@ import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
      and Android (app or browser) offer Google only. On a computer the same
      link reads "Apple／Outlook 行事曆".
    - 複製連結 for any other calendar.
+   - On a phone (the app or a phone browser) Google 日曆 opens a sheet
+     instead: Google Calendar's phone app cannot subscribe to a link and
+     sent the owner to a Google sales page (2026-11-02). The sheet mails the
+     link to the signed-in person (POST /api/parent/calendar-feed) to add
+     once on a computer; the phone's Google Calendar then shows it too.
 
    The full card shows once (owner, 2026-11-02: "it takes too much room --
    show it the first time, then fold it"): the first time this phone or
@@ -42,6 +47,11 @@ export default function AddToCalendar() {
   // null until the feed is in: nothing shows, so the card never jumps.
   const [full, setFull] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
+  // Google on a phone: its app cannot subscribe to a link (owner,
+  // 2026-11-02: it opened a Google sales page), so a sheet offers to mail
+  // the link to the family, to add once on a computer.
+  const [gSheet, setGSheet] = useState(false)
+  const [mail, setMail] = useState<{ busy?: boolean; sentTo?: string; failed?: boolean }>({})
   // Which second button this phone or computer gets -- only known in the
   // browser, so nothing until after hydration.
   const client = useSyncExternalStore(() => () => {}, () => true, () => false)
@@ -50,6 +60,7 @@ export default function AddToCalendar() {
     : p === 'ios' ? { apple: calendarAddPlugin() ? 'native' : null, label: 'iphone' }
     : p === 'android' || androidBrowser() ? { apple: null, label: '' }
     : { apple: 'link', label: iosBrowser() ? 'iphone' : 'apple' }
+  const phone = client && (p !== null || iosBrowser() || androidBrowser())
 
   useEffect(() => {
     let live = true
@@ -73,9 +84,17 @@ export default function AddToCalendar() {
     const plugin = calendarAddPlugin()
     if (plugin && feed) { try { await plugin.subscribe({ url: feed.webcal }) } catch { /* the family can try Google */ } }
   }
-  const copy = async () => {
+  const copy = async (what: 'https' | 'google' = 'https') => {
     if (!feed) return
-    try { await navigator.clipboard.writeText(feed.https); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* no clipboard */ }
+    try { await navigator.clipboard.writeText(feed[what]); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* no clipboard */ }
+  }
+  const mailMe = async () => {
+    setMail({ busy: true })
+    try {
+      const r = await fetch('/api/parent/calendar-feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'email' }) })
+      const j = await r.json().catch(() => ({}))
+      setMail(r.ok && j.to ? { sentTo: j.to } : { failed: true })
+    } catch { setMail({ failed: true }) }
   }
 
   const btn: React.CSSProperties = { flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '11px 10px',
@@ -108,10 +127,16 @@ export default function AddToCalendar() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <a href={feed?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!feed || undefined}
-              onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
-              <GoogleG />{t('dash.sync.google')}
-            </a>
+            {phone ? (
+              <button type="button" disabled={!feed} onClick={() => { setMail({}); setGSheet(true) }} style={btn}>
+                <GoogleG />{t('dash.sync.google')}
+              </button>
+            ) : (
+              <a href={feed?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!feed || undefined}
+                onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
+                <GoogleG />{t('dash.sync.google')}
+              </a>
+            )}
             {where.apple === 'native' && (
               <button type="button" disabled={!feed} onClick={subscribeApple} style={btn}>
                 <AppleCal />{t('dash.sync.iphone')}
@@ -125,12 +150,45 @@ export default function AddToCalendar() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
             <span style={{ fontSize: '12px', color: '#7a879c' }}>{t('dash.sync.slow')}</span>
-            <button type="button" className="tap-auto" onClick={copy} disabled={!feed}
+            <button type="button" className="tap-auto" onClick={() => copy()} disabled={!feed}
               style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
             </button>
           </div>
       </>
+      {gSheet && (
+        <div onClick={() => setGSheet(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div role="dialog" aria-modal="true" aria-label={t('dash.sync.gTitle')} onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '18px', padding: '22px 20px 14px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><GoogleG size={28} /></div>
+            <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: 800, color: '#16294a' }}>{t('dash.sync.gTitle')}</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#56647d', lineHeight: 1.6 }}>{t('dash.sync.gBody')}</p>
+            {mail.sentTo ? (
+              <p role="status" style={{ margin: '0 0 8px', padding: '12px', borderRadius: '10px', background: '#eaf6ef', color: '#1d6b45', fontSize: '14px', fontWeight: 700, lineHeight: 1.5 }}>
+                ✓ {t('dash.sync.mailed', { email: mail.sentTo })}
+              </p>
+            ) : (
+              <button type="button" disabled={mail.busy} onClick={mailMe}
+                style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', background: '#f09800', color: '#12254a', fontSize: '15px', fontWeight: 800,
+                  cursor: mail.busy ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: mail.busy ? 0.7 : 1 }}>
+                ✉ {t('dash.sync.mail')}
+              </button>
+            )}
+            {mail.failed && <p role="alert" style={{ margin: '8px 0 0', fontSize: '13px', color: '#c0392b' }}>{t('dash.sync.mailFail')}</p>}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', marginTop: '10px' }}>
+              <button type="button" className="tap-auto" onClick={() => copy('google')}
+                style={{ border: 'none', background: 'none', padding: '8px 4px', color: '#2050a0', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
+              </button>
+              <button type="button" className="tap-auto" onClick={() => setGSheet(false)}
+                style={{ border: 'none', background: 'none', padding: '8px 4px', color: '#56647d', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {mail.sentTo ? t('common.close') : t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -143,9 +201,9 @@ function CalIcon({ size = 22 }: { size?: number }) {
   )
 }
 
-function GoogleG() {
+function GoogleG({ size = 18 }: { size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" style={{ flexShrink: 0 }}><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z" /><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.6-3.8-12.3-9H4.4v5.7C8 41.1 15.4 46 24 46z" /><path fill="#FBBC05" d="M11.7 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-3 .7-4.3V14H4.4C2.9 17 2 20.4 2 24s.9 7 2.4 10l7.3-5.7z" /><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8 6.9 4.4 14l7.3 5.7c1.7-5.2 6.6-9 12.3-9z" /></svg>
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" style={{ flexShrink: 0 }}><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z" /><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.6-3.8-12.3-9H4.4v5.7C8 41.1 15.4 46 24 46z" /><path fill="#FBBC05" d="M11.7 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-3 .7-4.3V14H4.4C2.9 17 2 20.4 2 24s.9 7 2.4 10l7.3-5.7z" /><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.4 2 8 6.9 4.4 14l7.3 5.7c1.7-5.2 6.6-9 12.3-9z" /></svg>
   )
 }
 

@@ -507,6 +507,13 @@ at best, the iPhone as its settings say.
   on the site's own address, so the web view keeps it, cannot open it and
   shows offline.html, the "no internet" page (found 2026-11-02). Android
   and iPhone builds made before the plugin offer Google only.
+- **Google on a phone mails the link** (owner, 2026-11-02): Google
+  Calendar's phone app cannot subscribe to a link -- the ?cid= page sent
+  the owner to a Google sales page -- so on a phone (the app or a phone
+  browser) Google 日曆 opens a sheet: 寄連結到我的信箱 (POST
+  /api/parent/calendar-feed, to the signed-in person's own address only)
+  and 複製連結. Added once on a computer, the phone's Google Calendar shows
+  it too. On a computer the button is the ?cid= link itself.
 - **The card shows in full once** (owner, 2026-11-02: "it takes too much
   room"): the first time this browser opens the schedule (localStorage
   msa_cal_card_seen), with a ✕. After that it is one line, 把課表加進行事曆 ›
