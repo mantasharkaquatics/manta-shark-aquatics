@@ -696,7 +696,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   就選這 N 堂). The month calendar is not shown on this path. 30/60 minutes
   for 1-on-1 and sibling 1-on-2. Morning times in the left column, afternoon
   in the right (owner, 2026-11-02: he tried stacked 上午 / 下午 sections and
-  went back to the columns, though the afternoon one runs longer).
+  went back to the columns, though the afternoon one runs longer). Each
+  time is one line: the time on the left, who teaches it on the right
+  ("Mitch +2").
   The start date is said once under the heading (the date most times start
   on); only a time that starts on another date shows its own (owner,
   2026-11-02: on every cell it repeated).

@@ -1483,14 +1483,14 @@ export default function BookingPage() {
   /* Who teaches a time, in words (owner, 2026-10-22): the faces showed one
      letter, and Mitch and Mitzi were both "M". The first coach -- the one a
      tap would give -- by name, the rest as "+2". */
-  const CoachNames = ({ ids, first }: { ids: string[]; first?: string }) => {
+  const CoachNames = ({ ids, first, side }: { ids: string[]; first?: string; side?: boolean }) => {
     if (ids.length === 0) return null
     const lead = first && ids.includes(first) ? first : [...ids].sort((a, b) => coachRank(a) - coachRank(b))[0]
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '3px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: side ? 'flex-end' : 'center', gap: side ? '3px' : '4px', marginTop: side ? 0 : '3px', fontSize: '12px', fontWeight: 600, color: '#56647d', minWidth: 0 }}>
         <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: coachColor(lead), flexShrink: 0 }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {coachName(lead)}{ids.length > 1 ? ` · +${ids.length - 1}` : ''}
+          {coachName(lead)}{ids.length > 1 ? `${side ? ' ' : ' · '}+${ids.length - 1}` : ''}
         </span>
       </div>
     )
@@ -1912,13 +1912,18 @@ export default function BookingPage() {
                   return (
                     <button key={ft.key} type="button" disabled={recurBusy}
                       onClick={() => { if (on && recurOpen) return; pickFixedTime(ft.ds, String(ft.time), on && selectedCoach ? selectedCoach.id : lead, ft.slot) }}
-                      style={{ padding: '8px 4px', borderRadius: '10px', textAlign: 'center', minWidth: 0, cursor: 'pointer',
+                      // One line: the time on the left, who teaches it on the
+                      // right (owner, 2026-11-02).
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px',
+                        minHeight: '48px', padding: '8px 8px', borderRadius: '10px', textAlign: 'left', minWidth: 0, cursor: 'pointer',
                         border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a',
                         fontSize: '15px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatTime(String(ft.time))}
-                      {pr && <PriceTag price={pr} onlyOff />}
-                      {ft.ds !== mainStart && <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</div>}
-                      <CoachNames ids={on && selectedCoach ? [selectedCoach.id] : ft.ids} first={on && selectedCoach ? selectedCoach.id : lead} />
+                      <span style={{ flexShrink: 0 }}>
+                        <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{formatTime(String(ft.time))}</span>
+                        {pr && <PriceTag price={pr} onlyOff />}
+                        {ft.ds !== mainStart && <span style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#56647d', marginTop: '2px' }}>{t('booking.fixed.startsOn', { date: mdOf(ft.ds) })}</span>}
+                      </span>
+                      <CoachNames side ids={on && selectedCoach ? [selectedCoach.id] : ft.ids} first={on && selectedCoach ? selectedCoach.id : lead} />
                     </button>
                   )
                 })}
