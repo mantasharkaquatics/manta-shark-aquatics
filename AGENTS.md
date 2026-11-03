@@ -527,7 +527,10 @@ at best, the iPhone as its settings say.
   only, and nothing on a phone with no usable button. Inside the app the
   sign-in opens in Safari (Google refuses app web views); the signed state
   says who asked, so the callback needs no session. 停止同步 deletes our
-  calendar and revokes the token.
+  calendar and revokes the token. Tested end to end on the preview
+  2026-11-03 (connect, lessons on the phone, 停止同步 removed them). The
+  privacy policy's section 4 describes it -- Google reads that page before
+  the app is published; change both together.
 - **To stop**, the family deletes the "Manta Shark 課程" calendar in its
   calendar app (iPhone: Calendars › ⓘ › Delete Calendar; Google on a
   computer: the calendar's settings › Unsubscribe); every lesson in it goes

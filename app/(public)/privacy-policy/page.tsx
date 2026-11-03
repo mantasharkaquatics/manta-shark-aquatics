@@ -7,7 +7,7 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       title="Privacy Policy"
       subtitle="What information we collect and how we use it."
-      meta="Last updated: October 8, 2026"
+      meta="Last updated: November 3, 2026"
     >
         <p>
           Manta Shark Aquatics (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) values your privacy. This Privacy Policy explains how we
@@ -93,6 +93,14 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>OpenAI (converts coaches&apos; spoken lesson notes from audio into text)</li>
           <li>Google (suggests matching addresses as you type your home address when you register)</li>
+          <li>
+            Google Calendar, only if you choose to connect it: we create one calendar named
+            &quot;Manta Shark Lessons&quot; (in your chosen language) in your Google account and keep your family&apos;s lessons in it.
+            We cannot see or change anything else in your calendar. We store only the permission
+            Google gives us for this. Press &quot;Stop syncing&quot; on your schedule and we
+            delete that calendar and the permission. If you remove our access in your Google Account
+            instead, we delete the stored permission; the calendar stays until you delete it.
+          </li>
         </ul>
         <p>
           These providers process data on our behalf, only to provide their service to us, and under
