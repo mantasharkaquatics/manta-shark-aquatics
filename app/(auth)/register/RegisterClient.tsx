@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import HomeLink from '@/components/brand/HomeLink'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import { dateTag } from '@/lib/i18n'
@@ -553,9 +554,9 @@ export default function RegisterClient() {
     <div className="auth-shell auth-bg min-h-dvh flex items-center justify-center py-10 px-4">
       <div className="auth-card bg-white rounded-2xl w-full max-w-lg p-6 sm:p-8">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
+          <HomeLink href="/" className="inline-block">
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto mb-2 object-cover" style={{ width: 204, height: 106 }} priority />
-          </Link>
+          </HomeLink>
           <h1 className="text-2xl font-bold text-[#12254a] auth-title">{t('register.title')}</h1>
           <p ref={stepRef} tabIndex={-1} className="text-sm text-[#56647d] mt-1 focus:outline-none">{t('register.step', { n: step })}</p>
         </div>

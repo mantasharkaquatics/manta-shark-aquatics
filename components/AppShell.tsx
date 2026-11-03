@@ -207,8 +207,15 @@ export default function AppShell() {
     if (app) coverViewport()
   }, [pathname, app])
 
+  // The website's home page is not part of the app (owner, 2026-11-03): a
+  // move to it inside the page (signing out, a link) goes to the 首頁 tab,
+  // which sends a signed-out family on to the login page. A full load is
+  // caught before paint by APP_DETECT_SCRIPT.
+  const home = /^\/(zh-Hant|zh-Hans)?\/?$/.test(pathname)
+  useEffect(() => { if (app && home) router.replace('/dashboard') }, [app, home, router])
+
   // The message screen fills the screen with its own header and tabs.
-  if (!app || pathname === '/dashboard/chat') return null
+  if (!app || pathname === '/dashboard/chat' || home) return null
 
   const isRoot = TAB_ROOTS.has(pathname)
   const chatCount = Math.max(unread, inbox.chat)

@@ -2,6 +2,7 @@
 import { Suspense, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import HomeLink from '@/components/brand/HomeLink'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/provider'
@@ -83,9 +84,9 @@ function ResetForm() {
     <div className="auth-shell auth-bg min-h-dvh flex items-center justify-center px-4 py-10">
       <div className="auth-card bg-white rounded-2xl p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
+          <HomeLink href="/" className="inline-block">
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto mb-2 object-cover" style={{ width: 204, height: 106 }} priority />
-          </Link>
+          </HomeLink>
           <h1 className="text-2xl font-bold text-[#12254a] auth-title">{t('reset.title')}</h1>
           <p className="text-[#56647d] mt-2 text-sm">{expired ? t('reset.expiredSub') : done ? t('reset.doneSub') : t('reset.subtitle')}</p>
         </div>

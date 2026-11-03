@@ -1258,6 +1258,8 @@
   "points.buy.pointsFor": "{n} points",
   "points.buy.presetCount": "{n} lessons",
   "points.buy.presetPoints": "{n} points",
+  "points.app.have": "You have {n} points",
+  "points.app.title": "Top up",
   "points.buy.title": "Choose a course of lessons",
   "points.buy.youGet": "You'll receive",
   "points.card.arrearsBody": "A payment was returned or reversed by your bank. Pay what you owe by card and booking opens again right away.",

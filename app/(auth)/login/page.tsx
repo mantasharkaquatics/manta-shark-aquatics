@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import HomeLink from '@/components/brand/HomeLink'
 import { safeNext, withNext } from '@/lib/safe-next'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
@@ -91,14 +92,14 @@ export default function LoginPage() {
     <div className="auth-shell auth-bg min-h-dvh flex items-center justify-center px-4 py-10">
       <div className="auth-card bg-white rounded-2xl p-7 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
+          <HomeLink href="/" className="inline-block">
             {/* The logo is the name (owner, 2026-09-28: the page already said
                 "Manta Shark" in the bar, the logo and a heading). logo.png is a
                 square with the artwork across its middle, so a wide, short box
                 with object-cover trims the empty top and bottom: the artwork
                 shows almost twice as large in slightly less height. */}
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto object-cover" style={{ width: 204, height: 106 }} priority />
-          </Link>
+          </HomeLink>
           <h1 className="text-[#56647d] mt-2 text-base">{t('login.subtitle')}</h1>
         </div>
         <div className="space-y-4">

@@ -102,6 +102,10 @@ export function coverViewport() {
 }
 export const APP_DETECT_SCRIPT =
   `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){document.documentElement.classList.add('${APP_CLASS}');` +
+  // The website's home page is not part of the app (owner, 2026-11-03: it
+  // left customers on a page with no way back): the 首頁 tab instead, which
+  // sends a signed-out family on to the login page (proxy.ts).
+  `if(/^\\/(zh-Hant|zh-Hans)?\\/?$/.test(location.pathname))location.replace('/dashboard');` +
   `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */

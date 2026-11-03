@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
@@ -21,6 +21,9 @@ import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { useFamilyStatus } from '@/lib/use-family-status'
 import { myFamilyRole } from '@/lib/my-parent'
 import ZellePay from '@/components/ZellePay'
+import { appLook } from '@/lib/native-app'
+
+const noSubscribe = () => () => {}
 
 // The pricing page under the points system. Every number here is read from
 // lib/points.ts -- the same module the booking route charges from -- so the
@@ -35,6 +38,10 @@ const money = (n: number) => '$' + n.toLocaleString('en-US')
 const num = (n: number) => n.toLocaleString('en-US')
 
 const css = `
+  .p-app { padding: 14px 16px 16px; max-width: 640px; margin: 0 auto; }
+  html.msa-app body:has(.p-app), html.msa-app body:has(.p-app) .rn-space, html.msa-app .b-root:has(.p-app) { background: #e9eff7; }
+  .p-app h1 { font-size: 24px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 4px; }
+  .p-app-have { font-size: 15px; font-weight: 700; color: ${BRAND.mute}; margin: 0 0 14px; }
   /* The assessment card sits over the hero's bottom edge: the first thing a
      new family needs, before any price. */
   .p-assess { position: relative; z-index: 2; margin-top: -36px; background: #fff; border: 1px solid ${BRAND.line};
@@ -188,7 +195,7 @@ function TeamButton({ signedIn }: { signedIn: boolean | null }) {
  * dollars and the points are shown side by side at every step -- a parent
  * should never have to work out what a number on this page is worth.
  */
-function TopUp({ signedIn, anyAssessed }: { signedIn: boolean | null; anyAssessed: boolean }) {
+function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | null; anyAssessed: boolean; app?: boolean }) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -333,7 +340,7 @@ function TopUp({ signedIn, anyAssessed }: { signedIn: boolean | null; anyAssesse
       {needsAssessment && (
         <div className="p-warn" role="alert">
           <div style={{ marginBottom: 8 }}>{t('points.buy.err.assessment')}</div>
-          <Link href={localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
+          <Link href={app ? '/booking' : localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
         </div>
       )}
       {assessmentPending && (
@@ -401,6 +408,39 @@ export default function PlansContent() {
     { key: '1on2', points: BASE_POINTS['1on2'] },
     { key: '1on4', points: BASE_POINTS['1on4'] },
   ]
+
+  /* Inside the app this is the 儲值 screen (owner, 2026-11-03): what the
+     family has, then buying and the price list -- none of the website's
+     hero, Swim Team band or closing call. The price list stays: it is the
+     app's 價目 too. */
+  const app = useSyncExternalStore(noSubscribe, appLook, () => false)
+  const [balance, setBalance] = useState<number | null>(null)
+  useEffect(() => {
+    if (!app || signedIn !== true) return
+    fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
+      .then(j => { if (j && typeof j.balance === 'number') setBalance(j.balance) }).catch(() => {})
+  }, [app, signedIn])
+  if (app) return (
+    <BrandRoot>
+      <style>{css}</style>
+      <div className="p-app">
+        <h1>{t('points.app.title')}</h1>
+        {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance) })}</p>}
+        <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app />
+        <div className="p-card p-price" style={{ marginTop: 16 }}>
+          <p className="b-eyebrow">{t('points.price.eyebrow')}</p>
+          <p className="p-label" style={{ marginTop: 6, marginBottom: 10, fontWeight: 400 }}>{t('points.price.perStudent')}</p>
+          {lessonRows.map(row => (
+            <div key={row.key} className="p-row">
+              <span>{t('points.price.row.' + row.key)}</span>
+              <span style={{ whiteSpace: 'nowrap' }}><strong>{t('points.unit', { n: row.points })}</strong><small>{money(row.points)}</small></span>
+            </div>
+          ))}
+          <p className="p-fine" style={{ marginTop: 16 }}>{t('points.price.hour')}</p>
+        </div>
+      </div>
+    </BrandRoot>
+  )
 
   return (
     <BrandRoot>

@@ -1258,6 +1258,8 @@
   "points.buy.pointsFor": "{n} 點",
   "points.buy.presetCount": "{n} 堂",
   "points.buy.presetPoints": "{n} 點",
+  "points.app.have": "目前 {n} 點",
+  "points.app.title": "儲值",
   "points.buy.title": "選擇課程額度",
   "points.buy.youGet": "您會拿到",
   "points.card.arrearsBody": "您有一筆付款已被銀行退回或撤銷。用信用卡補上欠款，就能立即恢復訂課。",

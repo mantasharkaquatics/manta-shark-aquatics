@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import HomeLink from './HomeLink'
 import { useLocale, useSetLocale, useT, rememberExplicitLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { LOCALES, type Locale } from '@/lib/i18n'
@@ -22,7 +22,7 @@ const LOCALE_SHORT: Record<Locale, string> = { en: 'EN', 'zh-Hant': '繁', 'zh-H
 const css = `
   .ab { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 50; height: 66px; display: flex; align-items: center;
     justify-content: space-between; gap: 12px; padding: 0 28px; font-family: ${FONT_BODY}; }
-  .ab a { font-weight: 800; font-size: 16px; letter-spacing: .34em; color: #fff; text-decoration: none; white-space: nowrap; padding: 8px 0;
+  .ab a, .ab .ab-name { font-weight: 800; font-size: 16px; letter-spacing: .34em; color: #fff; text-decoration: none; white-space: nowrap; padding: 8px 0;
     transition: color .15s; }
   .ab a:hover { color: ${BRAND.yellow}; }
   .ab a:focus-visible { outline: 2px solid ${BRAND.yellow}; outline-offset: 4px; border-radius: 4px; }
@@ -45,7 +45,7 @@ const css = `
   .auth-shell { padding-top: 110px !important; }
   @media (max-width: 1099px) {
     .ab { top: 8px; left: 8px; right: 8px; height: 60px; padding: 0 18px; }
-    .ab a { font-size: 13.5px; letter-spacing: .26em; }
+    .ab a, .ab .ab-name { font-size: 13.5px; letter-spacing: .26em; }
     /* 44px, the phone tap floor, kept round (tap-auto: the global floor would
        stretch it into an oval). */
     .ab-ic { width: 44px; height: 44px; }
@@ -96,7 +96,7 @@ export default function AuthBar() {
     <>
       <style>{css}</style>
       <header className="ab">
-        <Link href={localePath('/', locale)}>MANTA SHARK</Link>
+        <HomeLink href={localePath('/', locale)} className="ab-name">MANTA SHARK</HomeLink>
         <div className="ab-pop" ref={popRef}>
           <button ref={btnRef} type="button" className="ab-ic tap-auto" aria-label={t('nav.language')} aria-expanded={open}
             onClick={() => setOpen(o => !o)}>

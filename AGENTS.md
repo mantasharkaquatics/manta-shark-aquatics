@@ -442,6 +442,16 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 課表 /dashboard/schedule, 訊息 (opens the chat), 我的 /dashboard/me
 (components/AppShell.tsx). Browsers, phones included, keep the website.
 
+- **No website pages in the app** (owner, 2026-11-03: the login page's name
+  and logo went to the website's home page, where the customer was stuck).
+  The sign-in pages are where the app starts: their MANTA SHARK and logo are
+  plain text there (components/brand/HomeLink). The website's home page
+  (/, /zh-Hant, /zh-Hans) goes to /dashboard -- APP_DETECT_SCRIPT on a full
+  load, AppShell on a move inside the page -- and /dashboard sends a
+  signed-out family to the login page. /plans in the app is the 儲值 screen
+  (balance, buying, the price list; no hero, Swim Team or closing call).
+  The info pages 我的 links to (programs, levels, FAQ, about, policies) are
+  to become app-style condensed versions (decided the same day, not built).
 - **html.msa-app** is set before the first paint by a script in the root
   layout's <head> (lib/native-app.ts APP_DETECT_SCRIPT): the app's user agent
   carries `MantaSharkApp` (mobile/capacitor.config.json appendUserAgent), and
