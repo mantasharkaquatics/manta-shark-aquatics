@@ -33,6 +33,9 @@ import { isSessionFull, sessionFullBody, fullSessionId, SESSION_FULL_CODE } from
 //     renew_fixed_class_id adds the dates to that class instead (a renewal:
 //     same slot, after its last lesson, ten or more). minutes 60 books each
 //     lesson as two halves sharing a lesson_group_id.
+//     quiet: true (the family booking, /api/bookings/family) sends no email
+//     and answers with it as `mail` instead, to be sent once every child's
+//     class is in; booking_ids / fixed_class_ids let that route take it back.
 //
 // commit takes a LIST OF SLOTS, not a weekday rule. A family who wants Monday
 // afternoons and Wednesday mornings is describing one set of lessons, not two
@@ -690,6 +693,8 @@ export async function POST(req: NextRequest) {
       if (rnErr) console.error('renewal: notice flag not reset:', rnErr.message)
     }
 
+    const quiet = body.quiet === true
+    let mail: Parameters<typeof sendEmail>[0] | null = null
     try {
       const bookedCoaches = [...new Set(booked.map(s2 => s2.coach!))].map(id => coachById.get(id)).filter(Boolean)
       // Each lesson's pool (its first half's session); empty with one pool.
@@ -697,7 +702,7 @@ export async function POST(req: NextRequest) {
       const locs = await sessionLocationLines(svc, booked.map(firstSess))
       const { data: p2 } = await svc.from('parents').select('first_name, email').eq('id', parent.id).single()
       if (p2?.email) {
-        await sendEmail({
+        mail = {
           type: 'booking_series_confirmed',
           // A fixed class only when every lesson booked is one (a commit can mix
           // in single lessons) -- or this is a renewal.
@@ -714,12 +719,16 @@ export async function POST(req: NextRequest) {
           time: uniformTime ? `${formatTime12h(uniformTime)} – ${formatTime12h(endOf(uniformTime))}` : undefined,
           locations: locs.size > 0 ? booked.map(s2 => locs.get(firstSess(s2) || '')) : undefined,
           calendar: await lessonCalendar(svc, parent.id, ((bookRows || []) as { id: string }[]).map(r => r.id)),
-        })
+        }
+        if (!quiet) await sendEmail(mail)
       }
     } catch {}
 
     return NextResponse.json({
       ok: true,
+      ...(quiet ? { mail } : {}),
+      booking_ids: ((bookRows || []) as { id: string }[]).map(r => r.id),
+      fixed_class_ids: createdFixed,
       booked: booked.length,
       booked_slots: booked.map(s2 => ({ date: s2.date, start_time: s2.time, coach_id: s2.coach,
         points: cover.has(slotKey(s2)) ? 0 : charge.perSlot.get(slotKey(s2))!, make_up: cover.has(slotKey(s2)) })),

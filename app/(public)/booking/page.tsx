@@ -24,7 +24,7 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
-import SiblingBooking from './SiblingBooking'
+import FamilyBooking from './FamilyBooking'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 import SwimmerFace from '@/components/swimmer/SwimmerFace'
@@ -299,7 +299,9 @@ export default function BookingPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const [step, setStep] = useState(0)
-  // Two swimmers booked together (owner, 2026-10-22): its own panel, SiblingBooking.
+  // Several swimmers booked together (owner, 2026-11-03): the children
+  // ticked on the first step; with two or more, FamilyBooking takes over.
+  const [famTicked, setFamTicked] = useState<string[]>([])
   const [siblingMode, setSiblingMode] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -2978,38 +2980,58 @@ export default function BookingPage() {
                 ))}
               </div>
             )}
-            <SiblingBooking key={location ?? 'all'} students={students} courses={courseTypes} location={location ?? null} balance={balance} onExit={() => setSiblingMode(false)} />
+            <FamilyBooking key={location ?? 'all'} kids={students.filter(s => famTicked.includes(s.id))} courses={courseTypes} location={location ?? null} balance={balance}
+              face={k => <SwimmerFace look={lookOf(students.find(s => s.id === k.id)!)} size={40} />} onExit={() => { setSiblingMode(false); window.scrollTo(0, 0) }} />
           </div>
         )}
 
-        {step === 0 && !siblingMode && (
+        {step === 0 && !siblingMode && (() => {
+          // Two or more children who can book lessons: each card can be
+          // ticked, and two or more ticked book together (owner, 2026-11-03,
+          // replacing the 兩個孩子一起訂 box at the bottom). One child, a
+          // move or a make-up: a tap still chooses at once.
+          const multi = !isReschedule && !makeUp && students.filter(s => s.current_level != null).length >= 2
+          const go1 = (s: typeof students[number]) => { if (selectedStudent?.id !== s.id) setSelectedStudent2(null); setSelectedStudent(s); setStep(1) }
+          const ticked = students.filter(s => famTicked.includes(s.id))
+          return (
           <div>
             <SectionTitle title={t('booking.s1.title')} />
+            {multi && <p style={{ margin: '-6px 0 14px', fontSize: '14px', color: '#56647d' }}>{t('fam.pickHint')}</p>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {students.map(s => (
-                <SelectCard key={s.id} selected={selectedStudent?.id === s.id} onClick={() => { if (selectedStudent?.id !== s.id) setSelectedStudent2(null); setSelectedStudent(s); setStep(1) }}>
+              {students.map(s => {
+                const can = multi && s.current_level != null
+                const on = can && famTicked.includes(s.id)
+                return (
+                <SelectCard key={s.id} selected={can ? on : selectedStudent?.id === s.id}
+                  onClick={() => {
+                    if (!can) { setFamTicked([]); go1(s); return }
+                    setFamTicked(f => on ? f.filter(x => x !== s.id) : [...f, s.id].slice(-4))
+                  }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     {/* The child's own swimmer, as on the app's home (owner, 2026-11-01). */}
                     <SwimmerFace look={lookOf(s)} size={48} />
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a' }}>{s.full_name}</div>
                       <div style={{ fontSize: '13px', color: '#56647d' }}>
                         {s.current_level ? t('levels.levelN', { n: s.current_level }) : t('dash.pendingAssessment')}
                       </div>
                     </div>
+                    {can && !on && <span aria-hidden="true" style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #c5d3e6', flexShrink: 0 }} />}
                   </div>
                 </SelectCard>
-              ))}
+                )
+              })}
             </div>
-            {!isReschedule && !makeUp && students.filter(s => s.current_level != null).length >= 2 && (
-              <button type="button" onClick={() => { setSiblingMode(true); window.scrollTo(0, 0) }}
-                style={{ marginTop: '14px', width: '100%', textAlign: 'left', padding: '14px 18px', borderRadius: '14px', border: '1.5px dashed #b8c8e0', background: '#f6f9fd', cursor: 'pointer' }}>
-                <span style={{ display: 'block', fontSize: '15px', fontWeight: 800, color: NAVY }}>👫 {t('sib.entry')}</span>
-                <span style={{ display: 'block', fontSize: '13px', color: '#56647d', marginTop: '3px', lineHeight: 1.5 }}>{t('sib.entryHint')}</span>
+            {multi && ticked.length > 0 && (
+              <button type="button" className="kb-focus"
+                onClick={() => { if (ticked.length === 1) { go1(ticked[0]); return } setSiblingMode(true); window.scrollTo(0, 0) }}
+                style={{ marginTop: '16px', width: '100%', minHeight: '52px', borderRadius: '14px', border: 'none', background: AMBER, color: NAVY, fontSize: '16px', fontWeight: 800, cursor: 'pointer' }}>
+                {ticked.length === 1 ? t('fam.go1') : t('fam.goN', { n: ticked.length })} →
               </button>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {step === 1 && (
           <div>

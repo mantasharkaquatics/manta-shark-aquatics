@@ -837,3 +837,36 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   stays and gives a time to the coach with the most open time that day
   (`spreadPick`), not the last coach; /api/bookings/openings still returns
   `preferred` but the page ignores it.
+
+# Several children booked together (owner, 2026-11-03)
+
+app/(public)/booking/FamilyBooking.tsx, POST /api/bookings/family. It
+replaced SiblingBooking (two children, single lessons only, opened from a
+dashed box at the bottom of the first step; the file stays, unused).
+
+- **The first step ticks children.** With two or more children who have a
+  level (and not a move or a make-up), each card has a tick circle and a tap
+  ticks it (up to 4); the amber button reads 繼續 for one (the usual
+  one-child flow) or N 位一起上 · 繼續 for two or more. A child waiting for
+  the Swim Assessment is still one tap, alone.
+- **Then:** 上什麼課 (1-on-1, each child their own coach / 1-on-4, all in
+  one class) → 要怎麼上 (每週固定 推薦 / 單次 within 14 days) → when. 1-on-1
+  has 同時上 · 各自的教練 (the point of it: no waiting) and 前後連著上 · 同一位
+  教練 (35 minutes apart, ⇅ 換順序, 換一位教練).
+- **Only times every child can have** (owner, version A of two): from each
+  child's /api/bookings/openings (1-on-1, 60 days) or group-classes
+  (9 weeks); same time = one coach per child, no coach twice
+  (matchCoaches). Tapping a time lists each child with their coach and
+  換教練 (a coach no one else has, or a swap the other child can take).
+- **Every week:** each child's /api/bookings/recurring preview at their
+  coach and time, side by side; a week is open only if it is open for all
+  (and, for a group class, has a seat each). The first ten open weeks are
+  ticked; a tap skips one; 再往後看 adds 26 weeks. No substitute coaches
+  here (the one-child panel's 改上) -- a week someone cannot have is 沒空.
+- **All or nothing.** The route books each child through the one-child
+  code -- createBooking (quiet) for a lesson, the recurring route's own POST
+  (quiet: no email, it answers with booking_ids, fixed_class_ids and the
+  mail) for a fixed class -- and on any failure, or a weekly child coming
+  back a week short, cancels everything booked so far, refunds it and
+  deletes the fixed classes it made. Confirmation emails go once everyone
+  is in.
