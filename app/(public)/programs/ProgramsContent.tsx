@@ -15,7 +15,23 @@ import { BASE_POINTS } from '@/lib/points'
 
 /* Inside the app (owner, 2026-11-03): the four programmes as cards with what
    each costs and the one thing to do next -- book, ask us, or join the team.
-   No per-programme pages: their open times are the 預約 tab itself. */
+   No per-programme pages: their open times are the 預約 tab itself.
+   One screen, nothing to scroll (owner, same day): the button beside the
+   name, the price, then the one-line description. */
+const appCss = `
+  .ai-prog { padding: 12px 14px; }
+  .ai-prog-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ai-prog-top .ai-btn { margin-top: 0; min-height: 32px; padding: 0 14px; font-size: 13.5px; flex-shrink: 0; }
+  .ai .ai-prog .ai-price { margin-top: 2px; font-size: 13.5px; }
+  .ai .ai-prog p.d { margin-top: 3px; font-size: 13px; line-height: 1.5; }
+  /* A short phone (an iPhone SE): tighter still, so it still fits. */
+  @media (max-height: 720px) {
+    .ai-fit .ai-sub { display: none; }
+    .ai-fit .ai-list { gap: 6px; }
+    .ai-prog { padding: 9px 12px; }
+    .ai .ai-prog p.d { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  }
+`
 function ProgramsApp() {
   const t = useT()
   const cards = [
@@ -25,14 +41,17 @@ function ProgramsApp() {
     { key: 'team', price: t('appinfo.price.team'), href: '/checkout?plan=team', btn: t('programs.team.join') },
   ]
   return (
-    <AppInfoPage title={t('page.programs')}>
+    <AppInfoPage title={t('page.programs')} sub={t('appinfo.programs.sub')} fit>
+      <style>{appCss}</style>
       <div className="ai-list">
         {cards.map(c => (
-          <div key={c.key} className="ai-card">
-            <h2>{t(`nav.prog.${c.key}`)}</h2>
-            <p>{t(`programs.${c.key}.sub`)}</p>
+          <div key={c.key} className="ai-card ai-prog">
+            <div className="ai-prog-top">
+              <h2>{t(`nav.prog.${c.key}`)}</h2>
+              <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>
+            </div>
             <p className="ai-price">{c.price}</p>
-            <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>
+            <p className="d">{t(`programs.${c.key}.sub`)}</p>
           </div>
         ))}
       </div>

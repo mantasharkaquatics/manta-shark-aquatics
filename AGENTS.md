@@ -460,6 +460,19 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   coaches; policies = the five documents as rows. The legal documents
   (components/brand/LegalPage) switch in CSS only (`.lg-app`/`.lg-web` under
   html.msa-app) so they stay server pages. The website keeps every full page.
+  **課程項目 and 儲值 fit one screen, nothing to scroll** (owner, 2026-11-03):
+  programmes are tight cards (button beside the name, price, a one-line
+  description; AppInfoPage `fit`); 儲值 puts each class's price inside its
+  own button (the separate price list is gone in the app) with the balance
+  beside the title. Both stop the page bouncing (overscroll-behavior), get
+  tighter still under 720px of height (iPhone SE), and only scroll if even
+  that does not fit -- e.g. with the Zelle box opened.
+- **Back returns to the same place on the page** (owner, 2026-11-03:
+  我的 → 課程項目 → ‹ went to the top). AppShell notes window.scrollY in
+  sessionStorage (msa_scroll:<path>) whenever a link is tapped, and on
+  popstate scrolls back there once the page is tall enough (我的 fills in
+  from the server). It starts from the popstate itself: the router can draw
+  the earlier page before a render effect would see the event.
 - **html.msa-app** is set before the first paint by a script in the root
   layout's <head> (lib/native-app.ts APP_DETECT_SCRIPT): the app's user agent
   carries `MantaSharkApp` (mobile/capacitor.config.json appendUserAgent), and

@@ -2635,8 +2635,9 @@
   "booking.recur.altAdd": "Switch",
   "booking.recur.altOn": "Switched ✓",
   "booking.recur.withSubs": " (incl. {n} with another coach)",
-  "appinfo.price.private": "1-on-1 {a} pts · 1-on-2 {b} pts each (30 min)",
-  "appinfo.price.group": "{n} pts each (30 min)",
+  "appinfo.price.private": "1-on-1 {a} pts · 1-on-2 {b} pts each",
+  "appinfo.price.group": "{n} pts each",
   "appinfo.price.adaptive": "1-on-1, same points as a regular lesson",
-  "appinfo.price.team": "Monthly · 90 min each"
+  "appinfo.price.team": "Monthly · 90 min each",
+  "appinfo.programs.sub": "Regular lessons are 30 minutes; points are per lesson."
 }

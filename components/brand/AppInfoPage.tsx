@@ -28,6 +28,8 @@ const css = `
   .ai .ai-card h2 { font-size: 17px; font-weight: 800; color: ${BRAND.navy}; margin: 0; line-height: 1.35; }
   .ai-card p { font-size: 14px; color: ${BRAND.mute}; line-height: 1.65; margin: 6px 0 0; }
   .ai-card .ai-price { font-size: 14px; font-weight: 800; color: ${BRAND.navy}; margin-top: 10px; }
+  /* A page meant to fit one screen does not bounce either. */
+  html.msa-app:has(.ai-fit), html.msa-app:has(.ai-fit) body { overscroll-behavior: none; }
   .ai-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; margin-top: 12px; padding: 0 16px;
     border-radius: 10px; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; font: inherit; font-size: 14px; font-weight: 800;
     text-decoration: none; cursor: pointer; }
@@ -50,11 +52,11 @@ const css = `
   @media (prefers-reduced-motion: reduce) { .ai-q button em { transition: none; } }
 `
 
-export default function AppInfoPage({ title, sub, children }: { title: string; sub?: React.ReactNode; children: React.ReactNode }) {
+export default function AppInfoPage({ title, sub, fit = false, children }: { title: string; sub?: React.ReactNode; fit?: boolean; children: React.ReactNode }) {
   return (
     <BrandRoot>
       <style>{css}</style>
-      <div className="ai">
+      <div className={'ai' + (fit ? ' ai-fit' : '')}>
         <h1>{title}</h1>
         {sub && <p className="ai-sub">{sub}</p>}
         {children}

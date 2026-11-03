@@ -40,8 +40,36 @@ const num = (n: number) => n.toLocaleString('en-US')
 const css = `
   .p-app { padding: 14px 16px 16px; max-width: 640px; margin: 0 auto; }
   html.msa-app body:has(.p-app), html.msa-app body:has(.p-app) .rn-space, html.msa-app .b-root:has(.p-app) { background: #e9eff7; }
-  .p-app h1 { font-size: 24px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 4px; }
-  .p-app-have { font-size: 15px; font-weight: 700; color: ${BRAND.mute}; margin: 0 0 14px; }
+  /* One screen, nothing to scroll (owner, 2026-11-03): the title and the
+     balance share a line, each class's price sits in its own button (the
+     separate price list is gone), and the card is tighter than the website's. */
+  html.msa-app:has(.p-app), html.msa-app:has(.p-app) body { overscroll-behavior: none; }
+  .p-app-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+  .p-app h1 { font-size: 24px; font-weight: 800; color: ${BRAND.navy}; margin: 0; }
+  .p-app-have { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; white-space: nowrap; }
+  .p-app .p-card { padding: 16px; border-radius: 16px; }
+  .p-app .p-seg { display: grid; width: 100%; margin-bottom: 12px; }
+  .p-app .p-seg button { padding: 8px 4px; line-height: 1.3; }
+  .p-app .p-seg button small { display: block; font-size: 12px; font-weight: 700; opacity: .75; }
+  .p-app .p-counts { margin-bottom: 8px; gap: 10px; }
+  .p-app .p-count { padding: 10px 8px; }
+  .p-app .p-count b, .b-root.zh .p-app .p-count b { font-size: 22px; }
+  .p-app .p-count span { margin-top: 4px; }
+  .p-app .p-total { margin-top: 12px; padding-top: 12px; margin-bottom: 12px; }
+  .p-app .p-total strong { font-size: 24px; }
+  .p-app-note { margin: 10px 4px 0 !important; }
+  /* A short phone (an iPhone SE): tighter still, so it still fits. */
+  @media (max-height: 720px) {
+    .p-app { padding-top: 8px; }
+    .p-app-head { margin-bottom: 6px; }
+    .p-app .p-card { padding: 12px 14px; }
+    .p-app .p-seg { margin-bottom: 8px; }
+    .p-app .p-seg button { padding: 6px 4px; }
+    .p-app .p-count { padding: 7px 8px; }
+    .p-app .p-total { margin-top: 8px; padding-top: 8px; margin-bottom: 8px; }
+    .p-app .p-buy { min-height: 44px; padding-top: 10px; padding-bottom: 10px; }
+    .p-app-note { margin-top: 6px !important; }
+  }
   /* The assessment card sits over the hero's bottom edge: the first thing a
      new family needs, before any price. */
   .p-assess { position: relative; z-index: 2; margin-top: -36px; background: #fff; border: 1px solid ${BRAND.line};
@@ -284,11 +312,13 @@ function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | nul
       {/* The group is named by its visible label, and the lesson counts get a
           name of their own, so a screen reader hears what each set of buttons
           chooses (found 2026-10-15). */}
-      <p className="p-label" id="plans-pick-course">{t('points.buy.pickCourse')}</p>
-      <div className="p-seg" role="group" aria-labelledby="plans-pick-course">
+      {!app && <p className="p-label" id="plans-pick-course">{t('points.buy.pickCourse')}</p>}
+      <div className="p-seg" role="group" {...(app ? { 'aria-label': t('points.buy.pickCourse') } : { 'aria-labelledby': 'plans-pick-course' })}>
         {TOPUP_COURSES.map(c => (
           <button key={c} type="button" aria-pressed={course === c} onClick={() => setCourse(c)}>
             {t('home.program.' + ({ '1on1': 'private', '1on2': 'semi', '1on4': 'group' } as const)[c] + '.name')}
+            {/* In the app the price list lives here, one price per class. */}
+            {app && <small>{t('points.unit', { n: BASE_POINTS[c] })}</small>}
           </button>
         ))}
       </div>
@@ -348,7 +378,7 @@ function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | nul
       )}
       {error && <div className="p-err" role="alert">{error}</div>}
 
-      <p className="p-fine" style={{ marginTop: 16 }}>{t('points.buy.fine')}</p>
+      <p className="p-fine" style={{ marginTop: app ? 10 : 16 }}>{t('points.buy.fine')}</p>
 
       {signedIn === true && anyAssessed && <ZellePay price={valid ? money(chosen) : '—'} />}
     </div>
@@ -424,20 +454,12 @@ export default function PlansContent() {
     <BrandRoot>
       <style>{css}</style>
       <div className="p-app">
-        <h1>{t('points.app.title')}</h1>
-        {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance) })}</p>}
-        <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app />
-        <div className="p-card p-price" style={{ marginTop: 16 }}>
-          <p className="b-eyebrow">{t('points.price.eyebrow')}</p>
-          <p className="p-label" style={{ marginTop: 6, marginBottom: 10, fontWeight: 400 }}>{t('points.price.perStudent')}</p>
-          {lessonRows.map(row => (
-            <div key={row.key} className="p-row">
-              <span>{t('points.price.row.' + row.key)}</span>
-              <span style={{ whiteSpace: 'nowrap' }}><strong>{t('points.unit', { n: row.points })}</strong><small>{money(row.points)}</small></span>
-            </div>
-          ))}
-          <p className="p-fine" style={{ marginTop: 16 }}>{t('points.price.hour')}</p>
+        <div className="p-app-head">
+          <h1>{t('points.app.title')}</h1>
+          {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance) })}</p>}
         </div>
+        <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app />
+        <p className="p-fine p-app-note">{t('points.price.hour')}</p>
       </div>
     </BrandRoot>
   )

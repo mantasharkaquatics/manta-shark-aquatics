@@ -30,6 +30,7 @@ import { BRAND, FONT_BODY } from '@/lib/brand'
 
 const noSubscribe = () => () => {}
 
+const SCROLL_KEY = 'msa_scroll:'
 const TAB_ROOTS = new Set(['/dashboard', '/booking', '/dashboard/schedule', '/dashboard/me'])
 
 /* What the round language button says: the language you are in now (as the
@@ -200,6 +201,54 @@ export default function AppShell() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => { window.removeEventListener('scroll', onScroll); root.classList.remove('msa-tabs-small') }
   }, [app])
+  /* Back (the arrow, or a swipe) lands where the family was on that page,
+     not at its top (owner, 2026-11-03: 我的 → 課程項目 → ‹ went to the top of
+     我的). The place is noted when a link is tapped -- before the next page
+     scrolls itself to the top -- and put back once the page is tall enough
+     again: 我的 fills in from the server, so its first frame is short. */
+  useEffect(() => {
+    if (!app) return
+    const here = () => location.pathname + location.search
+    const root = document.documentElement
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href]')
+      if (!a || (a as HTMLAnchorElement).origin !== location.origin) return
+      try { sessionStorage.setItem(SCROLL_KEY + here(), String(Math.round(window.scrollY))) } catch {}
+    }
+    // Started from the back event itself, not from a render: the router can
+    // draw the earlier page before this listener hears the event.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = true
+    const stop = () => { stopped = true }
+    const onPop = () => {
+      clearTimeout(timer)
+      let y = 0
+      try { y = Number(sessionStorage.getItem(SCROLL_KEY + here())) || 0 } catch {}
+      if (y <= 0) return
+      const key = here(), started = Date.now()
+      let steady = 0
+      stopped = false
+      const tick = () => {
+        if (stopped || here() !== key) return
+        if (root.scrollHeight - window.innerHeight >= y - 2 && Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y)
+        steady = Math.abs(window.scrollY - y) <= 2 ? steady + 1 : 0
+        // Bar and tabs full size on arrival, as on any page.
+        root.classList.remove('msa-tabs-small')
+        if (steady < 4 && Date.now() - started < 2500) timer = setTimeout(tick, 60)
+      }
+      timer = setTimeout(tick, 0)
+    }
+    document.addEventListener('click', onClick, true)
+    window.addEventListener('popstate', onPop)
+    for (const ev of ['touchstart', 'wheel', 'keydown']) window.addEventListener(ev, stop, { passive: true })
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('click', onClick, true)
+      window.removeEventListener('popstate', onPop)
+      for (const ev of ['touchstart', 'wheel', 'keydown']) window.removeEventListener(ev, stop)
+    }
+  }, [app])
+
   // A new page starts with the bar at full size -- and, should a page change
   // have rewritten the viewport tag, still covering the whole screen.
   useEffect(() => {

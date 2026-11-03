@@ -2635,8 +2635,9 @@
   "booking.recur.altAdd": "改上",
   "booking.recur.altOn": "已改上 ✓",
   "booking.recur.withSubs": "（其中 {n} 堂其他教练）",
-  "appinfo.price.private": "一对一 {a} 点 · 一对二每位 {b} 点（每堂 30 分钟）",
-  "appinfo.price.group": "每位 {n} 点（每堂 30 分钟）",
+  "appinfo.price.private": "一对一 {a} 点 · 一对二每位 {b} 点",
+  "appinfo.price.group": "每位 {n} 点",
   "appinfo.price.adaptive": "一对一，点数和一般课程相同",
-  "appinfo.price.team": "月费制 · 每次 90 分钟"
+  "appinfo.price.team": "月费制 · 每次 90 分钟",
+  "appinfo.programs.sub": "一般课每堂 30 分钟，点数是每堂的价格。"
 }
