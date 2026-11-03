@@ -507,16 +507,27 @@ at best, the iPhone as its settings say.
   on the site's own address, so the web view keeps it, cannot open it and
   shows offline.html, the "no internet" page (found 2026-11-02). Android
   and iPhone builds made before the plugin offer Google only.
-- **Google 日曆 is on a computer only** (owner, 2026-11-02). Google
+- **Google: sign in with Google** (owner, 2026-11-02/03; lib/google-calendar.ts,
+  table google_calendar_links, docs/migration-google-calendar.sql). Google
   Calendar's phone app cannot subscribe to a link (the ?cid= page sent the
-  owner to a Google sales page). Mailing the link to open on a computer was
-  built and dropped the same day as too fiddly, and so was letting one
-  parent mail it to the others. Planned instead: "sign in with Google"
-  (OAuth, Google Calendar API) -- the family signs in with whichever Google
-  account the phone uses, allows it, and the server writes the lessons into
-  that account; it needs Google's review first. Until then a phone shows
-  iPhone 行事曆 only, and a phone with no button it can use (Android, an
-  iPhone app built before CalendarAdd) shows no card.
+  owner to a Google sales page); mailing the link to open on a computer was
+  built and dropped as too fiddly, and so was one parent mailing it to the
+  others. Now 日曆 Google signs in with whichever Google account the person
+  uses (not the registered email), scope calendar.app.created only (Google
+  lists it as non-sensitive: we can make our own calendar and manage it,
+  nothing else), and the server keeps a "Manta Shark 課程" calendar in that
+  account equal to the family's lessons -- event ids from the lesson UIDs, so
+  nothing doubles; moved lessons update, cancelled ones go. Synced on
+  connect, after every lesson email (lib/email.ts, via after()) and when the
+  schedule is opened and the last sync is over an hour old. Google Cloud
+  project "Manta Shark Calendar" (company account; NOT "Manta Shark Website",
+  which is Zelle's Gmail project), OAuth client "Manta Shark Website", env
+  GOOGLE_CALENDAR_CLIENT_ID / _SECRET. Without the env the card behaves as
+  before: Google on a computer only (the ?cid= link), a phone iPhone 行事曆
+  only, and nothing on a phone with no usable button. Inside the app the
+  sign-in opens in Safari (Google refuses app web views); the signed state
+  says who asked, so the callback needs no session. 停止同步 deletes our
+  calendar and revokes the token.
 - **To stop**, the family deletes the "Manta Shark 課程" calendar in its
   calendar app (iPhone: Calendars › ⓘ › Delete Calendar; Google on a
   computer: the calendar's settings › Unsubscribe); every lesson in it goes

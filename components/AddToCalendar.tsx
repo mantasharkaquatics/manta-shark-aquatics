@@ -16,6 +16,10 @@ import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
      and showed its "no internet" page). On a computer the same link reads
      "Apple／Outlook 行事曆". Google 日曆 is on a computer only (below).
    - 複製連結 for any other calendar.
+   - With "sign in with Google" set up (lib/google-calendar, env), Google
+     日曆 on every phone and computer signs in with Google instead and our
+     server writes the lessons into that account; once connected the card
+     says so, with 停止同步 (deletes the calendar we made).
 
    The full card shows once (owner, 2026-11-02: "it takes too much room --
    show it the first time, then fold it"): the first time this phone or
@@ -28,7 +32,7 @@ const SEEN_KEY = 'msa_cal_card_seen'
 const wasSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } }
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ } }
 
-type Feed = { webcal: string; https: string; google: string; synced: boolean }
+type Feed = { webcal: string; https: string; google: string; synced: boolean; googleOn?: boolean; googleLinked?: boolean }
 
 const iosBrowser = () => typeof navigator !== 'undefined' &&
   (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
@@ -54,31 +58,59 @@ export default function AddToCalendar() {
   // Google sales page -- and mailing the link to open on a computer was
   // tried and dropped the same day as too fiddly. On a phone Google comes
   // back as "sign in with Google" once Google approves that (planned).
-  const google = client && !(p !== null || iosBrowser() || androidBrowser())
+  // With "sign in with Google" set up (feed.googleOn, lib/google-calendar),
+  // Google is on every phone and computer and connects the account instead.
+  const connect = !!feed?.googleOn
+  const google = client && (connect || !(p !== null || iosBrowser() || androidBrowser()))
+  const [going, setGoing] = useState(false)
+  const [stopAsk, setStopAsk] = useState(false)
+  const [stopping, setStopping] = useState(false)
 
   useEffect(() => {
     let live = true
-    fetch('/api/parent/calendar-feed', { cache: 'no-store' })
+    const load = (firstLoad: boolean) => fetch('/api/parent/calendar-feed', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!live) return
-        if (!j?.webcal) { setFailed(true); return }
+        if (!j?.webcal) { if (firstLoad) setFailed(true); return }
         setFeed(j)
+        if (!firstLoad) return
         const first = !j.synced && !wasSeen()
         if (first) markSeen()
         setFull(first)
       })
-      .catch(() => { if (live) setFailed(true) })
-    return () => { live = false }
+      .catch(() => { if (live && firstLoad) setFailed(true) })
+    load(true)
+    // Back from Google's page (in the app that was Safari): read it again.
+    const again = () => { if (document.visibilityState === 'visible') { setGoing(false); load(false) } }
+    document.addEventListener('visibilitychange', again)
+    return () => { live = false; document.removeEventListener('visibilitychange', again) }
   }, [])
 
   // Nothing this phone can use (Android, or an iPhone app built before the
   // calendar plugin): no card at all.
-  if (failed || full === null || (client && !google && !where.apple)) return null
+  if (failed || full === null || (client && !google && !where.apple && !feed?.googleLinked)) return null
 
   const subscribeApple = async () => {
     const plugin = calendarAddPlugin()
     if (plugin && feed) { try { await plugin.subscribe({ url: feed.webcal }) } catch { /* the family can try Google */ } }
+  }
+  // Off to Google's sign-in. Inside the app the web view hands Google's page
+  // to Safari (Google will not sign in inside an app).
+  const connectGoogle = async () => {
+    setGoing(true)
+    try {
+      const r = await fetch(`/api/calendar/google/start${p ? '?app=1' : ''}`, { cache: 'no-store' })
+      const j = await r.json().catch(() => ({}))
+      if (j.url) { window.location.href = j.url; return }
+    } catch { /* fall through */ }
+    setGoing(false)
+  }
+  const stopGoogle = async () => {
+    setStopping(true)
+    try { await fetch('/api/calendar/google/disconnect', { method: 'POST' }) } catch { /* shown below as still linked */ }
+    try { const r = await fetch('/api/parent/calendar-feed', { cache: 'no-store' }); if (r.ok) setFeed(await r.json()) } catch { /* keep */ }
+    setStopping(false); setStopAsk(false)
   }
   const copy = async () => {
     if (!feed) return
@@ -114,8 +146,37 @@ export default function AddToCalendar() {
               <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.5, marginTop: '2px' }}>{t('dash.sync.desc')}</div>
             </div>
           </div>
+          {connect && feed?.googleLinked && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px', padding: '10px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #cfe6d8' }}>
+              <GoogleG />
+              <span style={{ flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 700, color: '#1d6b45' }}>✓ {t('dash.sync.gLinked')}</span>
+              {!stopAsk ? (
+                <button type="button" className="tap-auto" onClick={() => setStopAsk(true)}
+                  style={{ border: 'none', background: 'none', padding: '4px 0', color: '#c0392b', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('dash.sync.gStop')}
+                </button>
+              ) : (
+                <span style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                  <span style={{ flex: 1, fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{t('dash.sync.gStopAsk')}</span>
+                  <button type="button" className="tap-auto" disabled={stopping} onClick={stopGoogle}
+                    style={{ border: 'none', borderRadius: '8px', background: '#d93825', color: '#fff', padding: '7px 12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {t('dash.sync.gStopYes')}
+                  </button>
+                  <button type="button" className="tap-auto" onClick={() => setStopAsk(false)}
+                    style={{ border: 'none', background: 'none', color: '#56647d', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {t('common.cancel')}
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {google && (
+            {google && connect && !feed?.googleLinked && (
+              <button type="button" disabled={!feed || going} onClick={connectGoogle} style={{ ...btn, opacity: going ? 0.6 : 1 }}>
+                <GoogleG />{going ? t('dash.sync.gWait') : t('dash.sync.google')}
+              </button>
+            )}
+            {google && !connect && (
               <a href={feed?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!feed || undefined}
                 onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
                 <GoogleG />{t('dash.sync.google')}
@@ -133,7 +194,7 @@ export default function AddToCalendar() {
             )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-            <span style={{ fontSize: '12px', color: '#7a879c' }}>{google ? t('dash.sync.slow') : ''}</span>
+            <span style={{ fontSize: '12px', color: '#7a879c' }}>{google && !connect ? t('dash.sync.slow') : ''}</span>
             <button type="button" className="tap-auto" onClick={copy} disabled={!feed}
               style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               {copied ? t('dash.sync.copied') : t('dash.sync.copy')}

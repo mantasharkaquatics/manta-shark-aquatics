@@ -61,24 +61,26 @@ export function feedLinks(origin: string, token: string) {
 export const isFresh = (fetchedAt: string | null | undefined) =>
   !!fetchedAt && Date.now() - new Date(fetchedAt).getTime() < FRESH_DAYS * 86_400_000
 
-/** True when a calendar has read this family's feed lately (by email, as the
- *  family emails are addressed). */
+/** True when a calendar has read this family's feed lately, or someone in
+ *  it connected Google Calendar (by email, as the family emails are
+ *  addressed). */
 export async function familySynced(svc: SupabaseClient, email: string | undefined): Promise<boolean> {
   const to = String(email || '').trim().toLowerCase()
   if (!to) return false
   const { data: fam } = await svc.from('parents').select('id').eq('email', to).limit(1).maybeSingle()
   if (!fam) return false
-  const { data } = await svc.from('calendar_feeds').select('fetched_at').eq('parent_id', (fam as { id: string }).id).maybeSingle()
-  return isFresh((data as Pick<FeedRow, 'fetched_at'> | null)?.fetched_at)
+  const id = (fam as { id: string }).id
+  const [{ data }, { count }] = await Promise.all([
+    svc.from('calendar_feeds').select('fetched_at').eq('parent_id', id).maybeSingle(),
+    // A Google Calendar connected by sign-in (lib/google-calendar) counts too.
+    svc.from('google_calendar_links').select('id', { count: 'exact', head: true }).eq('parent_id', id),
+  ])
+  return isFresh((data as Pick<FeedRow, 'fetched_at'> | null)?.fetched_at) || (count || 0) > 0
 }
 
-/** The feed itself: the family's live lessons from PAST_DAYS ago on. null:
- *  no such token. */
-export async function feedIcs(svc: SupabaseClient, token: string): Promise<string | null> {
-  const { data } = await svc.from('calendar_feeds').select('parent_id, fetched_at').eq('token', token).maybeSingle()
-  const feed = data as Pick<FeedRow, 'parent_id' | 'fetched_at'> | null
-  if (!feed) return null
-  const parentId = feed.parent_id
+/** The family's live lessons from PAST_DAYS ago on, as calendar events in
+ *  its language -- for the feed and for Google Calendar (lib/google-calendar). */
+export async function familyEvents(svc: SupabaseClient, parentId: string) {
   const from = new Date(new Date(getTodayLA() + 'T12:00:00Z').getTime() - PAST_DAYS * 86_400_000).toISOString().slice(0, 10)
   const [{ data: rows }, { data: p }] = await Promise.all([
     allRows(() => svc.from('bookings')
@@ -94,11 +96,21 @@ export async function feedIcs(svc: SupabaseClient, token: string): Promise<strin
     // Its own UIDs: an event a family added from an email before subscribing
     // lives in another calendar and must not be taken for this one.
     .map(e => ({ ...e, uid: 'feed-' + e.uid }))
+  return { events, L, from, name: getT(L)('mail.ics.calName') }
+}
+
+/** The feed itself. null: no such token. */
+export async function feedIcs(svc: SupabaseClient, token: string): Promise<string | null> {
+  const { data } = await svc.from('calendar_feeds').select('parent_id, fetched_at').eq('token', token).maybeSingle()
+  const feed = data as Pick<FeedRow, 'parent_id' | 'fetched_at'> | null
+  if (!feed) return null
+  const parentId = feed.parent_id
+  const { events, name } = await familyEvents(svc, parentId)
   // Remember that a calendar reads it, at most once an hour.
   if (!feed.fetched_at || Date.now() - new Date(feed.fetched_at).getTime() > 3_600_000) {
     await svc.from('calendar_feeds').update({ fetched_at: new Date().toISOString() }).eq('parent_id', parentId)
   }
-  return icsFile({ method: 'PUBLISH', events, organizer: { name: 'Manta Shark Aquatics', email: CONTACT_EMAIL }, name: getT(L)('mail.ics.calName') })
+  return icsFile({ method: 'PUBLISH', events, organizer: { name: 'Manta Shark Aquatics', email: CONTACT_EMAIL }, name })
 }
 
 /** lessonCalendar in pieces, so a family with many lessons never sends one

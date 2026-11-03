@@ -252,6 +252,19 @@ export async function sendEmailWithId(payload: EmailPayload, opts: { scheduledAt
       const [{ familySynced }, { serviceClient }] = await Promise.all([import('./calendar-feed'), import('./api-auth')])
       if (await familySynced(serviceClient(), payload.to)) payload = { ...payload, calendar: undefined }
     } catch (e) { console.warn('calendar feed check failed', e instanceof Error ? e.message : '') }
+    // A lesson changed: bring the family's connected Google calendars up to
+    // date (lib/google-calendar), after the response where there is one.
+    try {
+      const to = String(payload.to || '').trim().toLowerCase()
+      const run = async () => {
+        const [{ syncFamily, googleCalendarOn }, { serviceClient }] = await Promise.all([import('./google-calendar'), import('./api-auth')])
+        if (!googleCalendarOn() || !to) return
+        const svc = serviceClient()
+        const { data: fam } = await svc.from('parents').select('id').eq('email', to).limit(1).maybeSingle()
+        if (fam) await syncFamily(svc, (fam as { id: string }).id)
+      }
+      try { (await import('next/server')).after(run) } catch { await run() }
+    } catch (e) { console.warn('google calendar sync after email failed', e instanceof Error ? e.message : '') }
   }
   const { type, to, parentName, studentName, coachName, date, time, amount, code, newValue, applicantName, applicantEmail, applicantPhone, applicantCity, roleLabel, hasResume, appUrl } = payload
 
