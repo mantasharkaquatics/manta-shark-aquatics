@@ -33,8 +33,10 @@ const API = 'https://www.googleapis.com/calendar/v3'
 export const GOOGLE_CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created'
 const TZ = 'America/Los_Angeles'
 
-const clientId = () => process.env.GOOGLE_CALENDAR_CLIENT_ID || ''
-const clientSecret = () => process.env.GOOGLE_CALENDAR_CLIENT_SECRET || ''
+// Trimmed: a value pasted into Vercel with spaces in front (it happened,
+// 2026-11-03) would otherwise go to Google as a client id it does not know.
+const clientId = () => (process.env.GOOGLE_CALENDAR_CLIENT_ID || '').trim()
+const clientSecret = () => (process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '').trim()
 export const googleCalendarOn = () => !!clientId() && !!clientSecret()
 
 export type GoogleLink = { id: string; parent_id: string; auth_user_id: string; refresh_token: string; calendar_id: string | null; synced_at: string | null }
