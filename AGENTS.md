@@ -505,7 +505,9 @@ at best, the iPhone as its settings say.
   a computer), 複製連結. Inside the iOS app the webcal link must go through
   the CalendarAdd plugin (mobile/ios/App/App/CalendarAdd.swift): the link is
   on the site's own address, so the web view keeps it, cannot open it and
-  shows offline.html, the "no internet" page (found 2026-11-02). Android
+  shows offline.html, the "no internet" page (found 2026-11-02). 複製連結
+  (其他行事曆：複製訂閱連結, for Outlook and the like) is on computers only
+  (owner, 2026-11-03: on a phone it only puzzles). Android
   and iPhone builds made before the plugin offer Google only.
 - **Google: sign in with Google** (owner, 2026-11-02/03; lib/google-calendar.ts,
   table google_calendar_links, docs/migration-google-calendar.sql). Google
@@ -527,7 +529,10 @@ at best, the iPhone as its settings say.
   only, and nothing on a phone with no usable button. Inside the app the
   sign-in opens in Safari (Google refuses app web views); the signed state
   says who asked, so the callback needs no session. 停止同步 deletes our
-  calendar and revokes the token. Tested end to end on the preview
+  calendar and revokes the token. The page Google returns to (Safari, in
+  the app) has 回到 App: mantashark://open, the app's own link scheme
+  (Info.plist CFBundleURLTypes, the Android intent filter; 2026-11-03),
+  with a hint for builds older than that. Tested end to end on the preview
   2026-11-03 (connect, lessons on the phone, 停止同步 removed them). The
   privacy policy's section 4 describes it -- Google reads that page before
   the app is published; change both together.

@@ -85,6 +85,7 @@ export default function AddToCalendar() {
   // With "sign in with Google" set up (feed.googleOn, lib/google-calendar),
   // Google is on every phone and computer and connects the account instead.
   const connect = !!feed?.googleOn
+  const computer = client && p === null && !iosBrowser() && !androidBrowser()
   const google = client && (connect || !(p !== null || iosBrowser() || androidBrowser()))
   const [going, setGoing] = useState(false)
   const [stopAsk, setStopAsk] = useState<string | null>(null)
@@ -254,13 +255,18 @@ export default function AddToCalendar() {
               )}
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-            <span style={{ fontSize: '12px', color: '#7a879c' }}>{google && !connect ? t('dash.sync.slow') : ''}</span>
-            <button type="button" className="tap-auto" onClick={copy} disabled={!feed}
-              style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-              {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
-            </button>
-          </div>
+          {computer && (
+            // For any other calendar (Outlook, a work computer's): paste it
+            // into "subscribe to a calendar". Computers only (owner,
+            // 2026-11-03: on a phone it is of no use and only puzzles).
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+              <span style={{ fontSize: '12px', color: '#7a879c' }}>{google && !connect ? t('dash.sync.slow') : ''}</span>
+              <button type="button" className="tap-auto" onClick={copy} disabled={!feed}
+                style={{ border: 'none', background: 'none', padding: '4px 0', color: '#2050a0', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                {copied ? t('dash.sync.copied') : t('dash.sync.copy')}
+              </button>
+            </div>
+          )}
       </>
     </div>
   )

@@ -26,7 +26,15 @@ export async function GET(req: NextRequest) {
   const page = (ok: boolean) => {
     const title = ok ? t('gcal.done.title') : t('gcal.fail.title')
     const body = ok ? (st?.app ? t('gcal.done.app') : t('gcal.done.body')) : t('gcal.fail.body')
-    const back = st?.app ? '' : `<a href="/dashboard/schedule" style="display:inline-block;margin-top:22px;background:#f09800;color:#12254a;font-weight:800;padding:13px 26px;border-radius:12px;text-decoration:none">${esc(t('gcal.back'))}</a>`
+    const btn = 'display:inline-block;margin-top:22px;background:#f09800;color:#12254a;font-weight:800;padding:13px 26px;border-radius:12px;text-decoration:none'
+    // Inside the app this page is in Safari (or the phone's browser):
+    // mantashark:// opens the app again (CFBundleURLTypes / the Android
+    // intent filter, 2026-11-03), where the card reloads itself. An app built
+    // before that has no such link, hence the hint under the button.
+    const back = st?.app
+      ? `<a href="mantashark://open" style="${btn}">${esc(t('gcal.backApp'))}</a>`
+        + `<p style="font-size:12.5px;line-height:1.5;color:#8a96aa;margin:14px 0 0">${esc(t('gcal.backAppHint'))}</p>`
+      : `<a href="/dashboard/schedule" style="${btn}">${esc(t('gcal.back'))}</a>`
     const html = `<!doctype html><html lang="${L}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manta Shark</title></head>`
       + `<body style="margin:0;font-family:-apple-system,'PingFang TC','Noto Sans TC',sans-serif;background:#e9eff7;color:#16294a;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;box-sizing:border-box">`
       + `<div style="background:#fff;border-radius:18px;padding:30px 24px;max-width:380px;width:100%;text-align:center">`
