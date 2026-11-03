@@ -451,7 +451,15 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   signed-out family to the login page. /plans in the app is the 儲值 screen
   (balance, buying, the price list; no hero, Swim Team or closing call).
   The info pages 我的 links to (programs, levels, FAQ, about, policies) are
-  to become app-style condensed versions (decided the same day, not built).
+  app screens too (owner chose 版本一: the five rows stay, each opens a short
+  page): components/brand/AppInfoPage (`useAppLook`, the `.ai` frame: title
+  on the pale blue, white cards). Programmes = four cards with points from
+  BASE_POINTS and one button each (預約 → /booking; adaptive → 訊息 tab; team
+  → /checkout?plan=team); levels = the phone accordion; FAQ = the same FAQ
+  list as cards, "ask us" → /dashboard/chat; about = intro, four promises,
+  coaches; policies = the five documents as rows. The legal documents
+  (components/brand/LegalPage) switch in CSS only (`.lg-app`/`.lg-web` under
+  html.msa-app) so they stay server pages. The website keeps every full page.
 - **html.msa-app** is set before the first paint by a script in the root
   layout's <head> (lib/native-app.ts APP_DETECT_SCRIPT): the app's user agent
   carries `MantaSharkApp` (mobile/capacitor.config.json appendUserAgent), and

@@ -2634,5 +2634,9 @@
   "booking.recur.altTitle": "{coach} 沒空的週，同一時間可以改上：",
   "booking.recur.altAdd": "改上",
   "booking.recur.altOn": "已改上 ✓",
-  "booking.recur.withSubs": "（其中 {n} 堂其他教練）"
+  "booking.recur.withSubs": "（其中 {n} 堂其他教練）",
+  "appinfo.price.private": "一對一 {a} 點 · 一對二每位 {b} 點（每堂 30 分鐘）",
+  "appinfo.price.group": "每位 {n} 點（每堂 30 分鐘）",
+  "appinfo.price.adaptive": "一對一，點數和一般課程相同",
+  "appinfo.price.team": "月費制 · 每次 90 分鐘"
 }

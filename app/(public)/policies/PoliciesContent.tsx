@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 
 // A real overview page, replacing a five-line redirect to /terms. The nav had a
 // single entry that landed on a document with a different name, and the register
@@ -30,6 +31,20 @@ const css = `
 
 export default function PoliciesContent() {
   const t = useT()
+  const app = useAppLook()
+  // Inside the app (owner, 2026-11-03): the same five documents as app rows.
+  if (app) return (
+    <AppInfoPage title={t('policies.title')} sub={t('policies.subtitle')}>
+      <div className="ai-list">
+        {DOCS.map(doc => (
+          <Link key={doc.href} href={doc.href} className="ai-row">
+            <div><b>{t(doc.nameKey)}</b><span>{t(doc.descKey)}</span></div>
+            <i aria-hidden="true">›</i>
+          </Link>
+        ))}
+      </div>
+    </AppInfoPage>
+  )
   return (
     <BrandRoot>
       <style>{css}</style>

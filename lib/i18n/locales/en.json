@@ -2634,5 +2634,9 @@
   "booking.recur.altTitle": "{coach} is taken these weeks. Same time with:",
   "booking.recur.altAdd": "Switch",
   "booking.recur.altOn": "Switched ✓",
-  "booking.recur.withSubs": " (incl. {n} with another coach)"
+  "booking.recur.withSubs": " (incl. {n} with another coach)",
+  "appinfo.price.private": "1-on-1 {a} pts · 1-on-2 {b} pts each (30 min)",
+  "appinfo.price.group": "{n} pts each (30 min)",
+  "appinfo.price.adaptive": "1-on-1, same points as a regular lesson",
+  "appinfo.price.team": "Monthly · 90 min each"
 }

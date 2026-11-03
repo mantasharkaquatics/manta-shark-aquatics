@@ -11,6 +11,7 @@ import StageRibbon from '@/components/StageRibbon'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import { useFamilyStatus } from '@/lib/use-family-status'
+import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 
 /* goalCount must match the number of levels.N.goal.M keys in the locale files.
    Those goals are written by hand -- they are the promise the page makes to a
@@ -94,6 +95,9 @@ const css = `
   .l-acc-body .l-stage div { font-size: 12px; padding-right: 0; }
   .l-acc-body .l-goals li { font-size: 13px; padding: 7px 11px; }
 
+  /* Inside the app: the phone list on every screen size. */
+  .ai .l-mob { display: flex; }
+
   .l-final-p { font-size: 16px; }
   .l-final-p strong { color: #fff; font-weight: 700; }
   .l-note { font-size: 13px !important; color: rgba(255,255,255,0.55) !important; margin-top: 14px !important; }
@@ -110,6 +114,7 @@ export default function LevelsContent() {
   const locale = useLocale()
   const [activeLevel, setActiveLevel] = useState(0)
   const [openAccordion, setOpenAccordion] = useState<number | null>(null)
+  const app = useAppLook()
 
   const current = levels[activeLevel]
 
@@ -152,6 +157,44 @@ export default function LevelsContent() {
       </>
     )
   }
+
+  // ── PHONE: one card per level, opened in place ──
+  const phoneList = (
+    <div className="l-mob">
+      {levels.map((lv, i) => {
+        const open = openAccordion === i
+        return (
+          <div key={lv.num} className="l-acc" data-open={open}>
+            <button type="button" aria-expanded={open} onClick={() => setOpenAccordion(open ? null : i)}>
+              <span className="l-disc" style={{ background: lv.color, color: onColor(lv.color), width: 32, height: 32 }}>{lv.num}</span>
+              <span className="l-names">
+                <small>{t('levels.levelN', { n: lv.num })}</small>
+                <span>{t('level.' + lv.num + '.name')}</span>
+              </span>
+              <span className="l-chev" aria-hidden="true">›</span>
+            </button>
+            {open && (
+              <div className="l-acc-body">
+                <p className="l-tag">{t('levels.' + lv.num + '.tagline')}</p>
+                <p className="l-desc">{t('levels.' + lv.num + '.desc')}</p>
+                {stages(lv.num, false)}
+                {goals(lv)}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  /* Inside the app (owner, 2026-11-03): the seven levels and where a level
+     comes from -- no hero, no sign-up band. */
+  if (app) return (
+    <AppInfoPage title={t('page.levels')} sub={t('levels.assessFirst.body')}>
+      <style>{css}</style>
+      {phoneList}
+    </AppInfoPage>
+  )
 
   return (
     <BrandRoot>
@@ -215,32 +258,7 @@ export default function LevelsContent() {
             </div>
           </div>
 
-          {/* ── PHONE: one card per level, opened in place ── */}
-          <div className="l-mob">
-            {levels.map((lv, i) => {
-              const open = openAccordion === i
-              return (
-                <div key={lv.num} className="l-acc" data-open={open}>
-                  <button type="button" aria-expanded={open} onClick={() => setOpenAccordion(open ? null : i)}>
-                    <span className="l-disc" style={{ background: lv.color, color: onColor(lv.color), width: 32, height: 32 }}>{lv.num}</span>
-                    <span className="l-names">
-                      <small>{t('levels.levelN', { n: lv.num })}</small>
-                      <span>{t('level.' + lv.num + '.name')}</span>
-                    </span>
-                    <span className="l-chev" aria-hidden="true">›</span>
-                  </button>
-                  {open && (
-                    <div className="l-acc-body">
-                      <p className="l-tag">{t('levels.' + lv.num + '.tagline')}</p>
-                      <p className="l-desc">{t('levels.' + lv.num + '.desc')}</p>
-                      {stages(lv.num, false)}
-                      {goals(lv)}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          {phoneList}
         </div>
       </section>
 

@@ -8,6 +8,7 @@ import { openChat } from '@/lib/chat-open'
 import { FAQ } from '@/lib/faq'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 
 
 // Palette B (2026-09): dark top, the questions as white cards on the pale
@@ -57,7 +58,55 @@ const css = `
   }
 `
 
+/* Inside the app (owner, 2026-11-03): the same questions, grouped the same
+   way, as the app's cards; "ask us" goes to the 訊息 tab. Only ever mounted in
+   the browser (useAppLook is false on the server), so the #faq-q-<id> link
+   from the dashboard can be read as the first state. */
+function FaqApp() {
+  const t = useT()
+  const [open, setOpen] = useState<string | null>(() => {
+    const id = window.location.hash.replace(/^#faq-q-/, '')
+    return FAQ.some(c => (c.items as readonly string[]).includes(id)) ? id : null
+  })
+  const [first] = useState(open)
+  useEffect(() => {
+    if (first) requestAnimationFrame(() => document.getElementById('faq-q-' + first)?.scrollIntoView({ block: 'center' }))
+  }, [first])
+  return (
+    <AppInfoPage title={t('page.faq')}>
+      {FAQ.map(sec => (
+        <section key={sec.id}>
+          <h2 className="ai-sec">{t('faq.cat.' + sec.id)}</h2>
+          <div className="ai-list">
+            {sec.items.map(id => {
+              const isOpen = open === id
+              return (
+                <div key={id} id={'faq-q-' + id} className="ai-q" data-open={isOpen}>
+                  <button type="button" onClick={() => setOpen(isOpen ? null : id)} aria-expanded={isOpen}>
+                    <span>{t('faq.q.' + id)}</span>
+                    <em aria-hidden="true">+</em>
+                  </button>
+                  {isOpen && <p>{t('faq.a.' + id)}</p>}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      <div className="ai-card" style={{ marginTop: 20 }}>
+        <h2>{t('faq.stillTitle')}</h2>
+        <p>{t('faq.stillBody')}</p>
+        <Link href="/dashboard/chat" className="ai-btn">{t('dash.up.messageUs')}</Link>
+      </div>
+    </AppInfoPage>
+  )
+}
+
 export default function FaqContent() {
+  return useAppLook() ? <FaqApp /> : <FaqWeb />
+}
+
+function FaqWeb() {
   const t = useT()
   const locale = useLocale()
   const [open, setOpen] = useState<string | null>(null)

@@ -6,6 +6,7 @@ import { BRAND } from '@/lib/brand'
 import { localePath } from '@/lib/i18n/paths'
 import BrandRoot from '@/components/brand/BrandRoot'
 import { useFamilyStatus } from '@/lib/use-family-status'
+import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 
 const coaches = [
   { name: 'Shane', slug: 'shane', accent: '#4a90c4', initials: 'SH' },
@@ -64,6 +65,16 @@ const css = `
   .ab-final p strong { color: #fff; font-weight: 700; }
   .ab-note { font-size: 13px !important; color: rgba(255,255,255,0.55) !important; margin-top: 14px !important; }
 
+  /* Inside the app: the coach cards tighter, one under another. */
+  .ai .ab-coach { border-radius: 14px; }
+  .ai .ab-coach-top { padding: 14px 16px 12px; gap: 12px; }
+  .ai .ab-init { width: 44px; height: 44px; font-size: 16px; }
+  .ai .ab-coach h3 { font-size: 19px; }
+  .ai .ab-facts-list { padding: 12px 16px 16px; gap: 12px; }
+  .ai .ab-facts-list p { font-size: 13.5px; }
+  .ai .ab-certs { margin: 0; padding: 14px 16px; }
+  .ai .ab-certs p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; font-weight: 600; color: ${BRAND.navy}; }
+
   @media (max-width: 900px) {
     .ab-two, .ab-phil { grid-template-columns: 1fr; gap: 28px; }
     .ab-diffs { grid-template-columns: 1fr 1fr; }
@@ -77,7 +88,61 @@ const css = `
   }
 `
 
+/* Inside the app (owner, 2026-11-03): who we are in a few lines, the four
+   promises, and the coaches -- no hero, no sign-up band. */
+function AboutApp() {
+  const t = useT()
+  return (
+    <AppInfoPage title={t('page.about')} sub={t('about.hero.subtitle')}>
+      <div className="ai-card"><p style={{ marginTop: 0 }}>{t('about.us.p1')}</p><p>{t('about.us.p2')}</p></div>
+      <h2 className="ai-sec">{t('about.diff.eyebrow')}</h2>
+      <div className="ai-list">
+        {differentiators.map(item => (
+          <div key={item.slug} className="ai-card">
+            <h2>{t('about.diff.' + item.slug + '.title')}</h2>
+            <p>{t('about.diff.' + item.slug + '.text')}</p>
+          </div>
+        ))}
+      </div>
+      <h2 className="ai-sec">{t('about.team.eyebrow')}</h2>
+      <div className="ai-list">
+        <div className="ab-certs">
+          <p>{t('about.team.certs')}</p>
+          <ul aria-label={t('about.team.certs')}>
+            {(['cpr', 'firstAid', 'lifeguard'] as const).map(k => <li key={k}>{t(`about.team.cert.${k}`)}</li>)}
+          </ul>
+        </div>
+        {coaches.map(coach => (
+          <div key={coach.name} className="ab-coach">
+            <div className="ab-coach-top">
+              <div className="ab-init" style={{ background: coach.accent }}>{coach.initials}</div>
+              <div>
+                <h3>{coach.name}</h3>
+                <div className="ab-role">{t('about.coach.role')}</div>
+              </div>
+            </div>
+            <div className="ab-facts-list">
+              {[1, 2, 3].map(i => (
+                <div key={i}>
+                  <small>{t('about.coach.' + coach.slug + '.s' + i + '.label')}</small>
+                  <p>{t('about.coach.' + coach.slug + '.s' + i + '.text')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <p className="ai-sub" style={{ margin: '4px 2px 0' }}>{t('about.team.adaptive')}</p>
+      </div>
+    </AppInfoPage>
+  )
+}
+
 export default function AboutContent() {
+  const app = useAppLook()
+  return app ? <><style>{css}</style><AboutApp /></> : <AboutWeb />
+}
+
+function AboutWeb() {
   const t = useT()
   const { signedIn, allAssessed } = useFamilyStatus()
   const locale = useLocale()
