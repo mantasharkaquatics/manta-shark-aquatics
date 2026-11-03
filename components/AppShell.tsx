@@ -286,7 +286,7 @@ export default function AppShell() {
     if (k === 'home') return pathname === '/dashboard'
     if (k === 'book') return pathname.startsWith('/booking')
     if (k === 'schedule') return pathname === '/dashboard/schedule'
-    if (k === 'me') return pathname === '/dashboard/me' || pathname === '/dashboard/account' || pathname === '/dashboard/partnerships'
+    if (k === 'me') return pathname.startsWith('/dashboard/me') || pathname === '/dashboard/account' || pathname === '/dashboard/partnerships'
     return false
   }
 

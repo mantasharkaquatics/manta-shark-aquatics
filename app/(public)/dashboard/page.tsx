@@ -2079,6 +2079,22 @@ export default function DashboardPage() {
     setTeamSheet(want)
     try { const u = new URL(window.location.href); u.searchParams.delete('team'); window.history.replaceState(null, '', u.toString()) } catch {}
   }, [])
+  // 我的 -> the member card's QR lands here with ?qr=<swimmer id>: that
+  // swimmer's check-in QR, once the swimmers are in.
+  const qrWant = useRef<string | null>(null)
+  useEffect(() => {
+    const want = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('qr')
+    if (!want) return
+    qrWant.current = want
+    try { const u = new URL(window.location.href); u.searchParams.delete('qr'); window.history.replaceState(null, '', u.toString()) } catch {}
+  }, [])
+  useEffect(() => {
+    if (!qrWant.current || !students.length) return
+    const s = students.find(x => x.id === qrWant.current)
+    qrWant.current = null
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- opened once, when the swimmers arrive
+    if (s) setQrStudent(s)
+  }, [students])
   // The reminder email's button lands here with ?vouchers=1.
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('vouchers') !== '1') return

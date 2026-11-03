@@ -486,10 +486,23 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   lesson detail was moved out for this).
 - Something fixed to the bottom of a page sits on the tabs in the app: give
   it a class and a `bottom: var(--app-tab-h)` rule there, as `.msa-book-bar`.
-- 我的 links into the dashboard's sheets with ?points=1, ?points=refer and
-  ?suggest=1. Notification switches live on 我的 (they only exist in the app).
-  No language section on 我的: the top bar's language button is the one
-  place to switch (owner, 2026-11-02).
+- **我的 is a member card** (owner, 2026-11-03, 樣貌一 of five, after five
+  tab / left-rail layouts were turned down; app/(public)/dashboard/me):
+  one screen, nothing to scroll. A navy card -- MANTA SHARK 會員, name,
+  purchased points with the gift badge, the email, 看明細 (tap: the
+  statement) -- with a QR in its corner that opens a swimmer's check-in QR
+  on 首頁 (/dashboard?qr=<swimmer id>; with several swimmers a sheet asks
+  whose first). Four round shortcuts: 儲值, 點數明細, 介紹朋友, 共同預約.
+  我的方案 is a row of small cards sliding sideways (fixed class with a
+  progress bar from total/left, make-up vouchers, swim team), or one
+  "no plans yet / book" card. Four small buttons: 帳號與孩子, 通知設定
+  (/dashboard/me/notifications, app only -- the push switches moved there),
+  關於學校 (/dashboard/me/school, the six school pages), 寫給我們; then 登出.
+  A view-only member sees no points and no shortcuts. Under 720px of
+  height everything tightens and the plan cards drop the child's name.
+  Links into the dashboard's sheets: ?points=1, ?points=refer, ?suggest=1,
+  ?team=, ?qr=. No language section on 我的: the top bar's language button
+  is the one place to switch (owner, 2026-11-02).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone

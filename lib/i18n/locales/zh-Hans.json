@@ -2639,5 +2639,14 @@
   "appinfo.price.group": "每位 {n} 点",
   "appinfo.price.adaptive": "一对一，点数和一般课程相同",
   "appinfo.price.team": "月费制 · 每次 90 分钟",
-  "appinfo.programs.sub": "一般课每堂 30 分钟，点数是每堂的价格。"
+  "appinfo.programs.sub": "一般课每堂 30 分钟，点数是每堂的价格。",
+  "me.card.member": "MANTA SHARK 会员",
+  "me.card.detail": "看明细",
+  "me.r.history": "点数明细",
+  "me.plans.swipe": "左右滑动",
+  "me.plans.empty": "还没有方案",
+  "me.plans.book": "去预约",
+  "me.plan.voucher": "补课券",
+  "me.plan.voucherN": "{n} 张",
+  "me.qr.pick": "要给谁报到？"
 }
