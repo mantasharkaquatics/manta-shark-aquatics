@@ -17,9 +17,13 @@ import { familyEvents } from './calendar-feed'
    GOOGLE_CALENDAR_CLIENT_SECRET. Without them the feature is off and the
    card offers what it did before.
 
-   One row per signed-in person (google_calendar_links,
-   docs/migration-google-calendar.sql, server only): their refresh token and
-   the calendar's id. syncFamily() rewrites every linked calendar of a family
+   One row per signed-in person and Google account (google_calendar_links,
+   docs/migration-google-calendar.sql and migration-calendar-marks.sql, server
+   only): the refresh token, the calendar's id, and which Google account it
+   is (google_sub, google_email -- from the "openid email" scopes, shown on
+   the card). One login may connect up to MAX_GOOGLE_PER_PERSON accounts
+   (owner, 2026-11-03: two phones on one login, each with its own Google);
+   connecting the same account again keeps its calendar. syncFamily() rewrites every linked calendar of a family
    from familyEvents(): each event's id is derived from the lesson's UID, so
    a lesson is never added twice, a moved one is updated and a cancelled one
    deleted. It runs when the person connects, after every lesson email
@@ -31,6 +35,7 @@ const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const API = 'https://www.googleapis.com/calendar/v3'
 export const GOOGLE_CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created'
+export const MAX_GOOGLE_PER_PERSON = 3
 const TZ = 'America/Los_Angeles'
 
 // Trimmed: a value pasted into Vercel with spaces in front (it happened,
@@ -40,6 +45,7 @@ const clientSecret = () => (process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '').tri
 export const googleCalendarOn = () => !!clientId() && !!clientSecret()
 
 export type GoogleLink = { id: string; parent_id: string; auth_user_id: string; refresh_token: string; calendar_id: string | null; synced_at: string | null }
+const LINK_COLS = 'id, parent_id, auth_user_id, refresh_token, calendar_id, synced_at'
 
 /* ---------- sign-in ---------- */
 
@@ -69,13 +75,15 @@ export const redirectUri = (origin: string) => `${origin.replace(/\/$/, '')}/api
 export function authUrl(origin: string, state: string): string {
   const q = new URLSearchParams({
     client_id: clientId(), redirect_uri: redirectUri(origin), response_type: 'code',
-    scope: GOOGLE_CAL_SCOPE, access_type: 'offline', prompt: 'consent', state,
+    // openid email: which account it is, for the card. select_account: a
+    // second phone on the same login can pick a different Google account.
+    scope: `openid email ${GOOGLE_CAL_SCOPE}`, access_type: 'offline', prompt: 'consent select_account', state,
   })
   return `${AUTH_URL}?${q.toString()}`
 }
 
 /** The code from the callback, for a refresh token (and the scope granted). */
-export async function exchangeCode(origin: string, code: string): Promise<{ refresh_token?: string; access_token?: string; scope?: string }> {
+export async function exchangeCode(origin: string, code: string): Promise<{ refresh_token?: string; access_token?: string; scope?: string; id_token?: string }> {
   const r = await fetch(TOKEN_URL, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ code, client_id: clientId(), client_secret: clientSecret(), redirect_uri: redirectUri(origin), grant_type: 'authorization_code' }),
@@ -83,6 +91,16 @@ export async function exchangeCode(origin: string, code: string): Promise<{ refr
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error('token exchange failed: ' + (j.error || r.status))
   return j
+}
+
+/** Which Google account: the id token came straight from Google's token
+ *  endpoint over TLS, so its payload is read without checking the
+ *  signature. */
+export function idClaims(idToken: string | undefined): { sub: string; email: string | null } | null {
+  try {
+    const j = JSON.parse(Buffer.from(String(idToken || '').split('.')[1] || '', 'base64url').toString())
+    return j.sub ? { sub: String(j.sub), email: j.email ? String(j.email) : null } : null
+  } catch { return null }
 }
 
 /** The person revoked us in their Google account, or the token expired. */
@@ -179,11 +197,11 @@ export async function syncLink(svc: SupabaseClient, link: GoogleLink, want: Awai
 }
 
 /** Sync every Google calendar linked to this family. Never throws. */
-export async function syncFamily(svc: SupabaseClient, parentId: string, only?: { authUserId?: string; ifOlderThanMs?: number }): Promise<void> {
+export async function syncFamily(svc: SupabaseClient, parentId: string, only?: { linkId?: string; ifOlderThanMs?: number }): Promise<void> {
   if (!googleCalendarOn()) return
   try {
-    let q = svc.from('google_calendar_links').select('id, parent_id, auth_user_id, refresh_token, calendar_id, synced_at').eq('parent_id', parentId)
-    if (only?.authUserId) q = q.eq('auth_user_id', only.authUserId)
+    let q = svc.from('google_calendar_links').select(LINK_COLS).eq('parent_id', parentId)
+    if (only?.linkId) q = q.eq('id', only.linkId)
     const { data } = await q
     let links = (data || []) as GoogleLink[]
     if (only?.ifOlderThanMs) links = links.filter(l => !l.synced_at || Date.now() - new Date(l.synced_at).getTime() > only.ifOlderThanMs!)
@@ -207,11 +225,12 @@ export async function syncFamily(svc: SupabaseClient, parentId: string, only?: {
   }
 }
 
-/** Stop: delete the calendar we made (every lesson in it goes with it) and
- *  forget the link. */
-export async function disconnect(svc: SupabaseClient, parentId: string, authUserId: string): Promise<void> {
-  const { data } = await svc.from('google_calendar_links').select('id, parent_id, auth_user_id, refresh_token, calendar_id, synced_at')
-    .eq('parent_id', parentId).eq('auth_user_id', authUserId).maybeSingle()
+/** Stop one Google account: delete the calendar we made there (every
+ *  lesson in it goes with it) and forget the link. Only the person who
+ *  connected it can. */
+export async function disconnect(svc: SupabaseClient, parentId: string, authUserId: string, linkId: string): Promise<void> {
+  const { data } = await svc.from('google_calendar_links').select(LINK_COLS)
+    .eq('id', linkId).eq('parent_id', parentId).eq('auth_user_id', authUserId).maybeSingle()
   const link = data as GoogleLink | null
   if (!link) return
   try {

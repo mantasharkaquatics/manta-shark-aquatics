@@ -531,6 +531,20 @@ at best, the iPhone as its settings say.
   2026-11-03 (connect, lessons on the phone, 停止同步 removed them). The
   privacy policy's section 4 describes it -- Google reads that page before
   the app is published; change both together.
+- **Each button says when it is synced** (owner, 2026-11-03;
+  docs/migration-calendar-marks.sql). Google: a green ✓ badge when this
+  login has connected a Google account -- exact, we did it -- and one row
+  per account (its email, from the "openid email" scopes; 停止同步 each),
+  with 再連一個 Google 帳號: one login may connect up to 3 Google accounts
+  (MAX_GOOGLE_PER_PERSON; two phones on one login, each with its own
+  Google; same account again = same row and calendar). iPhone: every phone
+  or computer has its own subscribe link (calendar_feed_devices, the
+  browser's id in localStorage msa_cal_device, ?device= on
+  /api/parent/calendar-feed), and the ✓ shows when that link was read in
+  the last DEVICE_FRESH_DAYS (3): iOS never says it deleted a calendar, so
+  the mark goes when the reading stops. The family's old shared link
+  (calendar_feeds) still serves calendars already on it, but marks no
+  phone. The folded line's ✓ is either of the two, for this person.
 - **To stop**, the family deletes the "Manta Shark 課程" calendar in its
   calendar app (iPhone: Calendars › ⓘ › Delete Calendar; Google on a
   computer: the calendar's settings › Unsubscribe); every lesson in it goes

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { authUrl, googleCalendarOn, makeState } from '@/lib/google-calendar'
+import { authUrl, googleCalendarOn, makeState, MAX_GOOGLE_PER_PERSON } from '@/lib/google-calendar'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
   if (!googleCalendarOn()) return NextResponse.json({ error: 'Not available' }, { status: 404 })
   const ctx = await requireParent({ viewer: true })
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
+  const { count } = await ctx.svc.from('google_calendar_links').select('id', { count: 'exact', head: true }).eq('auth_user_id', ctx.user.id)
+  if ((count || 0) >= MAX_GOOGLE_PER_PERSON) return NextResponse.json({ error: 'Too many accounts' }, { status: 409 })
   const state = makeState(ctx.parent.id, ctx.user.id, req.nextUrl.searchParams.get('app') === '1')
   return NextResponse.json({ url: authUrl(req.nextUrl.origin, state) }, { headers: { 'Cache-Control': 'no-store' } })
 }

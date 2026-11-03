@@ -28,6 +28,10 @@ import { getTodayLA } from './date'
 type FeedRow = { parent_id: string; token: string; fetched_at: string | null }
 
 export const FRESH_DAYS = 14
+/** The ✓ on 「iPhone 行事曆」: this phone's link was read in the last 3 days
+ *  (owner, 2026-11-03). The phone never tells us it deleted the calendar,
+ *  so the mark goes when the reading stops. */
+export const DEVICE_FRESH_DAYS = 3
 /** How far back the feed goes; older lessons drop out of the calendar. */
 const PAST_DAYS = 60
 
@@ -51,6 +55,31 @@ export async function feedToken(svc: SupabaseClient, parentId: string): Promise<
   return { token, fetchedAt: null }
 }
 
+/** This phone's or computer's own link (owner, 2026-11-03: the ✓ on
+ *  「iPhone 行事曆」 is per device). deviceId: a random id the browser keeps
+ *  (localStorage); table calendar_feed_devices,
+ *  docs/migration-calendar-marks.sql. */
+export async function deviceFeedToken(svc: SupabaseClient, parentId: string, deviceId: string): Promise<{ token: string; fetchedAt: string | null }> {
+  const read = async () => {
+    const { data } = await svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId).maybeSingle()
+    const row = data as { token: string; fetched_at: string | null } | null
+    return row ? { token: row.token, fetchedAt: row.fetched_at } : null
+  }
+  const have = await read()
+  if (have) return have
+  const token = randomBytes(24).toString('base64url')
+  const { error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token })
+  if (error) {
+    const again = await read()
+    if (again) return again
+    throw new Error('calendar_feed_devices insert failed: ' + error.message)
+  }
+  return { token, fetchedAt: null }
+}
+
+export const deviceFresh = (fetchedAt: string | null | undefined) =>
+  !!fetchedAt && Date.now() - new Date(fetchedAt).getTime() < DEVICE_FRESH_DAYS * 86_400_000
+
 /** The links a family subscribes with. origin: the site the family is on. */
 export function feedLinks(origin: string, token: string) {
   const https = `${origin.replace(/\/$/, '')}/api/calendar/feed/${token}.ics`
@@ -70,12 +99,15 @@ export async function familySynced(svc: SupabaseClient, email: string | undefine
   const { data: fam } = await svc.from('parents').select('id').eq('email', to).limit(1).maybeSingle()
   if (!fam) return false
   const id = (fam as { id: string }).id
-  const [{ data }, { count }] = await Promise.all([
+  const since = new Date(Date.now() - FRESH_DAYS * 86_400_000).toISOString()
+  const [{ data }, { count }, { count: devices }] = await Promise.all([
     svc.from('calendar_feeds').select('fetched_at').eq('parent_id', id).maybeSingle(),
     // A Google Calendar connected by sign-in (lib/google-calendar) counts too.
     svc.from('google_calendar_links').select('id', { count: 'exact', head: true }).eq('parent_id', id),
+    // And any phone's own link (deviceFeedToken).
+    svc.from('calendar_feed_devices').select('token', { count: 'exact', head: true }).eq('parent_id', id).gte('fetched_at', since),
   ])
-  return isFresh((data as Pick<FeedRow, 'fetched_at'> | null)?.fetched_at) || (count || 0) > 0
+  return isFresh((data as Pick<FeedRow, 'fetched_at'> | null)?.fetched_at) || (count || 0) > 0 || (devices || 0) > 0
 }
 
 /** The family's live lessons from PAST_DAYS ago on, as calendar events in
@@ -99,16 +131,22 @@ export async function familyEvents(svc: SupabaseClient, parentId: string) {
   return { events, L, from, name: getT(L)('mail.ics.calName') }
 }
 
-/** The feed itself. null: no such token. */
+/** The feed itself: a phone's own link, or the family's older one. null: no
+ *  such token. */
 export async function feedIcs(svc: SupabaseClient, token: string): Promise<string | null> {
-  const { data } = await svc.from('calendar_feeds').select('parent_id, fetched_at').eq('token', token).maybeSingle()
+  let table: 'calendar_feed_devices' | 'calendar_feeds' = 'calendar_feed_devices'
+  let { data } = await svc.from('calendar_feed_devices').select('parent_id, fetched_at').eq('token', token).maybeSingle()
+  if (!data) {
+    table = 'calendar_feeds'
+    ;({ data } = await svc.from('calendar_feeds').select('parent_id, fetched_at').eq('token', token).maybeSingle())
+  }
   const feed = data as Pick<FeedRow, 'parent_id' | 'fetched_at'> | null
   if (!feed) return null
   const parentId = feed.parent_id
   const { events, name } = await familyEvents(svc, parentId)
   // Remember that a calendar reads it, at most once an hour.
   if (!feed.fetched_at || Date.now() - new Date(feed.fetched_at).getTime() > 3_600_000) {
-    await svc.from('calendar_feeds').update({ fetched_at: new Date().toISOString() }).eq('parent_id', parentId)
+    await svc.from(table).update({ fetched_at: new Date().toISOString() }).eq('token', token)
   }
   return icsFile({ method: 'PUBLISH', events, organizer: { name: 'Manta Shark Aquatics', email: CONTACT_EMAIL }, name })
 }

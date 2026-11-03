@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/api-auth'
-import { exchangeCode, GOOGLE_CAL_SCOPE, googleCalendarOn, readState, syncFamily } from '@/lib/google-calendar'
+import { exchangeCode, GOOGLE_CAL_SCOPE, googleCalendarOn, idClaims, MAX_GOOGLE_PER_PERSON, readState, syncFamily } from '@/lib/google-calendar'
 import { getT, toLocale } from '@/lib/i18n/all'
 
 export const runtime = 'nodejs'
@@ -42,13 +42,23 @@ export async function GET(req: NextRequest) {
       console.warn('google calendar callback: no refresh token or scope not granted')
       return page(false)
     }
-    const { error } = await svc.from('google_calendar_links').upsert(
-      // Not calendar_id: someone connecting again keeps the calendar they
-      // already have, rather than getting a second one.
-      { parent_id: st.parentId, auth_user_id: st.userId, refresh_token: tok.refresh_token, last_error: null },
-      { onConflict: 'auth_user_id' })
-    if (error) throw new Error(error.message)
-    await syncFamily(svc, st.parentId, { authUserId: st.userId })
+    const who = idClaims(tok.id_token)
+    if (!who) { console.warn('google calendar callback: no account id in the token'); return page(false) }
+    // Up to MAX_GOOGLE_PER_PERSON Google accounts per login; the same one
+    // again is not a new one.
+    const { data: mine } = await svc.from('google_calendar_links').select('google_sub').eq('auth_user_id', st.userId)
+    const subs = ((mine || []) as { google_sub: string | null }[]).map(r => r.google_sub)
+    if (!subs.includes(who.sub) && subs.length >= MAX_GOOGLE_PER_PERSON) {
+      console.warn('google calendar callback: already at the limit of accounts')
+      return page(false)
+    }
+    const { data: row, error } = await svc.from('google_calendar_links').upsert(
+      // Not calendar_id: someone connecting the same account again keeps the
+      // calendar they already have, rather than getting a second one.
+      { parent_id: st.parentId, auth_user_id: st.userId, google_sub: who.sub, google_email: who.email, refresh_token: tok.refresh_token, last_error: null },
+      { onConflict: 'auth_user_id,google_sub' }).select('id').single()
+    if (error || !row) throw new Error(error?.message || 'no row')
+    await syncFamily(svc, st.parentId, { linkId: (row as { id: string }).id })
     return page(true)
   } catch (e) {
     console.error('google calendar callback failed:', e instanceof Error ? e.message : e)

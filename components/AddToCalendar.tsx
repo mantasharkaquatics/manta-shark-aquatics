@@ -21,6 +21,14 @@ import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
      server writes the lessons into that account; once connected the card
      says so, with 停止同步 (deletes the calendar we made).
 
+   Each button says when it is synced (owner, 2026-11-03): ✓ on 「Google
+   日曆」 when this person has connected a Google account (exact: we did
+   it), with one row per account (its email, 停止) and 「再連一個 Google 帳號」
+   -- two phones on one login may each connect their own; ✓ on 「iPhone
+   行事曆」 when a calendar read THIS phone's own link in the last 3 days
+   (DEVICE_KEY; the phone never tells us it deleted the calendar, so the
+   mark goes when the reading stops).
+
    The full card shows once (owner, 2026-11-02: "it takes too much room --
    show it the first time, then fold it"): the first time this phone or
    computer opens the schedule, with a ✕ to fold it at once. After that, or
@@ -31,8 +39,24 @@ import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
 const SEEN_KEY = 'msa_cal_card_seen'
 const wasSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } }
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ } }
+// This phone's or computer's own subscribe link (lib/calendar-feed
+// deviceFeedToken). No storage: the family's shared link, no per-phone ✓.
+const DEVICE_KEY = 'msa_cal_device'
+const deviceId = () => {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY)
+    if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
+      const b = new Uint8Array(16); crypto.getRandomValues(b)
+      id = Array.from(b, x => x.toString(16).padStart(2, '0')).join('')
+      localStorage.setItem(DEVICE_KEY, id)
+    }
+    return id
+  } catch { return '' }
+}
 
-type Feed = { webcal: string; https: string; google: string; synced: boolean; googleOn?: boolean; googleLinked?: boolean }
+type GAccount = { id: string; email: string | null }
+type Feed = { webcal: string; https: string; google: string; synced: boolean; appleSynced?: boolean; googleOn?: boolean
+  googleLinked?: boolean; googleAccounts?: GAccount[]; googleMax?: number }
 
 const iosBrowser = () => typeof navigator !== 'undefined' &&
   (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
@@ -63,12 +87,16 @@ export default function AddToCalendar() {
   const connect = !!feed?.googleOn
   const google = client && (connect || !(p !== null || iosBrowser() || androidBrowser()))
   const [going, setGoing] = useState(false)
-  const [stopAsk, setStopAsk] = useState(false)
+  const [stopAsk, setStopAsk] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
+  const accounts = feed?.googleAccounts || []
+  const gLinked = connect && accounts.length > 0
 
   useEffect(() => {
     let live = true
-    const load = (firstLoad: boolean) => fetch('/api/parent/calendar-feed', { cache: 'no-store' })
+    const dev = deviceId()
+    const url = `/api/parent/calendar-feed${dev ? `?device=${dev}` : ''}`
+    const load = (firstLoad: boolean) => fetch(url, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!live) return
@@ -89,7 +117,7 @@ export default function AddToCalendar() {
 
   // Nothing this phone can use (Android, or an iPhone app built before the
   // calendar plugin): no card at all.
-  if (failed || full === null || (client && !google && !where.apple && !feed?.googleLinked)) return null
+  if (failed || full === null || (client && !google && !where.apple && !gLinked)) return null
 
   const subscribeApple = async () => {
     const plugin = calendarAddPlugin()
@@ -106,11 +134,17 @@ export default function AddToCalendar() {
     } catch { /* fall through */ }
     setGoing(false)
   }
-  const stopGoogle = async () => {
+  const stopGoogle = async (id: string) => {
     setStopping(true)
-    try { await fetch('/api/calendar/google/disconnect', { method: 'POST' }) } catch { /* shown below as still linked */ }
-    try { const r = await fetch('/api/parent/calendar-feed', { cache: 'no-store' }); if (r.ok) setFeed(await r.json()) } catch { /* keep */ }
-    setStopping(false); setStopAsk(false)
+    try {
+      await fetch('/api/calendar/google/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    } catch { /* shown below as still linked */ }
+    try {
+      const dev = deviceId()
+      const r = await fetch(`/api/parent/calendar-feed${dev ? `?device=${dev}` : ''}`, { cache: 'no-store' })
+      if (r.ok) setFeed(await r.json())
+    } catch { /* keep */ }
+    setStopping(false); setStopAsk(null)
   }
   const copy = async () => {
     if (!feed) return
@@ -120,6 +154,11 @@ export default function AddToCalendar() {
   const btn: React.CSSProperties = { flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '11px 10px',
     borderRadius: '10px', border: '1px solid #cfdcef', background: '#fff', color: '#16294a', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
     cursor: 'pointer', fontFamily: 'inherit', opacity: feed ? 1 : 0.55, whiteSpace: 'nowrap' }
+  // A synced button: green edge and a green ✓ badge on its corner (costs no
+  // width -- at 320px the names already fill the buttons).
+  const on: React.CSSProperties = { borderColor: '#9fd3b5', background: '#f1faf4', position: 'relative', overflow: 'visible' }
+  const tick = <span aria-hidden="true" style={{ position: 'absolute', top: '-7px', right: '-7px', width: '20px', height: '20px', borderRadius: '50%',
+    background: '#1d8a52', color: '#fff', fontSize: '12px', fontWeight: 800, lineHeight: '20px', textAlign: 'center', boxShadow: '0 0 0 2px #f4f8fd' }}>✓</span>
 
   // The one line: tap to open the card.
   if (!full) return (
@@ -146,35 +185,18 @@ export default function AddToCalendar() {
               <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.5, marginTop: '2px' }}>{t('dash.sync.desc')}</div>
             </div>
           </div>
-          {connect && feed?.googleLinked && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px', padding: '10px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #cfe6d8' }}>
-              <GoogleG />
-              <span style={{ flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 700, color: '#1d6b45' }}>✓ {t('dash.sync.gLinked')}</span>
-              {!stopAsk ? (
-                <button type="button" className="tap-auto" onClick={() => setStopAsk(true)}
-                  style={{ border: 'none', background: 'none', padding: '4px 0', color: '#c0392b', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {t('dash.sync.gStop')}
-                </button>
-              ) : (
-                <span style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
-                  <span style={{ flex: 1, fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{t('dash.sync.gStopAsk')}</span>
-                  <button type="button" className="tap-auto" disabled={stopping} onClick={stopGoogle}
-                    style={{ border: 'none', borderRadius: '8px', background: '#d93825', color: '#fff', padding: '7px 12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {t('dash.sync.gStopYes')}
-                  </button>
-                  <button type="button" className="tap-auto" onClick={() => setStopAsk(false)}
-                    style={{ border: 'none', background: 'none', color: '#56647d', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {t('common.cancel')}
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {google && connect && !feed?.googleLinked && (
+            {google && connect && !gLinked && (
               <button type="button" disabled={!feed || going} onClick={connectGoogle} style={{ ...btn, opacity: going ? 0.6 : 1 }}>
                 <GoogleG />{going ? t('dash.sync.gWait') : t('dash.sync.google')}
               </button>
+            )}
+            {gLinked && (
+              // Nothing to press: the rows below say which accounts and stop them.
+              <div role="status" style={{ ...btn, ...on, cursor: 'default' }}>
+                <GoogleG />{t('dash.sync.google')}{tick}
+                <span className="sr-only">{t('dash.sync.done')}</span>
+              </div>
             )}
             {google && !connect && (
               <a href={feed?.google || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!feed || undefined}
@@ -183,16 +205,55 @@ export default function AddToCalendar() {
               </a>
             )}
             {where.apple === 'native' && (
-              <button type="button" disabled={!feed} onClick={subscribeApple} style={btn}>
-                <AppleCal />{t('dash.sync.iphone')}
+              <button type="button" disabled={!feed} onClick={subscribeApple} style={{ ...btn, ...(feed?.appleSynced ? on : {}) }}>
+                <AppleCal />{t('dash.sync.iphone')}{feed?.appleSynced && tick}
+                {feed?.appleSynced && <span className="sr-only">{t('dash.sync.done')}</span>}
               </button>
             )}
             {where.apple === 'link' && (
-              <a href={feed?.webcal || undefined} aria-disabled={!feed || undefined} onClick={e => { if (!feed) e.preventDefault() }} style={btn}>
-                <AppleCal />{where.label === 'iphone' ? t('dash.sync.iphone') : t('dash.sync.apple')}
+              <a href={feed?.webcal || undefined} aria-disabled={!feed || undefined} onClick={e => { if (!feed) e.preventDefault() }}
+                style={{ ...btn, ...(feed?.appleSynced ? on : {}) }}>
+                <AppleCal />{where.label === 'iphone' ? t('dash.sync.iphone') : t('dash.sync.apple')}{feed?.appleSynced && tick}
+                {feed?.appleSynced && <span className="sr-only">{t('dash.sync.done')}</span>}
               </a>
             )}
           </div>
+          {gLinked && (
+            <div style={{ marginTop: '10px', background: '#fff', border: '1px solid #dbe6f4', borderRadius: '10px', padding: '4px 12px' }}>
+              {accounts.map((a, i) => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '8px 0', borderTop: i ? '1px solid #eef2f8' : 'none' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: '13.5px', fontWeight: 700, color: '#1d6b45', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    ✓ {a.email || t('dash.sync.google')}
+                  </span>
+                  {stopAsk !== a.id ? (
+                    <button type="button" className="tap-auto" onClick={() => setStopAsk(a.id)}
+                      style={{ border: 'none', background: 'none', padding: '4px 0', color: '#c0392b', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {t('dash.sync.gStop')}
+                    </button>
+                  ) : (
+                    <span style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ flex: 1, fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{t('dash.sync.gStopAsk')}</span>
+                      <button type="button" className="tap-auto" disabled={stopping} onClick={() => stopGoogle(a.id)}
+                        style={{ border: 'none', borderRadius: '8px', background: '#d93825', color: '#fff', padding: '7px 12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: stopping ? 0.6 : 1 }}>
+                        {t('dash.sync.gStopYes')}
+                      </button>
+                      <button type="button" className="tap-auto" onClick={() => setStopAsk(null)}
+                        style={{ border: 'none', background: 'none', color: '#56647d', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {t('common.cancel')}
+                      </button>
+                    </span>
+                  )}
+                </div>
+              ))}
+              {accounts.length < (feed?.googleMax || 3) && (
+                <button type="button" className="tap-auto" disabled={going} onClick={connectGoogle}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', borderTop: '1px solid #eef2f8', background: 'none', padding: '9px 0',
+                    color: '#2050a0', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: going ? 0.6 : 1 }}>
+                  {going ? t('dash.sync.gWait') : `＋ ${t('dash.sync.gMore')}`}
+                </button>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
             <span style={{ fontSize: '12px', color: '#7a879c' }}>{google && !connect ? t('dash.sync.slow') : ''}</span>
             <button type="button" className="tap-auto" onClick={copy} disabled={!feed}

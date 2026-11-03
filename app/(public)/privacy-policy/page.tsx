@@ -97,9 +97,10 @@ export default function PrivacyPolicyPage() {
             Google Calendar, only if you choose to connect it: we create one calendar named
             &quot;Manta Shark Lessons&quot; (in your chosen language) in your Google account and keep your family&apos;s lessons in it.
             We cannot see or change anything else in your calendar. We store only the permission
-            Google gives us for this. Press &quot;Stop syncing&quot; on your schedule and we
+            Google gives us for this and the email address of that Google account, so we can show you
+            which account is connected. Press &quot;Stop syncing&quot; on your schedule and we
             delete that calendar and the permission. If you remove our access in your Google Account
-            instead, we delete the stored permission; the calendar stays until you delete it.
+            instead, we delete what we stored; the calendar stays until you delete it.
           </li>
         </ul>
         <p>
