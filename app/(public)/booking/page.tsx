@@ -2869,7 +2869,9 @@ export default function BookingPage() {
           </>
         )}
 
-        {step > 0 && selectedStudent && (
+        {/* Not on the confirm step, whose summary card says all of it once
+            (owner, 2026-11-04, 問題 7 選項 A). */}
+        {step > 0 && step < 4 && selectedStudent && (
           <div ref={doneRef} style={{ marginBottom: '20px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
               value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && pair2 ? ` ＋ ${pair2.full_name}` : '')}
@@ -4481,64 +4483,69 @@ export default function BookingPage() {
         {step === 4 && (() => {
           // Where the lesson is, once there is more than one pool to be at.
           const locNow = showLoc ? locList.find(l => l.id === location) : undefined
-          const locRows = locNow ? [{ label: t('booking.sum.location'), value: locationLine(locNow) }] : []
           return (
           <div>
-            <SectionTitle title={t('booking.s5.title')} />
+            <SectionTitle title={t('booking.s5.title')} gap={14} />
+            <style>{`.bk-dates summary::-webkit-details-marker { display: none }
+.bk-dates .bk-dates-less, .bk-dates[open] .bk-dates-more { display: none }
+.bk-dates[open] .bk-dates-less { display: inline }`}</style>
             {arrearsNotice}
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', border: '1px solid #e3ebf6', marginBottom: '20px' }}>
-              {(planOne ? [
-                { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
-                  value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
-                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
-                ...locRows,
-                { label: t('booking.sum.coach'), value: planOne.coachName || selectedCoach?.first_name },
-                { label: t('booking.sum.date'), value: new Date(planOne.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                { label: t('booking.sum.time'), value: (() => { const [h, m] = planOne.time.split(':').map(Number); const e = h * 60 + m + planMinutes; return `${formatTime(planOne.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
-                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: planMinutes }) },
-              ] : recurPlan.length > 0 ? [
-                { label: t(siblingPair ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
-                  value: siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name },
-                { label: t('booking.sum.course'), value: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '' },
-                ...locRows,
-                { label: t('booking.sum.coach'), value: planCoaches.length > 0 ? planCoaches.join(locale === 'en' ? ', ' : '、') : selectedCoach?.first_name },
-                // Naming one hour above a batch that spans two of them tells the
-                // family the wrong time for half their lessons.
-                { label: t('booking.sum.time'), value: planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : recurPlan[0]?.label },
-                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: groupFlow ? (selectedCourse?.duration_minutes ?? 0) : planMinutes }) },
-                { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: nf(recurTotal) }) },
-              ] : [
-                ...(isReschedule && rescheduleFrom ? [{
-                  label: t('booking.sum.movingFrom'),
-                  value: `${new Date(rescheduleFrom.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })} ${formatTime(rescheduleFrom.start)}`,
-                }] : []),
-                { label: t((hourRoster.length > 1 || (selectedCourse?.slug === '1on2' && pair2)) ? 'booking.sum.swimmers' : 'booking.sum.swimmer'),
-                  value: hourRoster.length > 1
-                    ? hourRoster.map((x: any) => x.full_name).join(' & ')
-                    : selectedCourse?.slug === '1on2' && pair2
-                    ? `${selectedStudent?.full_name} & ${pair2.full_name}`
-                    : selectedStudent?.full_name },
-                // A Swim Assessment is booked as a 1-on-1 slot, so the course type
-                // behind it says "1-on-1 Private". Naming it that on the last screen
-                // before payment describes something the parent did not choose.
-                { label: t('booking.sum.course'), value: isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '') },
-                ...locRows,
-                { label: t('booking.sum.coach'), value: selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name },
-                { label: t('booking.sum.date'), value: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                { label: t('booking.sum.time'), value: selectedHour || !selectedSlot ? selectedSlot?.label : (() => { const [h, m] = selectedSlot.time.split(':').map(Number); const e = h * 60 + m + (selectedCourse?.duration_minutes ?? 30); return `${formatTime(selectedSlot.time)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` })() },
-                { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0 }) },
-                ...(isTrial || isReschedule
-                  ? [{ label: t('booking.sum.price'), value: isTrial ? (trialHasCredit ? t('booking.sum.prepaid') : `$${TRIAL_PRICE_CENTS / 100}`) : t('booking.noExtraCharge') }]
-                  : []),
-              ]).map(row => (
-                <div key={row.label} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 0', borderBottom: '1px solid #e3ebf6',
-                }}>
-                  <span style={{ fontSize: '14px', color: '#56647d' }}>{row.label}</span>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#16294a' }}>{row.value}</span>
-                </div>
-              ))}
+            {/* One summary card, each thing said once (owner, 2026-11-04, 問題 7
+                選項 A): who, what, when, then the points; the 確定 bar stays on
+                the screen. It used to be a table under the answered lines, so
+                the swimmer, the course and the points each came two or three
+                times and 確定 was two screens down. */}
+            <div className="bk-sum" style={{ background: '#fff', borderRadius: '16px', padding: '18px 20px', border: '1px solid #e3ebf6', marginBottom: '14px' }}>
+              {(() => {
+                const fmtEnd = (start: string, mins: number) => { const [h, m] = start.split(':').map(Number); const e = h * 60 + m + mins; return `${formatTime(start)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` }
+                const longDay = (d: Date) => d.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })
+                const many = !planOne && recurPlan.length > 0
+                const who = (planOne || many)
+                  ? (siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name)
+                  : hourRoster.length > 1 ? hourRoster.map((x: any) => x.full_name).join(' & ')
+                  : selectedCourse?.slug === '1on2' && pair2 ? `${selectedStudent?.full_name} & ${pair2.full_name}`
+                  : selectedStudent?.full_name
+                // A Swim Assessment is booked as a 1-on-1 slot; it is named as what the parent chose.
+                const course = isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '')
+                const minutes = planOne ? planMinutes : many ? (groupFlow ? (selectedCourse?.duration_minutes ?? 0) : planMinutes) : (selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0)
+                const coach = planOne ? (planOne.coachName || selectedCoach?.first_name)
+                  : many ? (planSplit.lines.length > 0 ? null : planCoaches.length > 0 ? planCoaches.join(locale === 'en' ? ', ' : '、') : selectedCoach?.first_name)
+                  : selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name
+                const sub = [course, t('booking.lenMin', { n: minutes }), coach ? t('dash.up.coach', { name: coach }) : null, locNow ? locationLine(locNow) : null].filter(Boolean).join(' · ')
+                const when: string[] = planOne
+                  ? [longDay(new Date(planOne.date + 'T00:00:00')), fmtEnd(planOne.time, planMinutes)]
+                  : many
+                  ? [...planSplit.lines.map(l => l.text),
+                     ...(planSplit.lines.length > 0 && planSplit.singles.length > 0 ? [t('booking.recur.singleLine', { n: planSplit.singles.length })] : []),
+                     ...(planSplit.lines.length === 0 ? [planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : (recurPlan[0]?.label || '')] : [])]
+                  : [selectedDate ? longDay(selectedDate) : '', selectedHour || !selectedSlot ? (selectedSlot?.label || '') : fmtEnd(selectedSlot.time, selectedCourse?.duration_minutes ?? 30)]
+                return (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#16294a', lineHeight: 1.3 }}>{who}</div>
+                        <div style={{ fontSize: '13.5px', color: '#56647d', marginTop: '2px', lineHeight: 1.5 }}>{sub}</div>
+                      </div>
+                      <button type="button" onClick={() => { setStep(3); setRecurPlan([]) }}
+                        style={{ background: 'none', border: 'none', color: GOLD, fontSize: '14px', fontWeight: 700, cursor: 'pointer', padding: '0 4px', minHeight: '36px', flexShrink: 0 }}>{t('booking.change')}</button>
+                    </div>
+                    {isReschedule && rescheduleFrom && (
+                      <div style={{ fontSize: '13.5px', color: '#56647d', marginTop: '10px', textDecoration: 'line-through' }}>
+                        {t('booking.sum.movingFrom')} · {longDay(new Date(rescheduleFrom.date + 'T00:00:00'))} {formatTime(rescheduleFrom.start)}
+                      </div>
+                    )}
+                    <div style={{ marginTop: '10px', fontSize: '16px', fontWeight: 800, color: '#16294a', lineHeight: 1.5 }}>
+                      {when.filter(Boolean).map((w, i) => <div key={i}>{w}</div>)}
+                    </div>
+                    {(isTrial || isReschedule) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e3ebf6' }}>
+                        <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.sum.price')}</span>
+                        <span style={{ fontSize: '15px', fontWeight: 800, color: '#16294a' }}>{isTrial ? (trialHasCredit ? t('booking.sum.prepaid') : `$${TRIAL_PRICE_CENTS / 100}`) : t('booking.noExtraCharge')}</span>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
               {makeUp && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #e3ebf6' }}>
                   <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.makeUp.payLabel')}</span>
@@ -4548,18 +4555,18 @@ export default function BookingPage() {
               {/* Every date, spelled out. This is the last screen before the
                   credits are spent, so "3 lessons" is not enough -- a parent has
                   to be able to see that one of them lands on a week they are away. */}
-              {planMany && (
-                <div style={{ padding: '12px 0', borderBottom: '1px solid #e3ebf6' }}>
-                  {planSplit.lines.map(l => (
-                    <div key={l.key} style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginBottom: '6px' }}>{l.text}</div>
-                  ))}
-                  {planSplit.lines.length > 0 && planSplit.singles.length > 0 && (
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginBottom: '6px' }}>{t('booking.recur.singleLine', { n: planSplit.singles.length })}</div>
-                  )}
-                  <div style={{ fontSize: '14px', color: '#56647d', marginBottom: '10px' }}>
-                    {t('booking.recur.sumDates', { n: recurPlan.length })}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {planMany && (() => {
+                const ds = recurPlan.map(x => x.date).sort()
+                const md = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'numeric', day: 'numeric' })
+                const anyOther = recurPlan.some(x => !!x.fixed && x.coachId !== x.fixed.split('|')[2])
+                return (
+                <details className="bk-dates" open={anyOther} style={{ marginTop: '10px', background: '#eef3fa', borderRadius: '10px', padding: '0 12px' }}>
+                  <summary style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', minHeight: '42px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, color: '#16294a', listStyle: 'none' }}>
+                    <span>{t('booking.confirm.range', { from: md(ds[0]), to: md(ds[ds.length - 1]), n: recurPlan.length })}</span>
+                    <span className="bk-dates-more" style={{ color: GOLD, whiteSpace: 'nowrap' }}>{t('booking.confirm.seeDates')} ▾</span>
+                    <span className="bk-dates-less" style={{ color: GOLD, whiteSpace: 'nowrap' }}>{t('booking.confirm.hideDates')} ▴</span>
+                  </summary>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '2px 0 12px' }}>
                     {recurPlan.map(x => {
                       // A week with another coach than the class's own, in
                       // that colour here too (owner, 2026-11-02).
@@ -4574,27 +4581,30 @@ export default function BookingPage() {
                       )
                     })}
                   </div>
-                </div>
-              )}
+                </details>
+                )
+              })()}
               {/* The breakdown. Discounts are written as percentages, not as
                   "-4 pts, -3 pts": they are multiplied together and rounded down
                   once, so per-line whole numbers would not add up to the total
                   and a parent subtracting them would find us out. */}
               {!isTrial && !isReschedule && (planOne ? onePrice : recurPlan.length === 0 && bookingPrice) && (() => { const bookingPrice = (planOne ? onePrice : bookingPriceSingle)!; const covered = planOne ? recurCover.has(lessonKey(planOne)) : (!!selectedHour && hourCovered); const bookingCost = planOne ? (covered ? 0 : planOne.points) : bookingCostSingle; const balanceAfter = Math.max(0, balance - bookingCost); return (
-                <div style={{ paddingTop: '12px' }}>
-                  {[
+                <div style={{ paddingTop: '6px', marginTop: '10px', borderTop: '1px solid #e3ebf6' }}>
+                  {/* The base line only when something came off it: otherwise
+                      it is the same number as the total right under it. */}
+                  {(bookingPrice.offPeak || covered ? [
                     { k: 'base', label: bookingPrice.seats > 1 ? t('booking.price.baseSeats', { n: bookingPrice.seats }) : t('booking.price.base'), value: String(bookingPrice.base * bookingPrice.seats), dim: true },
                     ...(bookingPrice.offPeak ? [{ k: 'off', label: t('booking.price.offPeak'), value: `−${Math.round(bookingPrice.offPeakPct * 100)}%`, dim: true }] : []),
                     ...(covered ? [{ k: 'voucher', label: t('booking.voucherAuto.row', { n: 1 }), value: t('booking.voucherAuto.free'), dim: true }] : []),
-                  ].map(row => (
+                  ] : []).map(row => (
                     <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                       <span style={{ fontSize: '14px', color: '#56647d' }}>{row.label}</span>
                       <span style={{ fontSize: '14px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid #e3ebf6', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', ...(bookingPrice.offPeak || covered ? { borderTop: '1px solid #e3ebf6', marginTop: '6px' } : {}) }}>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{t('booking.price.total')}</span>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(bookingCost) })}</span>
+                    <span style={{ fontSize: '19px', fontWeight: 800, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(bookingCost) })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.after')}</span>
@@ -4612,11 +4622,13 @@ export default function BookingPage() {
                   discounts took off, because one lesson's percentages cannot
                   describe a batch where half the lessons are off-peak. */}
               {planMany && (
-                <div style={{ paddingTop: '12px' }}>
+                <div style={{ paddingTop: '6px', marginTop: '10px', borderTop: '1px solid #e3ebf6' }}>
+                  {recurBase > recurTotal && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.batchBase', { n: recurPlan.length })}</span>
                     <span style={{ fontSize: '14px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{recurBase}</span>
                   </div>
+                  )}
                   {recurBase > recurGross && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                       <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.batchDiscount')}</span>
@@ -4629,9 +4641,9 @@ export default function BookingPage() {
                       <span style={{ fontSize: '14px', color: '#1f7a57', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>−{recurSaved}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid #e3ebf6', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', ...(recurBase > recurTotal ? { borderTop: '1px solid #e3ebf6', marginTop: '6px' } : {}) }}>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{t('booking.price.total')}</span>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(recurTotal) })}</span>
+                    <span style={{ fontSize: '19px', fontWeight: 800, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(recurTotal) })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.after')}</span>
@@ -4665,8 +4677,8 @@ export default function BookingPage() {
                 ⏱ {t('booking.assessHold', { n: TRIAL_HOLD_MINUTES })}
               </div>
             )}
-            <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6 }}>
+            <div style={{ padding: '0 4px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '12.5px', color: '#56647d', lineHeight: 1.6 }}>
                 {isTrial ? t('booking.policy.assessment')
                   : makeUp ? t('booking.policy.makeUp')
                   // Shared with another family: that lesson has its own rule
@@ -4685,7 +4697,11 @@ export default function BookingPage() {
             </div>
             {/* The mascot's tip before the last tap (owner, 2026-10-26). */}
             <div style={{ margin: '0 0 14px' }}><MascotTip>{t('booking.tip.bring')}</MascotTip></div>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="msa-book-bar" style={{
+              position: 'sticky', bottom: 0, zIndex: 5, marginTop: '8px', display: 'flex', gap: '12px',
+              paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+              background: PAGE_TINT, borderTop: '1px solid #d6e0ee',
+            }}>
               <button onClick={() => { setStep(3); setRecurPlan([]) }} style={{
                 flex: 1, padding: '14px', background: '#fff',
                 color: '#16294a', border: '1px solid #d3deec',

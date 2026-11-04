@@ -996,6 +996,13 @@ the contained problems were fixed the same day. What to keep doing:
   course cards (icon, minutes and size, points chip) and 每週固定／單次
   cards; with no times, 改選單次上課 and 傳訊息給我們. Change a piece there
   and both flows change.
+- **The booking's confirm step is one summary card** (owner, 2026-11-04,
+  問題 7 選項 A): no answered lines above it; the swimmer, then course ·
+  minutes · coach · pool, then when; a weekly plan's dates fold into one
+  line (`.bk-dates`, open by itself when a week has another coach); the
+  points once (the base line only when off-peak or a voucher took something
+  off) and what is left; the rules as a quiet line; 上一步 / 確定 in the
+  sticky `.msa-book-bar`, so it is on screen without scrolling.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
