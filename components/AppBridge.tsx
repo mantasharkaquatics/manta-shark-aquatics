@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { handleAppBack } from '@/lib/app-back'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
 import { APP_CLASS, applyPhoneTextSize, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
@@ -35,6 +37,27 @@ export default function AppBridge() {
   useEffect(() => {
     if (appPlatform()) document.documentElement.classList.add(APP_CLASS)
   }, [])
+
+  // The Android back button (lib/app-back.ts).
+  const router = useRouter()
+  useEffect(() => {
+    const app = appPlugin()
+    if (!app || appPlatform() !== 'android') return
+    let handle: unknown = null
+    try {
+      handle = app.addListener('backButton', e => {
+        const canGoBack = !!(e as { canGoBack?: boolean } | null)?.canGoBack
+        handleAppBack({
+          canGoBack,
+          goHome: () => router.push('/dashboard'),
+          minimize: () => { try { (app as { minimizeApp?: () => unknown }).minimizeApp?.() } catch { /* older build */ } },
+        })
+      })
+    } catch { /* no listener: the build's own back stays */ }
+    return () => {
+      Promise.resolve(handle).then(h => { try { (h as { remove?: () => unknown } | null)?.remove?.() } catch { /* gone */ } }).catch(() => {})
+    }
+  }, [router])
 
   // The phone's text size may have been changed while the app was away (lib/native-app.ts).
   useEffect(() => {

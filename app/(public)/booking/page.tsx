@@ -32,6 +32,7 @@ import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper
 import SwimmerFace from '@/components/swimmer/SwimmerFace'
 import { lookOf } from '@/lib/swimmer-look'
 import { fmtDate } from '@/lib/fmt-date'
+import { APP_BACK_EVENT } from '@/lib/app-back'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -2646,6 +2647,26 @@ export default function BookingPage() {
     return dateMidnight.getTime() === todayMidnight.getTime()
   }
 
+  /* The Android back button steps back through the booking (owner,
+     2026-11-04, 問題 14): the page keeps its steps in one address, so the
+     app would otherwise leave it altogether (lib/app-back.ts). */
+  const appBack = useRef<() => boolean>(() => false)
+  appBack.current = () => {
+    if (isReschedule || makeUp) return false
+    if (siblingMode) { setSiblingMode(false); window.scrollTo(0, 0); return true }
+    if (step === 4) { setStep(3); setRecurPlan([]); return true }
+    if (step === 3) {
+      if (wayFlow && way) { resetWay(); return true }
+      setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()); return true
+    }
+    if (step > 0 && students.length > 1) { changeStudent(); return true }
+    return false
+  }
+  useEffect(() => {
+    const on = (e: Event) => { if (appBack.current()) e.preventDefault() }
+    window.addEventListener(APP_BACK_EVENT, on)
+    return () => window.removeEventListener(APP_BACK_EVENT, on)
+  }, [])
   if (loading) return (
     // dvh, less the nav spacer above it: 100vh is taller than what Safari
     // shows, so the centre sat well below the middle (found 2026-10-15).
@@ -2782,6 +2803,7 @@ export default function BookingPage() {
       </div>
     </div>
   )
+
 
   return (
     <div className="msa-fill" style={{ fontFamily: FONT_BODY, ...PAGE_BG, minHeight: '100vh', color: '#16294a' }}>

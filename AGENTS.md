@@ -1032,6 +1032,14 @@ the contained problems were fixed the same day. What to keep doing:
   book → /booking?student=), then buying. Visitors keep the full page with
   the hero, Swim Team band and closing call. `.p-web` adds the room under
   the website's floating bar.
+- **The Android back button** (owner, 2026-11-04, 問題 14 選項 A;
+  lib/app-back.ts, wired in AppBridge on Android only): closes the sheet or
+  dialog on top (Esc, then its dimmed area, then its close button); else a
+  page may take it with the cancelable `APP_BACK_EVENT` (the booking page
+  steps back); else the first level of 預約/課表/訊息/我的 goes to 首頁;
+  首頁 and sign-in put the app in the background (minimizeApp); elsewhere
+  back a page. A new sheet should close on Esc or a tap on its dimmed area,
+  and a closed one should be aria-hidden, so the back button finds it.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
