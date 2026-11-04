@@ -2271,6 +2271,8 @@
   "fam.goN": "Book {n} together · Continue",
   "fam.courseQ": "Which lesson?",
   "fam.c1on1Hint": "Each child with their own coach",
+  "fam.c1on2Hint": "Both with one coach, in the same lesson",
+  "fam.ptsEach": "{n} pts each",
   "fam.c1on4Hint": "All {n} in the same class",
   "fam.wayQ": "How often?",
   "fam.weekly": "Every week",

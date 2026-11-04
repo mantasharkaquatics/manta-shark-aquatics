@@ -2271,6 +2271,8 @@
   "fam.goN": "{n} 位一起上 · 繼續",
   "fam.courseQ": "上什麼課？",
   "fam.c1on1Hint": "每位孩子各自一位教練",
+  "fam.c1on2Hint": "兩人同一位教練、一起上一堂",
+  "fam.ptsEach": "{n} 點／人",
   "fam.c1on4Hint": "{n} 位一起上同一堂",
   "fam.wayQ": "要怎麼上？",
   "fam.weekly": "每週固定上課",

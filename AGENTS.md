@@ -983,6 +983,11 @@ the contained problems were fixed the same day. What to keep doing:
   the next lesson or 還沒有預約, and the amber 預約游泳評估 at the bottom.
   Every card's last row of buttons is `.msa-mcard-end` (margin-top: auto), so
   the rows line up across a family's cards.
+- **Two children ticked can book a 1-on-2** (owner, 2026-11-04, 問題 5 選項 A):
+  FamilyBooking lists 1-on-2 between 1-on-1 and the group class when exactly
+  two are ticked, each option with its BASE_POINTS per child. It is not
+  booked inside FamilyBooking: `onPair` hands both children to the booking
+  page's own 1-on-2 flow (course chosen, second swimmer chosen, on to 怎麼上).
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

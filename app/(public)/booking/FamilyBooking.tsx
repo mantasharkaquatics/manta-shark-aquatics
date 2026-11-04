@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag, tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
-import { priceLesson } from '@/lib/points'
+import { priceLesson, BASE_POINTS } from '@/lib/points'
 import { singleMaxDate, FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
@@ -15,7 +15,9 @@ import { BRAND } from '@/lib/brand'
    step. Replaces SiblingBooking (two children, single lessons only).
 
    - 上什麼課: 1-on-1 (each child their own coach) or the 1-on-4 group class
-     (all in the same class).
+     (all in the same class). With exactly two children, 1-on-2 too (owner,
+     2026-11-04, 問題 5 選項 A): it is not booked here but hands both
+     children to the booking page's own 1-on-2 flow (`onPair`).
    - 要怎麼上: every week (a fixed class each, the same weeks for all) or once
      (within the 14-day window).
    - When (version A of two): only the times every chosen child can have.
@@ -70,9 +72,11 @@ function matchCoaches(sets: string[][], taken: Set<string> = new Set()): string[
   return null
 }
 
-export default function FamilyBooking({ kids, courses, location, balance, face, onExit }: {
+export default function FamilyBooking({ kids, courses, location, balance, face, onExit, onPair }: {
   kids: Kid[]; courses: Course[]; location: string | null; balance: number
   face: (k: Kid) => React.ReactNode; onExit: () => void
+  /** Two children: book them as a 1-on-2 on the booking page instead. */
+  onPair?: () => void
 }) {
   const t = useT()
   const locale = useLocale()
@@ -289,10 +293,16 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
         <section style={{ marginTop: 14 }}>
           <p style={head}>{t('fam.courseQ')}</p>
           <div style={{ display: 'grid', gap: 10 }}>
-            {(['1on1', '1on4'] as const).map(sl => courses.find(c => c.slug === sl)).filter(Boolean).map(c => (
-              <button key={c!.slug} type="button" style={card(false)} onClick={() => { setOpen1(null); setOpenG(null); setSlug(c!.slug as Slug); reset('slug') }}>
-                <span style={{ display: 'block', fontSize: 16, fontWeight: 800 }}>{tDb(locale as never, 'course_types', c!.id, c!.name)}</span>
-                <span style={{ display: 'block', fontSize: 13, color: '#56647d', marginTop: 3 }}>{t(c!.slug === '1on1' ? 'fam.c1on1Hint' : 'fam.c1on4Hint', { n })}</span>
+            {(['1on1', ...(n === 2 && onPair ? ['1on2'] : []), '1on4'] as const).map(sl => courses.find(c => c.slug === sl)).filter(Boolean).map(c => (
+              <button key={c!.slug} type="button" style={card(false)} onClick={() => {
+                if (c!.slug === '1on2') { onPair?.(); return }
+                setOpen1(null); setOpenG(null); setSlug(c!.slug as Slug); reset('slug')
+              }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, fontSize: 16, fontWeight: 800 }}>
+                  {tDb(locale as never, 'course_types', c!.id, c!.name)}
+                  {BASE_POINTS[c!.slug] != null && <span style={{ fontSize: 13, fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('fam.ptsEach', { n: BASE_POINTS[c!.slug] })}</span>}
+                </span>
+                <span style={{ display: 'block', fontSize: 13, color: '#56647d', marginTop: 3 }}>{t(c!.slug === '1on1' ? 'fam.c1on1Hint' : c!.slug === '1on2' ? 'fam.c1on2Hint' : 'fam.c1on4Hint', { n })}</span>
               </button>
             ))}
           </div>

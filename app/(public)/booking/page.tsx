@@ -3000,7 +3000,17 @@ export default function BookingPage() {
               </div>
             )}
             <FamilyBooking key={location ?? 'all'} kids={students.filter(s => famTicked.includes(s.id))} courses={courseTypes} location={location ?? null} balance={balance}
-              face={k => <SwimmerFace look={lookOf(students.find(s => s.id === k.id)!)} size={40} />} onExit={() => { setSiblingMode(false); window.scrollTo(0, 0) }} />
+              face={k => <SwimmerFace look={lookOf(students.find(s => s.id === k.id)!)} size={40} />} onExit={() => { setSiblingMode(false); window.scrollTo(0, 0) }}
+              onPair={() => {
+                /* 1-on-2 for the two ticked children (owner, 2026-11-04, 問題 5 選項 A):
+                   the page's own 1-on-2 flow, both swimmers already chosen. */
+                const [a, b] = students.filter(s => famTicked.includes(s.id))
+                const ct = courseTypes.find(c => c.slug === '1on2')
+                if (!a || !b || !ct) return
+                setSiblingMode(false); setFamTicked([]); clearTime()
+                setSelectedStudent(a); setSelectedStudent2(b); setSelectedCourse(ct); setIsTrial(false)
+                setStep(1); requestAdvance(); window.scrollTo(0, 0)
+              }} />
           </div>
         )}
 
