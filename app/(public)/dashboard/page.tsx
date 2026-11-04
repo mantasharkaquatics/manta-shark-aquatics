@@ -60,6 +60,15 @@ ${REPORT_SHEET_CSS}
 .msa-mcard-next .k { display: block; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.65) }
 .msa-mcard-next .v { display: block; font-size: 15px; font-weight: 800; line-height: 1.3 }
 .msa-mcard-next .go { color: rgba(255,255,255,0.6); font-size: 18px }
+.msa-mcard-none { display: flex; align-items: center; gap: 10px; padding: 10px 12px }
+.msa-mcard-none .v { color: rgba(255,255,255,0.55) }
+.msa-mcard-hint { margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: rgba(255,255,255,0.78) }
+/* The last row of buttons sits on the card's bottom edge, level with the
+   cards beside it however much is above it. */
+.msa-mcard-end { margin-top: auto; padding-top: 14px }
+.msa-mcard-end + .msa-mcard-end { margin-top: 8px; padding-top: 0 }
+.msa-mcard-btns .msa-mcard-book { background: #f09800; color: #12254a }
+@media (hover: hover) { .msa-mcard-btns .msa-mcard-book:hover { background: #d98900 } }
 @media (hover: hover) { .msa-mcard-next button:hover { background: rgba(255,255,255,0.06) } }
 
 /* The week view of the upcoming lessons (owner, 2026-10-26): a card per
@@ -3306,14 +3315,25 @@ export default function DashboardPage() {
                   {!hasLevel && (
                     <>
                       <span className="msa-mcard-lv"><i />{t('dash.pendingAssessment')}</span>
-                      {/* Waiting for the assessment: the booked one, or the button to book it (2026-11-04). */}
-                      {nextLine() || (!viewer && (
-                        <div className="msa-mcard-btns">
-                          <button className="tap-auto" onClick={() => router.push('/booking?student=' + student.id)}>📅 {t('assess.cta.button')}</button>
+                      {/* Waiting for the assessment, laid out like the other
+                          cards (owner, 2026-11-04, 問題 4 選項 A: the card was
+                          half empty beside its brothers and sisters): what the
+                          assessment is, the next lesson or "none booked yet",
+                          and the book button at the bottom with theirs. */}
+                      <p className="msa-mcard-hint">{t(nextLine() ? 'dash.assess.hintBooked' : 'dash.assess.hint', { name: student.full_name })}</p>
+                      {nextLine() || (
+                        <div className="msa-mcard-next msa-mcard-none">
+                          <span className="ic" aria-hidden="true">📅</span>
+                          <span className="tx"><span className="k">{t('dash.next.lesson')}</span><span className="v">{t('dash.next.none')}</span></span>
                         </div>
-                      ))}
+                      )}
+                      {!nextLine() && !viewer && (
+                        <div className="msa-mcard-btns msa-mcard-end">
+                          <button className="tap-auto msa-mcard-book" onClick={() => router.push('/booking?student=' + student.id)}>📅 {t('assess.cta.button')}</button>
+                        </div>
+                      )}
                       {(pastBookings.some(b => b.student_id === student.id) || monthlyBtn) && (
-                        <div className="msa-mcard-btns">
+                        <div className="msa-mcard-btns msa-mcard-end">
                           {pastBookings.some(b => b.student_id === student.id) && (
                             <button className="tap-auto" onClick={() => openRecords(student)}>{t('dash.records')}<NewDot n={newReportCount(student)} /></button>
                           )}
@@ -3348,7 +3368,7 @@ export default function DashboardPage() {
                             🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
                           </div>
                         )}
-                        <div className="msa-mcard-btns">
+                        <div className="msa-mcard-btns msa-mcard-end">
                           <button className="tap-auto"
                             onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
                             {t('dash.skillTree')}

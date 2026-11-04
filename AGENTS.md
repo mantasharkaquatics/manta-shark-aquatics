@@ -978,6 +978,11 @@ the contained problems were fixed the same day. What to keep doing:
   school note (system message) and the header says a person has it.
 - **Legal pages stay English**, with one line in the reader's language
   saying so (legal.enOnly, LegalPage reads the locale cookie).
+- **A swimmer waiting for the assessment has a full card** on the website's
+  home (owner, 2026-11-04, 問題 4 選項 A): a line on what the assessment is,
+  the next lesson or 還沒有預約, and the amber 預約游泳評估 at the bottom.
+  Every card's last row of buttons is `.msa-mcard-end` (margin-top: auto), so
+  the rows line up across a family's cards.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
