@@ -1021,6 +1021,11 @@ the contained problems were fixed the same day. What to keep doing:
   (ProgramCards: the title link covers the card, the button sits above it),
   the programme pages -- has an amber 看價格 → button straight to /plans#buy
   (the Swim Team to #team), and /programs' closing band has 看價格 too.
+- **Sign-up names its two steps** (owner, 2026-11-04, 問題 11 選項 A): a step
+  bar 1 你的資料 · 2 孩子的資料 and the button 下一步：孩子的資料. The full
+  home address stays required, with no reason given on the page -- it is
+  for the school to know where families come from, and the privacy
+  policy's "How We Use" says so.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

@@ -114,7 +114,7 @@ export default function RegisterClient() {
   // Changing step swaps the whole form, so the button that was pressed is gone
   // and focus fell to the page. It goes to the "Step n" line instead, which a
   // screen reader then reads (found 2026-10-15). Not on the first render.
-  const stepRef = useRef<HTMLParagraphElement>(null)
+  const stepRef = useRef<HTMLOListElement>(null)
   const stepShownRef = useRef(step)
   useEffect(() => {
     if (stepShownRef.current === step) return
@@ -566,7 +566,16 @@ export default function RegisterClient() {
             <Image src="/logo.png" alt="Manta Shark Aquatics" width={204} height={106} className="mx-auto mb-2 object-cover" style={{ width: 204, height: 106 }} priority />
           </HomeLink>
           <h1 className="text-2xl font-bold text-[#12254a] auth-title">{t('register.title')}</h1>
-          <p ref={stepRef} tabIndex={-1} className="text-sm text-[#56647d] mt-1 focus:outline-none">{t('register.step', { n: step })}</p>
+          {/* The two steps by name (owner, 2026-11-04, 問題 11): 步驟 1 / 2 left
+              families wondering what the second one was. */}
+          <ol ref={stepRef} tabIndex={-1} aria-label={t('register.step', { n: step })} className="flex gap-2 mt-3 focus:outline-none" style={{ listStyle: 'none', padding: 0 }}>
+            {(['register.step1', 'register.step2'] as const).map((k, i) => (
+              <li key={k} aria-current={step === i + 1 ? 'step' : undefined}
+                className={'flex-1 pb-1.5 text-[13.5px] font-extrabold border-b-[3px] ' + (step === i + 1 ? 'text-[#16294a] border-[#f09800]' : step > i + 1 ? 'text-[#56647d] border-[#9fb3d3]' : 'text-[#8a97ad] border-[#d3deec]')}>
+                {i + 1} {t(k)}
+              </li>
+            ))}
+          </ol>
         </div>
 
         {step === 1 && (
@@ -795,7 +804,7 @@ export default function RegisterClient() {
               disabled={!emailOk || !phoneVerified}
               className="w-full bg-[#f09800] hover:bg-[#d98900] text-[#12254a] py-3 rounded-lg font-bold hover:opacity-90 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(!emailOk || !phoneVerified) ? t('register.verifyFirst') : t('register.continue')}
+              {(!emailOk || !phoneVerified) ? t('register.verifyFirst') : t('register.toKids')}
             </button>
             <p className="text-center text-sm text-[#56647d]">
               {t('register.haveAccount')} <Link href={signInHref} className="text-[#2050a0] hover:underline font-semibold">{t('register.signIn')}</Link>

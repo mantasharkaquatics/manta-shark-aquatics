@@ -51,6 +51,7 @@ export default function PrivacyPolicyPage() {
         <h2>2. How We Use Your Information</h2>
         <ul>
           <li>To create and manage your account and your swimmers&apos; lesson bookings.</li>
+          <li>To understand which areas our families come from, using the home address you give us, so we can plan where we teach.</li>
           <li>To verify your identity during registration (email and SMS one-time passcodes).</li>
           <li>To send service communications such as booking confirmations, cancellations, reminders, and invoices.</li>
           <li>To process payments and maintain transaction records.</li>
