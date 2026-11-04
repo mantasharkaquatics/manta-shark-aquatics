@@ -1048,6 +1048,12 @@ the contained problems were fixed the same day. What to keep doing:
   through /api/chat/to-team: mode 'human', desk alerted, a system note in
   their language, no ai-reply call. Only system messages with a
   metadata.key (the desk's hand-back notices) turn the widget back to AI.
+- **One word per action on buttons** (owner, 2026-11-04, 問題 16 選項 A):
+  預約課程 (Book a lesson), 預約游泳評估 (Book a Swim Assessment), 建立帳號
+  (Create Account; the narrow nav keeps 註冊), 確定預約 (Confirm booking;
+  counts after it: 確定預約 10 堂課, 確定預約（2 位）), 看價格 (See prices).
+  Not 立即預約 / 去預約 / 建立免費帳號 / 加入我們 / 查看價目. A one- or
+  two-character place (the nav's 預約, the app tab) stays short.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
