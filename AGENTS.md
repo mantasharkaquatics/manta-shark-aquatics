@@ -1016,6 +1016,11 @@ the contained problems were fixed the same day. What to keep doing:
   component calls it instead of `.toLocaleDateString` -- do the same in new
   code. Time ranges use an en dash: 9:10 AM – 9:40 AM. A weekly weekday
   (每星期三) and the booking grid's 上午/下午 09:10 stay as they are.
+- **No prices on public pages but /plans** (owner, 2026-09-28; kept
+  2026-11-04, 問題 10 選項 A). Instead every programme card -- home, /programs
+  (ProgramCards: the title link covers the card, the button sits above it),
+  the programme pages -- has an amber 看價格 → button straight to /plans#buy
+  (the Swim Team to #team), and /programs' closing band has 看價格 too.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

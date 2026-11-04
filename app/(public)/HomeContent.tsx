@@ -123,11 +123,12 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
         .h-prog h3 { margin: 0; font-size: 20px; }
         .h-prog p { margin: 0; font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; flex: 1; }
         .h-prog .pr { display: flex; align-items: baseline; gap: 6px; border-top: 1px solid ${BRAND.line}; padding-top: 14px; }
-        .h-prog .pr a { font-size: 14px; font-weight: 800; color: ${BLUE}; text-decoration: none; }
-        .h-prog .pr a:hover { text-decoration: underline; }
+        .h-prog .pr a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px;
+          background: ${AMBER}; color: ${NAVY}; font-size: 14px; font-weight: 800; text-decoration: none; }
+        .h-prog .pr a:hover { background: ${BRAND.amberHover}; }
         .h-prog.team { background: ${NAVY}; color: #fff; border-color: ${NAVY}; }
         .h-prog.team p, .h-prog.team .k { color: rgba(255,255,255,0.6); }
-        .h-prog.team .pr a { color: ${BRAND.yellow}; }
+        .h-prog.team .pr a { color: ${NAVY}; }
         .h-prog.team .pr { border-color: rgba(255,255,255,0.12); }
         .h-note { font-size: 13px; color: ${BRAND.mute}; margin-top: 18px; line-height: 1.6; }
         .h-note a { color: ${BLUE}; font-weight: 700; border-bottom: 1.5px solid ${AMBER}; text-decoration: none; }
@@ -269,9 +270,11 @@ export default function HomeContent({ locations = [] }: { locations?: Location[]
                   {HAS_FIT.has(p.slug)
                     ? <FitChips slug={p.slug as 'private' | 'semi' | 'group'} />
                     : <p>{t(`home.program.${p.slug}.desc`)}</p>}
-                  {/* Prices live on the Points & Pricing page only (owner, 2026-09-28). */}
+                  {/* Prices live on the Points & Pricing page only (owner, 2026-09-28);
+                      the way there is a button on every card (owner, 2026-11-04,
+                      問題 10 選項 A), straight to the price list. */}
                   <div className="pr">
-                    <Link href={localePath('/plans', locale)}>{t('programs.card.pricing')} →</Link>
+                    <Link href={localePath('/plans', locale) + (p.slug === 'team' ? '#team' : '#buy')}>{t('programs.card.seePrice')} →</Link>
                   </div>
                 </div>
               ))}

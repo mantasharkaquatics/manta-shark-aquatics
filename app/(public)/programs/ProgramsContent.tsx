@@ -99,6 +99,7 @@ function ProgramsWeb() {
           <p>{t('programs.final.body')}</p>
           <div className="b-ctas">
             <Link className="b-btn gold" href={localePath('/assessment', locale)}>{t('assess.hero.cta')} →</Link>
+            <Link className="b-btn ghost" href={localePath('/plans', locale)}>{t('programs.card.seePrice')}</Link>
           </div>
         </div>
       </section>

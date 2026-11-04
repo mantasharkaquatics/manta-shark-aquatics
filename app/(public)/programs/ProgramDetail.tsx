@@ -25,8 +25,9 @@ const css = `
   .pd-card p { color: ${BRAND.mute}; font-size: 14.5px; line-height: 1.65; margin: 10px 0 0; flex: 1; }
   .pd-card .pr { margin-top: 18px; padding-top: 14px; border-top: 1px solid ${BRAND.line};
     display: flex; align-items: baseline; gap: 8px; }
-  .pd-card .pr a { font-size: 14px; font-weight: 800; color: ${BRAND.blue}; text-decoration: none; }
-  .pd-card .pr a:hover { text-decoration: underline; }
+  .pd-card .pr a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px;
+    background: ${BRAND.amber}; color: ${BRAND.navy}; font-size: 14px; font-weight: 800; text-decoration: none; }
+  .pd-card .pr a:hover { background: ${BRAND.amberHover}; }
   .pd-info { background: ${BRAND.paper}; border: 1px dashed #c9d8ee; border-radius: 18px; padding: 26px;
     display: flex; align-items: center; }
   .pd-info p { color: ${BRAND.mute}; font-size: 14.5px; line-height: 1.7; margin: 0; }
@@ -47,7 +48,7 @@ export default function ProgramDetail({ kind }: { kind: DetailKind }) {
       <h3>{t(`home.program.${key}.name`)}</h3>
       <FitChips slug={key} />
       {/* Prices live on the Points & Pricing page only (owner, 2026-09-28). */}
-      <div className="pr"><Link href={localePath('/plans', locale)}>{t('programs.card.pricing')} →</Link></div>
+      <div className="pr"><Link href={localePath('/plans', locale) + '#buy'}>{t('programs.card.seePrice')} →</Link></div>
     </div>
   )
 
