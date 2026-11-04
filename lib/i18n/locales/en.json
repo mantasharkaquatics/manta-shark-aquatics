@@ -615,6 +615,7 @@
   "dash.up.decline": "Decline",
   "dash.up.expired": "Expired",
   "dash.up.levelBadge": "Level {min}–{max}",
+  "dash.lsheet.open": "Open {name}'s lesson",
   "dash.up.messageUs": "Message us",
   "dash.up.partnerCountdown": "{time} left to confirm or the booking auto-cancels",
   "dash.up.pendingReschedule": "PENDING RESCHEDULE",

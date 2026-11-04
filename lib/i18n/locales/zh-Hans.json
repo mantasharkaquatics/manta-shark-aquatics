@@ -615,6 +615,7 @@
   "dash.up.decline": "婉拒",
   "dash.up.expired": "已过期",
   "dash.up.levelBadge": "等级 {min}–{max}",
+  "dash.lsheet.open": "{name}的课，打开详情",
   "dash.up.messageUs": "发消息给我们",
   "dash.up.partnerCountdown": "剩余 {time} 未确认即自动取消",
   "dash.up.pendingReschedule": "改期待确认",

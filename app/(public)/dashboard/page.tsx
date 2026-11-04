@@ -4,6 +4,7 @@ import { masteryOf, masteryKey, MASTERY_COLOR } from '@/lib/mastery'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef, useSyncExternalStore } from 'react'
 import Link from 'next/link'
+import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
@@ -338,6 +339,42 @@ html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .
 .msa-lesson-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; margin: 0 }
 .msa-lesson-pill { flex-shrink: 0; margin-left: auto }
 .msa-day-head { display: flex; align-items: center; gap: 8px; margin: 14px 2px 0 }
+/* The lesson sheet (app only, see lessonSheet). In the list the card is one
+   big tap target with a › on its right; its buttons wait in the sheet. */
+.msa-lesson-tap { position: relative; cursor: pointer; padding-right: 40px !important; -webkit-tap-highlight-color: transparent }
+.msa-lesson-tap:active { background: #f6f9fd !important }
+.msa-lesson-tap:not(.waiting) .msa-lesson-actions { display: none !important }
+.msa-lesson-tap:has(.msa-lesson-side > .msa-lesson-actions) { grid-template-columns: minmax(0, 1fr) !important }
+.msa-lesson-chev { position: absolute; top: 0; bottom: 0; right: 0; width: 40px; border: 0; background: transparent; color: #9aa6ba;
+  font-size: 24px; line-height: 1; cursor: pointer; padding: 0 }
+.msa-lesson-chev:focus-visible { outline: 3px solid #f7b733; outline-offset: -3px; border-radius: 14px }
+.msa-lsheet-wrap { position: fixed; inset: 0; z-index: 950; background: rgba(14,29,59,0.45); display: flex; align-items: flex-end;
+  animation: msa-sheet-guard .35s }
+.msa-lsheet { width: 100%; max-height: 86vh; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; background: #fff;
+  border-radius: 22px 22px 0 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom)); box-sizing: border-box; outline: none;
+  animation: msa-lsheet-in .22s ease-out }
+@keyframes msa-lsheet-in { from { transform: translateY(40px); opacity: .4 } }
+@media (prefers-reduced-motion: reduce) { .msa-lsheet { animation: none } }
+.msa-lsheet-grab { width: 40px; height: 5px; border-radius: 9px; background: #d5deea; margin: 0 auto 14px }
+.msa-lsheet-h { font-size: 13.5px; font-weight: 800; color: #56647d; margin-bottom: 8px }
+.msa-lsheet .msa-lesson { display: flex !important; flex-direction: column; align-items: stretch; gap: 10px; border: 0 !important; padding: 0 !important; background: transparent !important }
+.msa-lsheet .msa-lesson-meta { font-size: 15px; line-height: 1.6 }
+.msa-lsheet .msa-lesson-name { font-size: 24px }
+.msa-lsheet .msa-lesson-row { flex-direction: column; align-items: stretch !important; flex-wrap: nowrap }
+.msa-lsheet .msa-lesson-side { flex-direction: column !important; align-items: stretch !important; gap: 10px }
+.msa-lsheet .msa-lesson-status { justify-content: flex-start }
+.msa-lsheet .msa-lesson-actions { flex-direction: column; align-items: stretch; gap: 10px; margin-top: 6px }
+.msa-lsheet .msa-lesson-actions > button, .msa-lsheet .msa-lesson-actions > div, .msa-lsheet .msa-lesson-actions > a {
+  padding: 13px 16px !important; font-size: 16px !important; border-radius: 12px !important; letter-spacing: 0; text-align: center;
+  white-space: normal; text-transform: none }
+.msa-lsheet .msa-lesson-actions > button::after, .msa-lsheet .msa-lesson-actions > a::after { content: none }
+/* 取消 is the last button and stands a little apart from 改期. */
+.msa-lsheet .msa-lesson-actions > :last-child:not(:first-child) { margin-top: 10px }
+.msa-lsheet-more { display: flex; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e3ebf6 }
+.msa-lsheet-more button { flex: 1; min-height: 46px; border: 0; border-radius: 12px; background: #eef3fa; color: #2050a0; font: inherit;
+  font-size: 15px; font-weight: 800; cursor: pointer }
+.msa-lsheet-more button:last-child { background: transparent; color: #56647d; border: 1px solid #e3ebf6 }
+.msa-lsheet-more button:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
 .msa-day-head:first-child { margin-top: 0 }
 /* Stated once in the heading above, so the card does not repeat it: not as a
    chip on its left, not as a today/tomorrow badge, not trailing its time. */
@@ -1272,6 +1309,13 @@ export default function DashboardPage() {
   // Inside the phone app the home cards carry the 3D swimmer (SwimmerDeck).
   const [inApp, setInApp] = useState(false)
   useEffect(() => { setInApp(appLook()) }, [])
+  /* The lesson sheet (owner, 2026-11-04, 問題 3 選項 A): in the app a lesson
+     card is tapped as a whole and its details and buttons open from the
+     bottom, the buttons big and 取消 last; the card in the list keeps only
+     what it says. A move waiting on an answer keeps its buttons on the card. */
+  const [lessonSheet, setLessonSheet] = useState<string | null>(null)
+  const lessonSheetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => { if (lessonSheet) lessonSheetRef.current?.focus() }, [lessonSheet])
   const swimmerItems = useMemo(() => students.map(s => ({ id: s.id, name: s.full_name, look: lookOf(s) })), [students])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
@@ -3897,29 +3941,25 @@ export default function DashboardPage() {
                 // minutes, and it used to sit folded under "show 2 more days"
                 // (found 2026-10-07).
                 const days = allDays.filter((d, i) => i < dayWindow || d.items.some(b => b.pending_action === 'reschedule'))
-                return days.map(day => {
-                  const du = getDaysUntil(day.date)
-                  const dd = new Date(day.date + 'T00:00:00')
-                  return (
-                    <div key={day.date} style={{ display: 'contents' }}>
-                      <div className="msa-day-head">
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
-                          {dd.toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'short', day: 'numeric' })}
-                        </span>
-                        {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        <span style={{ flex: 1, height: '1px', background: '#eef2f8' }} />
-                        <span style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap' }}>
-                          {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
-                        </span>
-                      </div>
-                      {day.items.map((booking) => {
+                const tappable = (b: Booking) => inApp && b.status !== 'in_cart'
+                const tapProps = (b: Booking, inSheet: boolean) => {
+                  const waiting = b.pending_action === 'reschedule' || b.pending_action === 'reschedule_initiator'
+                  if (inSheet || !tappable(b)) return { className: 'msa-lesson' }
+                  return {
+                    className: 'msa-lesson msa-lesson-tap' + (waiting ? ' waiting' : ''),
+                    onClick: (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('button, a, input, select, [role="dialog"]')) setLessonSheet(b.id) },
+                  }
+                }
+                // One lesson card. In the app a tap on it opens the lesson sheet
+                // (owner, 2026-11-04, 問題 3 選項 A); the sheet draws the same card.
+                const renderLesson = (booking: Booking, inSheet = false) => {
                 const daysUntil = getDaysUntil(booking.session_date)
                 const isToday = daysUntil === 0
                 const isTomorrow = daysUntil === 1
                 const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
                 return (
-                  <div key={booking.id} className="msa-lesson" style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
+                  <div key={booking.id} {...tapProps(booking, inSheet)} style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
+                    {!inSheet && tappable(booking) && <button type="button" className="msa-lesson-chev tap-auto" aria-label={t('dash.lsheet.open', { name: booking.student_name || '' })} onClick={() => setLessonSheet(booking.id)}>›</button>}
                     <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
                         {new Date(booking.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { month: 'short' })}
@@ -4239,8 +4279,16 @@ export default function DashboardPage() {
                               A checked-in lesson is happening: nothing to move. */}
                           {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && (
                           <button
-                            onClick={() => setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })}
-                            disabled={reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
+                            onClick={() => {
+                              /* Greyed, but it says why (as on the grouped rows). */
+                              if (isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner') {
+                                setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => openChat(), closeLabel: t('common.close') })
+                                return
+                              }
+                              setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
+                            }}
+                            disabled={reschedulingId === booking.id}
+                            aria-disabled={isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
                             style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '#9aa6ba' : GOLD, fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
                             {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
                           </button>
@@ -4311,10 +4359,48 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )
-                      })}
+                }
+                const sheetB = lessonSheet ? upcomingBookings.find(b => b.id === lessonSheet) : undefined
+                const sheet = inApp && sheetB && typeof document !== 'undefined' ? createPortal(
+                  <div className="msa-lsheet-wrap" onClick={e => { if (e.target === e.currentTarget) setLessonSheet(null) }}>
+                    <div className="msa-lsheet" role="dialog" aria-modal="true" aria-labelledby="msa-lsheet-h" ref={lessonSheetRef} tabIndex={-1}
+                      onKeyDown={e => { if (e.key === 'Escape') setLessonSheet(null) }}
+                      onClickCapture={e => {
+                        // An action starts its own dialog or page: the sheet gives way to it.
+                        if ((e.target as HTMLElement).closest('.msa-lesson button')) window.setTimeout(() => setLessonSheet(null), 0)
+                      }}>
+                      <div className="msa-lsheet-grab" aria-hidden="true" />
+                      <div id="msa-lsheet-h" className="msa-lsheet-h">
+                        {new Date(sheetB.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
+                        {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
+                      </div>
+                      {renderLesson(sheetB, true)}
+                      <div className="msa-lsheet-more">
+                        <button type="button" className="tap-auto" onClick={() => { setLessonSheet(null); openChat() }}>{t('dash.up.messageUs')}</button>
+                        <button type="button" className="tap-auto" onClick={() => setLessonSheet(null)}>{t('common.close')}</button>
+                      </div>
+                    </div>
+                  </div>, document.body) : null
+                return <>{sheet}{days.map(day => {
+                  const du = getDaysUntil(day.date)
+                  const dd = new Date(day.date + 'T00:00:00')
+                  return (
+                    <div key={day.date} style={{ display: 'contents' }}>
+                      <div className="msa-day-head">
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
+                          {dd.toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </span>
+                        {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+                        {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+                        <span style={{ flex: 1, height: '1px', background: '#eef2f8' }} />
+                        <span style={{ fontSize: '11px', color: '#56647d', whiteSpace: 'nowrap' }}>
+                          {t(day.items.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: day.items.length })}
+                        </span>
+                      </div>
+                      {day.items.map(booking => renderLesson(booking))}
                     </div>
                   )
-                })
+                })}</>
               })()}
             </div>
           )}

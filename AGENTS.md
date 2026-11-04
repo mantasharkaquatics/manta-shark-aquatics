@@ -442,6 +442,15 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 課表 /dashboard/schedule, 訊息 (opens the chat), 我的 /dashboard/me
 (components/AppShell.tsx). Browsers, phones included, keep the website.
 
+- **A lesson in 課表 opens a sheet** (owner, 2026-11-04, 問題 3 選項 A:
+  parents tapped the card and nothing happened; 改期/取消 were small and side
+  by side). In the app the whole card (`.msa-lesson-tap`, with a › button for
+  keyboards) opens `lessonSheet`: the date, then the same card drawn by
+  `renderLesson(b, true)` with its buttons full width, 取消 last and set
+  apart, then 傳訊息給我們 / 關閉. The list hides the card's buttons, except
+  on a move waiting for an answer (`.waiting`). Any button in the sheet's
+  card closes the sheet, since it opens its own dialog. The website's cards
+  are unchanged.
 - **Text follows the phone's text size** (owner, 2026-11-04, 問題 2 選項 A:
   grandparents found it too small; no size switch inside the app). Android's
   web view already does it. On the iPhone TEXT_SIZE_FN (lib/native-app.ts,
