@@ -58,6 +58,13 @@ const css = `
   .p-app .p-total { margin-top: 12px; padding-top: 12px; margin-bottom: 12px; }
   .p-app .p-total strong { font-size: 24px; }
   .p-app-note { margin: 10px 4px 0 !important; }
+  /* The same screen on the website, under its floating bar. */
+  .p-app.p-web { padding-top: 104px; padding-bottom: 40px; }
+  .p-toassess { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #fff7e6;
+    border: 1px solid #f3dfb4; border-radius: 14px; padding: 12px 14px; margin: 0 0 10px; }
+  .p-toassess b { display: block; font-size: 15px; color: ${BRAND.navy}; }
+  .p-toassess span { display: block; font-size: 13px; color: ${BRAND.mute}; margin-top: 2px; }
+  .p-toassess-go { font-size: 14px; font-weight: 800; color: ${BRAND.blue}; text-decoration: none; white-space: nowrap; }
   /* A short phone (an iPhone SE): tighter still, so it still fits. */
   @media (max-height: 720px) {
     .p-app { padding-top: 8px; }
@@ -445,7 +452,7 @@ export default function PlansContent() {
   // 2026-10-05). Hide that card and point the closing call to booking. Read
   // after paint and only for display; anyone signed out, or with a swimmer
   // still to assess, keeps the assessment-first page.
-  const { signedIn, allAssessed, anyAssessed } = useFamilyStatus()
+  const { signedIn, allAssessed, anyAssessed, toAssess = [] } = useFamilyStatus()
   const teamFeeVaries = teamFees.some(n => n !== teamFee)
 
   const lessonRows = [
@@ -459,20 +466,35 @@ export default function PlansContent() {
      hero, Swim Team band or closing call. The price list stays: it is the
      app's 價目 too. */
   const app = useSyncExternalStore(noSubscribe, appLook, () => false)
+  /* A signed-in family on the website gets the same screen (owner,
+     2026-11-04, 問題 13 選項 A): the visitors' page -- hero, "we haven't met
+     your swimmer", Swim Team band, closing call -- was four and a half
+     screens with no balance on it. Visitors keep the full page. */
+  const compact = app || signedIn === true
   const [balance, setBalance] = useState<number | null>(null)
   useEffect(() => {
-    if (!app || signedIn !== true) return
+    if (!compact || signedIn !== true) return
     fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
       .then(j => { if (j && typeof j.balance === 'number') setBalance(j.balance) }).catch(() => {})
-  }, [app, signedIn])
-  if (app) return (
+  }, [compact, signedIn])
+  if (compact) return (
     <BrandRoot>
       <style>{css}</style>
-      <div className="p-app">
+      <div className={'p-app' + (app ? '' : ' p-web')}>
         <div className="p-app-head">
           <h1>{t('points.app.title')}</h1>
           {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance) })}</p>}
         </div>
+        {/* Only the children still to be assessed, by name (the assessment is paid by card, not points). */}
+        {toAssess.length > 0 && (
+          <div className="p-toassess">
+            <div>
+              <b>{t('points.toAssess.title', { names: toAssess.map(k => k.name).join(locale === 'en' ? ' & ' : '、') })}</b>
+              <span>{t('points.toAssess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}</span>
+            </div>
+            <Link href={'/booking?student=' + toAssess[0].id} className="p-toassess-go">{t('points.toAssess.cta')} →</Link>
+          </div>
+        )}
         <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app />
         <p className="p-fine p-app-note">{t('points.price.hour')}</p>
       </div>

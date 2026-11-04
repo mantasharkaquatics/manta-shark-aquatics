@@ -13,6 +13,8 @@ export type FamilyStatus = {
   /** At least one active swimmer has a level: what opens buying points
    *  (owner, 2026-10-13), and so what shows the Zelle details (2026-10-21). */
   anyAssessed: boolean
+  /** The active swimmers still to be assessed (id and name). Empty while unknown. */
+  toAssess?: { id: string; name: string }[]
 }
 
 /**
@@ -38,10 +40,12 @@ export function useFamilyStatus(): FamilyStatus {
         const familyId = await myParentId(supabase, session.user.id)
         if (!familyId) return
         const p = { id: familyId }
-        const { data: kids } = await supabase.from('students').select('current_level').eq('parent_id', p.id).eq('is_active', true)
-        const levelled = (kids || []).filter((k: { current_level: number | null }) => k.current_level != null).length
-        if (live && kids && levelled > 0) {
-          setStatus({ signedIn: true, allAssessed: levelled === kids.length, anyAssessed: true })
+        const { data: kids } = await supabase.from('students').select('id, full_name, current_level').eq('parent_id', p.id).eq('is_active', true)
+        type K = { id: string; full_name: string; current_level: number | null }
+        const levelled = (kids || []).filter((k: K) => k.current_level != null).length
+        const toAssess = (kids || []).filter((k: K) => k.current_level == null).map((k: K) => ({ id: k.id, name: k.full_name }))
+        if (live && kids) {
+          setStatus({ signedIn: true, allAssessed: kids.length > 0 && levelled === kids.length, anyAssessed: levelled > 0, toAssess })
         }
       } catch {
         if (live) setStatus(s => s.signedIn === null ? { signedIn: false, allAssessed: false, anyAssessed: false } : s)

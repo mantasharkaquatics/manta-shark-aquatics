@@ -1026,6 +1026,12 @@ the contained problems were fixed the same day. What to keep doing:
   home address stays required, with no reason given on the page -- it is
   for the school to know where families come from, and the privacy
   policy's "How We Use" says so.
+- **/plans for a signed-in family is the 儲值 screen, on the website too**
+  (owner, 2026-11-04, 問題 13 選項 A): title and balance, then the children
+  still to be assessed by name (`.p-toassess`, useFamilyStatus `toAssess`,
+  book → /booking?student=), then buying. Visitors keep the full page with
+  the hero, Swim Team band and closing call. `.p-web` adds the room under
+  the website's floating bar.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
