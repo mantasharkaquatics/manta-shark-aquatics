@@ -8,6 +8,7 @@ import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUT
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { useRouter } from 'next/navigation'
 import { appLook, photoPickerPlugin } from '@/lib/native-app'
+import { fmtDate } from '@/lib/fmt-date'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
 // messages in the LOGO blue, the school's in white. The launcher is blue so it
@@ -799,7 +800,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
     const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
     const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
-    const dateLine = (iso: string) => new Date(iso).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })
+    const dateLine = (iso: string) => fmtDate(new Date(iso), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })
     const lastAi = [...messages].reverse().find(m => m.sender_type !== 'system')
     const avatar = (m: any) => m.sender_type === 'ai'
       // eslint-disable-next-line @next/next/no-img-element
@@ -1043,7 +1044,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               <Fragment key={msg.id}>
               {newDay && (
                 <div style={{ textAlign: 'center', fontSize: '11px', color: '#8a97ad', margin: '4px 0' }}>
-                  {new Date(msg.created_at).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })}
+                  {fmtDate(new Date(msg.created_at), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })}
                 </div>
               )}
               {msg.sender_type === 'system' ? (

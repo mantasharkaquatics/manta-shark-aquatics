@@ -632,7 +632,6 @@
   "dash.viewMonth": "月曆",
   "dash.viewQr": "查看報到 QR Code",
   "dash.withCoach": "教練：{name}",
-  "date.header": "{month} 月 {day} 日（{weekday}）",
   "date.month.1": "1",
   "date.month.10": "10",
   "date.month.11": "11",

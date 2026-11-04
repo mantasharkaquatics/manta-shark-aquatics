@@ -632,7 +632,6 @@
   "dash.viewMonth": "Month",
   "dash.viewQr": "View Check-in QR Code",
   "dash.withCoach": "with {name}",
-  "date.header": "{weekday}, {month} {day}",
   "date.month.1": "January",
   "date.month.10": "October",
   "date.month.11": "November",

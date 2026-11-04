@@ -10,6 +10,7 @@ import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { createClient } from '@/lib/supabase/client'
 import { myFamilyRole } from '@/lib/my-parent'
+import { fmtDate } from '@/lib/fmt-date'
 
 type Partnership = {
   id: string
@@ -216,7 +217,7 @@ export default function PartnershipsPage() {
             {myInviteCode && myCodeExpires && !isNaN(new Date(myCodeExpires).getTime()) && (
               <p className="ac-note" style={{ marginTop: 10 }}>
                 {t('link.codeValidUntil', {
-                  date: new Date(formatDateLA(new Date(myCodeExpires)) + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+                  date: fmtDate(new Date(formatDateLA(new Date(myCodeExpires)) + 'T12:00:00Z'), dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' }),
                   time: formatTimeLA(new Date(myCodeExpires)),
                 })}
               </p>

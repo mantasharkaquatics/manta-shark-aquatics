@@ -9,6 +9,7 @@ import { priceLesson } from '@/lib/points'
 import { singleMaxDate } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* Two of the family's swimmers booked together (owner, 2026-10-22, tier 2):
    back to back with one coach, at the same time with two coaches, or both in
@@ -139,7 +140,7 @@ export default function SiblingBooking({ students, courses, location, balance, o
   const box: React.CSSProperties = { background: '#fff', border: '1px solid #e3ebf6', borderRadius: 14, padding: 16, marginBottom: 14 }
   const head: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#56647d', letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 10px' }
   const chip = (on: boolean): React.CSSProperties => ({ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${on ? NAVY : '#d3deec'}`, background: on ? NAVY : '#fff', color: on ? '#fff' : '#16294a', fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'left' })
-  const dayLabel = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale as any), { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
+  const dayLabel = (d: string) => fmtDate(new Date(d + 'T12:00:00Z'), dateTag(locale as any), { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
 
   if (done) return (
     <div style={box} role="status">

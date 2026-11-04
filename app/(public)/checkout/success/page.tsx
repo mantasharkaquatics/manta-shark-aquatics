@@ -9,6 +9,7 @@ import { formatTime12h } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
+import { fmtDate } from '@/lib/fmt-date'
 
 // Palette B (2026-09): the site's dark top with a green tick, then what just
 // happened as a short checklist on white, and the one next step in amber.
@@ -105,7 +106,7 @@ function SuccessContent() {
 
   const whenText = when
     ? t('success.assess.when', {
-        date: new Date(when.date + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }),
+        date: fmtDate(new Date(when.date + 'T12:00:00Z'), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }),
         time: formatTime12h(when.time),
       })
     : ''

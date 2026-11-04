@@ -12,6 +12,7 @@ import { REPORT_SHEET_CSS } from '../report-sheet-css'
 import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from '../FamilySheets'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { BRAND } from '@/lib/brand'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -185,13 +186,13 @@ export default function MePage() {
 
   /* 我的方案: one card per fixed class, one per child's make-up vouchers, one
      per swim-team place -- each going where it is used. */
-  const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const shortDate = (d: string) => fmtDate(new Date(d + 'T12:00:00Z'), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' })
   type Card = { key: string; href: string; kind: string; title: string; who: string; sub: string; subCls?: string; done?: number; act: string; actCls?: string }
   const cards: Card[] = []
   if (plans) {
     for (const f of plans.fixed) cards.push({
       key: 'f' + f.id, href: `/dashboard/fixed-class/${f.id}${f.renewOpen ? '?renew=1' : ''}`, kind: t('dash.tag.fixed'),
-      title: t('dash.plan.when', { weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long', timeZone: 'UTC' }), time: time12(f.time) }),
+      title: t('dash.plan.when', { weekday: fmtDate(new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`), locale === 'en' ? 'en-US' : locale, { weekday: 'long', timeZone: 'UTC' }), time: time12(f.time) }),
       who: f.studentNames.join(' & '),
       sub: t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' }),
       // The bar is what is left, so a full bar means plenty (2026-11-04).
@@ -213,7 +214,7 @@ export default function MePage() {
       const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
       const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < plans.at))
       const failed = !viewer && !m.is_prepaid && m.status === 'past_due'
-      const expDate = exp ? exp.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' }) : ''
+      const expDate = exp ? fmtDate(exp, locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' }) : ''
       cards.push({
         key: 't' + m.id, href: `/dashboard?team=${m.student_id}`, kind: t('team.title'),
         title: m.tier_name ? (m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name) : t('team.title'),

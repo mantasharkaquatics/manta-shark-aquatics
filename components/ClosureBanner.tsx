@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag } from '@/lib/i18n'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* The pool-closed banner (owner, 2026-10-23: "全站最上方，所有人都看得到").
    Sits just under the floating nav bar on every public and family page,
@@ -32,8 +33,7 @@ function clock(t: string) {
 /** "The pool is closed on ... (reason)", as the banner says it; the app's
  *  學校公告 tab shows the same line (components/AppInbox). */
 export function closureText(t: (k: string, v?: Record<string, string | number>) => string, locale: string, c: Closure): string {
-  const day = (d: string, withWeekday: boolean) => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale as Parameters<typeof dateTag>[0]),
-    withWeekday ? { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' } : { month: 'long', day: 'numeric', timeZone: 'UTC' })
+  const day = (d: string, withWeekday: boolean) => fmtDate(new Date(d + 'T12:00:00Z'), dateTag(locale as Parameters<typeof dateTag>[0]), withWeekday ? { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' } : { month: 'long', day: 'numeric', timeZone: 'UTC' })
   const when = c.start_date !== c.end_date
     ? `${day(c.start_date, false)} – ${day(c.end_date, false)}`
     : c.start_time && c.end_time

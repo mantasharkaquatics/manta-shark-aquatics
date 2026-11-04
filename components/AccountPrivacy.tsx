@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* The bottom of My Account (owner, 2026-10-22, tier 3): saved cards, the
    photo/video consent switch, and asking the school to delete the account.
@@ -28,7 +29,7 @@ export default function AccountPrivacy() {
     fetch('/api/parent/account', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setAcct(d) }).catch(() => {})
   }, [])
 
-  const day = (iso: string) => new Date(iso).toLocaleDateString(INTL[locale] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })
+  const day = (iso: string) => fmtDate(new Date(iso), INTL[locale] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })
 
   async function removeCard(c: Card) {
     setBusy(c.id); setErr(null)

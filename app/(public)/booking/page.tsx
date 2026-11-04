@@ -31,6 +31,7 @@ import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 import SwimmerFace from '@/components/swimmer/SwimmerFace'
 import { lookOf } from '@/lib/swimmer-look'
+import { fmtDate } from '@/lib/fmt-date'
 
 /** One lesson in the batch: a date AND the time it starts, because a batch
  *  may span more than one time of day. */
@@ -204,7 +205,7 @@ export default function BookingPage() {
   // A whole error answer: a lost original lesson names its points, a class
   // that filled names its date, in the batch notice's date format (F81).
   const tErrOf = (j: Parameters<typeof errorKeyFor>[0], fallbackKey: string): string => {
-    const r = errorKeyFor(j, d => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
+    const r = errorKeyFor(j, d => fmtDate(new Date(d + 'T12:00:00Z'), dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
     return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t(fallbackKey))
   }
   const router = useRouter()
@@ -1644,10 +1645,10 @@ export default function BookingPage() {
     && (privateFlow ? openingsFor === openingsQs(location ?? null) : groupWeeksFor === groupClassesUrl(location ?? null))
 
   const dowOfDs = (ds: string) => new Date(ds + 'T00:00:00').getDay()
-  const wkName = (dow: number) => new Date(2026, 10, 1 + dow).toLocaleDateString(dateLoc, { weekday: 'long' })
+  const wkName = (dow: number) => fmtDate(new Date(2026, 10, 1 + dow), dateLoc, { weekday: 'long' })
   // Two-digit month and day, 11/03, so dates line up like the 02:00 times
   // (owner, 2026-11-02).
-  const mdOf = (ds: string) => new Date(ds + 'T00:00:00').toLocaleDateString(dateLoc, { month: '2-digit', day: '2-digit' })
+  const mdOf = (ds: string) => fmtDate(new Date(ds + 'T00:00:00'), dateLoc, { month: '2-digit', day: '2-digit' })
   const addMin = (tm: string, n: number) => {
     const [h, m] = tm.split(':').map(Number); const x = h * 60 + m + n
     return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
@@ -2047,9 +2048,9 @@ export default function BookingPage() {
       // The class's coach is the one in its key; weeks with another coach are
       // counted after it (owner, 2026-11-02).
       text: t('booking.recur.fixedLine', {
-        weekday: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { weekday: 'long' }),
+        weekday: fmtDate(new Date(g[0].date + 'T00:00:00'), loc, { weekday: 'long' }),
         time: g[0].label, coach: coachName(key.split('|')[2] || '') || g[0].coachName || '',
-        date: new Date(g[0].date + 'T00:00:00').toLocaleDateString(loc, { month: '2-digit', day: '2-digit' }),
+        date: fmtDate(new Date(g[0].date + 'T00:00:00'), loc, { month: '2-digit', day: '2-digit' }),
         n: g.length,
       }),
       points: g.reduce((a, x) => a + x.points, 0),
@@ -2340,7 +2341,7 @@ export default function BookingPage() {
         setRecurPlan([]); setSelectedSlot(null)
         setSlotsRefresh(n => n + 1)
         const dates = [...new Set<string>(j.skipped.map((x: any) => String(x.date)))].sort()
-          .map(d => new Date(d + 'T12:00:00Z').toLocaleDateString(dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
+          .map(d => fmtDate(new Date(d + 'T12:00:00Z'), dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
         const need = Number(j.need) || 0, have = Number(j.have) || 0
         setNotice(t('booking.recur.err.fixedTaken', { dates: dates.join(', '), need, n: Math.max(1, need - have) }))
         setStep(3); setSubmitting(false); return
@@ -2683,7 +2684,7 @@ export default function BookingPage() {
                 const other = !!x.fixed && x.coachId !== x.fixed.split('|')[2]
                 return (
                 <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: other ? 800 : 600, padding: '5px 10px', borderRadius: '6px', background: other ? SUB_COLOR : `${GOLD}18`, border: `1px solid ${other ? SUB_COLOR : `${GOLD}44`}`, color: other ? '#fff' : GOLD }}>
-                  {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {fmtDate(new Date(x.date + 'T00:00:00'), dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                   {/* Always the time: this chip is the only place the success
                       card says when the lesson is. */}
                   {` · ${x.label}`}
@@ -2720,7 +2721,7 @@ export default function BookingPage() {
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? planCoachLine : (selectedCoach?.first_name || '') })}
             </p>
             <p style={{ fontSize: '15px', color: '#56647d', marginBottom: '20px' }}>
-              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
+              {t('booking.success.dateAt', { date: (selectedDate ? fmtDate(selectedDate, dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : undefined) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -2752,7 +2753,7 @@ export default function BookingPage() {
               {t('booking.success.with', { course: selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '', coach: recurPlan.length > 0 ? planCoachLine : (selectedCoach?.first_name || '') })}
             </p>
             <p style={{ fontSize: '15px', color: '#56647d', marginBottom: '20px' }}>
-              {t('booking.success.dateAt', { date: selectedDate?.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || '', time: selectedSlot?.label || '' })}
+              {t('booking.success.dateAt', { date: (selectedDate ? fmtDate(selectedDate, dateLoc, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : undefined) || '', time: selectedSlot?.label || '' })}
             </p>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -2811,8 +2812,8 @@ export default function BookingPage() {
             🎟 {t(makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
               names: makeUp.studentNames.join(' & '),
               kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : makeUp.courseSlug === '1on2' && makeUp.minutes === 60 ? '.60' : '')),
-              date: new Date(makeUp.expiresOn + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
-              from: makeUp.usableFrom ? new Date(makeUp.usableFrom + 'T12:00:00Z').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '',
+              date: fmtDate(new Date(makeUp.expiresOn + 'T12:00:00Z'), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+              from: makeUp.usableFrom ? fmtDate(new Date(makeUp.usableFrom + 'T12:00:00Z'), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '',
             })}
           </div>
         )}
@@ -3335,8 +3336,8 @@ export default function BookingPage() {
               {voucherRange ? (
                 <div style={{ textAlign: 'center', marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#16294a' }}>
                   {t('booking.makeUp.range', {
-                    from: voucherRange.from.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
-                    to: voucherRange.to.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
+                    from: fmtDate(voucherRange.from, dateLoc, { month: 'short', day: 'numeric' }),
+                    to: fmtDate(voucherRange.to, dateLoc, { month: 'short', day: 'numeric' }),
                   })}
                 </div>
               ) : (
@@ -3397,7 +3398,7 @@ export default function BookingPage() {
                     // a month swipe on the card (found 2026-10-15).
                     <button key={dsC} className="kb-focus"
                       title={elsewhere.length > 0 ? t('booking.loc.elsewhereTip', { there: elsewhere.map(x => x.name).join(', ') }) : undefined}
-                      aria-label={date.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      aria-label={fmtDate(date, dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
                       aria-pressed={isSelected}
                       aria-current={isTodayDate ? 'date' : undefined}
                       aria-disabled={(!available && !locked) || undefined}
@@ -3419,7 +3420,7 @@ export default function BookingPage() {
                         cursor: available || locked ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
                       }}
-                    >{monthTag && <span style={{ display: 'block', fontSize: '10px', fontWeight: 800, lineHeight: 1.2, color: isSelected ? '#fff' : GOLD }}>{date.toLocaleDateString(dateLoc, { month: 'short' })}</span>}<span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && !locked && (
+                    >{monthTag && <span style={{ display: 'block', fontSize: '10px', fontWeight: 800, lineHeight: 1.2, color: isSelected ? '#fff' : GOLD }}>{fmtDate(date, dateLoc, { month: 'short' })}</span>}<span>{i + 1}</span>{dotsHere && dotsHere.length > 0 && isDateAvailable(date) && !isSelected && !locked && (
                       <span style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
                         {dotsHere.slice(0, 4).map(id => <span key={id} style={{ width: '4px', height: '4px', borderRadius: '50%', background: coachColor(id) }} />)}
                       </span>
@@ -3446,7 +3447,7 @@ export default function BookingPage() {
               <div ref={timesRef}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
-                    {t('booking.availableTimes', { date: selectedDate.toLocaleDateString(dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
+                    {t('booking.availableTimes', { date: fmtDate(selectedDate, dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
                   {/* The Swim Assessment is 30 minutes, full stop. It rides on the
                       1-on-1 course type, which is why it used to get this switch. */}
@@ -3885,7 +3886,7 @@ export default function BookingPage() {
                 )}
                 {elsewhereNote(elsewhereDay(localDs(selectedDate)), r => t('booking.loc.elsewhereDay', {
                   here: herePoolName, there: r.name, n: r.n,
-                  date: selectedDate.toLocaleDateString(dateLoc, { month: 'short', day: 'numeric' }),
+                  date: fmtDate(selectedDate, dateLoc, { month: 'short', day: 'numeric' }),
                 }), selectedDate)}
               </div>
             )}
@@ -3949,7 +3950,7 @@ export default function BookingPage() {
                             // first cell so the top row is never nameless.
                             const monthTag = idx === 0 || i === 0
                             const weekend = dt.getDay() === 0 || dt.getDay() === 6
-                            const monthLabel = dt.toLocaleDateString(dateLoc, { month: 'short' })
+                            const monthLabel = fmtDate(dt, dateLoc, { month: 'short' })
                             // A gold line where one month meets the next: along the
                             // top of any day whose week-above is the old month, and
                             // down the left of the 1st. Together they step round the
@@ -4056,7 +4057,7 @@ export default function BookingPage() {
                                 <div style={{ gridColumn: '1 / -1', background: '#fff', border: `1px solid ${GOLD}55`, borderRadius: '14px', padding: '14px 14px 12px', margin: '4px 0 6px', position: 'relative', zIndex: 2 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '8px' }}>
                                     <span style={{ fontSize: '16px', fontWeight: 700, color: '#16294a' }}>
-                                      {new Date(openDay! + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
+                                      {fmtDate(new Date(openDay! + 'T00:00:00'), dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
                                     </span>
                                     <button onClick={() => setOpenDay(null)} style={{ background: 'none', border: 'none', padding: '8px 4px', minHeight: '40px', fontSize: '14px', color: '#56647d', cursor: 'pointer' }}>{t('common.close')}</button>
                                   </div>
@@ -4122,7 +4123,7 @@ export default function BookingPage() {
                   {selectedSlot && selectedDate && selectedCoach && !fixedOnly && (
                     <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}55`, borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '14px', fontWeight: 600, color: '#16294a' }}>
-                        {selectedDate.toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
+                        {fmtDate(selectedDate, dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })} · {selectedSlot.label}
                         <span style={{ fontSize: '13px', fontWeight: 400, color: '#56647d', marginLeft: '8px' }}>{t('booking.group.withCoach', { name: selectedCoach.first_name })}</span>
                       </span>
                       <span style={{ fontSize: '13px', fontWeight: 700, color: GOLD }}>{t('booking.group.ready')}</span>
@@ -4175,7 +4176,7 @@ export default function BookingPage() {
                         <button key={x.date + x.time}
                           onClick={() => setRecurSel(prev => { const n = new Map(prev); n.delete(slotKey(x.date, x.time, x.coachId)); return n })}
                           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, padding: '5px 9px', borderRadius: '6px', background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, cursor: 'pointer' }}>
-                          {new Date(x.date + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
+                          {fmtDate(new Date(x.date + 'T00:00:00'), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric' })}
                           {basketTimes.size > 1 ? ` · ${x.label}` : ''}
                           {basketCoaches.size > 1 ? ` · ${x.coachName || ''}` : ''}
                           <span aria-hidden style={{ color: '#56647d' }}>×</span>
@@ -4197,13 +4198,13 @@ export default function BookingPage() {
                   <button disabled={recurBusy}
                     onClick={() => { setFixedOnly(false); openFixed(localDs(selectedDate), selectedSlot.time, selectedCoach.id) }}
                     style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
-                    {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
+                    {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: fmtDate(selectedDate, locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
                 )}
                 {fixedFlow && recurOpen && selectedSlot && selectedDate && selectedCoach && (
                   <div ref={fixedPanelRef} style={{ marginTop: '10px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '16px', boxShadow: '0 12px 30px rgba(18,37,74,0.12)' }}>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
-                      {t('booking.recur.everyWeekday', { weekday: selectedDate.toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
+                      {t('booking.recur.everyWeekday', { weekday: fmtDate(selectedDate, locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                       {/* A fixed class is one coach, so the panel names them. */}
                       {` · ${selectedCoach.first_name}`}
                     </div>
@@ -4264,7 +4265,7 @@ export default function BookingPage() {
                                 column (owner, 2026-11-02). Five columns: a month
                                 has at most five of one weekday. */}
                             {months.map(m => (
-                              <div key={m.ym} role="group" aria-label={new Date(m.ym + '-01T00:00:00').toLocaleDateString(dateLoc, { month: 'long' })}
+                              <div key={m.ym} role="group" aria-label={fmtDate(new Date(m.ym + '-01T00:00:00'), dateLoc, { month: 'long' })}
                                 style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '6px' }}>
                                   {m.days.map((c: any) => {
                                     const key = slotKey(c.date, selectedSlot.time, selectedCoach.id)
@@ -4277,7 +4278,7 @@ export default function BookingPage() {
                                       const sub = subSel.get(c.date)
                                       if (sub) return (
                                         <button key={key} data-fd={c.date} type="button" aria-pressed
-                                          aria-label={`${new Date(c.date + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'long', day: 'numeric' })} ${coachName(sub)}`}
+                                          aria-label={`${fmtDate(new Date(c.date + 'T00:00:00'), dateLoc, { month: 'long', day: 'numeric' })} ${coachName(sub)}`}
                                           onClick={() => setSubSel(prev => { const n = new Map(prev); n.delete(c.date); return n })}
                                           style={{ ...cell, border: `2px solid ${SUB_COLOR}`, background: SUB_COLOR, color: '#fff', fontSize: '14px', lineHeight: 1.05, cursor: 'pointer' }}>
                                           {dd}<span style={{ fontSize: '10px', fontWeight: 800, maxWidth: '100%', padding: '0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coachName(sub)}</span>
@@ -4297,7 +4298,7 @@ export default function BookingPage() {
                                     const room = on || otherTotal + chosenTotal + cost <= balance
                                     return (
                                       <button key={key} data-fd={c.date} type="button" disabled={!room} aria-pressed={on}
-                                        aria-label={new Date(c.date + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'long', day: 'numeric' })}
+                                        aria-label={fmtDate(new Date(c.date + 'T00:00:00'), dateLoc, { month: 'long', day: 'numeric' })}
                                         onClick={() => setGhostSel(prev => {
                                           const n = new Set(prev)
                                           if (n.has(key)) n.delete(key); else n.add(key)
@@ -4498,7 +4499,7 @@ export default function BookingPage() {
             <div className="bk-sum" style={{ background: '#fff', borderRadius: '16px', padding: '18px 20px', border: '1px solid #e3ebf6', marginBottom: '14px' }}>
               {(() => {
                 const fmtEnd = (start: string, mins: number) => { const [h, m] = start.split(':').map(Number); const e = h * 60 + m + mins; return `${formatTime(start)} – ${formatTime(`${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`)}` }
-                const longDay = (d: Date) => d.toLocaleDateString(dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })
+                const longDay = (d: Date) => fmtDate(d, dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })
                 const many = !planOne && recurPlan.length > 0
                 const who = (planOne || many)
                   ? (siblingPair ? `${selectedStudent?.full_name} & ${selectedStudent2?.full_name}` : selectedStudent?.full_name)
@@ -4557,7 +4558,7 @@ export default function BookingPage() {
                   to be able to see that one of them lands on a week they are away. */}
               {planMany && (() => {
                 const ds = recurPlan.map(x => x.date).sort()
-                const md = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString(dateLoc, { month: 'numeric', day: 'numeric' })
+                const md = (d: string) => fmtDate(new Date(d + 'T00:00:00'), dateLoc, { month: 'numeric', day: 'numeric' })
                 const anyOther = recurPlan.some(x => !!x.fixed && x.coachId !== x.fixed.split('|')[2])
                 return (
                 <details className="bk-dates" open={anyOther} style={{ marginTop: '10px', background: '#eef3fa', borderRadius: '10px', padding: '0 12px' }}>
@@ -4574,7 +4575,7 @@ export default function BookingPage() {
                       return (
                       <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: other ? 800 : 600, padding: '5px 10px', borderRadius: '6px', background: other ? SUB_COLOR : `${GOLD}18`, border: `1px solid ${other ? SUB_COLOR : `${GOLD}44`}`, color: other ? '#fff' : GOLD }}>
                         {recurCover.has(lessonKey(x)) ? '🎟 ' : ''}
-                        {new Date(x.date + 'T00:00:00').toLocaleDateString(dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {fmtDate(new Date(x.date + 'T00:00:00'), dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                         {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
                       </span>

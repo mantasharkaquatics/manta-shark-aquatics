@@ -11,6 +11,7 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import { openChat } from '@/lib/chat-open'
 import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* Several of the family's swimmers booked together (owner, 2026-11-03),
    opened when two or more children are ticked on the booking page's first
@@ -106,9 +107,9 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   const course = courses.find(c => c.slug === slug) || null
   const kidName = (id: string) => kids.find(k => k.id === id)?.full_name || ''
   const coachName = (id: string) => coachNames[id] || ''
-  const wkName = (dow: number) => new Date(2026, 10, 1 + dow).toLocaleDateString(dateLoc, { weekday: 'long' })
-  const mdOf = (ds: string) => new Date(ds + 'T12:00:00Z').toLocaleDateString(dateLoc, { month: '2-digit', day: '2-digit', timeZone: 'UTC' })
-  const dayLabel = (ds: string) => new Date(ds + 'T12:00:00Z').toLocaleDateString(dateLoc, { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
+  const wkName = (dow: number) => fmtDate(new Date(2026, 10, 1 + dow), dateLoc, { weekday: 'long' })
+  const mdOf = (ds: string) => fmtDate(new Date(ds + 'T12:00:00Z'), dateLoc, { month: '2-digit', day: '2-digit', timeZone: 'UTC' })
+  const dayLabel = (ds: string) => fmtDate(new Date(ds + 'T12:00:00Z'), dateLoc, { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
   const lastSingle = singleMaxDate(today)
   const timesRef = useRef<HTMLDivElement>(null)
   const planRef = useRef<HTMLDivElement>(null)

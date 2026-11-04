@@ -42,6 +42,7 @@ import { appLook } from '@/lib/native-app'
 import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from './FamilySheets'
 import AddToCalendar from '@/components/AddToCalendar'
 import { lookOf, type SwimmerLook } from '@/lib/swimmer-look'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -574,7 +575,7 @@ const intlOf = (locale: string) => INTL_LOCALE[locale] || 'en-US'
 
 function formatDate(d: string, loc = 'en-US'): string {
   const date = new Date(d + 'T00:00:00')
-  return date.toLocaleDateString(loc, { weekday: 'short', month: 'short', day: 'numeric' })
+  return fmtDate(date, loc, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 // Days from the SCHOOL's today. The phone's own date made a family abroad
@@ -734,7 +735,7 @@ function RecordsSheet({ student, past, records, newSince, page, setPage, onClose
                     background: 'transparent', border: 'none', textAlign: 'left', cursor: hasDetail ? 'pointer' : 'default' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#16294a' }}>
-                      {new Date(r.date + 'T00:00:00').toLocaleDateString(dateFmt, { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}
+                      {fmtDate(new Date(r.date + 'T00:00:00'), dateFmt, { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}
                       {r.start ? ` · ${formatTime(r.start)}` : ''}
                     </span>
                     <span style={{ display: 'block', fontSize: '11.5px', color: '#56647d', marginTop: '2px' }}>
@@ -824,7 +825,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
   }, [onClose])
   const box = useDialogFocus(true)
 
-  const longDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(intlOf(locale), { year: 'numeric', month: 'long', day: 'numeric' })
+  const longDate = (d: string) => fmtDate(new Date(d + 'T12:00:00'), intlOf(locale), { year: 'numeric', month: 'long', day: 'numeric' })
   const skillName = (s: { id: string; name: string }) => tDb(locale, 'skills', s.id, s.name)
   const levelName = t(`level.${r.level}.name`)
 
@@ -1137,7 +1138,7 @@ function WaitlistCard() {
     load()
   }
   const when = (w: WaitItem) => w.date
-    ? `${new Date(w.date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'short', day: 'numeric' })} · ${w.time || ''}`
+    ? `${fmtDate(new Date(w.date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'short', day: 'numeric' })} · ${w.time || ''}`
     : ''
   const until = (iso: string) => new Date(iso).toLocaleString(intlOf(locale), { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   return (
@@ -1190,7 +1191,7 @@ function TeamCard({ memberships, viewer = false }: { viewer?: boolean; membershi
   const RED = '#e05a4a'
   // Weekday names in the reader's language (were hard-coded English -- found
   // 2026-10-05). 2026-01-04 is a Sunday, so +weekday gives that day.
-  const day3 = (wd: number) => new Date(2026, 0, 4 + wd).toLocaleDateString(dateTag(locale), { weekday: 'short' })
+  const day3 = (wd: number) => fmtDate(new Date(2026, 0, 4 + wd), dateTag(locale), { weekday: 'short' })
   const daySep = locale === 'en' ? ', ' : '、'
   const t12tc = (v: string) => { const [h, m] = String(v).slice(0, 5).split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')} ${ap}` }
   // Grouped by pool too: the same hours at Brea and at Monrovia are two lines.
@@ -1250,12 +1251,12 @@ function TeamCard({ memberships, viewer = false }: { viewer?: boolean; membershi
             {m.is_prepaid ? (() => {
               const exp = m.expires_at ? new Date(m.expires_at) : null
               const expired = exp ? exp.getTime() < Date.now() : false
-              const label = exp ? t(expired ? 'team.expired' : 'team.paidThru', { date: exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) }) : t('team.prepaid')
+              const label = exp ? t(expired ? 'team.expired' : 'team.paidThru', { date: fmtDate(exp, intlOf(locale), { month: 'short', day: 'numeric' }) }) : t('team.prepaid')
               const c = expired ? '#c0392b' : '#1f7a57'
               const bg = expired ? '#fdecea' : '#e6f4ee'
               const bd = expired ? '1px solid #f5c2bd' : '1px solid #b7e0cc'
               return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: c, background: bg, border: bd, borderRadius: '20px', padding: '3px 10px', whiteSpace: 'nowrap' }}>{label}</span>
-            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#c2621a', background: '#fdf1e6', border: '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#1f7a57' : '#c2621a', background: m.status === 'active' ? '#e6f4ee' : '#fdf1e6', border: m.status === 'active' ? '1px solid #b7e0cc' : '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? t('team.active') : t('team.pastDue')}</span>}
+            })() : m.cancels_at ? <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#c2621a', background: '#fdf1e6', border: '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{t('team.cancels', { date: fmtDate(new Date(m.cancels_at), intlOf(locale), { month: 'short', day: 'numeric' }) })}</span> : <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: m.status === 'active' ? '#1f7a57' : '#c2621a', background: m.status === 'active' ? '#e6f4ee' : '#fdf1e6', border: m.status === 'active' ? '1px solid #b7e0cc' : '1px solid #f3cfae', borderRadius: '20px', padding: '3px 10px' }}>{m.status === 'active' ? t('team.active') : t('team.pastDue')}</span>}
             {!m.is_prepaid && (
             <button onClick={() => openPortal(m.id)} disabled={portalLoading === m.id}
               style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
@@ -1678,7 +1679,7 @@ export default function DashboardPage() {
     // as a plain "1-on-2" and would not apply to a 30-minute booking with no
     // visible reason (found 2026-10-07).
     t('voucher.kind.' + (slug || '1on1') + (slug === '1on1' || !slug ? '.' + (minutes === 60 ? 60 : 30) : slug === '1on2' && minutes === 60 ? '.60' : ''))
-  const shortDate = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const shortDate = (d: string) => fmtDate(new Date(d + 'T12:00:00Z'), intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
   // 「我的方案」 by whose they are: one group per child, and one per sibling
   // pair holding a 1-on-2 together, in the order the children's cards are in
   // (a pair after the later of its two children). The key matches
@@ -2901,7 +2902,7 @@ export default function DashboardPage() {
                 <span className="msa-plan-ic" aria-hidden="true">📌</span>
                 <span className="msa-plan-tx">
                   <b>{t('dash.tag.fixed')} · {t('dash.plan.when', {
-                    weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
+                    weekday: fmtDate(new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`), intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
                     time: formatTime12h(f.time),
                   })}</b>
                   {voucherKind(f.courseSlug, f.minutes)} · {t('dash.up.coach', { name: f.coachName })}<PoolLink id={f.locationId} prefix=" · " /> · {t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' })}
@@ -2930,12 +2931,12 @@ export default function DashboardPage() {
             {g.team.map((m: any) => {
               const tier = m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name
               const exp = m.is_prepaid && m.expires_at ? new Date(m.expires_at) : null
-              const expDate = exp ? exp.toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) : ''
+              const expDate = exp ? fmtDate(exp, intlOf(locale), { month: 'short', day: 'numeric' }) : ''
               const lapsed = !!m.is_prepaid && (m.status === 'expired' || (!!exp && exp.getTime() < Date.now()))
               const failed = !viewer && !m.is_prepaid && m.status === 'past_due'
               const line = failed ? t('dash.plan.teamPastDue')
                 : m.is_prepaid ? (exp ? t(lapsed ? 'team.expired' : 'team.paidThru', { date: expDate }) : t('team.prepaid'))
-                : m.cancels_at ? t('team.cancels', { date: new Date(m.cancels_at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric' }) })
+                : m.cancels_at ? t('team.cancels', { date: fmtDate(new Date(m.cancels_at), intlOf(locale), { month: 'short', day: 'numeric' }) })
                 : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() })
                 : t('team.active')
               return (
@@ -3192,7 +3193,7 @@ export default function DashboardPage() {
           <div className="msa-hello-date" style={{ color: BRAND.blue }}>
             {/* Today in LA, not the device clock (found 2026-10-05): the school's
                 day, whatever time zone the phone is set to. */}
-            {(() => { const [y, m, d] = getTodayLA().split('-').map(Number); const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); return t('date.header', { weekday: t('date.weekday.' + wd), month: t('date.month.' + m), day: d }) })()}
+            {(() => { const [y, m, d] = getTodayLA().split('-').map(Number); return fmtDate(new Date(Date.UTC(y, m - 1, d)), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) })()}
           </div>
           <h1>
             {t('dash.greeting.' + greeting)}<em style={{ fontStyle: locale.startsWith('zh') ? 'normal' : 'italic' }}>{parent?.first_name}{t('dash.greeting.bang')}</em>
@@ -3270,7 +3271,7 @@ export default function DashboardPage() {
               const monthly = monthlyReports.filter(m => m.studentId === student.id)
               const monthlyBtn = monthly.length > 0 && (
                 <button className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
-                  {t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}
+                  {t('monthly.cardLine', { month: fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}
                   <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
                 </button>
               )
@@ -3285,7 +3286,7 @@ export default function DashboardPage() {
                           const today = getTodayLA()
                           const tomorrow = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
                           const when = next ? (next.session_date === today ? t('dash.week.today') : next.session_date === tomorrow ? t('dash.next.tomorrow')
-                            : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
+                            : fmtDate(new Date(next.session_date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
                           return (
                             <div className="msa-mcard-next">
                               <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
@@ -3456,7 +3457,7 @@ export default function DashboardPage() {
                       {monthly.length > 0 && (
                         <button type="button" className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
                           <i aria-hidden="true">📝</i>
-                          <span>{t('monthly.cardLine', { month: new Date(monthly[0].month + 'T12:00:00Z').toLocaleDateString(intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
+                          <span>{t('monthly.cardLine', { month: fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
                           <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
                         </button>
                       )}
@@ -3562,7 +3563,7 @@ export default function DashboardPage() {
             const who = students.find(s => s.id === firstIn?.student_id)
             const isToday = next.session_date === today
             const when = isToday ? t('dash.week.today') : next.session_date === plusDays(today, 1) ? t('dash.next.tomorrow')
-              : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })
+              : fmtDate(new Date(next.session_date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })
             const hot = isToday && next.status === 'confirmed' && !!who
             const left = mins(next.start_time) - nowMin
             const sub = [hot ? null : t('dash.next.lesson'), next.coach_name ? t('dash.up.coach', { name: next.coach_name }) : null,
@@ -3748,8 +3749,8 @@ export default function DashboardPage() {
             const MAX_PER_DAY = 3
             // Month and weekday names from Intl in the reader's language; they
             // were hard-coded English (found 2026-10-05).
-            const monthTitle = new Date(lvYear, lvMonth, 1).toLocaleDateString(dateTag(locale), { year: 'numeric', month: 'long' })
-            const weekdayHeads = Array.from({ length: 7 }, (_, i) => new Date(2026, 0, 4 + i).toLocaleDateString(dateTag(locale), { weekday: 'short' }).toUpperCase())
+            const monthTitle = fmtDate(new Date(lvYear, lvMonth, 1), dateTag(locale), { year: 'numeric', month: 'long' })
+            const weekdayHeads = Array.from({ length: 7 }, (_, i) => fmtDate(new Date(2026, 0, 4 + i), dateTag(locale), { weekday: 'short' }).toUpperCase())
             return (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -3782,7 +3783,7 @@ export default function DashboardPage() {
                     const isPast = ds < todayDs
                     const isTodayCell = ds === todayDs
                     const dayNumStyle: React.CSSProperties = { textAlign: 'center', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: isTodayCell ? GOLD : isPast ? '#9aa6ba' : dayBookings.length > 0 ? '#16294a' : '#56647d' }
-                    const dayLong = dayBookings.length > 0 ? new Date(ds + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' }) : ''
+                    const dayLong = dayBookings.length > 0 ? fmtDate(new Date(ds + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' }) : ''
                     /* The cell was role="button" with the lesson buttons inside it,
                        which makes them part of one button to a screen reader -- read
                        as "15 10:55a Kayden 3:35p Kylie" with no month, and the
@@ -3849,7 +3850,7 @@ export default function DashboardPage() {
                     phone, and a tap there opened the chat (found 2026-10-15). */}
                 {daySheet && (() => {
                   const rows = byDate[daySheet] || []
-                  const dateStr = new Date(daySheet + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })
+                  const dateStr = fmtDate(new Date(daySheet + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })
                   return (
                     <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
                       style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -3903,8 +3904,8 @@ export default function DashboardPage() {
                   return (
                     <div key={ds} className={'msa-wday' + (isToday ? ' today' : '') + (isPast ? ' past' : '')}>
                       <div className="msa-wday-h">
-                        <b>{dt.toLocaleDateString(intlOf(locale), { weekday: 'short' })}</b>
-                        <span>{dt.toLocaleDateString(intlOf(locale), { month: 'numeric', day: 'numeric' })}</span>
+                        <b>{fmtDate(dt, intlOf(locale), { weekday: 'short' })}</b>
+                        <span>{fmtDate(dt, intlOf(locale), { month: 'numeric', day: 'numeric' })}</span>
                         {isToday && <em>{t('dash.week.today')}</em>}
                       </div>
                       {rows.length === 0
@@ -3982,7 +3983,7 @@ export default function DashboardPage() {
                     {!inSheet && tappable(booking) && <button type="button" className="msa-lesson-chev tap-auto" aria-label={t('dash.lsheet.open', { name: booking.student_name || '' })} onClick={() => setLessonSheet(booking.id)}>›</button>}
                     <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
-                        {new Date(booking.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { month: 'short' })}
+                        {fmtDate(new Date(booking.session_date + 'T00:00:00'), intlOf(locale), { month: 'short' })}
                       </div>
                       <div style={{ fontSize: '20px', fontWeight: 900, color: isToday ? NAVY : '#16294a', lineHeight: 1 }}>
                         {new Date(booking.session_date + 'T00:00:00').getDate()}
@@ -3991,7 +3992,7 @@ export default function DashboardPage() {
                       <div className="msa-lesson-head">
                         <span className="msa-lesson-meta">
                           <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
-                          {!booking._group && <> · {formatTime(booking.start_time)} — {formatTime(booking.end_time)}</>}
+                          {!booking._group && <> · {formatTime(booking.start_time)} – {formatTime(booking.end_time)}</>}
                           {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
                           {!booking._group && <PoolLink id={booking.location_id} prefix=" · " />}
                           {(() => { const bc = bandColorOf(booking.level_min, booking.level_max); return bc && booking.level_min != null && booking.level_max != null ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${bc}22`, color: bc, border: `1px solid ${bc}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.lesson.levelBadge', { r: bandRange(booking.level_min, booking.level_max) })}</span> : null })()}
@@ -4072,7 +4073,7 @@ export default function DashboardPage() {
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} />{m.checked_in && <span role="img" aria-label={t('dash.up.checkedIn')} title={t('dash.up.checkedIn')} style={{ marginLeft: '6px', fontSize: '13px', color: '#1f7a57' }}>&#10003;</span>}</div>
                                   <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
-                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · <span style={{ whiteSpace: 'nowrap' }}>{t('dash.up.coach', { name: m.coach_name })}</span><PoolLink id={m.location_id} prefix=" · " />
+                                    {formatTime(m.start_time)} – {formatTime(m.end_time)} · <span style={{ whiteSpace: 'nowrap' }}>{t('dash.up.coach', { name: m.coach_name })}</span><PoolLink id={m.location_id} prefix=" · " />
                                   </div>
                                 </div>
                                 {(m.course_slug === '1on2' && mi > 0) ? null : (
@@ -4130,9 +4131,9 @@ export default function DashboardPage() {
                       {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} — {formatTime(booking.end_time)} · {formatDate(booking.session_date, intlOf(locale))}</span>
+                            <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date, intlOf(locale))}</span>
                             <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
-                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} — {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}{!samePool(booking.new_location_id, booking.location_id) && <PoolLink id={booking.new_location_id} prefix=" · " style={{ color: GOLD, fontWeight: 700 }} />}</span>
+                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} – {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}{!samePool(booking.new_location_id, booking.location_id) && <PoolLink id={booking.new_location_id} prefix=" · " style={{ color: GOLD, fontWeight: 700 }} />}</span>
                           </div>
                           {booking.pending_expires_at && (
                             <Countdown until={booking.pending_expires_at}>{ms => (
@@ -4391,7 +4392,7 @@ export default function DashboardPage() {
                       }}>
                       <div className="msa-lsheet-grab" aria-hidden="true" />
                       <div id="msa-lsheet-h" className="msa-lsheet-h">
-                        {new Date(sheetB.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
+                        {fmtDate(new Date(sheetB.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
                         {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
                       </div>
                       {renderLesson(sheetB, true)}
@@ -4408,7 +4409,7 @@ export default function DashboardPage() {
                     <div key={day.date} style={{ display: 'contents' }}>
                       <div className="msa-day-head">
                         <span style={{ fontSize: '13px', fontWeight: 800, color: du === 0 ? GOLD : '#16294a' }}>
-                          {dd.toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'short', day: 'numeric' })}
+                          {fmtDate(dd, intlOf(locale), { weekday: 'long', month: 'short', day: 'numeric' })}
                         </span>
                         {du === 0 && <span style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
                         {du === 1 && <span style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
@@ -4455,7 +4456,7 @@ export default function DashboardPage() {
           {lessonDetail && (() => {
             const b = lessonDetail
             const past = !!(b.session_date && b.session_date < getTodayLA())
-            const dateStr = b.session_date ? new Date(b.session_date + 'T00:00:00').toLocaleDateString(intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
+            const dateStr = b.session_date ? fmtDate(new Date(b.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''
             const statusLabel = past ? (b.checked_in ? t('status.attended') : t('status.absent')) : b.checked_in ? t('status.checkedIn')
               : b.status === 'pending_partner' ? t(isInviteToMe(b) ? 'dash.up.awaitingYou' : 'dash.status.pending_partner') : t('status.confirmed')
             const statusColor = past ? (b.checked_in ? '#1f7a57' : '#c0392b') : b.checked_in ? '#1f7a57' : GOLD

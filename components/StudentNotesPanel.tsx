@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag } from '@/lib/i18n'
+import { fmtDate } from '@/lib/fmt-date'
 
 type Note = { id: string; content: string; pinned: boolean; created_at: string; author: string }
 
@@ -133,7 +134,7 @@ export default function StudentNotesPanel({ studentId, collapsible = false, onCo
                     ) : (
                       <>
                         <p className="text-gray-200 text-sm whitespace-pre-wrap">{n.pinned && <span className="mr-1">📌</span>}{n.content}</p>
-                        <p className="text-gray-500 text-xs mt-1">{new Date(n.created_at).toLocaleDateString(dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{locale === 'en' ? ', ' : ' '}{new Date(n.created_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
+                        <p className="text-gray-500 text-xs mt-1">{fmtDate(new Date(n.created_at), dateTag(locale, 'en-US'), { timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{locale === 'en' ? ', ' : ' '}{new Date(n.created_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} · {n.author}</p>
                       </>
                     )}
                   </div>

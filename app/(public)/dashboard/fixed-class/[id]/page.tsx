@@ -19,6 +19,7 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { createClient } from '@/lib/supabase/client'
 import { myFamilyRole } from '@/lib/my-parent'
+import { fmtDate } from '@/lib/fmt-date'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -115,7 +116,7 @@ export default function FixedClassPage() {
   const id = String((params as any)?.id || '')
   const tErr = (raw?: string | null, fb = 'cart.err.network') => { const k = errorKey(raw); return k ? t(k) : (raw || t(fb)) }
   const day = (d: string, o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', weekday: 'short' }) =>
-    new Date(d + 'T12:00:00Z').toLocaleDateString(loc, { ...o, timeZone: 'UTC' })
+    fmtDate(new Date(d + 'T12:00:00Z'), loc, { ...o, timeZone: 'UTC' })
   // A whole error answer: a lost original lesson names its points, a full
   // class its date (lib/i18n/errors errorKeyFor, F81).
   const tErrOf = (j: Parameters<typeof errorKeyFor>[0]) => { const r = errorKeyFor(j, d => day(d)); return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t('cart.err.network')) }

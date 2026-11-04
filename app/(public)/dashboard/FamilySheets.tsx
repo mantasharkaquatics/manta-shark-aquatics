@@ -11,6 +11,7 @@ import { localePath } from '@/lib/i18n/paths'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 import ZellePay from '@/components/ZellePay'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
+import { fmtDate } from '@/lib/fmt-date'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
@@ -264,7 +265,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
     return n
   }
   const lessonText = (l: NonNullable<LedgerRow['lesson']>) => {
-    const d = new Date(l.date + 'T12:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : locale, { month: 'numeric', day: 'numeric' })
+    const d = fmtDate(new Date(l.date + 'T12:00:00'), locale === 'en' ? 'en-US' : locale, { month: 'numeric', day: 'numeric' })
     const when = l.count > 1 ? t('points.lesson.many', { date: d, n: l.count }) : (l.time ? `${d} ${formatTime(l.time)}` : d)
     return l.student ? `${l.student} ${when}` : when
   }
@@ -310,9 +311,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
             {w.grantedNextExpiry
               ? t('points.card.grantedNote', {
                   n: w.grantedNextExpiry.points.toLocaleString(),
-                  date: new Date(w.grantedNextExpiry.date).toLocaleDateString(
-                    locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW',
-                    { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }),
+                  date: fmtDate(new Date(w.grantedNextExpiry.date), locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }),
                 })
               : t('points.card.grantedNoteNoDate')}
           </div>
@@ -396,7 +395,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                     <div style={{ fontSize: '12px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
                       {/* The school's day, as on the receipt (found 2026-10-15: an
                           evening top-up read as the next day outside Pacific time). */}
-                      {new Date(row.at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
+                      {fmtDate(new Date(row.at), intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
                       {row.lesson ? ' · ' + lessonText(row.lesson) : ''}
                       {row.note && noteText(row.note) ? ' · ' + noteText(row.note) : ''}
                     </div>

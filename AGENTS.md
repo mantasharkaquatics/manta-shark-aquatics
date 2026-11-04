@@ -1009,6 +1009,13 @@ the contained problems were fixed the same day. What to keep doing:
   renewal and scrolls to it. A previewed move says it in one block first
   (`.fc-msum`: how many move, how many go to the end, to another coach, to
   a voucher) and folds the lesson-by-lesson list (`.fc-each`).
+- **Dates are written one way** (owner, 2026-11-04, 問題 9 選項 A):
+  lib/fmt-date.ts `fmtDate(date, tag, options)` takes toLocaleDateString's
+  arguments and writes any date with a weekday as 11月5日（四） (numeric
+  month: 11/5（四）; English: Thu, Nov 5). Every parent page and shared
+  component calls it instead of `.toLocaleDateString` -- do the same in new
+  code. Time ranges use an en dash: 9:10 AM – 9:40 AM. A weekly weekday
+  (每星期三) and the booking grid's 上午/下午 09:10 stay as they are.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

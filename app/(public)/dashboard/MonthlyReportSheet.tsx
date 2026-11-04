@@ -5,6 +5,7 @@ import { useLocale, useT, useTFor } from '@/lib/i18n/provider'
 import { tDb, type Locale } from '@/lib/i18n'
 import { BRAND } from '@/lib/brand'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import { fmtDate } from '@/lib/fmt-date'
 
 // The monthly report sheet, as the family reads it on /dashboard. It lives in
 // its own file so the admin Monthly Reports page can show the very same sheet
@@ -95,9 +96,9 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
   const d = r.data
 
   const loc = intlOf(locale)
-  const monthName = (m: string, withYear = true) => new Date(m + 'T12:00:00Z').toLocaleDateString(loc, withYear ? { year: 'numeric', month: 'long', timeZone: 'UTC' } : { month: 'long', timeZone: 'UTC' })
-  const shortDate = (dt: string) => new Date(dt + 'T12:00:00Z').toLocaleDateString(loc, { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
-  const next = (() => { const x = new Date(r.month + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() + 2, 1); return x.toLocaleDateString(loc, { month: 'long', day: 'numeric', timeZone: 'UTC' }) })()
+  const monthName = (m: string, withYear = true) => fmtDate(new Date(m + 'T12:00:00Z'), loc, withYear ? { year: 'numeric', month: 'long', timeZone: 'UTC' } : { month: 'long', timeZone: 'UTC' })
+  const shortDate = (dt: string) => fmtDate(new Date(dt + 'T12:00:00Z'), loc, { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+  const next = (() => { const x = new Date(r.month + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() + 2, 1); return fmtDate(x, loc, { month: 'long', day: 'numeric', timeZone: 'UTC' }) })()
   const stageNow = d.stages.find(s => s.stage === d.stage)
   const card: React.CSSProperties = { background: '#fff', border: '1px solid #e3ebf6', borderRadius: '14px', padding: '16px' }
   const h: React.CSSProperties = { fontSize: '14px', fontWeight: 800, color: '#12254a', margin: '0 0 10px' }

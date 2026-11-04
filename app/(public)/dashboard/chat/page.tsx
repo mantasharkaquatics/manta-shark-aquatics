@@ -10,6 +10,7 @@ import { closureText, type Closure } from '@/components/ClosureBanner'
 import { myParentId } from '@/lib/my-parent'
 import { isNativeApp } from '@/lib/native-app'
 import { BRAND, FONT_BODY } from '@/lib/brand'
+import { fmtDate } from '@/lib/fmt-date'
 
 /* 訊息, the phone app's message screen (owner, 2026-10-28; the quiet school-colour style): two
    tabs -- 通知 first, then 客服, which is where the screen opens (owner,
@@ -160,7 +161,7 @@ export default function ChatPage() {
     || inbox.announcements.some(a => newer(a.created_at, inbox.seen.announcements))
     || (inbox.closures.length > 0 && !inbox.seen.announcements))
   // The date in the family's language, the clock as everywhere else in the app: 3:35 PM.
-  const when = (iso: string) => new Date(iso).toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })
+  const when = (iso: string) => fmtDate(new Date(iso), dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })
     + ' ' + new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
 
   const back = () => {

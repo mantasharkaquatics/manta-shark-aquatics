@@ -15,6 +15,7 @@ import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
+import { fmtDate } from '@/lib/fmt-date'
 
 interface Parent {
   id: string; auth_user_id?: string | null; first_name: string; last_name: string; email: string; phone: string
@@ -183,7 +184,7 @@ export default function AccountPage() {
      read as UTC and printed as UTC -- read as local time, "2016-05-03" came
      out as May 2 in California. */
   const fmt = (d: string, dateOnly = false) =>
-    new Date(d).toLocaleDateString(INTL_LOCALE[locale] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric', ...(dateOnly ? { timeZone: 'UTC' } : {}) })
+    fmtDate(new Date(d), INTL_LOCALE[locale] || 'en-US', { year: 'numeric', month: 'long', day: 'numeric', ...(dateOnly ? { timeZone: 'UTC' } : {}) })
 
   if (loading) return (
     <div className="ac-root ac-loading">
