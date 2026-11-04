@@ -1054,6 +1054,16 @@ the contained problems were fixed the same day. What to keep doing:
   counts after it: 確定預約 10 堂課, 確定預約（2 位）), 看價格 (See prices).
   Not 立即預約 / 去預約 / 建立免費帳號 / 加入我們 / 查看價目. A one- or
   two-character place (the nav's 預約, the app tab) stays short.
+- **我的 follow-ups** (owner, 2026-11-04, from the phone): the round row is
+  three (儲值 · 介紹朋友 · 共同預約) -- the member card itself opens 點數明細.
+  The card's QR opens the check-in code right there (CheckinQr.tsx, shared
+  with 首頁), and closing it stays on 我的.
+- **A lesson's 傳訊息給我們 carries the lesson** (owner, 2026-11-04):
+  `openChat('', { about })` (lib/chat-open). The chat shows 要問這堂課嗎？
+  with the lesson above the box (不是這堂 drops it) and starts the message
+  with （關於這堂課：…）, so the desk and the assistant know which one.
+- app/api/app/diag is a temporary log of the iPhone text-size measurements
+  (AppBridge, once per launch); remove both once the text size works.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

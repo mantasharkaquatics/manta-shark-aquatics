@@ -13,15 +13,20 @@ export const CHAT_OPEN_EVENT = 'msa:chat-open'
 // stale: the visitor has moved on.
 const PENDING_KEY = '__msaChatOpenPending'
 const PENDING_MAX_AGE_MS = 60_000
-type Pending = { text: string; at: number; toTeam?: boolean }
+type Pending = { text: string; at: number; toTeam?: boolean; about?: string }
 // Set by the widget (reportChatOpen below): is the panel open.
 const OPEN_KEY = '__msaChatIsOpen'
 
-export function openChat(text?: string, opts: { toTeam?: boolean } = {}) {
+/** opts.about: what the family is asking about -- one lesson, as a line
+ *  ("11月5日（四）3:35 PM · 一對四團體班 · CC"). The chat offers it above the
+ *  box and puts it at the head of the message, so the desk (and the
+ *  assistant) know which lesson without asking (owner, 2026-11-04). */
+export function openChat(text?: string, opts: { toTeam?: boolean; about?: string } = {}) {
   if (typeof window === 'undefined') return
   const toTeam = !!opts.toTeam
-  ;(window as unknown as Record<string, Pending | null>)[PENDING_KEY] = { text: text || '', at: Date.now(), toTeam }
-  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { text: text || '', toTeam } }))
+  const about = opts.about || ''
+  ;(window as unknown as Record<string, Pending | null>)[PENDING_KEY] = { text: text || '', at: Date.now(), toTeam, about }
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { text: text || '', toTeam, about } }))
 }
 
 /* Straight to a person (owner, 2026-11-04, 問題 15 選項 A: the families of the
@@ -32,7 +37,7 @@ export function openChat(text?: string, opts: { toTeam?: boolean } = {}) {
 export const openChatToTeam = (text?: string) => openChat(text, { toTeam: true })
 
 /** The open request not yet handled, if any; clears it. */
-export function takePendingChatOpen(): { text: string; toTeam?: boolean } | null {
+export function takePendingChatOpen(): { text: string; toTeam?: boolean; about?: string } | null {
   if (typeof window === 'undefined') return null
   const w = window as unknown as Record<string, Pending | null>
   const p = w[PENDING_KEY]
@@ -40,7 +45,7 @@ export function takePendingChatOpen(): { text: string; toTeam?: boolean } | null
   if (!p || Date.now() - p.at > PENDING_MAX_AGE_MS) return null
   // The widget opens on it now; count it open until the widget says so itself.
   ;(window as unknown as Record<string, boolean | undefined>)[OPEN_KEY] = true
-  return { text: p.text, toTeam: !!p.toTeam }
+  return { text: p.text, toTeam: !!p.toTeam, about: p.about || '' }
 }
 
 /* Whether the chat panel is open, or about to be (found 2026-10-15): the

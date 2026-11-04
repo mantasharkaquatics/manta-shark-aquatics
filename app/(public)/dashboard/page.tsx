@@ -36,6 +36,7 @@ const SwimmerDeck = dynamic(() => import('@/components/swimmer/SwimmerDeck'), { 
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import QRModal from './CheckinQr'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { appLook } from '@/lib/native-app'
@@ -621,10 +622,6 @@ const MAX_SWIMMERS = 3
 
 const SWIMMER_COLORS = ['#2050a0', '#c2621a', '#2e9d6a', '#7b5ea7', '#c2185b']
 
-// QR payload: base64 encode of student_id so it's not raw UUID
-function makeQRPayload(studentId: string): string {
-  return `MSA:${btoa(studentId)}`
-}
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: '#4caf72',
@@ -936,115 +933,6 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
 
           <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#667690', margin: '4px 0 0' }}>{t('assess.report.footer')}</p>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function QRModal({ student, onClose }: { student: Student; onClose: () => void }) {
-  const t = useT()
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string>('')
-  const box = useDialogFocus(true)
-
-  useEffect(() => {
-    const payload = makeQRPayload(student.id)
-    let live = true
-    import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(payload, {
-      width: 280,
-      margin: 2,
-      color: { dark: '#1a2744', light: '#ffffff' },
-      errorCorrectionLevel: 'H',
-    })).then(url => { if (live) setQrDataUrl(url) }).catch(() => {})
-    return () => { live = false }
-  }, [student.id])
-
-  const handleDownload = () => {
-    if (!qrDataUrl) return
-    const a = document.createElement('a')
-    a.href = qrDataUrl
-    a.download = `${student.full_name.replace(/\s+/g, '_')}_QR.png`
-    a.click()
-  }
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: '20px',
-      }}
-    >
-      <div
-        ref={box}
-        onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')}
-        style={{
-          background: '#fff', borderRadius: '20px',
-          border: '1px solid #e3ebf6',
-          padding: '36px', maxWidth: '360px', width: '100%',
-          textAlign: 'center', position: 'relative',
-        }}
-      >
-        {/* Close button. Named, or a screen reader says "times". */}
-        <button
-          onClick={onClose}
-          className="tap-auto"
-          aria-label={t('common.close')}
-          style={{
-            position: 'absolute', top: '16px', right: '16px',
-            background: '#eef2f8', border: 'none',
-            borderRadius: '50%', width: '32px', height: '32px',
-            color: '#56647d', fontSize: '16px',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        ><span aria-hidden="true">×</span></button>
-
-        {/* Header */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
-            {t('dash.qr.eyebrow')}
-          </div>
-          <div style={{ fontFamily: FONT_DISPLAY, fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
-            {student.full_name}
-          </div>
-        </div>
-
-        {/* QR Code */}
-        <div style={{
-          background: '#fff', borderRadius: '16px', padding: '20px',
-          display: 'inline-block', marginBottom: '20px',
-          boxShadow: `0 0 0 4px rgba(32,80,160,0.15)`,
-        }}>
-          {qrDataUrl ? (
-            <img src={qrDataUrl} alt={t('dash.qrAlt')} style={{ display: 'block', width: '200px', height: '200px' }} />
-          ) : (
-            <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-              {t('common.loading')}
-            </div>
-          )}
-        </div>
-
-        {/* Instructions */}
-        <p style={{ fontSize: '12px', color: '#56647d', margin: '0 0 20px', lineHeight: 1.6 }}>
-          {t('dash.qr.help')}
-        </p>
-
-        {/* Download button. Not in the app: the iPhone web view cannot save
-            a download, so it did nothing (2026-11-04) -- the code is shown
-            at the desk from the screen anyway. */}
-        {!appLook() && <button
-          onClick={handleDownload}
-          style={{
-            width: '100%', padding: '12px', borderRadius: '10px',
-            background: AMBER, color: NAVY, border: 'none',
-            fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-            letterSpacing: '0.5px',
-          }}
-        >
-          {t('dash.qr.download')}
-        </button>}
       </div>
     </div>
   )
@@ -4397,7 +4285,16 @@ export default function DashboardPage() {
                       </div>
                       {renderLesson(sheetB, true)}
                       <div className="msa-lsheet-more">
-                        <button type="button" className="tap-auto" onClick={() => { setLessonSheet(null); openChat() }}>{t('dash.up.messageUs')}</button>
+                        <button type="button" className="tap-auto" onClick={() => {
+                          /* The chat opens knowing which lesson (owner, 2026-11-04):
+                             it asks "this lesson?" above the box and heads the
+                             message with it, so the desk sees which one. */
+                          const names = (sheetB._group ? sheetB._group.map(m => m.student_name) : [sheetB.student_name]).filter(Boolean).join('、')
+                          const course = sheetB.is_trial ? t('common.assessment') : (sheetB.course_type_id ? tDb(locale, 'course_types', sheetB.course_type_id, sheetB.course_name) : sheetB.course_name)
+                          const when = fmtDate(new Date(sheetB.session_date + 'T12:00:00Z'), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+                          setLessonSheet(null)
+                          openChat('', { about: [when + ' ' + formatTime(sheetB.start_time), course, names].filter(Boolean).join(' · ') })
+                        }}>{t('dash.up.messageUs')}</button>
                         <button type="button" className="tap-auto" onClick={() => setLessonSheet(null)}>{t('common.close')}</button>
                       </div>
                     </div>

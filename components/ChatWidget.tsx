@@ -245,6 +245,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   /* The next message goes to a person, not the assistant (lib/chat-open
      openChatToTeam; owner, 2026-11-04, 問題 15). */
   const [toTeam, setToTeam] = useState(false)
+  /* The lesson the family opened the chat from (lib/chat-open opts.about):
+     offered above the box, and put at the head of the message if kept. */
+  const [about, setAbout] = useState('')
   /* A visitor asking for a person (owner, 2026-10-22, tier 3): a short form
      for a name and an email (phone optional). The desk is alerted and its
      replies are emailed to them (/api/chat/guest/contact). */
@@ -285,7 +288,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   // signed-in family's next message for the desk.
   const guestRef = useRef(guest)
   guestRef.current = guest
-  function applyOpen(text: string, team: boolean) {
+  function applyOpen(text: string, team: boolean, aboutLine = '') {
+    setAbout(aboutLine)
     if (team && guestRef.current) {
       setContactErr(null); setContact(c => ({ ...c, text: c.text || text })); setContactOpen(true)
       return
@@ -304,7 +308,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       focusOnOpenRef.current = true
       setOpen(true)
       const d = (e as CustomEvent).detail || {}
-      applyOpen(String(d.text || ''), !!d.toTeam)
+      applyOpen(String(d.text || ''), !!d.toTeam, String(d.about || ''))
     }
     window.addEventListener(CHAT_OPEN_EVENT, onOpen)
     // A request made before this widget was mounted (lib/chat-open), handled
@@ -315,7 +319,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       if (!pending) return
       focusOnOpenRef.current = true
       setOpen(true)
-      applyOpen(pending.text, !!pending.toTeam)
+      applyOpen(pending.text, !!pending.toTeam, pending.about || '')
     }, 0)
     return () => { clearTimeout(timer); window.removeEventListener(CHAT_OPEN_EVENT, onOpen) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -661,7 +665,10 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   }
 
   async function sendMessage(text?: string) {
-    const body = (text ?? input).trim()
+    const typed = (text ?? input).trim()
+    // Which lesson it is about, at the head of the message (then cleared).
+    const body = typed && about && !text ? `${t('chat.about.prefix', { what: about })}\n${typed}` : typed
+    if (typed && about && !text) setAbout('')
     if (guest) {
       if (!body || sending || limited) return
       setSending(true)
@@ -920,7 +927,14 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             </div>
           )}
         </div>
-{toTeam && !guest && (
+{about && (
+          <div className="pc-about" role="status" style={{ fontSize: '13px', color: '#16294a', background: '#eef4fc', borderTop: '1px solid #c9d8ee', padding: '9px 16px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span aria-hidden="true">📅</span>
+            <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}><b style={{ display: 'block', fontSize: '12px', color: '#56647d' }}>{t('chat.about.q')}</b>{about}</span>
+            <button type="button" className="tap-auto" onClick={() => setAbout('')} style={{ background: 'none', border: 'none', color: '#2050a0', fontWeight: 800, cursor: 'pointer', fontSize: '12.5px', padding: 0, whiteSpace: 'nowrap' }}>{t('chat.about.no')}</button>
+          </div>
+        )}
+        {toTeam && !guest && (
           <div className="pc-team" role="status" style={{ fontSize: '12.5px', color: '#1f6b45', background: '#e7f6ec', borderTop: '1px solid #bfe3cb', padding: '8px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span style={{ flex: 1 }}>{t('chat.toTeam.banner')}</span>
             <button type="button" className="tap-auto" onClick={() => setToTeam(false)} style={{ background: 'none', border: 'none', color: '#1f6b45', fontWeight: 800, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}>{t('chat.toTeam.cancel')}</button>
@@ -1163,6 +1177,13 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             )}
           </div>
 
+          {about && (
+            <div className="pc-about" role="status" style={{ fontSize: '13px', color: '#16294a', background: '#eef4fc', borderTop: '1px solid #c9d8ee', padding: '9px 16px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <span aria-hidden="true">📅</span>
+              <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}><b style={{ display: 'block', fontSize: '12px', color: '#56647d' }}>{t('chat.about.q')}</b>{about}</span>
+              <button type="button" className="tap-auto" onClick={() => setAbout('')} style={{ background: 'none', border: 'none', color: '#2050a0', fontWeight: 800, cursor: 'pointer', fontSize: '12.5px', padding: 0, whiteSpace: 'nowrap' }}>{t('chat.about.no')}</button>
+            </div>
+          )}
           {toTeam && !guest && (
             <div className="pc-team" role="status" style={{ fontSize: '12.5px', color: '#1f6b45', background: '#e7f6ec', borderTop: '1px solid #bfe3cb', padding: '8px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
               <span style={{ flex: 1 }}>{t('chat.toTeam.banner')}</span>

@@ -13,6 +13,7 @@ import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from '.
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { BRAND } from '@/lib/brand'
 import { fmtDate } from '@/lib/fmt-date'
+import QRModal from '../CheckinQr'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -53,7 +54,9 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-qr svg { width: 100%; height: 100%; display: block; }
 .mx-card:focus-visible, .mx-qr:focus-visible, .mx-r a:focus-visible, .mx-pl a:focus-visible, .mx-mini a:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px; }
 /* Four round shortcuts. */
-.mx-r { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 2px; }
+/* Three: 點數明細 is the member card itself (owner, 2026-11-04: a fourth
+   circle opening the same sheet showed it twice). */
+.mx-r { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0 2px; }
 .mx-r a, .mx-r button { border: 0; background: none; padding: 0; font-family: inherit; cursor: pointer; }
 .mx-r a, .mx-r button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; }
 .mx-r em { font-style: normal; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: #fff; font-size: 22px;
@@ -225,10 +228,12 @@ export default function MePage() {
     }
   }
 
-  // The card's QR: the swimmer's own check-in code, on 首頁; with several
-  // swimmers, which one first.
+  // The card's QR: the swimmer's own check-in code, shown right here (owner,
+  // 2026-11-04: it used to go to 首頁 first, and closing left the family
+  // there); with several swimmers, which one first.
+  const [qrKid, setQrKid] = useState<Kid | null>(null)
   const openQr = () => {
-    if (kids.length === 1) router.push('/dashboard?qr=' + kids[0].id)
+    if (kids.length === 1) setQrKid(kids[0])
     else if (kids.length > 1) setPickQr(true)
   }
   useEffect(() => {
@@ -269,7 +274,6 @@ export default function MePage() {
         {!viewer && (
           <nav className="mx-r" aria-label={t('points.card.title')}>
             <Link href="/plans#buy" className="amb"><em aria-hidden="true">💳</em>{t('dash.topUp')}</Link>
-            <button type="button" className="tap-auto" onClick={() => wallet && setSheet('points')}><em aria-hidden="true">🧾</em>{t('me.r.history')}</button>
             <button type="button" className="tap-auto" onClick={() => setSheet('refer')}><em aria-hidden="true">🎁</em>{t('dash.more.refer')}</button>
             <Link href="/dashboard/partnerships"><em aria-hidden="true">👥</em>{t('quick.partnerships')}</Link>
           </nav>
@@ -346,11 +350,12 @@ export default function MePage() {
           </div>
         </div>
       )}
+      {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} />}
       {pickQr && (
         <div className="mx-pick" onClick={() => setPickQr(false)}>
           <div role="dialog" aria-modal="true" aria-label={t('me.qr.pick')} onClick={e => e.stopPropagation()}>
             <h2>{t('me.qr.pick')}</h2>
-            {kids.map(k => <Link key={k.id} href={'/dashboard?qr=' + k.id}>{k.full_name}<span aria-hidden="true">›</span></Link>)}
+            {kids.map(k => <button key={k.id} type="button" className="tap-auto" onClick={() => { setPickQr(false); setQrKid(k) }}>{k.full_name}<span aria-hidden="true">›</span></button>)}
             <button type="button" className="x" onClick={() => setPickQr(false)}>{t('common.cancel')}</button>
           </div>
         </div>

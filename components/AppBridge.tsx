@@ -59,6 +59,32 @@ export default function AppBridge() {
     }
   }, [router])
 
+  // What the iPhone's web view does with the text size, once per launch,
+  // to the server log (app/api/app/diag; temporary, 2026-11-04).
+  useEffect(() => {
+    if (appPlatform() !== 'ios') return
+    const t = window.setTimeout(() => {
+      try {
+        const h = document.documentElement
+        const probe = document.createElement('span')
+        probe.style.font = '-apple-system-body'
+        probe.textContent = '測試'
+        document.body.appendChild(probe)
+        const bodyPx = getComputedStyle(probe).fontSize
+        probe.remove()
+        const box = document.createElement('div')
+        box.style.cssText = 'position:absolute;left:-9999px;top:0;width:300px'
+        box.innerHTML = '<span style="font-size:16px;line-height:1">測試 Test</span><div style="-webkit-text-size-adjust:150%;text-size-adjust:150%"><span style="font-size:16px;line-height:1">測試 Test</span></div>'
+        document.body.appendChild(box)
+        const [a, b] = [...box.querySelectorAll('span')].map(x => Math.round(x.getBoundingClientRect().height * 10) / 10)
+        box.remove()
+        const report = { bodyPx, htmlAdjust: h.style.webkitTextSizeAdjust || null, data: h.getAttribute('data-text-size'), plain16: a, adjusted150: b, ua: navigator.userAgent.slice(0, 160) }
+        fetch('/api/app/diag', { method: 'POST', body: JSON.stringify(report), keepalive: true }).catch(() => {})
+      } catch { /* a look only */ }
+    }, 3000)
+    return () => window.clearTimeout(t)
+  }, [])
+
   // The phone's text size may have been changed while the app was away (lib/native-app.ts).
   useEffect(() => {
     if (!appPlatform()) return
