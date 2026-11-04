@@ -3444,7 +3444,7 @@ export default function DashboardPage() {
                   const s = students.find(x => x.id === it.id)
                   return s ? deckOverlay(s) : null
                 }}
-                onLook={(id: string, look: SwimmerLook) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
+                onLook={(id: string, look: SwimmerLook | null) => setStudents(prev => prev.map(s => (s.id === id ? { ...s, avatar_look: look } : s)))}
                 fallback={rail}
                 after={addKid(' msa-deck-add')}
               />

@@ -799,8 +799,12 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   the lists in lib/swimmer-look.ts; cleanLook() refuses the rest.
 - **No look yet:** the card starts from students.gender (boy: short hair and
   jammers; girl: ponytail and a one-piece; colours from the swimmer's id). A
-  swimmer with no gender wears a swim cap and the card asks "a boy's or a
-  girl's look?"; the answer is saved as avatar_look only. **The look never
+  swimmer with no gender wears a swim cap (NEUTRAL in SwimmerDeck.tsx) and is
+  **not asked anything** -- "Change look" carries a red dot until the family
+  picks a look; closing the sheet unchanged leaves it unpicked (owner,
+  2026-11-04, 選項 C「不問，先戴泳帽」: the old "a boy's or a girl's look?"
+  box is gone; the API still takes { style } for old app builds). A picked
+  look is saved as avatar_look only. **The look never
   writes students.gender** (owner, 2026-10-29: a look is not a statement
   about the child).
 - **Families are not asked a gender** (owner, 2026-10-29: first required,

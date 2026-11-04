@@ -8,9 +8,11 @@
    members too. (The owner tried every swimmer on one turning pool with one
    card below, and came back to this: one card per swimmer, keeping the pool.)
 
-   A swimmer with no look and no gender on file asks "a boy's or a girl's
-   look?" on its card; the answer is saved as the look only, never as the
-   child's gender (owner, 2026-10-29: families are not asked a gender).
+   A swimmer with no look and no gender on file is not asked anything: it
+   wears a swim cap (NEUTRAL, neither a boy nor a girl) and "Change look"
+   carries a red dot until the family picks one (owner, 2026-11-04, 選項 C:
+   不問，先戴泳帽). A look is saved as the look only, never as the child's
+   gender (owner, 2026-10-29: families are not asked a gender).
    Without WebGL, or if the model will not load, the plain cards show
    (`fallback`), as on the website. */
 
@@ -23,8 +25,8 @@ import type { Character, Engine } from './engine'
 
 export interface DeckItem { id: string; name: string; look: SwimmerLook | null }
 
-/* What a swimmer with no gender yet looks like while the card asks: a swim
-   cap hides the hair, so it is neither a boy nor a girl. */
+/* What a swimmer with no look yet wears: a swim cap hides the hair, so it is
+   neither a boy nor a girl. */
 const NEUTRAL: SwimmerLook = {
   gender: 'boy', skin: SKINS[1], hair: 'short', hairColor: HAIR_COLORS[0], suit: 'jammer', suitColor: SUIT_COLORS[1],
   goggles: 'forehead', goggleColor: GEAR_COLORS[0], cap: true, capColor: GEAR_COLORS[1], fins: false, finColor: GEAR_COLORS[3],
@@ -71,14 +73,8 @@ const CSS = `
   background: rgba(255,255,255,.8); border-radius: 999px; padding: 4px 10px; transition: opacity .4s; pointer-events: none }
 /* On a short phone the picture is short too: the hint would sit on the swimmer. */
 @container (max-height: 250px) { .sw-hint { display: none } }
-.sw-ask { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 4; background: rgba(255,255,255,.95); border-radius: 16px;
-  padding: 12px; color: #12254a; box-shadow: 0 6px 18px rgba(18,37,74,.16); text-align: center }
-.sw-ask p { margin: 0 0 10px; font-size: 15px; font-weight: 800 }
-.sw-ask small { display: block; margin-top: 8px; font-size: 12px; color: #56647d; line-height: 1.45 }
-.sw-ask-row { display: flex; gap: 8px }
-.sw-ask-row button { flex: 1; min-height: 44px; border: 0; border-radius: 12px; background: #12254a; color: #fff; font: inherit;
-  font-size: 15px; font-weight: 800; cursor: pointer }
-.sw-ask-row button:disabled { opacity: .6 }
+.sw-dress .sw-dot { position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: #e5484d;
+  box-shadow: 0 0 0 2px #fff }
 /* The dots, and the small "add a swimmer" link at their right. */
 .sw-foot { position: relative; display: flex; align-items: center; justify-content: center; min-height: 26px; margin-top: 8px }
 .sw-foot > :not(.sw-dots) { position: absolute; right: 0; top: 50% ; transform: translateY(-50%) }
@@ -137,7 +133,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
   /** Laid over the swimmer's picture: the name along the bottom, check-in at the top right. */
   renderOverlay?: (item: DeckItem) => React.ReactNode
   /** A look the server has saved. */
-  onLook: (id: string, look: SwimmerLook) => void
+  onLook: (id: string, look: SwimmerLook | null) => void
   /** What to show when the phone cannot draw 3D: the plain cards. */
   fallback: React.ReactNode
   /** Shown under the cards and dots (the add-a-swimmer link); the fallback brings its own. */
@@ -151,7 +147,6 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
   const [draft, setDraft] = useState<SwimmerLook | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('gender')
-  const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const deckRef = useRef<HTMLDivElement>(null)
   const fitRef = useRef<HTMLDivElement>(null)
@@ -369,8 +364,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
   /* ---------- dressing ---------- */
   const say = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(m => (m === msg ? null : m)), 1900) }
   const openSheet = (it: DeckItem) => {
-    if (!it.look) return
-    setDraft({ ...it.look }); setEditing(it.id); setTab('gender')
+    setDraft({ ...(it.look ?? NEUTRAL) }); setEditing(it.id); setTab('gender')
     const el = deckRef.current
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
   }
@@ -378,7 +372,8 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     const it = items.find(x => x.id === editing)
     const d = draft
     setDraft(null); setEditing(null)
-    if (!it || !d || !it.look || lookKey(d) === lookKey(it.look)) return
+    // Closing a capped swimmer without changing anything leaves it unpicked (the red dot stays).
+    if (!it || !d || lookKey(d) === lookKey(it.look ?? NEUTRAL)) return
     // Shown as saved at once; put back if the server says no.
     const before = it.look
     onLook(it.id, d)
@@ -398,17 +393,6 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     }
     return n
   })
-  const answer = async (it: DeckItem, style: 'boy' | 'girl') => {
-    setBusy(it.id)
-    const res = await fetch('/api/parent/swimmer-look', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: it.id, style }),
-    }).catch(() => null)
-    setBusy(null)
-    const j = res?.ok ? await res.json().catch(() => null) : null
-    if (j?.look) onLook(it.id, j.look)
-    else say(t('swimmer.saveFailed'))
-  }
-
   const opts = <K extends keyof SwimmerLook>(label: string, k: K, list: [SwimmerLook[K], string][]) => (
     <>
       <div className="sw-lab">{label}</div>
@@ -453,20 +437,12 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
                   ref={el => { const a = holdEls.current.get(it.id) || []; a[k] = el; holdEls.current.set(it.id, a) }}
                   onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp} />
               ))}
-              {ready && it.look && (
-                <button type="button" className="sw-dress tap-auto" onClick={() => openSheet(it)}>{ICON_DRESS}{t('swimmer.dress')}</button>
+              {ready && (
+                <button type="button" className="sw-dress tap-auto" onClick={() => openSheet(it)}>
+                  {ICON_DRESS}{t('swimmer.dress')}{!it.look && <span className="sw-dot" role="img" aria-label={t('swimmer.notPicked')} />}
+                </button>
               )}
-              {ready && it.look && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.hintOne')}</span>}
-              {!it.look && ready && (
-                <div className="sw-ask">
-                  <p>{t('swimmer.style.q', { name: it.name })}</p>
-                  <div className="sw-ask-row">
-                    <button type="button" className="tap-auto" disabled={busy === it.id} onClick={() => answer(it, 'boy')}>{t('swimmer.style.boy')}</button>
-                    <button type="button" className="tap-auto" disabled={busy === it.id} onClick={() => answer(it, 'girl')}>{t('swimmer.style.girl')}</button>
-                  </div>
-                  <small>{t('swimmer.askHint', { name: it.name })}</small>
-                </div>
-              )}
+              {ready && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.hintOne')}</span>}
               {renderOverlay && <div className="sw-over">{renderOverlay(it)}</div>}
             </div>
           )
