@@ -367,6 +367,9 @@ html.msa-app.msa-tabs-small .rn { top: 0 !important; }
 /* The booking bar sits on the tabs inside the app, so the home indicator is
    not under it: no room for it. */
 html.msa-app .msa-book-bar { padding-bottom: 12px !important; }
+/* Its colour runs on down behind the tabs, so the page does not show through
+   the strip between the bar and the capsule (2026-11-04). */
+html.msa-app .msa-book-bar::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: var(--app-tab-now); background: inherit; pointer-events: none; }
 
 /* The booking page in the app: the top bar already leaves room, so the
    page heading sits closer under it -- the 要怎麼上 and every-week steps fit
@@ -374,4 +377,10 @@ html.msa-app .msa-book-bar { padding-bottom: 12px !important; }
 html.msa-app .bk-head { padding-top: 12px !important; }
 html.msa-app .bk-h1 { margin-top: 0 !important; }
 html.msa-app .bk-body { padding-top: 18px !important; padding-bottom: 16px !important; }
+/* A short phone (iPhone SE, 2026-11-04): the 要怎麼上 step still fits --
+   a smaller heading, and the two cards keep their title and price only. */
+@media screen and (max-height: 720px) {
+  html.msa-app .bk-h1 { font-size: 22px !important; }
+  html.msa-app .bk-ticks { display: none !important; }
+}
 html.msa-app .bk-steps { margin-bottom: 16px !important; }

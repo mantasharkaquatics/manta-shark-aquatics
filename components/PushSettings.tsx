@@ -21,16 +21,28 @@ export default function PushSettings() {
   const [saving, setSaving] = useState<Key | null>(null)
   const [error, setError] = useState(false)
 
+  // A failed read says so and offers to try again (2026-11-04: the page was left with its title alone).
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [tries, setTries] = useState(0)
   useEffect(() => {
     if (!isNativeApp()) return
     // Inside a promise: whatever the bridge returns, a throw stays here.
     Promise.resolve().then(() => pushPlugin()?.checkPermissions()).then(p => setPhoneOff(p?.receive === 'denied')).catch(() => {})
     fetch('/api/push/settings', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) })
-      .catch(() => {})
-  }, [])
+      .then(d => {
+        if (d) { setLoadFailed(false); setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) }
+        else setLoadFailed(true)
+      })
+      .catch(() => setLoadFailed(true))
+  }, [tries])
 
+  if (!on && loadFailed) return (
+    <section className="ac-card">
+      <div className="ac-err" style={{ marginBottom: 10 }}>{t('push.settings.loadFailed')}</div>
+      <button type="button" className="ac-btn line" onClick={() => setTries(n => n + 1)}>{t('common.retry')}</button>
+    </section>
+  )
   // Only ever set inside the app.
   if (!on) return null
 

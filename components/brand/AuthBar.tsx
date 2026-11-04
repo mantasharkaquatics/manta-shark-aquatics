@@ -43,7 +43,7 @@ const css = `
     .ab-menu button:hover { background: #f0f4fa; }
   }
   .auth-shell { padding-top: 110px !important; }
-  @media (max-width: 1099px) {
+  @media (max-width: 1179px) {
     .ab { top: 8px; left: 8px; right: 8px; height: 60px; padding: 0 18px; }
     .ab a, .ab .ab-name { font-size: 13.5px; letter-spacing: .26em; }
     /* 44px, the phone tap floor, kept round (tap-auto: the global floor would

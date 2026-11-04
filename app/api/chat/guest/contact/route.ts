@@ -81,7 +81,9 @@ export async function POST(req: NextRequest) {
   }
   if (text) await svc.from('chat_messages').insert({ thread_id: thread.id, sender_type: 'parent', body: text })
   await svc.from('chat_messages').insert({
-    thread_id: thread.id, sender_type: 'ai', body: translate(locale, 'chat.contact.done', { email }),
+    // A note from the school, not an AI line (2026-11-04: a visitor who had
+    // just asked for a person saw "AI assistant" on it).
+    thread_id: thread.id, sender_type: 'system', body: translate(locale, 'chat.contact.done', { email }),
   })
   await alertDeskChat(svc, { threadId: thread.id, parentFirstName: `${name} (visitor)`, reason: [text, `Email: ${email}`, phone ? `Phone: ${phone}` : ''].filter(Boolean).join(' · ') })
 

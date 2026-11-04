@@ -113,7 +113,7 @@ export default function LoginPage() {
           <div>
             <div className="flex items-baseline justify-between gap-3 mb-1.5">
               <label htmlFor="login-password" className="block text-sm font-medium text-[#16294a]">{t('login.password')}</label>
-              <Link href="/forgot-password" className="text-sm text-[#2050a0] hover:underline font-semibold">{t('login.forgot')}</Link>
+              <Link href="/forgot-password" onClick={() => { try { if (email.trim()) sessionStorage.setItem('msa_forgot_email', email.trim()) } catch {} }} className="text-sm text-[#2050a0] hover:underline font-semibold">{t('login.forgot')}</Link>
             </div>
             <PasswordField id="login-password" value={password} onChange={setPassword} onEnter={handleLogin}
               autoComplete="current-password" className={field} placeholder="••••••••" />

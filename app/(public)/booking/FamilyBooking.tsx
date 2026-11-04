@@ -236,7 +236,11 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     : plan.reduce((s, p) => s + priceOf(opt.ds, p.time), 0)
   const enough = way !== 'weekly' || ticked.size >= FIXED_CLASS_MIN_LESSONS
 
+  // Asked once before booking (2026-11-04: one tap took 1,300 points with no
+  // last look -- the one-child flow has its own confirm page).
+  const [asking, setAsking] = useState(false)
   async function confirm() {
+    setAsking(false)
     if (!plan || !opt || !slug || !way) return
     setBusy(true); setErr(null)
     const dts = way === 'weekly' ? [...ticked].sort() : [opt.ds]
@@ -249,7 +253,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     if (r?.ok) { setDone(true); window.scrollTo(0, 0); return }
     const who = typeof d.which === 'number' && plan[d.which] ? `${kidName(plan[d.which].kid)}：` : ''
     const k = d.code === 'week_gone' ? 'fam.err.weekGone' : d.error === 'NOT_ENOUGH_POINTS' ? null : errorKey(d.error)
-    setErr(who + (d.error === 'NOT_ENOUGH_POINTS' ? t('booking.short.body', { have: balance, need: total }) : k ? t(k) : t('fam.err.generic')))
+    setErr(who + (d.error === 'NOT_ENOUGH_POINTS' ? t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() }) : k ? t(k) : t('fam.err.generic')))
     // What was there may be gone now: read it again.
     if (way === 'weekly') setRefresh(x => x + 1)
   }
@@ -492,12 +496,27 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
             {!enough ? (
               <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('fam.tooFew', { n: FIXED_CLASS_MIN_LESSONS })}</p>
             ) : total > balance ? (
-              <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('booking.short.body', { have: balance, need: total })} <Link href="/plans#buy" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('booking.short.cta')}</Link></p>
+              <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() })} <Link href="/plans#buy" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('booking.short.cta')}</Link></p>
             ) : (
-              <button type="button" onClick={confirm} disabled={busy || (weekly && !cands)}
+              asking ? (
+                <div role="alertdialog" aria-label={t('fam.ask.title')} style={{ background: '#f6f9fd', border: '1px solid #c9d8ee', borderRadius: 12, padding: 14 }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 16, color: NAVY }}>{t('fam.ask.title')}</p>
+                  <p style={{ margin: '0 0 12px', fontSize: 14, color: '#56647d', lineHeight: 1.55 }}>
+                    {plan.map(p => kidName(p.kid)).join('、')} · {t('fam.ask.body', { n: (weekly ? ticked.size : 1) * plan.length, points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => setAsking(false)}
+                      style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #d5deeb', background: '#fff', color: '#56647d', fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}>{t('fam.ask.back')}</button>
+                    <button type="button" onClick={confirm} disabled={busy}
+                      style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}>{t('fam.ask.yes')}</button>
+                  </div>
+                </div>
+              ) : (
+              <button type="button" onClick={() => setAsking(true)} disabled={busy || (weekly && !cands)}
                 style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
                 {busy ? t('fam.booking') : t('fam.confirm', { n })}
               </button>
+              )
             )}
             {err && <p role="alert" style={{ color: '#c0392b', margin: '10px 0 0', fontSize: 14 }}>{err}</p>}
             <p style={{ fontSize: 12.5, color: '#56647d', margin: '10px 0 0', lineHeight: 1.5 }}>{t('fam.allOrNothing')}</p>

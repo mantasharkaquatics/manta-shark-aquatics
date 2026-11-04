@@ -35,7 +35,7 @@ export const ACCT_CSS = `
 .ac-kid .nm b { margin: 0; font-size: 15px; }
 .ac-kid .nm small { font-size: 12.5px; }
 .ac-kid .nm .ac-tag { margin: 0; }
-.ac-kid .hl { flex: none; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700;
+.ac-kid .hl { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-align: right; font-size: 12px; font-weight: 700;
   border-radius: 999px; padding: 3px 9px; background: #e8f5ef; color: #1f7a57; }
 .ac-kid .hl.bad { background: #fdecea; color: #b4321f; }
 .ac-kid .hl.note { background: #fff6e5; color: #8a5300; }

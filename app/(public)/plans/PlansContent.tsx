@@ -99,7 +99,7 @@ const css = `
   .p-count b { display: block; font-family: var(--font-display), serif; font-size: 28px; font-weight: 900; line-height: 1; white-space: nowrap; }
   .b-root.zh .p-count b { font-family: inherit; font-size: 24px; }
   .p-count[aria-pressed="true"] b { color: ${BRAND.blue}; }
-  .p-count span { display: block; font-size: 12px; margin-top: 6px; color: ${BRAND.mute}; font-variant-numeric: tabular-nums; }
+  .p-count span { display: block; font-size: 13.5px; margin-top: 6px; color: ${BRAND.mute}; font-variant-numeric: tabular-nums; }
   .p-fine { font-size: 12px; color: ${BRAND.mute}; line-height: 1.7; margin: 0; }
 
   .p-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
@@ -252,6 +252,17 @@ function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | nul
       .catch(() => {})
   }, [signedIn])
 
+  // A view-only family member pays for nothing: say so up front instead of
+  // offering the buttons and refusing on tap (2026-11-04).
+  const [viewerRole, setViewerRole] = useState(false)
+  useEffect(() => {
+    if (signedIn !== true) return
+    let live = true
+    myFamilyRole(supabase).then(r => { if (live) setViewerRole(r === 'viewer') }).catch(() => {})
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn])
+
   const chosen = topUpAmount(course, lessons)
   // Always true for the grid as it stands. Kept anyway: it is the guard that
   // fails loudly if a base price ever moves the grid outside what the server
@@ -296,6 +307,10 @@ function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | nul
     }
     setBusy(false)
   }
+
+  if (viewerRole) return (
+    <div className="p-card"><p className="p-fine" style={{ fontSize: 14 }}>{t('viewer.cantPay')}</p></div>
+  )
 
   return (
     <div className="p-card">

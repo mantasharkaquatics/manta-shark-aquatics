@@ -37,7 +37,7 @@ const css = `
 .ib-hd h1 { flex: 1; margin: 0; font-size: 18px; font-weight: 800; }
 .ib-back { width: 42px; height: 42px; min-height: 0; border: 0; background: none; color: #fff; display: grid; place-items: center; cursor: pointer; border-radius: 10px; margin-left: -6px; }
 .ib-tabs { display: flex; gap: 4px; padding: 4px 12px 10px; background: ${BRAND.navy}; }
-.ib-tabs button { flex: 1; position: relative; min-height: 0; padding: 7px 0; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+.ib-tabs button { flex: 1; position: relative; min-height: 0; padding: 10px 0; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
   border-radius: 8px; border: 0; background: transparent; color: #9fb3d6; }
 .ib-tabs button[aria-selected="true"] { background: #fff; color: ${BRAND.navy}; }
 .ib-tabs .lb { position: relative; display: inline-block; }
@@ -159,7 +159,9 @@ export default function ChatPage() {
     inbox.notices.some(n => newer(n.created_at, inbox.seen.notices))
     || inbox.announcements.some(a => newer(a.created_at, inbox.seen.announcements))
     || (inbox.closures.length > 0 && !inbox.seen.announcements))
-  const when = (iso: string) => new Date(iso).toLocaleString(dateTag(locale), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
+  // The date in the family's language, the clock as everywhere else in the app: 3:35 PM.
+  const when = (iso: string) => new Date(iso).toLocaleDateString(dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })
+    + ' ' + new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
 
   const back = () => {
     if (window.history.length > 1) router.back()
@@ -179,9 +181,8 @@ export default function ChatPage() {
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
         </button>
         <h1>{t('app.tab.chat')}</h1>
-        <button type="button" className="ib-back ib-x" onClick={back} aria-label={t('common.close')}>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-        </button>
+        {/* The back arrow is the one way out; a ✕ beside it did the same thing (2026-11-04). */}
+        <span className="ib-back ib-x" aria-hidden="true" />
       </header>
       <div className="ib-tabs" role="tablist" aria-label={t('app.tab.chat')}>
         {tabs.map(x => (
@@ -217,7 +218,7 @@ export default function ChatPage() {
                 ))}
                 {inbox.announcements.map(a => (
                   <article key={a.id} className={'ib-card' + (newer(a.created_at, seenAtOpen?.announcements) ? ' new' : '')}>
-                    <h2>{a.pinned && <span className="ib-pin">{t('inbox.pinned')}</span>}{a.title}</h2>
+                    <h2><span aria-hidden="true">📣</span>{a.pinned && <span className="ib-pin">{t('inbox.pinned')}</span>}{a.title}</h2>
                     {a.body && <p>{a.body}</p>}
                     <small>{when(a.created_at)}</small>
                   </article>

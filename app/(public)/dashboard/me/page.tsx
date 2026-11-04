@@ -65,7 +65,7 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-pl { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
   margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .mx-pl::-webkit-scrollbar { display: none; }
-.mx-pl a { flex: none; width: 168px; scroll-snap-align: start; background: #fff; border-radius: 16px; padding: 11px 12px; text-decoration: none;
+.mx-pl a, .mx-pl .mx-plc { flex: none; width: 168px; scroll-snap-align: start; background: #fff; border-radius: 16px; padding: 11px 12px; text-decoration: none;
   color: ${BRAND.ink}; border: 1px solid ${BRAND.line}; display: flex; flex-direction: column; }
 .mx-pl .k { align-self: flex-start; font-size: 11px; font-weight: 800; color: ${BRAND.blue}; background: #e8eef9; border-radius: 6px; padding: 1px 7px; }
 .mx-pl b { font-size: 14.5px; font-weight: 800; color: ${BRAND.navy}; margin-top: 6px; line-height: 1.3; }
@@ -101,7 +101,7 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
   .mx-card .ft { margin-top: 6px; } .mx-qr { width: 44px; height: 44px; }
   .mx-r { margin-top: 8px; } .mx-r a, .mx-r button { gap: 4px; font-size: 11.5px; } .mx-r em { width: 40px; height: 40px; font-size: 18px; }
   .mx-sec { margin: 8px 2px 6px; }
-  .mx-pl a { padding: 9px 11px; } .mx-pl .who { display: none; } .mx-pl b { margin-top: 4px; }
+  .mx-pl a, .mx-pl .mx-plc { padding: 9px 11px; } .mx-pl .who { display: none; } .mx-pl b { margin-top: 4px; }
   .mx-mini { margin-top: 6px; gap: 6px; } .mx-mini a, .mx-mini button { padding: 9px 12px; }
   .mx-out { margin-top: 2px; padding: 6px 18px; }
 }
@@ -194,8 +194,9 @@ export default function MePage() {
       title: t('dash.plan.when', { weekday: new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`).toLocaleDateString(locale === 'en' ? 'en-US' : locale, { weekday: 'long', timeZone: 'UTC' }), time: time12(f.time) }),
       who: f.studentNames.join(' & '),
       sub: t(f.left === 1 ? 'dash.plan.leftOne' : 'dash.plan.left', { n: f.left, date: f.last ? shortDate(f.last) : '—' }),
-      done: f.total ? Math.max(0, Math.min(1, (f.total - f.left) / f.total)) : undefined,
-      act: t(f.renewOpen ? 'fixed.renew' : 'fixed.manage'), actCls: f.renewOpen ? 'renew' : undefined,
+      // The bar is what is left, so a full bar means plenty (2026-11-04).
+      done: f.total ? Math.max(0, Math.min(1, f.left / f.total)) : undefined,
+      act: t(viewer ? 'voucher.lineLink' : f.renewOpen ? 'fixed.renew' : 'fixed.manage'), actCls: f.renewOpen && !viewer ? 'renew' : undefined,
     })
     const byOwner = new Map<string, Voucher[]>()
     for (const v of plans.vouchers) { const k = [v.studentId, v.student2Id].filter(Boolean).sort().join('+'); byOwner.set(k, [...(byOwner.get(k) || []), v]) }
@@ -203,7 +204,7 @@ export default function MePage() {
       const first = [...vs].sort((a, b) => a.expiresOn.localeCompare(b.expiresOn))[0]
       cards.push({
         key: 'v' + k, href: `/booking?voucher=${first.id}`, kind: t('me.plan.voucher'),
-        title: t('me.plan.voucherN', { n: vs.length }), who: first.studentNames.join(' & '),
+        title: t(vs.length === 1 ? 'me.plan.voucherOne' : 'me.plan.voucherN', { n: vs.length }), who: first.studentNames.join(' & '),
         sub: t(vs.length === 1 ? 'dash.plan.expires' : 'dash.plan.firstExpires', { date: shortDate(first.expiresOn) }),
         subCls: first.expiresOn <= plusDays(todayLA(), 7) ? 'soon' : undefined, act: t('voucher.book'),
       })
@@ -275,7 +276,15 @@ export default function MePage() {
 
         <p className="mx-sec">{t('dash.plans.title')}{cards.length > 1 && <small>{t('me.plans.swipe')}</small>}</p>
         <nav className="mx-pl" aria-label={t('dash.plans.title')}>
-          {cards.map(c => (
+          {cards.map(c => viewer && c.key.startsWith('v') ? (
+            // A view-only member cannot book with a voucher: shown, not linked.
+            <span key={c.key} className="mx-plc">
+              <span className="k">{c.kind}</span>
+              <b>{c.title}</b>
+              {c.who && <small className="who">{c.who}</small>}
+              <small className={c.subCls}>{c.sub}</small>
+            </span>
+          ) : (
             <Link key={c.key} href={c.href}>
               <span className="k">{c.kind}</span>
               <b>{c.title}</b>

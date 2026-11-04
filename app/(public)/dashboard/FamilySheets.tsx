@@ -46,9 +46,9 @@ export function SuggestionSheet({ onClose }: { onClose: () => void }) {
   const keep = !!text.trim() && state !== 'done'
   return (
     <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
-      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.title')}>
+      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.link')}>
         <div className="msa-sheet-head">
-          <b>{t('suggest.title')}</b>
+          <b>{t('suggest.link')}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
         </div>
         {state === 'done' ? (
@@ -336,6 +336,10 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
         </div>
       )}
 
+      {/* From 我的 › 點數明細 the statement is the point: no lesson count, no
+          buy button or Zelle (儲值 sits beside it on 我的), no toggle --
+          the lines start right under the balance (2026-11-04). */}
+      {!historyFirst && <>
       <div style={{ fontSize: '11px', color: '#56647d', marginBottom: '4px', lineHeight: 1.5 }}>
         {t('points.card.done', { n: w.lessonsCompleted })}
       </div>
@@ -349,13 +353,14 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
           assessed swimmer, as on the Points page. No amount step here -- the
           family types the amount into Zelle themselves. */}
       {zelle && <ZellePay style={{ marginTop: 0, marginBottom: 14 }} />}
+      </>}
 
       <>
-          <button onClick={toggleHistory} aria-expanded={showHistory}
-            style={{ background: 'none', border: 'none', padding: 0, fontSize: '11px', color: '#56647d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.5px' }}>
-            <span style={{ fontSize: '9px' }} aria-hidden="true">{showHistory ? '▲' : '▼'}</span>
+          {!historyFirst && <button onClick={toggleHistory} aria-expanded={showHistory}
+            style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: '40px', fontSize: '14px', fontWeight: 700, color: '#2050a0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '11px' }} aria-hidden="true">{showHistory ? '▲' : '▼'}</span>
             {t(showHistory ? 'points.card.hideHistory' : 'points.card.showHistory')}
-          </button>
+          </button>}
           {showHistory && (
             <div
               /* Swipe to turn the page on a phone. Only a decisively SIDEWAYS
@@ -388,7 +393,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                 <div key={row.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#56647d' }}>{reasonLabel(row.reason)}</div>
-                    <div style={{ fontSize: '10px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '12px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
                       {/* The school's day, as on the receipt (found 2026-10-15: an
                           evening top-up read as the next day outside Pacific time). */}
                       {new Date(row.at).toLocaleDateString(intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
@@ -399,7 +404,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                     {row.invoice && (
                       <a href={`/api/invoices/${row.invoice.id}/pdf`} target="_blank" rel="noopener noreferrer"
                         title={t('points.card.receiptTitle', { number: row.invoice.number })}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '3px', fontSize: '10px', color: GOLD, textDecoration: 'none' }}>
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '4px', padding: '6px 10px', minHeight: '36px', borderRadius: '8px', border: '1px solid #c9d8ee', fontSize: '13px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
                         <span aria-hidden>🧾</span>{t('points.card.receipt')}
                       </a>
                     )}
@@ -419,7 +424,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                         <div style={{ fontSize: '12.5px', fontWeight: 700, color: row.points >= 0 ? '#1f7a57' : '#16294a' }}>
                           {row.points >= 0 ? '+' : '−'}{Math.abs(row.points).toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#56647d' }}>{(row.balanceAfter ?? 0).toLocaleString()}</div>
+                        <div style={{ fontSize: '12px', color: '#56647d' }}>{(row.balanceAfter ?? 0).toLocaleString()}</div>
                       </>
                     )}
                   </div>

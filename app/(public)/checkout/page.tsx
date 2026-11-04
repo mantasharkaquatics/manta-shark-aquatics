@@ -21,6 +21,11 @@ import { myParentId, myFamilyRole } from '@/lib/my-parent'
 // buying on the left and who it is for on the right, amber for the one button.
 
 const css = `
+  .co-head { padding: calc(var(--nav-space, 0px) + 28px) 0 4px; }
+  html.msa-app .co-head { padding-top: 12px; }
+  .co-head h1 { font-size: clamp(26px, 3vw, 34px); font-weight: 900; color: ${BRAND.navy}; margin: 6px 0 4px; line-height: 1.2; }
+  .co-head .co-lead { color: ${BRAND.mute}; font-size: 15px; line-height: 1.6; margin: 0; max-width: 60ch; }
+
   .co-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; max-width: 960px; }
   .co-card { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 18px; padding: 26px; }
   .co-card + .co-card { margin-top: 16px; }
@@ -153,15 +158,17 @@ function CheckoutContent() {
   return (
     <BrandRoot>
       <style>{css}</style>
-      <header className="b-hero">
+      {/* A page heading, not the marketing banner: on a laptop the form began
+          below the first screen (2026-11-04). */}
+      <header className="co-head b-paper">
         <div className="b-wrap">
           <p className="b-eyebrow">{t('checkout.eyebrow')}</p>
           <h1>{t('checkout.titleTeam')}</h1>
-          <p className="b-lead">{t('checkout.acctTeam')}</p>
+          <p className="co-lead">{t('checkout.acctTeam')}</p>
         </div>
       </header>
 
-      <section className="b-sec b-paper" style={{ paddingTop: 48 }}>
+      <section className="b-sec b-paper" style={{ paddingTop: 16 }}>
         <div className="b-wrap">
           {!isTeam || loading ? (
             <div className="co-loading">{t('checkout.loading')}</div>

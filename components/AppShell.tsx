@@ -88,7 +88,7 @@ const css = `
     border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
     transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
   html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: var(--app-tab-gap); }
-  .msa-tb .lb { display: block; max-height: 14px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
+  .msa-tb .lb { display: block; max-height: 1.6em; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
   html.msa-tabs-small .msa-tb .ic { transform: scale(.9); }

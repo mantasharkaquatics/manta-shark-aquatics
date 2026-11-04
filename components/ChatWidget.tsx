@@ -48,7 +48,7 @@ function renderBody(text: string, linkLabel: string) {
    small round pictures, the school's notices as small cards. */
 const PAGE_CSS = `
 .pc { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; font-family: ${FONT_BODY}; background: ${BRAND.paper}; }
-.pc-mode { text-align: center; font-size: 12px; color: ${BRAND.mute}; padding: 6px 12px 0; }
+.pc-mode { text-align: center; font-size: 12px; color: ${BRAND.mute}; padding: 6px 12px 7px; border-bottom: 1px solid #dfe7f2; }
 .pc-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .pc-empty { margin: 40px auto 0; text-align: center; color: ${BRAND.mute}; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
 .pc-empty span { font-size: 32px; }
@@ -90,6 +90,7 @@ const PAGE_CSS = `
 .pc-th { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
 .pc-th img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; }
 .pc-th button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; min-height: 0; border-radius: 50%; border: 2px solid #fff; background: ${BRAND.navy}; color: #fff; font-size: 11px; line-height: 1; cursor: pointer; padding: 0; }
+.pc-th button::before { content: ''; position: absolute; inset: -10px; }
 .pc-add { flex-shrink: 0; width: 64px; height: 64px; min-height: 0; border-radius: 10px; border: 1.5px dashed #b5c3d8; background: #f4f7fb; color: ${BRAND.mute}; font-size: 24px; cursor: pointer; }
 .pc-trow { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .pc-trow span { flex: 1; font-size: 13px; color: ${BRAND.mute}; }
@@ -260,6 +261,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       if (d.key) { setGuestKey(d.key); try { localStorage.setItem(GUEST_KEY, d.key) } catch {} }
       if (Array.isArray(d.messages)) setMessages(d.messages)
       setContactOpen(false)
+      setMode('human')
       setContact({ name: '', email: '', phone: '', text: '' })
     } catch { setContactErr('chat.contact.err.generic') } finally { setContactBusy(false) }
   }
@@ -744,6 +746,13 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       fileRef.current?.click()
     }
   }
+  // Picked photos open a row above the box; keep the newest message in sight
+  // above it (2026-11-04: the row covered the last 140px of the chat).
+  useLayoutEffect(() => {
+    const el = listRef.current
+    if (el && picked.length) el.scrollTop = el.scrollHeight
+  }, [picked.length])
+
   const unpick = (url: string) => setPicked(prev => { URL.revokeObjectURL(url); return prev.filter(p => p.url !== url) })
   const clearPicked = () => setPicked(prev => { prev.forEach(p => URL.revokeObjectURL(p.url)); return [] })
   async function sendPhotos() {
@@ -973,6 +982,18 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             // Escape closes it, full screen on a phone included; not while an
             // IME is composing, where Escape only drops the candidate (keyCode 229:
             // Safari reports isComposing late, as with Enter below).
+            // Full screen on a phone it covers the page, so Tab stays inside
+            // it (2026-11-04: Tab past 送出 went to the hidden page behind).
+            if (e.key === 'Tab' && isMobile && panelRef.current) {
+              const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                .filter(n => n.getClientRects().length > 0)
+              if (items.length) {
+                const first = items[0], last = items[items.length - 1], active = document.activeElement
+                if (e.shiftKey && (active === first || active === panelRef.current)) { e.preventDefault(); last.focus() }
+                else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+              }
+              return
+            }
             if (e.key !== 'Escape' || e.nativeEvent.isComposing || e.keyCode === 229) return
             e.stopPropagation()
             closePanel()
@@ -984,7 +1005,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               style={{ display: 'block', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, color: '#fff', fontSize: '16px' }}>{t('chat.title')}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{!guest && mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
             </div>
             <button onClick={closePanel} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
           </div>
@@ -996,11 +1017,11 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               <Link href="/register" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 800 }}>{t('chat.guest.signUp')}</Link>
               {' · '}
               <Link href="/login" onClick={() => setOpen(false)} style={{ color: BLUE, fontWeight: 700 }}>{t('chat.guest.signIn')}</Link>
-              {' · '}
+              {mode !== 'human' && <>{' · '}
               <button type="button" className="tap-auto" onClick={() => { setContactErr(null); setContactOpen(true) }}
                 style={{ background: 'none', border: 'none', padding: 0, color: BLUE, fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
                 {t('chat.contact.open')}
-              </button>
+              </button></>}
             </div>
           )}
 

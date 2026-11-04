@@ -1,5 +1,6 @@
 'use client'
 
+import { emailTypoFix, looksLikeEmail } from '@/lib/email-typo'
 import { MedicalQuestion, EmergencyContactFields, safetyErrorKey } from '@/components/SafetyFields'
 import { contactProblem, medicalToStore, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
 import { useState, useRef, useEffect } from 'react'
@@ -342,6 +343,12 @@ export default function RegisterClient() {
 
   async function sendEmailOtp() {
     if (!email.trim()) { setEmailError(t('register.err.enterEmail')); return }
+    // Caught before a code is sent to an address that cannot exist (2026-11-04:
+    // "jane@gmial" got a code and a 60-second wait).
+    const addr = email.trim().toLowerCase()
+    if (!looksLikeEmail(addr)) { setEmailError(t('register.err.emailFormat')); return }
+    const fix = emailTypoFix(addr)
+    if (fix) { setEmailError(t('register.err.emailTypo', { email: fix })); return }
     setEmailSending(true); setEmailError('')
     try {
       const res = await fetch('/api/auth/send-email-otp', {
@@ -429,6 +436,7 @@ export default function RegisterClient() {
     // 2026-10-08): it used to surface only from signUp on step 2, which has
     // no password field to fix. Same minimum as Supabase's (err.passwordShort).
     if (!finish && password.length < 6) { setError(t('err.passwordShort')); return }
+    if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) { setError(t('register.err.zip')); return }
     if (!emailOk) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
     // A referral code that is not a found one is not dropped in silence
@@ -597,7 +605,7 @@ export default function RegisterClient() {
                 <label htmlFor="reg-referral" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.referral')}</label>
                 <input id="reg-referral" value={referralCode} onChange={e => { setReferralLinkBad(false); setReferralAuto(false); setReferralCode(cleanReferral(e.target.value)) }}
                   placeholder={t('register.referralPlaceholder')} autoCapitalize="characters" autoComplete="off"
-                  className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-sm tracking-[0.2em] ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
+                  className={`w-full bg-white border text-[#16294a] placeholder-gray-400 focus:outline-none rounded-lg px-3 py-2.5 text-base tracking-[0.2em] ${referral?.valid ? 'border-green-600' : referral && !referral.valid ? 'border-red-500' : 'border-[#d5e0ef] focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15'}`} />
                 {referralLinkBad ? (
                   <p className="text-xs text-red-600 mt-1.5">{t('register.ref.linkBad')}</p>
                 ) : referral && !referral.valid ? (
@@ -612,12 +620,12 @@ export default function RegisterClient() {
               <div>
                 <label htmlFor="reg-first" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.firstName')} <span className="text-red-600">*</span></label>
                 <input id="reg-first" value={firstName} onChange={e => setFirstName(e.target.value)} autoComplete="given-name"
-                  className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                  className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
               </div>
               <div>
                 <label htmlFor="reg-last" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.lastName')} <span className="text-red-600">*</span></label>
                 <input id="reg-last" value={lastName} onChange={e => setLastName(e.target.value)} autoComplete="family-name"
-                  className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                  className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
               </div>
             </div>
 
@@ -627,10 +635,14 @@ export default function RegisterClient() {
                   field was squeezed to about a third of a phone screen -- you
                   could not see the address you were typing. Stacked below sm. */}
               <div className="flex flex-col sm:flex-row gap-2">
-                <input id="reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={emailOk || !!finish}
+                <input id="reg-email" type="email" value={email} onChange={e => {
+                  setEmail(e.target.value)
+                  // A new address starts over: no waiting out the old one's timer.
+                  if (emailOtpSent && !emailOk) { setEmailOtpSent(false); setEmailCooldown(0); setEmailError('') }
+                }} disabled={emailOk || !!finish}
                   autoComplete="email" inputMode="email"
                   aria-invalid={!!emailError && !emailOtpSent} aria-describedby={emailError ? 'reg-email-err' : undefined}
-                  className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
+                  className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base disabled:opacity-60" />
                 {emailOk ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
@@ -649,7 +661,7 @@ export default function RegisterClient() {
                     value={emailOtpCode}
                     onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.emailCodePh')}
-                    className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm tracking-widest" />
+                    className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base tracking-widest" />
                   <button type="button" onClick={verifyEmailOtp} disabled={emailVerifying || emailOtpCode.length !== 6}
                     className="px-4 min-h-11 bg-[#f09800] hover:bg-[#d98900] text-[#12254a] rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {emailVerifying ? t('register.verifying') : t('register.verify')}
@@ -670,7 +682,7 @@ export default function RegisterClient() {
                   autoComplete="tel"
                   aria-invalid={!!phoneError && !phoneOtpSent} aria-describedby={phoneError ? 'reg-phone-err' : undefined}
                   placeholder="(555) 123-4567"
-                  className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm disabled:opacity-60" />
+                  className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base disabled:opacity-60" />
                 {phoneVerified ? (
                   <span className="flex items-center px-3 text-green-700 text-sm font-medium whitespace-nowrap">{t('register.verified')}</span>
                 ) : (
@@ -689,7 +701,7 @@ export default function RegisterClient() {
                     value={phoneOtpCode}
                     onChange={e => setPhoneOtpCode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('register.smsCodePh')}
-                    className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm tracking-widest" />
+                    className="flex-1 bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base tracking-widest" />
                   <button type="button" onClick={verifyPhoneOtp} disabled={phoneVerifying || phoneOtpCode.length !== 6}
                     className="px-4 min-h-11 bg-[#f09800] hover:bg-[#d98900] text-[#12254a] rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
                     {phoneVerifying ? t('register.verifying') : t('register.verify')}
@@ -713,7 +725,7 @@ export default function RegisterClient() {
                       onChange={e => handleAddressInput(e.target.value)}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                       placeholder={t('register.addrPh')}
-                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                     {showSuggestions && suggestions.length > 0 && (
                       <ul className="absolute z-50 w-full bg-white border border-[#d5e0ef] rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto">
                         {suggestions.map((s: any) => (
@@ -731,25 +743,25 @@ export default function RegisterClient() {
                   <label htmlFor="reg-addr2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.addr2')} <span className="text-[#56647d] font-normal">{t('register.optional')}</span></label>
                   <input id="reg-addr2" autoComplete="address-line2" value={addressLine2} onChange={e => setAddressLine2(e.target.value)}
                     placeholder={t('register.aptPh')}
-                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="reg-city" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.city')} <span className="text-red-600">*</span></label>
                     <input id="reg-city" autoComplete="address-level2" value={city} onChange={e => setCity(e.target.value)}
-                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                   </div>
                   <div>
                     <label htmlFor="reg-zip" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.zip')} <span className="text-red-600">*</span></label>
-                    <input id="reg-zip" autoComplete="postal-code" value={zipCode} onChange={e => setZipCode(e.target.value)}
+                    <input id="reg-zip" autoComplete="postal-code" inputMode="numeric" value={zipCode} onChange={e => setZipCode(e.target.value)}
                       placeholder="90210" maxLength={10}
-                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                   </div>
                 </div>
                 <div>
                   <label htmlFor="reg-state" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.state')} <span className="text-red-600">*</span></label>
                   <select id="reg-state" autoComplete="address-level1" value={state} onChange={e => setState(e.target.value)}
-                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm">
+                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base">
                     <option value="">{t('register.selectState')}</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -764,12 +776,12 @@ export default function RegisterClient() {
                 <div>
                   <label htmlFor="reg-password" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
                   <PasswordField id="reg-password" value={password} onChange={setPassword} autoComplete="new-password"
-                    className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password && password.length < 6 ? ' !border-red-500' : '')} />
                 </div>
                 <div>
                   <label htmlFor="reg-password2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
                   <PasswordField id="reg-password2" value={password2} onChange={setPassword2} autoComplete="new-password"
-                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
+                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
                 </div>
               </div>
               <p className={`text-xs mt-1.5 ${password && password.length < 6 ? 'text-red-600' : 'text-[#56647d]'}`}>{t('register.passwordHint')}</p>
@@ -803,7 +815,7 @@ export default function RegisterClient() {
                   <div>
                     <label htmlFor={`reg-student-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.fullName')}</label>
                     <input id={`reg-student-${i}`} value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
-                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-sm" />
+                      className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                   </div>
                   <div>
                     <p id={`reg-dob-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600" aria-hidden="true">*</span></p>

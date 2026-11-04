@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
+import { cookies } from 'next/headers'
+import { translate, isLocale, DEFAULT_LOCALE } from '@/lib/i18n/all'
+import { LOCALE_COOKIE } from '@/lib/i18n'
 
 // One frame for every legal document (terms, privacy, waiver, media release,
 // SMS terms), so they read as one set: the same dark top as the rest of the
@@ -39,12 +42,17 @@ const css = `
               font-size: 15px; line-height: 1.7; color: ${BRAND.ink}; }
 `
 
-export default function LegalPage({ title, subtitle, meta, children }: {
+export default async function LegalPage({ title, subtitle, meta, children }: {
   title: string
   subtitle?: string
   meta?: React.ReactNode
   children: React.ReactNode
 }) {
+  /* The documents stay in English (they are what governs); a Chinese reader
+     is told so in their own language first (2026-11-04). */
+  const c = (await cookies()).get(LOCALE_COOKIE)?.value
+  const locale = c && isLocale(c) ? c : DEFAULT_LOCALE
+  const enOnly = locale === 'en' ? null : translate(locale, 'legal.enOnly')
   return (
     <BrandRoot>
       <style>{css}</style>
@@ -64,6 +72,7 @@ export default function LegalPage({ title, subtitle, meta, children }: {
         <div className="b-wrap">
           <article className="lg-doc">
             <Link href="/policies" className="lg-back">← All terms &amp; policies</Link>
+            {enOnly && <p className="lg-plain" lang={locale}>{enOnly}</p>}
             {children}
           </article>
         </div>

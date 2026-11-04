@@ -200,6 +200,11 @@ html.msa-app [data-view="home"] .msa-main { flex: 1 1 0; min-height: 0; width: 1
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 20px 12px }
 html.msa-app [data-view="home"] .msa-kids { flex: 1 0 auto; display: flex; flex-direction: column; margin: 0 }
 html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .msa-newrep { margin-bottom: 10px }
+.msa-viewnote-d { display: block !important; padding: 10px 14px !important; }
+.msa-viewnote-d summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-weight: 700; }
+.msa-viewnote-d summary::-webkit-details-marker { display: none; }
+.msa-viewnote-d summary i { font-style: normal; margin-left: auto; opacity: .7; }
+.msa-viewnote-d p { margin: 8px 0 0; font-size: 13px; line-height: 1.55; }
 /* Over the swimmer's picture: the name and level along the bottom. */
 .msa-deck-name { position: absolute; left: 14px; right: 14px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; color: #fff }
 .msa-deck-name .msa-mcard-name { min-height: 0; max-width: 100%; -webkit-line-clamp: 1; line-clamp: 1; font-size: 27px; line-height: 1.1;
@@ -979,8 +984,10 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           {t('dash.qr.help')}
         </p>
 
-        {/* Download button */}
-        <button
+        {/* Download button. Not in the app: the iPhone web view cannot save
+            a download, so it did nothing (2026-11-04) -- the code is shown
+            at the desk from the screen anyway. */}
+        {!appLook() && <button
           onClick={handleDownload}
           style={{
             width: '100%', padding: '12px', borderRadius: '10px',
@@ -990,7 +997,7 @@ function QRModal({ student, onClose }: { student: Student; onClose: () => void }
           }}
         >
           {t('dash.qr.download')}
-        </button>
+        </button>}
       </div>
     </div>
   )
@@ -2718,6 +2725,10 @@ export default function DashboardPage() {
           : t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
       } else if (j.outcome === 'restore') {
         setDoneMsg(t('dash.cancelDone.voucherBack'))
+      } else {
+        // A plain cancel says so too (2026-11-04: the lesson just vanished).
+        const back = Number(j.refunded ?? j.points_refunded ?? shown?.points ?? 0)
+        setDoneMsg(back > 0 ? t('dash.cancelDone.points', { n: back.toLocaleString() }) : t('dash.cancelDone.plain'))
       }
     } catch { setNotice(t('dash.pend.network')) }
     await fetchAll({ progress: false })
@@ -3139,10 +3150,12 @@ export default function DashboardPage() {
 <div className="msa-main">
 
         {viewer && (
-          <div className="msa-viewnote" role="note">
-            <span aria-hidden="true">👀</span>
-            <span>{t('dash.viewer.note', { name: mainName })}</span>
-          </div>
+          /* One line, opened for the whole note (2026-11-04: three lines on
+             首頁, which must not grow). */
+          <details className="msa-viewnote msa-viewnote-d" role="note">
+            <summary><span aria-hidden="true">👀</span><span>{t('dash.viewer.short', { name: mainName })}</span><i aria-hidden="true">ⓘ</i></summary>
+            <p>{t('dash.viewer.note', { name: mainName })}</p>
+          </details>
         )}
         {/* On the app's home, which does not scroll, the same ask as one line. */}
         {safetyMissing && !viewer && appHome && (
@@ -3208,6 +3221,29 @@ export default function DashboardPage() {
                   <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
                 </button>
               )
+              const nextLine = () => {
+                          /* The child's next lesson, on the card (owner, 2026-10-26).
+                             The "practise at home" line beside it was taken out
+                             again the same day (owner: not wanted). */
+                          const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
+                          const next = upcomingBookings.filter(b => mine(b) && b.status !== 'cancelled')
+                            .sort((a, b) => (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
+                          if (!next) return null
+                          const today = getTodayLA()
+                          const tomorrow = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
+                          const when = next ? (next.session_date === today ? t('dash.week.today') : next.session_date === tomorrow ? t('dash.next.tomorrow')
+                            : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
+                          return (
+                            <div className="msa-mcard-next">
+                              <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
+                                <span className="ic" aria-hidden="true">📅</span>
+                                <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
+                                  <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
+                                <span className="go" aria-hidden="true">›</span>
+                              </button>
+                            </div>
+                          )
+                        }
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
                   {/* Name and check-in on one line (owner, 2026-10-26: the
@@ -3216,15 +3252,22 @@ export default function DashboardPage() {
                     <div className="msa-mcard-name">{student.full_name}</div>
                     {/* Check-in sits on the card it belongs to: a family with two
                         swimmers is on the pool deck, holding a towel. */}
+                    {upcomingBookings.some(b => (b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)) && b.status !== 'cancelled' && b.session_date === getTodayLA()) &&
                     <button className="tap-auto msa-mcard-qr" onClick={() => setQrStudent(student)} aria-label={t('dash.viewQr')}>
                       <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h5v5H3zM12 3h5v5h-5zM3 12h5v5H3z" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 12h2v2h-2zM15 15h2v2h-2zM15 12h2v2h-2zM12 15h2v2h-2z" fill="currentColor" /></svg>
                       {t('dash.checkIn')}
-                    </button>
+                    </button>}
                   </div>
 
                   {!hasLevel && (
                     <>
                       <span className="msa-mcard-lv"><i />{t('dash.pendingAssessment')}</span>
+                      {/* Waiting for the assessment: the booked one, or the button to book it (2026-11-04). */}
+                      {nextLine() || (!viewer && (
+                        <div className="msa-mcard-btns">
+                          <button className="tap-auto" onClick={() => router.push('/booking?student=' + student.id)}>📅 {t('assess.cta.button')}</button>
+                        </div>
+                      ))}
                       {(pastBookings.some(b => b.student_id === student.id) || monthlyBtn) && (
                         <div className="msa-mcard-btns">
                           {pastBookings.some(b => b.student_id === student.id) && (
@@ -3255,29 +3298,7 @@ export default function DashboardPage() {
                           <span>{t(stageNameKey(lvl, curStage))}</span>
                           <b>{curPct}%</b>
                         </div>
-                        {(() => {
-                          /* The child's next lesson, on the card (owner, 2026-10-26).
-                             The "practise at home" line beside it was taken out
-                             again the same day (owner: not wanted). */
-                          const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
-                          const next = upcomingBookings.filter(b => mine(b) && b.status !== 'cancelled')
-                            .sort((a, b) => (a.session_date + a.start_time).localeCompare(b.session_date + b.start_time))[0]
-                          if (!next) return null
-                          const today = getTodayLA()
-                          const tomorrow = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) })()
-                          const when = next ? (next.session_date === today ? t('dash.week.today') : next.session_date === tomorrow ? t('dash.next.tomorrow')
-                            : new Date(next.session_date + 'T12:00:00').toLocaleDateString(intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
-                          return (
-                            <div className="msa-mcard-next">
-                              <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
-                                <span className="ic" aria-hidden="true">📅</span>
-                                <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
-                                  <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
-                                <span className="go" aria-hidden="true">›</span>
-                              </button>
-                            </div>
-                          )
-                        })()}
+                        {nextLine()}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
                             🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
@@ -3382,7 +3403,7 @@ export default function DashboardPage() {
                       )}
                       {/* A new swimmer with nothing booked yet: the one thing to do next. */}
                       {!hasLevel && !hasPast && !booked && !viewer && (
-                        <button type="button" className="tap-auto wide" onClick={() => { window.location.href = '/booking' }}>
+                        <button type="button" className="tap-auto wide" onClick={() => router.push('/booking?student=' + student.id)}>
                           <i aria-hidden="true">📅</i><span>{t('assess.cta.button')}</span>
                         </button>
                       )}
@@ -3844,10 +3865,16 @@ export default function DashboardPage() {
             <div style={{ background: '#fff', borderRadius: '14px', border: '1px dashed #e3ebf6', padding: '14px' }}>
               <MascotEmpty text={t('dash.noUpcoming')}>
                 {!viewer && (
-                  <button type="button" className="tap-auto" onClick={() => { window.location.href = '/booking' }}
-                    style={{ marginTop: '4px', padding: '12px 22px', borderRadius: '12px', border: 'none', background: NAVY, color: '#fff', fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
-                    {t('quick.book')}
-                  </button>
+                  (() => {
+                    // Nobody has a level yet: the next step is the assessment, for them.
+                    const waiting = students.length > 0 && students.every(s => s.current_level == null)
+                    return (
+                      <button type="button" className="tap-auto" onClick={() => router.push(waiting && students.length === 1 ? '/booking?student=' + students[0].id : '/booking')}
+                        style={{ marginTop: '4px', padding: '12px 22px', borderRadius: '12px', border: 'none', background: NAVY, color: '#fff', fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
+                        {t(waiting ? 'assess.cta.button' : 'quick.book')}
+                      </button>
+                    )
+                  })()
                 )}
               </MascotEmpty>
             </div>
@@ -3985,15 +4012,23 @@ export default function DashboardPage() {
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} />{m.checked_in && <span role="img" aria-label={t('dash.up.checkedIn')} title={t('dash.up.checkedIn')} style={{ marginLeft: '6px', fontSize: '13px', color: '#1f7a57' }}>&#10003;</span>}</div>
                                   <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
-                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · {t('dash.up.coach', { name: m.coach_name })}<PoolLink id={m.location_id} prefix=" · " />
+                                    {formatTime(m.start_time)} — {formatTime(m.end_time)} · <span style={{ whiteSpace: 'nowrap' }}>{t('dash.up.coach', { name: m.coach_name })}</span><PoolLink id={m.location_id} prefix=" · " />
                                   </div>
                                 </div>
                                 {(m.course_slug === '1on2' && mi > 0) ? null : (
                                   <div className="msa-lesson-actions">
                                     {!noMove && <button
-                                      onClick={() => setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })}
-                                      disabled={rDis}
-                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: rDis ? 'not-allowed' : 'pointer' }}>
+                                      onClick={() => {
+                                        /* Greyed, but it says why (2026-11-04: a tap on it did nothing). */
+                                        if (rDis) {
+                                          if (reschedulingId === m.id) return
+                                          setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => openChat(), closeLabel: t('common.close') })
+                                          return
+                                        }
+                                        setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
+                                      }}
+                                      aria-disabled={rDis}
+                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                       {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
                                     </button>}
                                     {ckIn ? null : lessonStarted(m) && !isOwnInvite(m) ? (

@@ -133,11 +133,20 @@ export function SafetyEditor({ parentPhone, onClose, onSaved }: { parentPhone?: 
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, saving])
 
+  const [missingId, setMissingId] = useState<string | null>(null)
   async function save() {
     if (!info) return
     setErr(null)
     const missingAnswer = info.students.find(s => { const a = answers[s.id]; return !a || (!a.none && !a.notes.trim()) })
-    if (missingAnswer) { setErr(t('safety.err.medicalFor', { name: missingAnswer.full_name })); return }
+    if (missingAnswer) {
+      setErr(t('safety.err.medicalFor', { name: missingAnswer.full_name }))
+      // Taken to that child's question, marked (2026-11-04: the note was at
+      // the bottom and the question off screen above).
+      setMissingId(missingAnswer.id)
+      document.getElementById('safety-kid-' + missingAnswer.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return
+    }
+    setMissingId(null)
     const p = contactProblem(contact, parentPhone)
     if (p) { setErr(t(safetyErrorKey(p))); return }
     setSaving(true)
@@ -169,7 +178,7 @@ export function SafetyEditor({ parentPhone, onClose, onSaved }: { parentPhone?: 
         {loadErr ? <p style={S.err}>{t('safety.err.load')}</p> : !info ? <p style={S.hint}>{t('common.loading')}</p> : (
           <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
             {info.students.map(s => (
-              <div key={s.id} style={{ background: '#fff', border: '1px solid #e3eaf4', borderRadius: 12, padding: 14 }}>
+              <div key={s.id} id={'safety-kid-' + s.id} style={{ background: '#fff', border: missingId === s.id ? '2px solid #c0392b' : '1px solid #e3eaf4', borderRadius: 12, padding: 14 }}>
                 <MedicalQuestion id={`sf-${s.id}`} name={s.full_name} value={answers[s.id] ?? null}
                   onChange={v => setAnswers(a => ({ ...a, [s.id]: v }))} />
               </div>

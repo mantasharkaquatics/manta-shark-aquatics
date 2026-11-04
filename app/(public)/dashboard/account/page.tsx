@@ -308,7 +308,8 @@ export default function AccountPage() {
                 })}
               </div>
             )}
-            <p className="ac-note">{t('account.contactSchool')}{zh ? '' : ' '}{t('safety.who')}</p>
+            <p className="ac-note">{t('account.contactSchool')}</p>
+            <p className="ac-note" style={{ marginTop: 4 }}>{t('account.healthWho')}</p>
 
             {viewOnly ? null : !showAddForm || full ? (
               <>

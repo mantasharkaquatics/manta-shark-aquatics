@@ -31,6 +31,9 @@ const CSS = `
 .zp-body { padding: 2px 14px 14px; }
 .zp-top { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px 14px; align-items: center; background: #fff; border: 1px solid #e3eaf4; border-radius: 10px; padding: 12px; }
 .zp-qr { width: 112px; height: auto; display: block; border-radius: 6px; }
+/* On a phone the QR is on the screen the bank app would need to scan: the
+   email and its copy button lead there instead (2026-11-04). */
+@media (max-width: 600px), (pointer: coarse) and (max-width: 900px) { .zp-qr { display: none; } .zp-top { grid-template-columns: minmax(0, 1fr); } }
 .zp-label { font-size: 11px; letter-spacing: .06em; color: ${BRAND.mute}; margin: 0 0 2px; }
 .zp-name { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; line-height: 1.3; }
 .zp-email { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid #eef2f8; }

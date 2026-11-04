@@ -42,10 +42,10 @@ export default function Footer({ locations = [] }: { locations?: { id: string; n
               <Image src="/logo.png" alt="Manta Shark Aquatics" width={48} height={48} />
               <div>
                 <div style={{ fontFamily: FONT_DISPLAY, fontSize: '16px', fontWeight: 700, color: 'white' }}>Manta Shark Aquatics</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{t('footer.region')}</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.66)' }}>{t('footer.region')}</div>
               </div>
             </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7 }}>{t('footer.tagline')}</p>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.68)', lineHeight: 1.7 }}>{t('footer.tagline')}</p>
           </div>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND.yellow, marginBottom: '16px' }}>{t('footer.links')}</div>
@@ -84,14 +84,14 @@ export default function Footer({ locations = [] }: { locations?: { id: string; n
                 these is a thing we want strangers to click. */}
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <Link href="/careers" style={{ fontSize: '13px', fontWeight: 600, color: BRAND.yellow, textDecoration: 'none' }}>{t('footer.careers')} →</Link>
-              <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>{t('footer.coachLogin')} →</Link>
+              <Link href="/coach-login" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.62)', textDecoration: 'none' }}>{t('footer.coachLogin')} →</Link>
             </div>
           </div>
         </div>
         {/* The year is the visitor's, not a literal. Pages are prerendered, so
             after New Year the server HTML can still say last year until the
             next deploy; the browser corrects it, hence suppressHydrationWarning. */}
-        <div suppressHydrationWarning style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
+        <div suppressHydrationWarning style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px', textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.62)' }}>
           {t('footer.copyright', { year: new Date().getFullYear() })}
         </div>
       </div>

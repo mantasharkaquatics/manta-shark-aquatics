@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import { openChat } from '@/lib/chat-open'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { meetsLeadTime, isWithin24Hours, singleMaxDate, FIXED_CLASS_MIN_LESSONS, SINGLE_BOOKING_DAYS } from '@/lib/booking-time'
 import { BASE_POINTS, OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED, priceLesson, type PriceBreakdown, ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import { zoneTypeForSlug } from '@/lib/zones'
@@ -275,8 +276,13 @@ function SelectCard({ selected, onClick, color = GOLD, disabled = false, childre
   )
 }
 
+// Point amounts with thousands separators, as everywhere else (2026-11-04: 2270 here, 2,270 on 我的).
+const nf = (n: number) => Number(n || 0).toLocaleString('en-US')
+
 export default function BookingPage() {
   const t = useT()
+  // The not-enough-points note scrolls itself into view once, when it appears.
+  const shortRef = useCallback((el: HTMLDivElement | null) => { if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })) }, [])
   const locale = useLocale()
   // Dates were printed with a hard-coded 'en-US', so the Chinese page read
   // "Thursday, Sep 24 的可預約時段".
@@ -1923,7 +1929,20 @@ export default function BookingPage() {
         </div>
         {loadingTimes ? <MascotLoading text={t('booking.loading')} />
           : dows.every(d => !have.get(d)) ? (
-            <p style={{ margin: '14px 0 0', fontSize: '14px', color: '#56647d', textAlign: 'center' }}>{t('booking.fixed.noDays')}</p>
+            <div style={{ margin: '14px 0 0', textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#56647d' }}>{t('booking.fixed.noDays')}</p>
+              {/* The two ways out, as buttons (2026-11-04: they were only words). */}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '12px' }}>
+                <button type="button" onClick={() => chooseWay('single')}
+                  style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('booking.fixed.toSingle')}
+                </button>
+                <button type="button" onClick={() => openChat()}
+                  style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #c9d8ee', background: '#fff', color: '#2050a0', fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('dash.up.messageUs')}
+                </button>
+              </div>
+            </div>
           ) : null}
         {fixedDow != null && !loadingTimes && (
           <div ref={fixedTimesRef} style={{ marginTop: '18px' }}>
@@ -2271,7 +2290,7 @@ export default function BookingPage() {
     if ([...recurSel.values()].some(x => x.date === ds)) { setRecurMsg(t('booking.recur.err.hourSameDay')); return }
     const pts = Number(h.points) || 0
     const item = { date: ds, time: h.start_time, label: `${formatTime(h.start_time)} – ${formatTime(h.end_time)}`, points: pts, coachId: solo.coach1_id, coachName: coachName(solo.coach1_id) }
-    if (dueOf([...recurSel.values(), item], 60) > balance) { setRecurMsg(t('booking.short.body', { have: balance, need: dueOf([...recurSel.values(), item], 60) })); return }
+    if (dueOf([...recurSel.values(), item], 60) > balance) { setRecurMsg(t('booking.short.body', { have: nf(balance), need: nf(dueOf([...recurSel.values(), item], 60)) })); return }
     setRecurSel(prev => new Map(prev).set(key, item))
   }
 
@@ -2371,7 +2390,7 @@ export default function BookingPage() {
         {price.charged < full && (
           <span style={{ textDecoration: 'line-through', color: '#56647d', marginRight: '4px' }}>{full}</span>
         )}
-        {t('points.unit', { n: price.charged })}
+        {t('points.unit', { n: nf(price.charged) })}
       </span>
     )
   }
@@ -2861,7 +2880,7 @@ export default function BookingPage() {
             masthead under the floating nav. */}
         {/* The app's top bar has its own way back (components/AppShell). */}
         <Link href="/dashboard" className="msa-web-only" style={{ fontSize: '13.5px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-          ← {t('booking.header.dashboard')}
+          ← {t('common.backToDashboard')}
         </Link>
         <h1 className="bk-h1" style={{ fontFamily: FONT_DISPLAY, fontSize: 'clamp(28px,3vw,36px)', fontWeight: 900, color: NAVY, margin: '12px 0 0', lineHeight: 1.15 }}>
           {isReschedule ? t('booking.header.reschedule') : makeUp ? t('booking.header.makeUp') : t('booking.header.book')}
@@ -3116,7 +3135,7 @@ export default function BookingPage() {
                             <div style={{ marginTop: '5px', fontSize: '12px', fontWeight: 700, color: '#9a5b00' }}>{t('booking.afterAssessment')}</div>
                           )}
                           {ct.slug === '1on4' && myGroupBand && (
-                            <div style={{ marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
+                            <div style={{ whiteSpace: 'nowrap', marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
                               {t('booking.yourClass', { r: bandRange(myGroupBand.min, myGroupBand.max) })}
                             </div>
                           )}
@@ -3138,9 +3157,9 @@ export default function BookingPage() {
                           {listed < full && (
                             <span style={{ textDecoration: 'line-through', color: '#56647d', marginRight: '5px', fontWeight: 500 }}>{full}</span>
                           )}
-                          {t('points.unit', { n: listed })}
+                          {t('points.unit', { n: nf(listed) })}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#56647d', marginTop: '4px' }}>{t('booking.perSwimmer')}</div>
+                        <div style={{ fontSize: '12px', color: '#56647d', marginTop: '4px' }}>{t('booking.perSwimmerShort')}</div>
                       </div>
                     </div>
                   </SelectCard>
@@ -3150,12 +3169,15 @@ export default function BookingPage() {
             </div>
 
             {selectedCourse && !canAffordCourse && !inArrears && (
-              <div style={{
+              /* Brought into view: under the tab bar a tap on the course only
+                 seemed to tick it (2026-11-04). */
+              <div key={'short-' + selectedCourse.slug} ref={shortRef} role="alert" style={{
+                scrollMarginBottom: 'calc(var(--app-tab-h, 0px) + 80px)',
                 marginTop: '16px', padding: '14px 18px',
                 background: '#fdecea', border: '1px solid #f5c2bd',
                 borderRadius: '10px', fontSize: '14px', color: '#c0392b',
               }}>
-                ⚠️ {t('booking.short.body', { have: balance, need: cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30) })}
+                ⚠️ {t('booking.short.body', { have: nf(balance), need: nf(cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)) })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
@@ -3207,7 +3229,7 @@ export default function BookingPage() {
                 </div>
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && balance < cheapestFor('1on2', 2, isHourLesson ? 60 : 30) && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', fontSize: '13px', color: '#c0392b' }}>
-                    ⚠️ {t('booking.short.twoSeats', { have: balance, need: cheapestFor('1on2', 2, isHourLesson ? 60 : 30) })}
+                    ⚠️ {t('booking.short.twoSeats', { have: nf(balance), need: nf(cheapestFor('1on2', 2, isHourLesson ? 60 : 30)) })}
                     <div><BuyPointsLink label={t('booking.short.cta')} /></div>
                   </div>
                 )}
@@ -3291,7 +3313,7 @@ export default function BookingPage() {
                         {t('booking.way.advice', { course: t('assess.course.' + advice.course), freq: t('assess.freq.' + advice.frequency) })}
                       </div>
                     )}
-                    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <ul className="bk-ticks" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {tick(t('booking.way.fixed1'))}{tick(t('booking.way.fixed2'))}{tick(t('booking.way.fixed3'))}
                     </ul>
                     <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
@@ -3300,7 +3322,7 @@ export default function BookingPage() {
                   </>)}
                   {card('single', <>
                     <div style={{ fontSize: '17px', fontWeight: 800 }}>{t('booking.way.single')}</div>
-                    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <ul className="bk-ticks" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {tick(t('booking.way.single1', { n: SINGLE_DAYS }))}{tick(t('booking.way.single2'))}
                     </ul>
                     <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 800, color: '#1f5fbf' }}>
@@ -3568,7 +3590,7 @@ export default function BookingPage() {
                           make the family think points are taken (owner, 2026-10-03). */}
                       {!makeUp && !isReschedule && (
                         <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '10px' }}>
-                          {t('booking.hour.cost')} · {t('booking.balance', { n: hourBalance })}
+                          {t('booking.hour.cost')} · {t('booking.balance', { n: nf(hourBalance) })}
                         </div>
                       )}
                       {!hourLoading && rows.length > 0 && !canAffordHour && (
@@ -3625,7 +3647,7 @@ export default function BookingPage() {
                                 {formatTime(h.start_time)}
                                 {!isReschedule && !makeUp && h.points != null && (
                                   <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : '#9aa6ba' }}>
-                                    {t('points.unit', { n: h.points })}
+                                    {t('points.unit', { n: nf(h.points) })}
                                   </span>
                                 )}
                                 {h.off_peak && (
@@ -4169,7 +4191,8 @@ export default function BookingPage() {
                     )
                   })()}
 
-                  {monthsShown < 6 && !makeUp && (
+                  {/* Not on the one-lesson path: it books 14 days ahead only (2026-11-04). */}
+                  {monthsShown < 6 && !makeUp && !singlePath && (
                     <button onClick={() => setMonthsShown(n => n + 1)}
                       style={{ width: '100%', marginBottom: '16px', padding: '11px', background: 'transparent', border: '1px dashed #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer' }}>
                       {t('booking.group.loadMore')}
@@ -4251,7 +4274,7 @@ export default function BookingPage() {
                       {/* A voucher books one lesson and takes no points: the
                           ordinary basket line ("add more, charged at once,
                           balance after") was wrong for it. */}
-                      {makeUp ? t('booking.makeUp.basketHint') : fixedPath ? t('booking.fixed.oneOnly') : t('booking.recur.basketHint', { points: Math.max(0, balance - basketTotal) })}
+                      {makeUp ? t('booking.makeUp.basketHint') : fixedPath ? t('booking.fixed.oneOnly') : t('booking.recur.basketHint', { points: nf(Math.max(0, balance - basketTotal)) })}
                     </div>
                   </div>
                 )}
@@ -4427,7 +4450,7 @@ export default function BookingPage() {
                         leaving a button that can never light up. */}
                     {tenCost > 0 && otherTotal + tenCost > balance && (
                       <div style={{ fontSize: '13px', color: '#c0392b', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', padding: '8px 10px', marginTop: '8px', lineHeight: 1.6 }}>
-                        {t('booking.recur.notEnoughFor10', { n: FIXED_CLASS_MIN_LESSONS, need: tenCost, have: Math.max(0, balance - otherTotal) })}
+                        {t('booking.recur.notEnoughFor10', { n: FIXED_CLASS_MIN_LESSONS, need: nf(tenCost), have: nf(Math.max(0, balance - otherTotal)) })}
                         <div><BuyPointsLink label={t('booking.short.cta')} /></div>
                       </div>
                     )}
@@ -4435,7 +4458,7 @@ export default function BookingPage() {
                     {/* One line, not three (owner, 2026-11-02: shorter screens). */}
                     <div style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '9px', background: '#f6f9fd', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
                       <span style={{ fontWeight: 800, color: '#16294a' }}>{t('booking.recur.basket', { n: chosen.size, points: otherTotal + chosenTotal })}</span>
-                      <span style={{ color: '#56647d' }}>{t('booking.recur.leftAfter', { n: Math.max(0, balance - otherTotal - chosenTotal) })}</span>
+                      <span style={{ color: '#56647d' }}>{t('booking.recur.leftAfter', { n: nf(Math.max(0, balance - otherTotal - chosenTotal)) })}</span>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '13px' }}>
@@ -4508,7 +4531,7 @@ export default function BookingPage() {
                   </span>
                   {!makeUp && (
                     <span style={{ fontSize: '13px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
-                      {t('booking.price.after')} {t('points.unit', { n: Math.max(0, balance - basketTotal) })}
+                      {t('booking.price.after')} {t('points.unit', { n: nf(Math.max(0, balance - basketTotal)) })}
                     </span>
                   )}
                 </div>
@@ -4573,7 +4596,7 @@ export default function BookingPage() {
                 // family the wrong time for half their lessons.
                 { label: t('booking.sum.time'), value: planTimes.size > 1 ? t('booking.sum.timeMultiple', { n: planTimes.size }) : recurPlan[0]?.label },
                 { label: t('booking.sum.duration'), value: t('booking.lenMin', { n: groupFlow ? (selectedCourse?.duration_minutes ?? 0) : planMinutes }) },
-                { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: recurTotal }) },
+                { label: t('booking.sum.pointsUsed'), value: t('points.unit', { n: nf(recurTotal) }) },
               ] : [
                 ...(isReschedule && rescheduleFrom ? [{
                   label: t('booking.sum.movingFrom'),
@@ -4661,11 +4684,11 @@ export default function BookingPage() {
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid #e3ebf6', marginTop: '6px' }}>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{t('booking.price.total')}</span>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: bookingCost })}</span>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(bookingCost) })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.after')}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: balanceAfter })}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(balanceAfter) })}</span>
                   </div>
                   {/* An invitation charges nobody until it is accepted (found
                       2026-10-07: "balance after booking" read as taken now). */}
@@ -4698,11 +4721,11 @@ export default function BookingPage() {
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px', borderTop: '1px solid #e3ebf6', marginTop: '6px' }}>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{t('booking.price.total')}</span>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: recurTotal })}</span>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: GOLD, fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(recurTotal) })}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '14px', color: '#56647d' }}>{t('booking.price.after')}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: Math.max(0, balance - recurTotal) })}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: nf(Math.max(0, balance - recurTotal)) })}</span>
                   </div>
                 </div>
               )}

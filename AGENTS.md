@@ -927,3 +927,37 @@ dashed box at the bottom of the first step; the file stays, unused).
   back a week short, cancels everything booked so far, refunds it and
   deletes the fixed classes it made. Confirmation emails go once everyone
   is in.
+
+# The 50-person review (owner, 2026-11-04)
+
+Four testers played 50 families and visitors over the app and the website;
+the contained problems were fixed the same day. What to keep doing:
+
+- **View-only members never see a control the server would refuse**: the
+  fixed-class page (no leave/renew/move, a note instead), 共同預約 (note
+  only; also gone from the website's account menu), /plans (a note, no pay
+  buttons or Zelle), and 我的's voucher card (shown, not linked).
+- **A greyed button still says why**: the schedule's 改期 inside 24 hours (or
+  a 1-on-2 waiting for the other family) opens a short explanation with
+  傳訊息給我們. The schedule's pill-sized buttons stay as the owner set them
+  (2026-10-03); their ::after keeps the tap area large.
+- **Ask before what cannot be undone or costs points**: several children
+  booked together now confirm (who, how many lessons, points, what is left);
+  so do 寫給我們 and 登出. A plain cancel says 已取消 and the points returned.
+- **Typed emails are checked** (lib/email-typo.ts): format and common domain
+  misspellings, on sign-up (before a code is sent; a changed address resets
+  the timer) and forgot-password (which also takes the address typed on the
+  sign-in page, through sessionStorage -- never the URL). ZIP is 5 digits.
+  Form fields on sign-up are 16px at every width.
+- **The chat bubble is not drawn** over the sign-in forms, nor over /booking
+  on a phone. A visitor who asks for a person sees the confirmation as a
+  school note (system message) and the header says a person has it.
+- **Legal pages stay English**, with one line in the reader's language
+  saying so (legal.enOnly, LegalPage reads the locale cookie).
+- **app/(public)/error.tsx** is the translated, branded page for a page
+  that fails to draw.
+- **Numbers of points always carry separators** (booking page `nf()`).
+- **globals.css: write short-screen rules as `@media screen and
+  (max-height: …)`.** A bare `@media (max-height: 720px)` block was dropped
+  from the compiled CSS without a word (2026-11-04); the same rule in a
+  page's own <style> is not affected.

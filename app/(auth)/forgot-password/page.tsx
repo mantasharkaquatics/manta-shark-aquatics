@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import HomeLink from '@/components/brand/HomeLink'
 import { useT, useLocale } from '@/lib/i18n/provider'
+import { looksLikeEmail, emailTypoFix } from '@/lib/email-typo'
 
 // Step one of "forgot password": the parent gives their email and we send a
 // link. The page says the same thing whether or not the address has an
@@ -14,13 +15,23 @@ export default function ForgotPasswordPage() {
   // gets the email in the page's language.
   const locale = useLocale()
   const [email, setEmail] = useState('')
+  // The address typed on the sign-in page comes along (2026-11-04) -- kept in
+  // this tab's storage, not in the address bar.
+  useEffect(() => {
+    let had = ''
+    try { had = sessionStorage.getItem('msa_forgot_email') || ''; sessionStorage.removeItem('msa_forgot_email') } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once, on arrival
+    if (had) setEmail(had)
+  }, [])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
 
   async function submit() {
     const e = email.trim()
-    if (!e || !e.includes('@')) { setError(t('forgot.err.email')); return }
+    if (!e || !looksLikeEmail(e)) { setError(t('forgot.err.email')); return }
+    const fix = emailTypoFix(e.toLowerCase())
+    if (fix) { setError(t('register.err.emailTypo', { email: fix })); return }
     setSending(true)
     setError('')
     try {

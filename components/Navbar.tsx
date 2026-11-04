@@ -51,7 +51,7 @@ const css = `
   /* --closure-h: the pool-closed banner under the bar (components/ClosureBanner),
      0px when there is none. */
   :root { --nav-space: calc(90px + var(--closure-h, 0px)); --nav-cover: calc(86px + var(--closure-h, 0px)); }
-  @media (max-width: 1099px) { :root { --nav-space: calc(76px + var(--closure-h, 0px)); --nav-cover: calc(74px + var(--closure-h, 0px)); } }
+  @media (max-width: 1179px) { :root { --nav-space: calc(76px + var(--closure-h, 0px)); --nav-cover: calc(74px + var(--closure-h, 0px)); } }
 
   .rn-space { height: var(--nav-space); background: ${BRAND.navy}; }
   .rn { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; }
@@ -124,7 +124,7 @@ const css = `
   .rn-burger { display: none; }
   .rn-drawer { display: none; }
 
-  @media (max-width: 1099px) {
+  @media (max-width: 1179px) {
     .rn { top: 8px; left: 8px; right: 8px; }
     .rn-bar { height: 60px; }
     .rn-p1 { padding: 0 10px 0 18px; }
@@ -463,7 +463,7 @@ export default function Navbar() {
                       {fullName && <div className="who">{fullName}</div>}
                       <Link href="/dashboard">{t('nav.myPage')}</Link>
                       <Link href="/dashboard/account">{t('nav.dashboard')}</Link>
-                      <Link href="/dashboard/partnerships">{t('quick.partnerships')}</Link>
+                      {!viewOnly && <Link href="/dashboard/partnerships">{t('quick.partnerships')}</Link>}
                       <Link href="/policies">{t('page.policies')}</Link>
                       <hr />
                       <button type="button" className="out" onClick={handleSignOut}>{t('nav.signOut')}</button>
@@ -506,7 +506,7 @@ export default function Navbar() {
               <div className="kids acct">
                 <Link href="/dashboard" aria-current={current('/dashboard')} onClick={() => setOpen(null)}>{t('nav.myPage')}</Link>
                 <Link href="/dashboard/account" onClick={() => setOpen(null)}>{t('nav.dashboard')}</Link>
-                <Link href="/dashboard/partnerships" onClick={() => setOpen(null)}>{t('quick.partnerships')}</Link>
+                {!viewOnly && <Link href="/dashboard/partnerships" onClick={() => setOpen(null)}>{t('quick.partnerships')}</Link>}
               </div>
             )}
             {navLinks.map(link => (

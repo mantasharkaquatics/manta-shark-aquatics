@@ -4,7 +4,12 @@
 /** The sheet's styles (also used by the assessment sheet on /dashboard). */
 export const REPORT_SHEET_CSS = `
 .msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
-  display: flex; align-items: center; justify-content: center; padding: 20px }
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  /* The first moment after opening takes no taps: a quick double tap on the
+     button that opened it used to land on the dim area and close it again
+     (2026-11-04). */
+  animation: msa-sheet-guard .35s }
+@keyframes msa-sheet-guard { from, to { pointer-events: none } }
 .msa-sheet { background: #f6f9fd; border: 1px solid #e3ebf6; border-radius: 18px; box-shadow: 0 30px 60px rgba(14,29,59,0.3);
   width: 100%; max-width: 520px; max-height: 86vh; max-height: 86dvh; overflow-y: auto; padding: 20px;
   overscroll-behavior: contain }

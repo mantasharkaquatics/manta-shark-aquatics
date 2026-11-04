@@ -54,8 +54,13 @@ export default function GlobalChat() {
   if (parentId === undefined) return null
   // The app's message screen has the conversation itself (variant 'page').
   if (pathname === '/dashboard/chat') return null
-  // The booking page has its own sticky bar along the bottom on a phone.
-  const lift = isPhone && pathname.startsWith('/booking') ? 104 : 0
+  /* Not over the sign-in forms, nor over booking on a phone (2026-11-04):
+     the bubble sat on the password eye, the consent text, the calendar's
+     Saturday column and the 繼續 button. Both pages have their own help. */
+  const bare = pathname.replace(/^\/(zh-Hant|zh-Hans)(?=\/|$)/, '') || '/'
+  if (/^\/(login|register|forgot-password|reset-password)(\/|$)/.test(bare)) return null
+  if (isPhone && bare.startsWith('/booking')) return null
+  const lift = 0
   // Keyed on the account, so signing in or out starts the right kind of chat.
   return <ChatWidget key={parentId ?? 'guest'} parentId={parentId} lift={lift} />
 }

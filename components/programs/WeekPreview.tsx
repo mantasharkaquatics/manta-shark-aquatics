@@ -10,6 +10,7 @@ import { BAND_COLORS, TEAM_TIER_COLORS, bandRange, bandSlotOf } from '@/lib/zone
 import { formatTime12h } from '@/lib/date'
 import { tierBandLabel } from '@/lib/team-tiers'
 import { createClient } from '@/lib/supabase/client'
+import { openChat } from '@/lib/chat-open'
 
 /* The next seven days of one kind of lesson, for the public programme pages
    (owner, 2026-09-28). It only SHOWS what is open -- the data comes from
@@ -64,6 +65,9 @@ const css = `
   .wk-none { font-size: 12.5px; color: ${BRAND.mute}; padding: 6px 2px; }
   .wk-more { border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 700; color: ${BRAND.blue};
     cursor: pointer; padding: 4px 2px; text-align: left; }
+  .wk-ask { margin-top: 12px; border: 0; border-radius: 10px; background: ${BRAND.amber}; color: ${BRAND.navy}; font: inherit; font-weight: 800;
+    font-size: 14px; padding: 10px 18px; cursor: pointer; }
+  .wk-ask:focus-visible { outline: 3px solid ${BRAND.yellow}; outline-offset: 2px; }
   .wk-state { background: #fff; border: 1px dashed #c9d8ee; border-radius: 14px; padding: 28px; text-align: center;
     color: ${BRAND.mute}; font-size: 14.5px; line-height: 1.7; }
   .wk-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; }
@@ -254,7 +258,11 @@ export default function WeekPreview({ kind }: { kind: 'private' | 'group' | 'tea
       ) : data === 'error' ? (
         <div className="wk-state" role="alert">{t('programs.week.error')}</div>
       ) : total === 0 ? (
-        <div className="wk-state">{t('programs.week.empty')}</div>
+        <div className="wk-state">
+          {t(kind === 'team' ? 'programs.week.emptyTeam' : 'programs.week.empty')}
+          {/* "Message us" is something to press (2026-11-04: it was only words). */}
+          <div><button type="button" className="wk-ask" onClick={() => openChat()}>{t('programs.week.ask')}</button></div>
+        </div>
       ) : (
         <>
         <p className="wk-swipe">{t('programs.week.swipe')} →</p>

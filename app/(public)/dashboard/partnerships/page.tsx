@@ -8,6 +8,8 @@ import { formatDateLA, formatTimeLA } from '@/lib/date'
 import { errorKey } from '@/lib/i18n/errors'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import { createClient } from '@/lib/supabase/client'
+import { myFamilyRole } from '@/lib/my-parent'
 
 type Partnership = {
   id: string
@@ -122,6 +124,13 @@ export default function PartnershipsPage() {
   }
 
   useEffect(() => { load() }, [])
+  // A view-only member is told who links families, not given the controls (2026-11-04).
+  const [viewer, setViewer] = useState(false)
+  useEffect(() => {
+    let live = true
+    myFamilyRole(createClient()).then(r => { if (live) setViewer(r === 'viewer') }).catch(() => {})
+    return () => { live = false }
+  }, [])
 
   const getPartnerParentId = (p: Partnership) =>
     p.initiator_parent_id === parentId ? p.partner_parent_id : p.initiator_parent_id
@@ -184,6 +193,9 @@ export default function PartnershipsPage() {
             </section>
           )}
 
+          {viewer ? (
+            <section className="ac-card"><p className="ac-desc" style={{ margin: 0 }}>{t('link.viewerNote')}</p></section>
+          ) : <>
           {/* My invite code */}
           <section className="ac-card">
             <p className="ac-label">{t('link.myCode')}</p>
@@ -229,6 +241,7 @@ export default function PartnershipsPage() {
               </>
             )}
           </section>
+          </>}
         </div>
       </div>
 

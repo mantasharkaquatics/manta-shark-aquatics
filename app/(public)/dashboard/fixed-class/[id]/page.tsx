@@ -17,6 +17,8 @@ import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
 import { DEFAULT_LOCATION_ID, locationMapUrl, type Location } from '@/lib/locations'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
+import { createClient } from '@/lib/supabase/client'
+import { myFamilyRole } from '@/lib/my-parent'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -89,6 +91,14 @@ button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: 
 
 export default function FixedClassPage() {
   const t = useT()
+  /* A view-only family member sees the class, not its controls (2026-11-04:
+     leave, renew and move were all on offer and the server refused). */
+  const [viewer, setViewer] = useState(false)
+  useEffect(() => {
+    let live = true
+    myFamilyRole(createClient()).then(r => { if (live) setViewer(r === 'viewer') }).catch(() => {})
+    return () => { live = false }
+  }, [])
   const locale = useLocale()
   const loc = locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW'
   const params = useParams()
@@ -384,7 +394,7 @@ export default function FixedClassPage() {
                 {fc.last && <div><div className="ac-k">{t('fixedPage.last')}</div><div className="ac-v">{day(fc.last)}</div></div>}
               </div>
               <div className="fc-lessons">
-                {fc.lessons.map(l => l.within24h || !l.bookingId ? (
+                {fc.lessons.map(l => viewer || l.within24h || !l.bookingId ? (
                   <span key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'}>{day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
                 ) : (
                   <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} title={t('fixedPage.leave.tap')}
@@ -393,8 +403,10 @@ export default function FixedClassPage() {
                   </button>
                 ))}
               </div>
-              <p className="ac-desc" style={{ margin: '10px 0 0' }}>{t('fixedPage.leave.hint')}</p>
+              <p className="ac-desc" style={{ margin: '10px 0 0' }}>{t(viewer ? 'fixedPage.viewerNote' : 'fixedPage.leave.hint')}</p>
             </section>
+
+            {!viewer && <>
 
             <section className="ac-card">
               <p className="ac-label">{t('fixedPage.renew.title')}</p>
@@ -519,6 +531,7 @@ export default function FixedClassPage() {
               )}
               {mErr && <div className="ac-err">{mErr}</div>}
             </section>
+            </>}
           </div>
         )}
       </div>
