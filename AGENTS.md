@@ -988,6 +988,14 @@ the contained problems were fixed the same day. What to keep doing:
   two are ticked, each option with its BASE_POINTS per child. It is not
   booked inside FamilyBooking: `onPair` hands both children to the booking
   page's own 1-on-2 flow (course chosen, second swimmer chosen, on to 怎麼上).
+- **Booking several children looks like booking one** (owner, 2026-11-04,
+  問題 6 選項 A). The booking page's pieces live in
+  app/(public)/booking/parts.tsx -- StepBar, DoneRow, SectionTitle,
+  SelectCard, COURSE_COLORS/ICONS -- and FamilyBooking uses them: the same
+  step bar (幫誰 · 課程 · 怎麼上 · 時間), answered lines with ✓, titles,
+  course cards (icon, minutes and size, points chip) and 每週固定／單次
+  cards; with no times, 改選單次上課 and 傳訊息給我們. Change a piece there
+  and both flows change.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

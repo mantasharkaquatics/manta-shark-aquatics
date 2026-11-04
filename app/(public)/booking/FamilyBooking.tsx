@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { dateTag, tDb } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
-import { priceLesson, BASE_POINTS } from '@/lib/points'
-import { singleMaxDate, FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
+import { priceLesson, BASE_POINTS, OFF_PEAK_ENABLED, OFF_PEAK_DISCOUNT } from '@/lib/points'
+import { singleMaxDate, FIXED_CLASS_MIN_LESSONS, SINGLE_BOOKING_DAYS } from '@/lib/booking-time'
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
+import { openChat } from '@/lib/chat-open'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
 
 /* Several of the family's swimmers booked together (owner, 2026-11-03),
    opened when two or more children are ticked on the booking page's first
@@ -33,7 +35,7 @@ import { BRAND } from '@/lib/brand'
    (1-on-1, 60 days, per child) and /api/bookings/group-classes (per child). */
 
 type Kid = { id: string; full_name: string; current_level: number | null }
-type Course = { id: string; slug: string; name: string }
+type Course = { id: string; slug: string; name: string; duration_minutes?: number; max_students?: number }
 type Slug = '1on1' | '1on4'
 type Way = 'weekly' | 'single'
 type Arr = 'same' | 'b2b'
@@ -265,8 +267,6 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   // ── look ──
   const box: React.CSSProperties = { background: '#fff', border: '1px solid #e3ebf6', borderRadius: 14, padding: 16, marginBottom: 14 }
   const head: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: '#56647d', margin: '0 0 10px' }
-  const card = (on: boolean): React.CSSProperties => ({ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
-    border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}18` : '#fff', color: '#16294a' })
 
   if (done) return (
     <div style={box} role="status">
@@ -285,49 +285,97 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   const mainStart = weekly ? [...starts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null : null
   return (
     <div>
-      <Row more={t('booking.change')} label={t('booking.sum.swimmers')} value={kids.map(k => k.full_name).join(' ＋ ')} onChange={onExit} />
-      {slug && <Row more={t('booking.change')} label={t('booking.sum.course')} value={tDb(locale as never, 'course_types', course!.id, course!.name)} onChange={() => { setSlug(null); reset('slug') }} />}
-      {slug && way && <Row more={t('booking.change')} label={t('booking.sum.way')} value={t(weekly ? 'fam.weekly' : 'fam.single')} onChange={() => { setWay(null); reset('way') }} />}
+      {/* As the one-child page looks (owner, 2026-11-04, 問題 6 選項 A): its step
+          bar, answered lines, titles and cards (./parts). */}
+      <StepBar steps={['who', 'course', 'way', 'time']} at={!slug ? 1 : !way ? 2 : 3} />
+      <div style={{ marginBottom: 20 }}>
+        <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.swimmers')} value={kids.map(k => k.full_name).join(' ＋ ')} onChange={onExit} />
+        {slug && <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.course')} value={tDb(locale as never, 'course_types', course!.id, course!.name)} onChange={() => { setSlug(null); reset('slug') }} />}
+        {slug && way && <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.way')} value={t(weekly ? 'booking.way.fixed' : 'booking.way.single')} onChange={() => { setWay(null); reset('way') }} />}
+      </div>
 
       {!slug && (
-        <section style={{ marginTop: 14 }}>
-          <p style={head}>{t('fam.courseQ')}</p>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {(['1on1', ...(n === 2 && onPair ? ['1on2'] : []), '1on4'] as const).map(sl => courses.find(c => c.slug === sl)).filter(Boolean).map(c => (
-              <button key={c!.slug} type="button" style={card(false)} onClick={() => {
-                if (c!.slug === '1on2') { onPair?.(); return }
-                setOpen1(null); setOpenG(null); setSlug(c!.slug as Slug); reset('slug')
-              }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, fontSize: 16, fontWeight: 800 }}>
-                  {tDb(locale as never, 'course_types', c!.id, c!.name)}
-                  {BASE_POINTS[c!.slug] != null && <span style={{ fontSize: 13, fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('fam.ptsEach', { n: BASE_POINTS[c!.slug] })}</span>}
-                </span>
-                <span style={{ display: 'block', fontSize: 13, color: '#56647d', marginTop: 3 }}>{t(c!.slug === '1on1' ? 'fam.c1on1Hint' : c!.slug === '1on2' ? 'fam.c1on2Hint' : 'fam.c1on4Hint', { n })}</span>
-              </button>
-            ))}
+        <section>
+          <SectionTitle title={t('booking.s2.title')} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(['1on1', ...(n === 2 && onPair ? ['1on2'] : []), '1on4'] as const).map(sl => courses.find(c => c.slug === sl)).filter((c): c is Course => !!c).map(c => {
+              const color = COURSE_COLORS[c.slug] || GOLD
+              return (
+                <SelectCard key={c.slug} selected={false} color={color} onClick={() => {
+                  if (c.slug === '1on2') { onPair?.(); return }
+                  setOpen1(null); setOpenG(null); setSlug(c.slug as Slug); reset('slug')
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                      <span style={{ fontSize: 28 }} aria-hidden="true">{COURSE_ICONS[c.slug]}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#16294a', marginBottom: 2 }}>{tDb(locale as never, 'course_types', c.id, c.name)}</div>
+                        {c.duration_minutes != null && c.max_students != null && (
+                          <div style={{ fontSize: 13, color: '#56647d' }}>{t(c.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: c.duration_minutes, max: c.max_students })}</div>
+                        )}
+                        <div style={{ fontSize: 13, color: '#56647d', marginTop: 2 }}>{t(c.slug === '1on1' ? 'fam.c1on1Hint' : c.slug === '1on2' ? 'fam.c1on2Hint' : 'fam.c1on4Hint', { n })}</div>
+                      </div>
+                    </div>
+                    {BASE_POINTS[c.slug] != null && (
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ display: 'inline-block', background: `${color}20`, border: `1px solid ${color}40`, borderRadius: 20, padding: '4px 12px',
+                          fontSize: 13, fontWeight: 700, color, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{t('points.unit', { n: BASE_POINTS[c.slug] })}</div>
+                        <div style={{ fontSize: 12, color: '#56647d', marginTop: 4 }}>{t('booking.perSwimmerShort')}</div>
+                      </div>
+                    )}
+                  </div>
+                </SelectCard>
+              )
+            })}
           </div>
         </section>
       )}
 
-      {slug && !way && (
-        <section style={{ marginTop: 14 }}>
-          <p style={head}>{t('fam.wayQ')}</p>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {(['weekly', 'single'] as const).map(w => (
-              <button key={w} type="button" style={card(false)} onClick={() => { setWay(w); reset('way') }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800 }}>
-                  {t(w === 'weekly' ? 'fam.weekly' : 'fam.single')}
-                  {w === 'weekly' && <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: AMBER, borderRadius: 999, padding: '2px 8px' }}>{t('fam.rec')}</span>}
-                </span>
-                <span style={{ display: 'block', fontSize: 13, color: '#56647d', marginTop: 3 }}>{t(w === 'weekly' ? 'fam.weeklyHint' : 'fam.singleHint')}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      {slug && !way && (() => {
+        const tick = (x: string) => (
+          <li style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 13.5, lineHeight: 1.5, color: '#2c3d5c' }}>
+            <span aria-hidden style={{ color: '#1f7a57', fontWeight: 900 }}>✓</span><span>{x}</span>
+          </li>
+        )
+        // The cheapest a lesson can be, for every child (as the one-child page's cheapestFor).
+        const from1 = Math.floor((BASE_POINTS[slug] ?? 0) * (1 - (OFF_PEAK_ENABLED ? OFF_PEAK_DISCOUNT : 0))) * n
+        const wcard = (w: Way, body: React.ReactNode) => (
+          <button type="button" className="kb-focus" onClick={() => { setWay(w); reset('way') }}
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, padding: '14px 18px', fontFamily: 'inherit',
+              border: `2px solid ${w === 'weekly' ? AMBER : '#e3ebf6'}`, background: w === 'weekly' ? '#fff8ec' : '#fff', color: NAVY }}>
+            {body}
+          </button>
+        )
+        const ticks: React.CSSProperties = { listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }
+        return (
+          <section>
+            <SectionTitle title={t('booking.way.title')} gap={14} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {wcard('weekly', <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 17, fontWeight: 800 }}>{t('booking.way.fixed')}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, background: AMBER, color: NAVY, borderRadius: 999, padding: '2px 9px' }}>{t('booking.way.recommended')}</span>
+                </div>
+                <ul className="bk-ticks" style={ticks}>{tick(t('fam.weeklyHint'))}{tick(t('booking.way.fixed2'))}{tick(t('booking.way.fixed3'))}</ul>
+                <div style={{ marginTop: 8, fontSize: 14, fontWeight: 800, color: '#1f5fbf' }}>
+                  {t('booking.way.fixedFrom', { n: FIXED_CLASS_MIN_LESSONS, points: (from1 * FIXED_CLASS_MIN_LESSONS).toLocaleString('en-US') })} ›
+                </div>
+              </>)}
+              {wcard('single', <>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>{t('booking.way.single')}</div>
+                <ul className="bk-ticks" style={ticks}>{tick(t('booking.way.single1', { n: SINGLE_BOOKING_DAYS }))}{tick(t('booking.way.single2'))}</ul>
+                <div style={{ marginTop: 8, fontSize: 14, fontWeight: 800, color: '#1f5fbf' }}>
+                  {t('booking.way.singleFrom', { points: from1.toLocaleString('en-US') })} ›
+                </div>
+              </>)}
+            </div>
+          </section>
+        )
+      })()}
 
       {slug && way && (
-        <section style={{ marginTop: 14 }}>
+        <section>
+          <SectionTitle title={t(weekly ? 'booking.fixed.title' : 'booking.s4.title')} gap={14} />
           {slug === '1on1' && (
             <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 4, background: '#e9eff7', borderRadius: 12, marginBottom: 14 }}>
               {(['same', 'b2b'] as const).map(a => (
@@ -370,7 +418,22 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
           )}
           {loading && <p style={{ color: '#56647d', textAlign: 'center' }}>{t('booking.loading')}</p>}
           {!loading && [...countFor.values()].every(v => !v) && (
-            <p style={{ margin: '14px 0 0', fontSize: 14, color: '#56647d', textAlign: 'center', lineHeight: 1.6 }}>{t(slug === '1on1' && arr === 'same' ? 'fam.noDaysSame' : 'fam.noDays')}</p>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: 14, color: '#56647d', lineHeight: 1.6 }}>{t(slug === '1on1' && arr === 'same' ? 'fam.noDaysSame' : 'fam.noDays')}</p>
+              {/* What to do next, as on the one-child page. */}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                {weekly && (
+                  <button type="button" onClick={() => { setWay('single'); reset('way') }}
+                    style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {t('booking.fixed.toSingle')}
+                  </button>
+                )}
+                <button type="button" onClick={() => openChat()}
+                  style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid #c9d8ee', background: '#fff', color: '#2050a0', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t('dash.up.messageUs')}
+                </button>
+              </div>
+            </div>
           )}
 
           {day != null && !loading && (
@@ -537,13 +600,3 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   )
 }
 
-/** A step already answered: what was chosen, and 更改. */
-function Row({ label, value, more, onChange }: { label: string; value: React.ReactNode; more: string; onChange: () => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: '1px solid #e3ebf6', borderRadius: 12, marginBottom: 8 }}>
-      <span style={{ fontSize: 13, color: '#56647d', minWidth: '4.5em' }}>{label}</span>
-      <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: NAVY }}>{value}</span>
-      <button type="button" className="tap-auto" onClick={onChange} style={{ background: 'none', border: 'none', color: '#1f5fbf', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{more}</button>
-    </div>
-  )
-}
