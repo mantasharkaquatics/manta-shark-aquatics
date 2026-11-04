@@ -1003,6 +1003,12 @@ the contained problems were fixed the same day. What to keep doing:
   points once (the base line only when off-peak or a voucher took something
   off) and what is left; the rules as a quiet line; 上一步 / 確定 in the
   sticky `.msa-book-bar`, so it is on screen without scrolling.
+- **The fixed-class page leads with its two actions** (owner, 2026-11-04,
+  問題 8 選項 A): 換時段 and (when open) 續報 are buttons under the title
+  (`.fc-acts`). 換時段 opens the move card right under them; 續報 opens the
+  renewal and scrolls to it. A previewed move says it in one block first
+  (`.fc-msum`: how many move, how many go to the end, to another coach, to
+  a voucher) and folds the lesson-by-lesson list (`.fc-each`).
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

@@ -86,6 +86,16 @@ button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: 
 .fc-plan div { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 7px 10px; border-radius: 8px; background: #f6f9fd; }
 .fc-plan .tag { font-size: 12px; font-weight: 700; color: #b06a00; }
 .fc-plan .v { color: #9a5b00; background: #fdf3e1; }
+.fc-acts { display: flex; gap: 10px; }
+.fc-acts .ac-btn { flex: 1; margin: 0; min-height: 48px; font-size: 15px; }
+.fc-msum { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: #eef3fa; font-size: 14px; line-height: 1.65; color: #16294a; }
+.fc-msum b { display: block; font-size: 15.5px; }
+.fc-msum ul { margin: 6px 0 0; padding-left: 18px; }
+.fc-each { margin-top: 8px; }
+.fc-each summary { cursor: pointer; font-size: 13.5px; font-weight: 800; color: #2050a0; list-style: none; padding: 6px 0; }
+.fc-each summary::-webkit-details-marker { display: none }
+.fc-each .less, .fc-each[open] .more { display: none }
+.fc-each[open] .less { display: inline }
 .fc-warn { font-size: 13px; color: #9a5b00; background: #fdf3e1; border: 1px solid #f3dcae; border-radius: 9px; padding: 9px 12px; margin-top: 10px; line-height: 1.6; }
 `
 
@@ -272,6 +282,13 @@ export default function FixedClassPage() {
   const [plan, setPlan] = useState<{ items: Item[]; sig: string } | null>(null)
   const [mErr, setMErr] = useState('')
   const [mBusy, setMBusy] = useState(false)
+  /* 換時段 and 續報 are buttons under the title (owner, 2026-11-04, 問題 8
+     選項 A: 換時段 sat at the bottom, under the dates and the renewal, and
+     families thought there was none). The move card opens under them. */
+  const [moveOpen, setMoveOpen] = useState(false)
+  const moveRef = useRef<HTMLElement | null>(null)
+  const renewRef = useRef<HTMLElement | null>(null)
+  const into = (r: React.RefObject<HTMLElement | null>) => requestAnimationFrame(() => requestAnimationFrame(() => r.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })))
 
   async function loadOptions() {
     if (!fc) return
@@ -322,7 +339,7 @@ export default function FixedClassPage() {
       const stayed: number = Array.isArray(j.notMoved) ? j.notMoved.length : 0
       if (stayed > 0) parts.push(t('fixedPage.move.notMoved', { n: stayed }))
       setMsg({ ok: stayed === 0, text: parts.join(' ') })
-      setOpts(null); setPick(null); setPlan(null)
+      setOpts(null); setPick(null); setPlan(null); setMoveOpen(false)
       await load()
     } catch { setMErr(t('cart.err.network')) }
     setMBusy(false)
@@ -387,6 +404,102 @@ export default function FixedClassPage() {
           <section className="ac-card ac-empty"><b>{t('fixedPage.notFound')}</b></section>
         ) : (
           <div className="ac-stack">
+            {!viewer && (
+              <div className="fc-acts">
+                <button className="ac-btn line" aria-expanded={moveOpen} disabled={mBusy && !moveOpen}
+                  onClick={() => { if (moveOpen) { setMoveOpen(false); return } setMoveOpen(true); setMsg(null); if (opts === null) loadOptions(); into(moveRef) }}>
+                  {t('fixedPage.move.title')}
+                </button>
+                {fc.renewOpen && (
+                  <button className="ac-btn gold" disabled={busy}
+                    onClick={() => { setMsg(null); if (!renewOpenUI) loadRenew(WEEKS_STEP); into(renewRef) }}>
+                    {t('fixedPage.renew.title')}
+                  </button>
+                )}
+              </div>
+            )}
+            {!viewer && moveOpen && (
+            <section className="ac-card" ref={moveRef} style={{ scrollMarginTop: 90 }}>
+              <p className="ac-label">{t('fixedPage.move.title')}</p>
+              <p className="ac-desc">{t('fixedPage.move.desc', { n: opts ? moving : fc.lessons.filter(l => !l.within24h).length })}</p>
+              {staying.length > 0 && <p className="ac-note">{t('fixedPage.move.stay', { dates: staying.map(d => day(d, { month: 'short', day: 'numeric' })).join(locale === 'en' ? ', ' : '、') })}</p>}
+              {opts === null ? (
+                <button className="ac-btn line" disabled={mBusy} onClick={loadOptions}>{mBusy ? t('fixedPage.move.loading') : t('fixedPage.move.show')}</button>
+              ) : pick ? (
+                <>
+                  <b style={{ display: 'block', color: '#12254a', fontSize: 15 }}>
+                    {t('fixedPage.move.planTitle', { weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time), coach: optCoaches.get(pick.coachId) || '' })}
+                  </b>
+                  {mBusy && !plan && <p className="ac-note">{t('fixedPage.move.loading')}</p>}
+                  {plan && (() => {
+                    /* One sentence first, then the lesson-by-lesson list folded
+                       (owner, 2026-11-04, 問題 8 選項 A). */
+                    const go = plan.items.filter(i => i.to)
+                    const by = (k: Item['kind']) => plan.items.filter(i => i.kind === k)
+                    const moved = by('move'), later = by('later'), other = by('other_coach'), vouch = by('voucher')
+                    const md = (d: string) => day(d, { month: 'short', day: 'numeric' })
+                    const firstTo = moved.map(i => i.to!).sort()[0]
+                    return (
+                      <div className="fc-msum">
+                        <b>{t('fixedPage.move.sumHead', { n: go.length })}</b>
+                        <ul>
+                          {moved.length > 0 && <li>{t('fixedPage.move.sumMove', { n: moved.length, weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time), date: firstTo ? md(firstTo) : '' })}</li>}
+                          {later.length > 0 && <li>{t('fixedPage.move.sumLater', { n: later.length, dates: later.map(i => md(i.to!)).join(locale === 'en' ? ', ' : '、') })}</li>}
+                          {other.length > 0 && <li>{t('fixedPage.move.sumOther', { n: other.length, coach: [...new Set(other.map(i => optCoaches.get(i.coachId || '') || ''))].filter(Boolean).join(locale === 'en' ? ', ' : '、') })}</li>}
+                          {vouch.length > 0 && <li>{t('fixedPage.move.sumVoucher', { n: vouch.length })}</li>}
+                        </ul>
+                      </div>
+                    )
+                  })()}
+                  {plan && (
+                    <details className="fc-each">
+                      <summary><span className="more">{t('fixedPage.move.seeEach')} ▾</span><span className="less">{t('fixedPage.move.hideEach')} ▴</span></summary>
+                    <div className="fc-plan" style={{ marginTop: 4 }}>
+                      {plan.items.map(i => (
+                        <div key={i.from} className={i.to ? '' : 'v'}>
+                          <span>{day(i.from, { month: 'short', day: 'numeric' })} {formatTime12h(fc.time)} → {i.to ? `${day(i.to)} ${formatTime12h(pick.time)}` : '—'}</span>
+                          <span className="tag">
+                            {i.kind === 'later' ? t('fixedPage.move.later') : i.kind === 'other_coach' ? t('fixedPage.move.other', { coach: optCoaches.get(i.coachId || '') || '' }) : i.kind === 'voucher' ? t('fixedPage.move.voucher') : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    </details>
+                  )}
+                  {plan && plan.items.some(i => !i.to) && <div className="fc-warn">{t('fixedPage.move.voucherNote', { n: plan.items.filter(i => !i.to).length })}</div>}
+                  <div className="ac-pair" style={{ marginTop: 12 }}>
+                    <button className="ac-btn line" disabled={mBusy} onClick={() => { setPick(null); setPlan(null); setMErr('') }}>{t('fixedPage.move.back')}</button>
+                    <button className="ac-btn gold" disabled={mBusy || !plan} onClick={commit}>{t('fixedPage.move.confirm')}</button>
+                  </div>
+                </>
+              ) : opts.length === 0 ? (
+                <p className="ac-note">{t('fixedPage.move.none')}</p>
+              ) : (
+                <>
+                <div className="fc-days" role="tablist">
+                  {optsByDay.map(([wd]) => (
+                    <button key={wd} role="tab" aria-selected={wd === dayShown} className={'fc-dtab' + (wd === dayShown ? ' on' : '')} onClick={() => setOptDay(wd)}>
+                      {weekdayName(wd)}
+                    </button>
+                  ))}
+                </div>
+                {optsByDay.filter(([wd]) => wd === dayShown).map(([wd, list]) => (
+                  <div key={wd} className="fc-day">
+                    <div className="fc-opts">
+                      {list.map(o => (
+                        <button key={`${o.time}|${o.coachId}`} className={'fc-opt' + (o.okWeeks < o.weeks ? ' part' : '')} onClick={() => preview(o)}>
+                          <b>{formatTime12h(o.time)} · {optCoaches.get(o.coachId) || ''}</b>
+                          <small>{t('fixedPage.move.weeks', { ok: o.okWeeks, n: o.weeks })} · {t('fixedPage.move.from', { date: day(o.startDate, { month: 'short', day: 'numeric' }) })}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                </>
+              )}
+              {mErr && <div className="ac-err">{mErr}</div>}
+            </section>
+            )}
             <section className="ac-card">
               <div className="ac-grid" style={{ marginTop: 0 }}>
                 <div><div className="ac-k">{t('fixedPage.left')}</div><div className="ac-v">{t('fixedPage.leftN', { n: fc.left })}</div></div>
@@ -408,7 +521,7 @@ export default function FixedClassPage() {
 
             {!viewer && <>
 
-            <section className="ac-card">
+            <section className="ac-card" ref={renewRef} style={{ scrollMarginTop: 90 }}>
               <p className="ac-label">{t('fixedPage.renew.title')}</p>
               {!fc.renewOpen ? (
                 <p className="ac-desc" style={{ marginBottom: 0 }}>
@@ -422,9 +535,7 @@ export default function FixedClassPage() {
                     {fc.holdUntil ? ' ' + t('fixedPage.renew.held', { date: day(fc.holdUntil) }) : ''}
                   </p>
                   {!renewOpenUI ? (
-                    <button className="ac-btn gold" disabled={busy} onClick={() => loadRenew(WEEKS_STEP)}>
-                      {busy ? t('booking.recur.loading') : t('fixedPage.renew.pick')}
-                    </button>
+                    busy ? <p className="ac-note">{t('booking.recur.loading')}</p> : null
                   ) : (
                     <>
                       {owed > 0 && (
@@ -474,63 +585,7 @@ export default function FixedClassPage() {
               )}
             </section>
 
-            <section className="ac-card">
-              <p className="ac-label">{t('fixedPage.move.title')}</p>
-              <p className="ac-desc">{t('fixedPage.move.desc', { n: opts ? moving : fc.lessons.filter(l => !l.within24h).length })}</p>
-              {staying.length > 0 && <p className="ac-note">{t('fixedPage.move.stay', { dates: staying.map(d => day(d, { month: 'short', day: 'numeric' })).join(locale === 'en' ? ', ' : '、') })}</p>}
-              {opts === null ? (
-                <button className="ac-btn line" disabled={mBusy} onClick={loadOptions}>{mBusy ? t('fixedPage.move.loading') : t('fixedPage.move.show')}</button>
-              ) : pick ? (
-                <>
-                  <b style={{ display: 'block', color: '#12254a', fontSize: 15 }}>
-                    {t('fixedPage.move.planTitle', { weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time), coach: optCoaches.get(pick.coachId) || '' })}
-                  </b>
-                  {mBusy && !plan && <p className="ac-note">{t('fixedPage.move.loading')}</p>}
-                  {plan && (
-                    <div className="fc-plan">
-                      {plan.items.map(i => (
-                        <div key={i.from} className={i.to ? '' : 'v'}>
-                          <span>{day(i.from, { month: 'short', day: 'numeric' })} {formatTime12h(fc.time)} → {i.to ? `${day(i.to)} ${formatTime12h(pick.time)}` : '—'}</span>
-                          <span className="tag">
-                            {i.kind === 'later' ? t('fixedPage.move.later') : i.kind === 'other_coach' ? t('fixedPage.move.other', { coach: optCoaches.get(i.coachId || '') || '' }) : i.kind === 'voucher' ? t('fixedPage.move.voucher') : ''}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {plan && plan.items.some(i => !i.to) && <div className="fc-warn">{t('fixedPage.move.voucherNote', { n: plan.items.filter(i => !i.to).length })}</div>}
-                  <div className="ac-pair" style={{ marginTop: 12 }}>
-                    <button className="ac-btn line" disabled={mBusy} onClick={() => { setPick(null); setPlan(null); setMErr('') }}>{t('fixedPage.move.back')}</button>
-                    <button className="ac-btn gold" disabled={mBusy || !plan} onClick={commit}>{t('fixedPage.move.confirm')}</button>
-                  </div>
-                </>
-              ) : opts.length === 0 ? (
-                <p className="ac-note">{t('fixedPage.move.none')}</p>
-              ) : (
-                <>
-                <div className="fc-days" role="tablist">
-                  {optsByDay.map(([wd]) => (
-                    <button key={wd} role="tab" aria-selected={wd === dayShown} className={'fc-dtab' + (wd === dayShown ? ' on' : '')} onClick={() => setOptDay(wd)}>
-                      {weekdayName(wd)}
-                    </button>
-                  ))}
-                </div>
-                {optsByDay.filter(([wd]) => wd === dayShown).map(([wd, list]) => (
-                  <div key={wd} className="fc-day">
-                    <div className="fc-opts">
-                      {list.map(o => (
-                        <button key={`${o.time}|${o.coachId}`} className={'fc-opt' + (o.okWeeks < o.weeks ? ' part' : '')} onClick={() => preview(o)}>
-                          <b>{formatTime12h(o.time)} · {optCoaches.get(o.coachId) || ''}</b>
-                          <small>{t('fixedPage.move.weeks', { ok: o.okWeeks, n: o.weeks })} · {t('fixedPage.move.from', { date: day(o.startDate, { month: 'short', day: 'numeric' }) })}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                </>
-              )}
-              {mErr && <div className="ac-err">{mErr}</div>}
-            </section>
+
             </>}
           </div>
         )}
