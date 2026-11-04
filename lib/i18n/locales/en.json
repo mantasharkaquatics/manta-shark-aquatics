@@ -2648,5 +2648,11 @@
   "me.plans.book": "Book",
   "me.plan.voucher": "Make-up",
   "me.plan.voucherN": "{n} vouchers",
-  "me.qr.pick": "Check in which swimmer?"
+  "me.qr.pick": "Check in which swimmer?",
+  "me.out.ask": "Sign out?",
+  "me.out.body": "You will need your email and password to sign in again.",
+  "suggest.confirm": "Send this message?",
+  "suggest.confirmBody": "It cannot be changed once sent.",
+  "suggest.back": "Keep editing",
+  "account.healthNone": "none known"
 }

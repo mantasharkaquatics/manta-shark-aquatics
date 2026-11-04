@@ -8,6 +8,8 @@ import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { ACCT_CSS } from '@/components/brand/AcctStyles'
 import { appLook } from '@/lib/native-app'
+import { REPORT_SHEET_CSS } from '../report-sheet-css'
+import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from '../FamilySheets'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { BRAND } from '@/lib/brand'
 
@@ -30,7 +32,7 @@ html.msa-app:has(.mx), html.msa-app:has(.mx) body { overscroll-behavior: none; }
 html.msa-app body:has(.mx), html.msa-app body:has(.mx) .rn-space { background: #e9eff7; }
 html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 /* The member card (owner, 2026-11-03, 樣貌一 of five). */
-.mx-card { position: relative; display: block; border-radius: 20px; padding: 16px 18px 14px; color: #fff; text-decoration: none; overflow: hidden;
+.mx-card { position: relative; display: block; width: 100%; border: 0; text-align: left; font-family: inherit; cursor: pointer; border-radius: 20px; padding: 16px 18px 14px; color: #fff; text-decoration: none; overflow: hidden;
   background: radial-gradient(120% 140% at 100% 0%, #2f5fb3 0%, #1b3570 45%, ${BRAND.navy} 100%); box-shadow: 0 10px 24px rgba(18,37,74,.25); }
 .mx-card::after { content: ''; position: absolute; right: -36px; bottom: -48px; width: 170px; height: 170px; border-radius: 50%;
   border: 24px solid rgba(255,255,255,.06); pointer-events: none; }
@@ -51,10 +53,12 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-card:focus-visible, .mx-qr:focus-visible, .mx-r a:focus-visible, .mx-pl a:focus-visible, .mx-mini a:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px; }
 /* Four round shortcuts. */
 .mx-r { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 2px; }
-.mx-r a { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; }
+.mx-r a, .mx-r button { border: 0; background: none; padding: 0; font-family: inherit; cursor: pointer; }
+.mx-r a, .mx-r button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; }
 .mx-r em { font-style: normal; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: #fff; font-size: 22px;
   box-shadow: 0 3px 10px rgba(18,37,74,.1); }
 .mx-r a.amb em { background: #f09800; }
+.mx-r button:focus-visible, .mx-mini button:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px; }
 .mx-sec { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; font-weight: 800; color: ${BRAND.navy}; margin: 16px 2px 8px; }
 .mx-sec small { font-size: 12px; font-weight: 700; color: ${BRAND.mute}; }
 /* 我的方案: a row that slides sideways, one small card per plan. */
@@ -74,11 +78,12 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-pl a.empty { width: auto; flex: 1; align-items: center; justify-content: center; text-align: center; min-height: 92px; }
 /* Four small buttons, then signing out. */
 .mx-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.mx-mini a { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 800;
+.mx-mini button { border: 0; font-family: inherit; cursor: pointer; text-align: left; }
+.mx-mini a, .mx-mini button { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 800;
   color: ${BRAND.ink}; text-decoration: none; min-width: 0; }
-.mx-mini a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mx-out { align-self: center; margin-top: 12px; padding: 8px 18px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 800;
-  color: #c0392b; cursor: pointer; }
+.mx-mini a span, .mx-mini button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-out { align-self: center; margin-top: 12px; padding: 8px 18px; border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 700;
+  color: ${BRAND.mute}; cursor: pointer; }
 .mx-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; border-radius: 8px; }
 /* Whose QR, when there is more than one swimmer. */
 .mx-pick { position: fixed; inset: 0; z-index: 90; background: rgba(10,22,48,.45); display: flex; align-items: flex-end; justify-content: center; }
@@ -86,16 +91,18 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-pick h2 { font-size: 17px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 12px; }
 .mx-pick a, .mx-pick button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 12px;
   background: #f4f7fb; border: 0; font: inherit; font-size: 15.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
+.mx-pick-p { font-size: 14px; color: ${BRAND.mute}; margin: -4px 0 14px; line-height: 1.5; }
+.mx-pick button.danger { justify-content: center; background: #fdecea; color: #c0392b; }
 .mx-pick button.x { justify-content: center; background: none; color: ${BRAND.mute}; margin: 0; }
 /* A short phone: tighter, so it still fits. */
 @media (max-height: 720px) {
   .mx { padding-top: 4px; padding-bottom: 0; }
   .mx-card { padding: 12px 16px 10px; } .mx-card .p { margin-top: 4px; } .mx-card .p b { font-size: 28px; }
   .mx-card .ft { margin-top: 6px; } .mx-qr { width: 44px; height: 44px; }
-  .mx-r { margin-top: 8px; } .mx-r a { gap: 4px; font-size: 11.5px; } .mx-r em { width: 40px; height: 40px; font-size: 18px; }
+  .mx-r { margin-top: 8px; } .mx-r a, .mx-r button { gap: 4px; font-size: 11.5px; } .mx-r em { width: 40px; height: 40px; font-size: 18px; }
   .mx-sec { margin: 8px 2px 6px; }
   .mx-pl a { padding: 9px 11px; } .mx-pl .who { display: none; } .mx-pl b { margin-top: 4px; }
-  .mx-mini { margin-top: 6px; gap: 6px; } .mx-mini a { padding: 9px 12px; }
+  .mx-mini { margin-top: 6px; gap: 6px; } .mx-mini a, .mx-mini button { padding: 9px 12px; }
   .mx-out { margin-top: 2px; padding: 6px 18px; }
 }
 `
@@ -110,11 +117,11 @@ const QR_MARK = (
   </svg>
 )
 
-type Wallet = { balance: number; balancePurchased: number; balanceGranted: number; arrears: number; runway?: { weeksLeft: number } | null }
+type Wallet = WalletSummary
 type Fixed = { id: string; weekday: number; time: string; coachName: string; left: number; total?: number; last: string | null; renewOpen: boolean; studentNames: string[] }
 type Voucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; expiresOn: string }
 type Team = { id: string; student_id: string; student_name?: string; tier_name?: string; team_tier_id?: string | null; status?: string; is_prepaid?: boolean; expires_at?: string | null }
-type Kid = { id: string; full_name: string }
+type Kid = { id: string; full_name: string; current_level: number | null }
 
 const todayLA = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 const plusDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
@@ -132,6 +139,10 @@ export default function MePage() {
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [kids, setKids] = useState<Kid[]>([])
   const [pickQr, setPickQr] = useState(false)
+  /* The sheets 我的 opens over itself (owner, 2026-11-04: over 首頁 the tab
+     changed under them): the statement alone, refer-a-friend alone, the
+     suggestion box, and the sign-out question. */
+  const [sheet, setSheet] = useState<null | 'points' | 'refer' | 'suggest' | 'out'>(null)
   const [plans, setPlans] = useState<{ fixed: Fixed[]; vouchers: Voucher[]; team: Team[]; at: number } | null>(null)
 
   useEffect(() => {
@@ -145,7 +156,7 @@ export default function MePage() {
       if (pid) {
         const [{ data }, { data: st }] = await Promise.all([
           supabase.from('parents').select('first_name, last_name').eq('id', pid).maybeSingle(),
-          supabase.from('students').select('id, full_name').eq('parent_id', pid).eq('is_active', true).order('sort_order'),
+          supabase.from('students').select('id, full_name, current_level').eq('parent_id', pid).eq('is_active', true).order('sort_order'),
         ])
         name = [data?.first_name, data?.last_name].filter(Boolean).join(' ')
         ks = (st || []) as Kid[]
@@ -219,24 +230,25 @@ export default function MePage() {
     else if (kids.length > 1) setPickQr(true)
   }
   useEffect(() => {
-    if (!pickQr) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPickQr(false) }
+    if (!pickQr && !sheet) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPickQr(false); if (sheet !== 'suggest') setSheet(null) } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pickQr])
+  }, [pickQr, sheet])
 
   const owe = !!wallet && (wallet.arrears > 0 || wallet.balance < 0)
   const name = me ? (me.name || me.email) : t('common.loading')
 
   return (
     <div className="ac-root">
-      <style>{ACCT_CSS + css}</style>
+      <style>{ACCT_CSS + REPORT_SHEET_CSS + css}</style>
       {/* 我的 as a member card (owner, 2026-11-03, 樣貌一 of five): the card,
           four round shortcuts, the plans sliding sideways, four small
           buttons. One screen, nothing to scroll. */}
       <div className="mx">
         <div style={{ position: 'relative' }}>
-          <Link href={viewer ? '/dashboard/account' : '/dashboard?points=1'} className="mx-card" aria-live="polite">
+          <button type="button" className="mx-card tap-auto" aria-live="polite"
+            onClick={() => (viewer ? router.push('/dashboard/account') : wallet && setSheet('points'))}>
             <span className="t">{t('me.card.member')}</span>
             <span className="n">{name}</span>
             {!viewer && <span className="p">
@@ -246,7 +258,7 @@ export default function MePage() {
             {owe && wallet ? <span className="owe">{t('points.card.arrearsTitle', { n: wallet.arrears.toLocaleString() })}</span>
               : wallet?.runway ? <span className="low">{t('dash.pointsLow')}</span> : null}
             <span className="ft"><span>{me?.name ? me.email : ''}</span><span>{viewer ? t('app.me.account') : t('me.card.detail')} ›</span></span>
-          </Link>
+          </button>
           {kids.length > 0 && (
             <button type="button" className="mx-qr tap-auto" onClick={openQr} aria-label={t('dash.viewQr')}>{QR_MARK}</button>
           )}
@@ -255,8 +267,8 @@ export default function MePage() {
         {!viewer && (
           <nav className="mx-r" aria-label={t('points.card.title')}>
             <Link href="/plans#buy" className="amb"><em aria-hidden="true">💳</em>{t('dash.topUp')}</Link>
-            <Link href="/dashboard?points=1"><em aria-hidden="true">🧾</em>{t('me.r.history')}</Link>
-            <Link href="/dashboard?points=refer"><em aria-hidden="true">🎁</em>{t('dash.more.refer')}</Link>
+            <button type="button" className="tap-auto" onClick={() => wallet && setSheet('points')}><em aria-hidden="true">🧾</em>{t('me.r.history')}</button>
+            <button type="button" className="tap-auto" onClick={() => setSheet('refer')}><em aria-hidden="true">🎁</em>{t('dash.more.refer')}</button>
             <Link href="/dashboard/partnerships"><em aria-hidden="true">👥</em>{t('quick.partnerships')}</Link>
           </nav>
         )}
@@ -284,12 +296,46 @@ export default function MePage() {
           <Link href="/dashboard/account"><span aria-hidden="true">👤</span><span>{t('app.me.account')}</span></Link>
           {app && <Link href="/dashboard/me/notifications"><span aria-hidden="true">🔔</span><span>{t('push.settings.title')}</span></Link>}
           <Link href="/dashboard/me/school"><span aria-hidden="true">🏫</span><span>{t('app.me.school')}</span></Link>
-          <Link href="/dashboard?suggest=1"><span aria-hidden="true">💬</span><span>{t('suggest.link')}</span></Link>
+          <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true">💬</span><span>{t('suggest.link')}</span></button>
         </nav>
 
-        <button type="button" className="mx-out" onClick={signOut}>{t('nav.signOut')}</button>
+        {/* Asked first (owner, 2026-11-04: too easy to tap by mistake). */}
+        <button type="button" className="mx-out tap-auto" onClick={() => setSheet('out')}>{t('nav.signOut')}</button>
       </div>
 
+      {sheet === 'points' && wallet && (
+        <div className="msa-sheet-back" onClick={() => setSheet(null)}>
+          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('me.r.history')}>
+            <div className="msa-sheet-head">
+              <b>{t('me.r.history')}</b>
+              <button className="msa-sheet-x" onClick={() => setSheet(null)} aria-label={t('common.close')}>✕</button>
+            </div>
+            <PointsCard w={wallet} onBuy={() => router.push('/plans#buy')} zelle={kids.some(k => k.current_level != null)} historyFirst />
+          </div>
+        </div>
+      )}
+      {sheet === 'refer' && (
+        <div className="msa-sheet-back" onClick={() => setSheet(null)}>
+          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('dash.more.refer')}>
+            <div className="msa-sheet-head">
+              <b>{t('dash.more.refer')}</b>
+              <button className="msa-sheet-x" onClick={() => setSheet(null)} aria-label={t('common.close')}>✕</button>
+            </div>
+            <ReferralCard focus={false} />
+          </div>
+        </div>
+      )}
+      {sheet === 'suggest' && <SuggestionSheet onClose={() => setSheet(null)} />}
+      {sheet === 'out' && (
+        <div className="mx-pick" onClick={() => setSheet(null)}>
+          <div role="dialog" aria-modal="true" aria-label={t('me.out.ask')} onClick={e => e.stopPropagation()}>
+            <h2>{t('me.out.ask')}</h2>
+            <p className="mx-pick-p">{t('me.out.body')}</p>
+            <button type="button" className="danger" onClick={signOut}>{t('nav.signOut')}</button>
+            <button type="button" className="x" onClick={() => setSheet(null)}>{t('common.cancel')}</button>
+          </div>
+        </div>
+      )}
       {pickQr && (
         <div className="mx-pick" onClick={() => setPickQr(false)}>
           <div role="dialog" aria-modal="true" aria-label={t('me.qr.pick')} onClick={e => e.stopPropagation()}>

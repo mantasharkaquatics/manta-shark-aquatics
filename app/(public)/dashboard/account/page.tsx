@@ -284,23 +284,25 @@ export default function AccountPage() {
             </div>
             {safety?.missing && <div className="ac-err" style={{ marginTop: 10 }}>{t('safety.banner.body')}</div>}
             {students.length > 0 && (
-              <div className="ac-stack" style={{ gap: 10, marginTop: 12 }}>
+              <div className="ac-stack" style={{ gap: 6, marginTop: 10 }}>
                 {students.map(s => {
                   const h = safety?.students.find(x => x.id === s.id)
                   return (
-                    <div key={s.id} className="ac-item">
-                      <div style={{ minWidth: 0 }}>
+                    /* One line a swimmer (owner, 2026-11-04: "too long"): name and
+                       birthday on the left, the health answer as a chip on the right. */
+                    <div key={s.id} className="ac-item ac-kid">
+                      <div className="nm">
                         <b>{s.full_name}</b>
                         <small>{s.date_of_birth ? fmt(s.date_of_birth, true) : t('account.noBirthday')}</small>
-                        {h && (
-                          <small style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', marginTop: 4, ...(!h.answered ? { color: '#b4321f' } : {}) }}>
-                            {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('safety.medical.none')}
-                          </small>
-                        )}
-                        {s.added_by_parent && !viewOnly && <div className="ac-tag">{t('account.addedByYou')}</div>}
+                        {s.added_by_parent && !viewOnly && <span className="ac-tag">{t('account.addedByYou')}</span>}
                         {/* Ticking the box on a new swimmer moves "you" to them. */}
-                        {s.is_account_holder && !viewOnly && !(showAddForm && newMe) && <div className="ac-tag">{t('account.isYou')}</div>}
+                        {s.is_account_holder && !viewOnly && !(showAddForm && newMe) && <span className="ac-tag">{t('account.isYou')}</span>}
                       </div>
+                      {h && (
+                        <span className={'hl' + (!h.answered ? ' bad' : h.medical_notes ? ' note' : '')} title={h.medical_notes || undefined}>
+                          {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('account.healthNone')}
+                        </span>
+                      )}
                     </div>
                   )
                 })}

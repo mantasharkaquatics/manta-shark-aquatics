@@ -30,6 +30,33 @@ export const ACCT_CSS = `
   border: 1px solid ${BRAND.line}; border-radius: 12px; padding: 13px 15px; }
 .ac-item b { display: block; font-size: 15px; color: ${BRAND.navy}; }
 .ac-item small { font-size: 13px; color: ${BRAND.mute}; }
+.ac-kid { padding: 9px 12px; gap: 10px; }
+.ac-kid .nm { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.ac-kid .nm b { margin: 0; font-size: 15px; }
+.ac-kid .nm small { font-size: 12.5px; }
+.ac-kid .nm .ac-tag { margin: 0; }
+.ac-kid .hl { flex: none; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700;
+  border-radius: 999px; padding: 3px 9px; background: #e8f5ef; color: #1f7a57; }
+.ac-kid .hl.bad { background: #fdecea; color: #b4321f; }
+.ac-kid .hl.note { background: #fff6e5; color: #8a5300; }
+/* Inside the app (owner, 2026-11-04): the account pages start right under
+   the top bar, with a smaller heading, and do not bounce. */
+html.msa-app .ac-wrap { padding: 10px 16px 16px; }
+html.msa-app .ac-head { margin-bottom: 12px; }
+html.msa-app .ac-h1 { font-size: 24px; margin: 4px 0 2px; }
+html.msa-app .ac-sub { font-size: 13.5px; }
+html.msa-app .ac-card { padding: 16px; }
+html.msa-app:has(.ac-root), html.msa-app:has(.ac-root) body { overscroll-behavior: none; }
+html.msa-app .ac-stack { gap: 10px; }
+html.msa-app .ac-desc { font-size: 13px; margin-bottom: 10px; }
+html.msa-app .ac-empty { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: center; text-align: left; padding: 12px 14px; }
+html.msa-app .ac-empty .ac-icon { grid-row: span 2; margin: 0 !important; }
+html.msa-app .ac-empty .ac-sub { font-size: 13px !important; }
+@media (max-height: 720px) {
+  html.msa-app .ac-wrap { padding-top: 6px; }
+  html.msa-app .ac-card { padding: 12px 14px; }
+  html.msa-app .ac-head { margin-bottom: 8px; }
+}
 .ac-tag { font-size: 12px; font-weight: 700; color: ${BRAND.blue}; margin-top: 2px; }
 .ac-muted { font-size: 12.5px; color: #8a97ad; }
 .ac-note { font-size: 13px; color: ${BRAND.mute}; margin: 14px 0; }

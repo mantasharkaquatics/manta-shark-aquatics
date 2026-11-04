@@ -500,9 +500,22 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   關於學校 (/dashboard/me/school, the six school pages), 寫給我們; then 登出.
   A view-only member sees no points and no shortcuts. Under 720px of
   height everything tightens and the plan cards drop the child's name.
-  Links into the dashboard's sheets: ?points=1, ?points=refer, ?suggest=1,
-  ?team=, ?qr=. No language section on 我的: the top bar's language button
-  is the one place to switch (owner, 2026-11-02).
+  **Its sheets open over 我的 itself** (owner, 2026-11-04: from /dashboard
+  the tab turned to 首頁 under them): the card and 點數明細 open the points
+  card alone with the statement already open (PointsCard historyFirst), 介紹
+  朋友 the referral card alone, 寫給我們 the suggestion box -- all three now
+  live in app/(public)/dashboard/FamilySheets.tsx, shared with the dashboard,
+  whose ?points= sheet (from emails) still shows points, referral and team
+  together. The suggestion box asks 確定要送出嗎？ before sending, and 登出
+  (now small grey text) asks 要登出嗎？ first -- both too easy to tap by
+  mistake. Still linked into the dashboard: ?team= and ?qr=. No language
+  section on 我的: the top bar's language button is the one place to switch
+  (owner, 2026-11-02).
+- **Account pages in the app** (components/brand/AcctStyles.ts, owner,
+  2026-11-04): tighter padding and heading under html.msa-app; 共同預約 fits
+  one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
+  one line -- name and birthday, the health answer as a chip (red not
+  answered, green none, amber with the notes).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone

@@ -2648,5 +2648,11 @@
   "me.plans.book": "去预约",
   "me.plan.voucher": "补课券",
   "me.plan.voucherN": "{n} 张",
-  "me.qr.pick": "要给谁报到？"
+  "me.qr.pick": "要给谁报到？",
+  "me.out.ask": "要退出登录吗？",
+  "me.out.body": "退出后，要再输入账号和密码才能使用。",
+  "suggest.confirm": "确定要送出吗？",
+  "suggest.confirmBody": "送出后就不能修改了。",
+  "suggest.back": "返回修改",
+  "account.healthNone": "无疾病或过敏"
 }

@@ -2648,5 +2648,11 @@
   "me.plans.book": "去預約",
   "me.plan.voucher": "補課券",
   "me.plan.voucherN": "{n} 張",
-  "me.qr.pick": "要給誰報到？"
+  "me.qr.pick": "要給誰報到？",
+  "me.out.ask": "要登出嗎？",
+  "me.out.body": "登出後，要再輸入帳號和密碼才能使用。",
+  "suggest.confirm": "確定要送出嗎？",
+  "suggest.confirmBody": "送出後就不能修改了。",
+  "suggest.back": "返回修改",
+  "account.healthNone": "無疾病或過敏"
 }
