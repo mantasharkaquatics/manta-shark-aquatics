@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
-import { APP_CLASS, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
+import { APP_CLASS, applyPhoneTextSize, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
 
 /* Push notifications inside the phone app (owner, 2026-10-27; lib/push.ts).
    Renders nothing, and does nothing in a browser.
@@ -34,6 +34,14 @@ export default function AppBridge() {
   // The app look, for a build the <head> script missed (lib/native-app.ts).
   useEffect(() => {
     if (appPlatform()) document.documentElement.classList.add(APP_CLASS)
+  }, [])
+
+  // The phone's text size may have been changed while the app was away (lib/native-app.ts).
+  useEffect(() => {
+    if (!appPlatform()) return
+    const on = () => { if (document.visibilityState === 'visible') applyPhoneTextSize() }
+    document.addEventListener('visibilitychange', on)
+    return () => document.removeEventListener('visibilitychange', on)
   }, [])
 
   useEffect(() => {

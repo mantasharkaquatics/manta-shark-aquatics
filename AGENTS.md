@@ -442,6 +442,17 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
 課表 /dashboard/schedule, 訊息 (opens the chat), 我的 /dashboard/me
 (components/AppShell.tsx). Browsers, phones included, keep the website.
 
+- **Text follows the phone's text size** (owner, 2026-11-04, 問題 2 選項 A:
+  grandparents found it too small; no size switch inside the app). Android's
+  web view already does it. On the iPhone TEXT_SIZE_FN (lib/native-app.ts,
+  run by APP_DETECT_SCRIPT before paint and by AppBridge when the app comes
+  back) reads -apple-system-body (17px = standard) and sets
+  -webkit-text-size-adjust on <html>: never smaller than the design, at most
+  140%. Keep font sizes in px as they are -- that property scales them all.
+  Screens that fit one page may then scroll; the home cards shrink the
+  swimmer instead. To see a page large in Chromium: isMobile context and
+  `document.documentElement.style.webkitTextSizeAdjust = '140%'`.
+
 - **No website pages in the app** (owner, 2026-11-03: the login page's name
   and logo went to the website's home page, where the customer was stuck).
   The sign-in pages are where the app starts: their MANTA SHARK and logo are

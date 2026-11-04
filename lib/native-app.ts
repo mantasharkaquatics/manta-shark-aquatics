@@ -100,12 +100,36 @@ export function coverViewport() {
   const m = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
   if (m && !/viewport-fit/.test(m.content)) m.content += ', viewport-fit=cover'
 }
+/* The phone's text size (owner, 2026-11-04, 問題 2 選項 A: grandparents found
+   the app's text too small; follow the phone's own setting, no switch in the
+   app). Android's web view already scales text by the phone's font size. The
+   iPhone's does not: it is read here from the system body font (17px at the
+   standard size, -apple-system-body follows 設定 → 螢幕顯示與亮度 → 文字大小)
+   and handed to -webkit-text-size-adjust on <html>, which every font size
+   inherits. Only ever larger than the design, and at most 140%, past which
+   the cards and tabs stop fitting. Run before the first paint (in
+   APP_DETECT_SCRIPT) and again whenever the app comes back to the front, in
+   case the setting was changed meanwhile (components/AppBridge.tsx). */
+export const TEXT_SIZE_FN =
+  `function(){try{var h=document.documentElement;if(!/iPhone|iPad|iPod/.test(navigator.userAgent)&&!(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1))return;` +
+  `var was=h.style.font;h.style.font='-apple-system-body';var px=parseFloat(getComputedStyle(h).fontSize);h.style.font=was;` +
+  `if(!(px>0))return;var k=Math.min(1.4,Math.max(1,px/17));var v=k>1.02?Math.round(k*100)+'%':'';` +
+  `h.style.webkitTextSizeAdjust=v;h.style.textSizeAdjust=v;if(v)h.setAttribute('data-text-size',v);else h.removeAttribute('data-text-size')}catch(e){}}`
+export const applyPhoneTextSize = () => {
+  if (typeof window === 'undefined') return
+  const h = document.documentElement, before = h.getAttribute('data-text-size')
+  ;(window as unknown as { __msaTextSize?: () => void }).__msaTextSize?.()
+  // Pages that size themselves to the screen (the home cards) measure again on resize.
+  if (h.getAttribute('data-text-size') !== before) window.dispatchEvent(new Event('resize'))
+}
+
 export const APP_DETECT_SCRIPT =
   `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){document.documentElement.classList.add('${APP_CLASS}');` +
   // The website's home page is not part of the app (owner, 2026-11-03: it
   // left customers on a page with no way back): the 首頁 tab instead, which
   // sends a signed-out family on to the login page (proxy.ts).
   `if(/^\\/(zh-Hant|zh-Hans)?\\/?$/.test(location.pathname))location.replace('/dashboard');` +
+  `window.__msaTextSize=${TEXT_SIZE_FN};window.__msaTextSize();` +
   `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
