@@ -242,6 +242,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
      reply means the desk has it, the desk's hand-back notice means the AI is
      back, and a message the AI skipped means the desk has it. */
   const [mode, setMode] = useState<'ai' | 'human'>('ai')
+  /* The next message goes to a person, not the assistant (lib/chat-open
+     openChatToTeam; owner, 2026-11-04, 問題 15). */
+  const [toTeam, setToTeam] = useState(false)
   /* A visitor asking for a person (owner, 2026-10-22, tier 3): a short form
      for a name and an email (phone optional). The desk is alerted and its
      replies are emailed to them (/api/chat/guest/contact). */
@@ -277,6 +280,20 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The words asked for go in the box (never sent for the family); a request
+  // for a person opens the visitor's "ask the team" form instead, or marks a
+  // signed-in family's next message for the desk.
+  const guestRef = useRef(guest)
+  guestRef.current = guest
+  function applyOpen(text: string, team: boolean) {
+    if (team && guestRef.current) {
+      setContactErr(null); setContact(c => ({ ...c, text: c.text || text })); setContactOpen(true)
+      return
+    }
+    if (text) setInput(text)
+    if (team) setToTeam(true)
+  }
+
   useEffect(() => {
     // In the app the chat is a page of its own: go there, and leave the
     // request (and its text) for the page to take when it mounts.
@@ -286,8 +303,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       takePendingChatOpen()
       focusOnOpenRef.current = true
       setOpen(true)
-      const text = (e as CustomEvent).detail?.text
-      if (text) setInput(text)
+      const d = (e as CustomEvent).detail || {}
+      applyOpen(String(d.text || ''), !!d.toTeam)
     }
     window.addEventListener(CHAT_OPEN_EVENT, onOpen)
     // A request made before this widget was mounted (lib/chat-open), handled
@@ -298,7 +315,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       if (!pending) return
       focusOnOpenRef.current = true
       setOpen(true)
-      if (pending.text) setInput(pending.text)
+      applyOpen(pending.text, !!pending.toTeam)
     }, 0)
     return () => { clearTimeout(timer); window.removeEventListener(CHAT_OPEN_EVENT, onOpen) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,7 +445,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         // is the desk's "session ended" notice.
         const from = (payload.new as any)?.sender_type
         if (from === 'admin') setMode('human')
-        else if (from === 'system') setMode('ai')
+        // The desk's "back to the assistant" notices carry a key; a plain note
+        // (a teacher will answer, /api/chat/to-team) does not hand anything back.
+        else if (from === 'system' && (payload.new as { metadata?: { key?: string } } | null)?.metadata?.key) setMode('ai')
         if (!(openRef.current && visibleRef.current) && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
       })
       // The desk recalled a reply (owner, 2026-10-23; /api/admin/chat-recall):
@@ -656,6 +675,27 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     setSending(true)
     setSendFailed(null)
     if (!text) setInput('')
+    if (toTeam) {
+      // Straight to the desk: no assistant, no typing dots.
+      let got: typeof messages | null = null
+      try {
+        const r = await fetch('/api/chat/to-team', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: threadId, body, locale }),
+        })
+        if (r.ok) got = (await r.json().catch(() => null))?.messages ?? null
+      } catch {}
+      if (!got) {
+        if (!text) setInput(prev => prev ? prev : body)
+        setSendFailed('chat.sendFailed')
+        setSending(false)
+        return
+      }
+      const rows = got
+      setMessages(prev => [...prev, ...rows.filter(r => !prev.some(m => m.id === r.id))])
+      setMode('human'); setToTeam(false); setSending(false)
+      return
+    }
     // Checked (found 2026-10-15), as the desk's send has been since
     // 2026-10-08: supabase-js returns a refused or dropped insert as { error }
     // rather than throwing, so a flaky connection or an expired session lost
@@ -880,6 +920,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             </div>
           )}
         </div>
+{toTeam && !guest && (
+          <div className="pc-team" role="status" style={{ fontSize: '12.5px', color: '#1f6b45', background: '#e7f6ec', borderTop: '1px solid #bfe3cb', padding: '8px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ flex: 1 }}>{t('chat.toTeam.banner')}</span>
+            <button type="button" className="tap-auto" onClick={() => setToTeam(false)} style={{ background: 'none', border: 'none', color: '#1f6b45', fontWeight: 800, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}>{t('chat.toTeam.cancel')}</button>
+          </div>
+        )}
         {sendFailed && <div role="alert" className="pc-err">{t(sendFailed)}</div>}
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => { pick(e.target.files); e.target.value = '' }} />
         {picked.length > 0 && (
@@ -1117,6 +1163,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             )}
           </div>
 
+          {toTeam && !guest && (
+            <div className="pc-team" role="status" style={{ fontSize: '12.5px', color: '#1f6b45', background: '#e7f6ec', borderTop: '1px solid #bfe3cb', padding: '8px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ flex: 1 }}>{t('chat.toTeam.banner')}</span>
+              <button type="button" className="tap-auto" onClick={() => setToTeam(false)} style={{ background: 'none', border: 'none', color: '#1f6b45', fontWeight: 800, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}>{t('chat.toTeam.cancel')}</button>
+            </div>
+          )}
           {/* Not sent: right above the box the text went back into, so it is
               seen without scrolling the conversation. */}
           {sendFailed && (

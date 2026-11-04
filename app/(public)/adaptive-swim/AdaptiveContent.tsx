@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
-import { openChat } from '@/lib/chat-open'
+import { openChatToTeam } from '@/lib/chat-open'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 
@@ -69,11 +69,11 @@ export default function AdaptiveContent() {
   // it with the adaptive-swim question in the box. ?chat=1 still arrives from
   // older sign-up links and opens it the same way.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('chat') === '1') openChat(t('adapt.chatSeed'))
+    if (new URLSearchParams(window.location.search).get('chat') === '1') openChatToTeam(t('adapt.chatSeed'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const chatBtn = (cls: string) => (
-    <button type="button" className={'b-btn ' + cls} onClick={() => openChat(t('adapt.chatSeed'))}>{t('adapt.cta.chat')} →</button>
+    <button type="button" className={'b-btn ' + cls} onClick={() => openChatToTeam(t('adapt.chatSeed'))}>{t('adapt.cta.chat')} →</button>
   )
 
   return (

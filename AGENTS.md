@@ -1040,6 +1040,14 @@ the contained problems were fixed the same day. What to keep doing:
   首頁 and sign-in put the app in the background (minimizeApp); elsewhere
   back a page. A new sheet should close on Esc or a tap on its dimmed area,
   and a closed one should be aria-hidden, so the back button finds it.
+- **Adaptive swim talks to a person** (owner, 2026-11-04, 問題 15 選項 A):
+  跟老師談談 on /adaptive-swim and the app's programme card calls
+  `openChatToTeam` (lib/chat-open). A visitor gets the "ask the team" form
+  with the question filled in; a signed-in family sees a green line (this
+  goes to a teacher, not the AI; 改問 AI to undo) and the message is sent
+  through /api/chat/to-team: mode 'human', desk alerted, a system note in
+  their language, no ai-reply call. Only system messages with a
+  metadata.key (the desk's hand-back notices) turn the widget back to AI.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

@@ -7,6 +7,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
 import ProgramCards from './ProgramCards'
 import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 import { BASE_POINTS } from '@/lib/points'
+import { openChatToTeam } from '@/lib/chat-open'
 
 /* The Programs overview. It used to hold all four programmes in sections; each
    now has its own page with its own open times (owner, 2026-09-28), so this
@@ -37,7 +38,8 @@ function ProgramsApp() {
   const cards = [
     { key: 'private', price: t('appinfo.price.private', { a: BASE_POINTS['1on1'], b: BASE_POINTS['1on2'] }), href: '/booking', btn: t('nav.bookShort') },
     { key: 'group', price: t('appinfo.price.group', { n: BASE_POINTS['1on4'] }), href: '/booking', btn: t('nav.bookShort') },
-    { key: 'adaptive', price: t('appinfo.price.adaptive'), href: '/dashboard/chat', btn: t('dash.up.messageUs'), ghost: true },
+    // Straight to a teacher, not the assistant (owner, 2026-11-04, 問題 15).
+    { key: 'adaptive', price: t('appinfo.price.adaptive'), href: '', btn: t('adapt.cta.chat'), ghost: true, team: true },
     { key: 'team', price: t('appinfo.price.team'), href: '/checkout?plan=team', btn: t('programs.team.join') },
   ]
   return (
@@ -48,7 +50,9 @@ function ProgramsApp() {
           <div key={c.key} className="ai-card ai-prog">
             <div className="ai-prog-top">
               <h2>{t(`nav.prog.${c.key}`)}</h2>
-              <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>
+              {'team' in c && c.team
+                ? <button type="button" className="ai-btn ghost" onClick={() => openChatToTeam(t('adapt.chatSeed'))}>{c.btn}</button>
+                : <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>}
             </div>
             <p className="ai-price">{c.price}</p>
             <p className="d">{t(`programs.${c.key}.sub`)}</p>

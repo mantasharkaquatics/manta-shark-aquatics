@@ -13,18 +13,26 @@ export const CHAT_OPEN_EVENT = 'msa:chat-open'
 // stale: the visitor has moved on.
 const PENDING_KEY = '__msaChatOpenPending'
 const PENDING_MAX_AGE_MS = 60_000
-type Pending = { text: string; at: number }
+type Pending = { text: string; at: number; toTeam?: boolean }
 // Set by the widget (reportChatOpen below): is the panel open.
 const OPEN_KEY = '__msaChatIsOpen'
 
-export function openChat(text?: string) {
+export function openChat(text?: string, opts: { toTeam?: boolean } = {}) {
   if (typeof window === 'undefined') return
-  ;(window as unknown as Record<string, Pending | null>)[PENDING_KEY] = { text: text || '', at: Date.now() }
-  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { text: text || '' } }))
+  const toTeam = !!opts.toTeam
+  ;(window as unknown as Record<string, Pending | null>)[PENDING_KEY] = { text: text || '', at: Date.now(), toTeam }
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { text: text || '', toTeam } }))
 }
 
+/* Straight to a person (owner, 2026-11-04, 問題 15 選項 A: the families of the
+   adaptive-swim programme want a teacher, not the assistant). A visitor gets
+   the "ask the team" form with the text filled in; a signed-in family's
+   message goes to the desk through /api/chat/to-team and the assistant does
+   not answer it. */
+export const openChatToTeam = (text?: string) => openChat(text, { toTeam: true })
+
 /** The open request not yet handled, if any; clears it. */
-export function takePendingChatOpen(): { text: string } | null {
+export function takePendingChatOpen(): { text: string; toTeam?: boolean } | null {
   if (typeof window === 'undefined') return null
   const w = window as unknown as Record<string, Pending | null>
   const p = w[PENDING_KEY]
@@ -32,7 +40,7 @@ export function takePendingChatOpen(): { text: string } | null {
   if (!p || Date.now() - p.at > PENDING_MAX_AGE_MS) return null
   // The widget opens on it now; count it open until the widget says so itself.
   ;(window as unknown as Record<string, boolean | undefined>)[OPEN_KEY] = true
-  return { text: p.text }
+  return { text: p.text, toTeam: !!p.toTeam }
 }
 
 /* Whether the chat panel is open, or about to be (found 2026-10-15): the
