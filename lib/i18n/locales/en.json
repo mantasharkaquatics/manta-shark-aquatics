@@ -727,7 +727,7 @@
   "err.inviteTooLate": "This lesson now starts in less than 30 minutes, which is too close to book it, so the invitation has been cancelled. No points were used.",
   "err.inviteCoachOff": "The coach is no longer available at this time, so the invitation has been cancelled. No points were used.",
   "err.partnerSwimmerBusy": "The other family's swimmer already has a lesson at that time. Please pick another time.",
-  "err.passwordShort": "Password is too short. Please use at least 6 characters.",
+  "err.passwordShort": "Password is too short. Please use at least 8 characters.",
   "err.passwordSame": "Your new password must be different from your current one.",
   "err.payLinkExpired": "The payment link has expired. The time will be released shortly.",
   "err.phoneLookupFailed": "Could not check that phone number. Please try again.",
@@ -1489,7 +1489,7 @@
   "register.optional": "(Optional)",
   "register.password": "Password",
   "register.passwordConfirm": "Confirm password",
-  "register.passwordHint": "At least 6 characters.",
+  "register.passwordHint": "At least 8 characters.",
   "register.passwordMatch": "Passwords match",
   "register.phone": "Phone",
   "register.ref.applied": "Referral code applied",
@@ -2754,5 +2754,8 @@
   "points.buy.agree": "By paying you agree to the",
   "booking.policy.fixedEnd": "A fixed class can't be ended online: contact us, and the school decides whether the remaining lessons' points are returned or become make-up vouchers.",
   "dash.here.short": "I'm here",
-  "dash.here.useQr": "Show the QR code instead"
+  "dash.here.useQr": "Show the QR code instead",
+  "err.passwordSimple": "That password is too easy to guess. Please avoid one repeated character, runs like 12345678, dates and common passwords.",
+  "err.passwordEmail": "Your password can't be your email address. Please choose another.",
+  "register.passwordOk": "Good to use"
 }

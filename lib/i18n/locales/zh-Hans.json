@@ -727,7 +727,7 @@
   "err.inviteTooLate": "这节课距离开课已经不到 30 分钟，来不及安排，所以邀请已经取消，没有使用任何点数。",
   "err.inviteCoachOff": "教练这个时段已经没有空，所以邀请已经取消，没有使用任何点数。",
   "err.partnerSwimmerBusy": "对方家庭的学员在这个时段已经有课，请选择其他时间。",
-  "err.passwordShort": "密码太短，请至少使用 6 个字符。",
+  "err.passwordShort": "密码太短，请至少使用 8 个字符。",
   "err.passwordSame": "新密码不能和当前密码一样。",
   "err.payLinkExpired": "付款链接已过期，这个时段很快会被释放。",
   "err.phoneLookupFailed": "无法确认这个手机号码，请再试一次。",
@@ -1489,7 +1489,7 @@
   "register.optional": "（选填）",
   "register.password": "密码",
   "register.passwordConfirm": "确认密码",
-  "register.passwordHint": "至少 6 个字符。",
+  "register.passwordHint": "至少 8 个字符。",
   "register.passwordMatch": "两次密码一致",
   "register.phone": "手机号码",
   "register.ref.applied": "已自动套用介绍代码",
@@ -2754,5 +2754,8 @@
   "points.buy.agree": "付款即表示同意",
   "booking.policy.fixedEnd": "固定班不能在线上提前结束；要结束请联系我们，剩下的课退点或换补课券由学校决定。",
   "dash.here.short": "我到了",
-  "dash.here.useQr": "改用 QR Code"
+  "dash.here.useQr": "改用 QR Code",
+  "err.passwordSimple": "这个密码太容易被猜到了，请换一个（不要全部同一个字、连号、生日或常见密码）。",
+  "err.passwordEmail": "密码不能和 email 一样，请换一个。",
+  "register.passwordOk": "可以使用"
 }

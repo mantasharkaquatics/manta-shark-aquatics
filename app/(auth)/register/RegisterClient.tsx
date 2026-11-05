@@ -17,6 +17,7 @@ import { getTodayLA } from '@/lib/date'
 import { safeNext, withNext } from '@/lib/safe-next'
 import { REFERRAL_POINTS } from '@/lib/points'
 import { isAdultOn } from '@/lib/account-holder'
+import { passwordIssue, PASSWORD_ISSUE_KEY } from '@/lib/password-rules'
 
 // A friend's link is remembered for 30 days (owner, 2026-09-29): families
 // often open it, look around, and come back later from the home page. Kept in
@@ -139,6 +140,8 @@ export default function RegisterClient() {
   // Typed twice so a slip on a phone keyboard does not lock a family out of
   // the account they are creating (owner, 2026-09-25).
   const [password2, setPassword2] = useState('')
+  const pwIssue = passwordIssue(password, email)
+  const pwShown = !!pwIssue
   const [addressLine1, setAddressLine1] = useState('')
   const [addressLine2, setAddressLine2] = useState('')
   const [city, setCity] = useState('')
@@ -434,8 +437,8 @@ export default function RegisterClient() {
     if (!finish && password !== password2) { setError(t('register.err.passwordMismatch')); return }
     // Checked here, on the page that has the password boxes (found
     // 2026-10-08): it used to surface only from signUp on step 2, which has
-    // no password field to fix. Same minimum as Supabase's (err.passwordShort).
-    if (!finish && password.length < 6) { setError(t('err.passwordShort')); return }
+    // no password field to fix. Same minimum as Supabase's (lib/password-rules).
+    if (!finish && pwIssue) { setError(t(PASSWORD_ISSUE_KEY[pwIssue])); return }
     if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) { setError(t('register.err.zip')); return }
     if (!emailOk) { setError(t('register.err.verifyEmail')); return }
     if (!phoneVerified) { setError(t('register.err.verifyPhone')); return }
@@ -785,7 +788,7 @@ export default function RegisterClient() {
                 <div>
                   <label htmlFor="reg-password" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
                   <PasswordField id="reg-password" value={password} onChange={setPassword} autoComplete="new-password"
-                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password && password.length < 6 ? ' !border-red-500' : '')} />
+                    className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password && pwShown ? ' !border-red-500' : '')} />
                 </div>
                 <div>
                   <label htmlFor="reg-password2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
@@ -793,7 +796,11 @@ export default function RegisterClient() {
                     className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
                 </div>
               </div>
-              <p className={`text-xs mt-1.5 ${password && password.length < 6 ? 'text-red-600' : 'text-[#56647d]'}`}>{t('register.passwordHint')}</p>
+              {/* The hint turns red while too short; once 8 are typed, a too-simple
+                  one says why (決定 6), and a good one gets a tick. */}
+              <p className={`text-xs mt-1.5 ${password && pwShown ? 'text-red-600' : password && !pwIssue ? 'text-green-700' : 'text-[#56647d]'}`}>
+                {password && pwIssue && pwIssue !== 'short' ? t(PASSWORD_ISSUE_KEY[pwIssue]) : password && !pwIssue ? '✓ ' + t('register.passwordOk') : t('register.passwordHint')}
+              </p>
               {password2 && (password2 === password
                 ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}

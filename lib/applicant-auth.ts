@@ -2,10 +2,12 @@ import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { cookies } from 'next/headers'
 import { serviceClient } from '@/lib/api-auth'
+import { passwordIssue, MIN_PASSWORD } from '@/lib/password-rules'
 
 export const APPLICANT_COOKIE = 'msa_applicant_session'
 export const SESSION_DAYS = 30
-export const MIN_PASSWORD_LENGTH = 6
+// The same rule as the family sign-up (lib/password-rules, 決定 6).
+export const MIN_PASSWORD_LENGTH = MIN_PASSWORD
 const BCRYPT_COST = 12
 
 export type Applicant = {
@@ -22,11 +24,12 @@ export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase()
 }
 
-export function passwordProblem(password: string): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters.'
-  }
+export function passwordProblem(password: string, email?: string | null): string | null {
   if (password.length > 200) return 'Password is too long.'
+  const issue = passwordIssue(password, email)
+  if (issue === 'short') return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters.'
+  if (issue === 'simple') return 'That password is too easy to guess. Please avoid one repeated character, runs like 12345678, and common passwords.'
+  if (issue === 'email') return 'Please choose a password that is not your email address.'
   return null
 }
 

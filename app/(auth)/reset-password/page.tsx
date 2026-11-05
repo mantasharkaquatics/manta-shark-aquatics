@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
+import { passwordIssue, PASSWORD_ISSUE_KEY } from '@/lib/password-rules'
 
 /* Step two of "forgot password": the page the emailed link opens.
 
@@ -29,17 +30,26 @@ function ResetForm() {
   const [error, setError] = useState('')
   const [expired, setExpired] = useState(!tokenHash)
   const [done, setDone] = useState(false)
+  // The account's address, once the link is verified: a password equal to it is refused.
+  const [email, setEmail] = useState('')
 
   async function save() {
     setError('')
     if (!password || !password2) { setError(t('reset.err.empty')); return }
     if (password !== password2) { setError(t('register.err.passwordMismatch')); return }
+    // The same rule as sign-up (決定 6); it used to wait for Supabase's answer.
+    const early = passwordIssue(password)
+    if (early) { setError(t(PASSWORD_ISSUE_KEY[early])); return }
     setSaving(true)
+    let who = email
     if (!verified) {
-      const { error: vErr } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+      const { data: vData, error: vErr } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
       if (vErr) { setExpired(true); setSaving(false); return }
       setVerified(true)
+      who = vData.user?.email || ''
+      setEmail(who)
     }
+    if (passwordIssue(password, who) === 'email') { setError(t(PASSWORD_ISSUE_KEY.email)); setSaving(false); return }
     const { error: uErr } = await supabase.auth.updateUser({ password })
     if (uErr) {
       const k = errorKey(uErr.message)

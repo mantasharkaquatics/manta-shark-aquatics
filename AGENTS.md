@@ -1146,6 +1146,16 @@ the contained problems were fixed the same day. What to keep doing:
     wait for the new site (owner's plan, July 2027); automatic check-in
     without a tap is not to be built (a parent passing the pool would mark
     a child present).
+  - **Passwords (owner, 2026-11-05, 決定 6 選項 A)**: at least 8 characters
+    and not too simple -- lib/password-rules.ts `passwordIssue()` refuses a
+    repeated character or short pattern, a run (12345678, abcdefgh), an
+    8-digit date, a common password (with trailing digits/! dropped) and the
+    email itself. Sign-up shows it as the hint under the box (✓ 可以使用 when
+    fine), the forgot-password reset checks it before Supabase, and the
+    careers portal uses the same rule on its server. Passwords set earlier
+    keep working (Supabase signs them in; signInWithPassword only adds
+    `weakPassword`). Supabase's own minimum is 8 on both projects (owner
+    sets it); its "password requirements" (capitals, symbols) stay off.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

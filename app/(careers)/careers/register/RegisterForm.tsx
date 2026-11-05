@@ -109,7 +109,7 @@ export default function RegisterForm() {
           <label style={LABEL} htmlFor="password">Password</label>
           <PasswordInput id="password" value={password} autoComplete="new-password" onChange={setPassword} />
           <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', margin: '6px 0 0' }}>
-            At least 6 characters.
+            At least 8 characters, not easy to guess (no 12345678 or common passwords).
           </p>
         </div>
 

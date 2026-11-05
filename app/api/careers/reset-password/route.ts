@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and code are required' }, { status: 400 })
   }
 
-  const problem = passwordProblem(password)
+  const problem = passwordProblem(password, email)
   if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
   const svc = serviceClient()

@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   if (!phone) {
     return NextResponse.json({ error: 'Please enter a valid US phone number.' }, { status: 400 })
   }
-  const pwProblem = passwordProblem(password)
+  const pwProblem = passwordProblem(password, email)
   if (pwProblem) {
     return NextResponse.json({ error: pwProblem }, { status: 400 })
   }

@@ -39,6 +39,8 @@ const MAP: readonly (readonly [string, string])[] = [
   ['Email not confirmed', 'err.emailNotConfirmed'],
   ['User already registered', 'err.userExists'],
   ['Password should be at least', 'err.passwordShort'],
+  // Supabase's leaked-password check, when turned on.
+  ['known to be weak', 'err.passwordSimple'],
   ['Unable to validate email address', 'err.emailInvalid'],
   ['For security purposes, you can only request this after', 'err.rateLimit'],
   // Supabase auth messages that used to reach a Chinese page in English
