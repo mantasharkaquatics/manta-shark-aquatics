@@ -7,7 +7,7 @@ export default function SmsTermsPage() {
     <LegalPage
       title="SMS Terms & Conditions"
       subtitle="Message frequency, rates, and how to opt out."
-      meta="Last updated: October 22, 2026"
+      meta="Last updated: November 5, 2026"
     >
         <h2>Program Description</h2>
         <p>
@@ -23,6 +23,8 @@ export default function SmsTermsPage() {
           <li><strong>Account notices.</strong> Occasional messages about your account, such as a confirmation when the phone number on your account is changed.</li>
         </ul>
         <p>We do not send marketing or promotional text messages.</p>
+        {/* Added 2026-11-05 (owner, 決定 4 選項 A): push replaces these texts in the app. */}
+        <p>If you use our mobile app and allow its notifications, lesson reminders, lesson changes and waitlist notices come as app notifications instead of text messages. Switch reminders off in the app&apos;s notification settings to receive them by text again.</p>
 
         <h2>Message Frequency</h2>
         <p>

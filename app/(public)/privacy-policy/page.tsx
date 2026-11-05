@@ -7,18 +7,39 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       title="Privacy Policy"
       subtitle="What information we collect and how we use it."
-      meta="Last updated: November 3, 2026"
+      meta="Last updated: November 5, 2026"
     >
         <p>
           Manta Shark Aquatics (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) values your privacy. This Privacy Policy explains how we
           collect, use, and protect your personal information when you use our website
-          (www.mantasharkaquatics.net) and services.
+          (www.mantasharkaquatics.net), our Manta Shark mobile app for iPhone and Android, and our services.
         </p>
 
         <h2>1. Information We Collect</h2>
         <ul>
           <li>Account information: name, email address, phone number, home address, and password.</li>
-          <li>Student information: swimmer names, ages, and swim-level progress.</li>
+          <li>Student information: swimmer names, dates of birth, and swim-level progress.</li>
+          {/* Added 2026-11-05 (owner, 決定 4 選項 A). Draft wording, to be reviewed by counsel. */}
+          <li>
+            Safety information you give us about each swimmer: whether they have any medical condition
+            or allergy our staff should know about, and any notes you add. Only our coaches and front
+            desk can see it; it is not shared with other families, view-only family members or the AI
+            chat assistant, and we keep it while the swimmer is enrolled.
+          </li>
+          <li>
+            An emergency contact you name for your family (their name, relationship to you and phone
+            number), used only to reach someone if we cannot reach you during a lesson. Please tell
+            that person you have given us their details.
+          </li>
+          <li>
+            Photos and videos of your swimmer, only as allowed by the photo and video consent you set in
+            your account (see our Media Release).
+          </li>
+          <li>
+            If you use our app: a device token that lets us send notifications to your phone, which
+            notifications you have switched on, and when the app was last opened. Each swimmer has a
+            check-in code in the app that our front desk scans to record attendance.
+          </li>
           <li>Booking and attendance records for lessons you schedule with us.</li>
           <li>Payment information, processed securely by Stripe. We do not store full card numbers.</li>
           {/* Chat, voice notes and AI reports were missing (found 2026-10-08).
@@ -53,7 +74,8 @@ export default function PrivacyPolicyPage() {
           <li>To create and manage your account and your swimmers&apos; lesson bookings.</li>
           <li>To understand which areas our families come from, using the home address you give us, so we can plan where we teach.</li>
           <li>To verify your identity during registration (email and SMS one-time passcodes).</li>
-          <li>To send service communications such as booking confirmations, cancellations, reminders, and invoices.</li>
+          <li>To send service communications such as booking confirmations, cancellations, reminders, and invoices, by email, text message or app notification. While our app can notify you, lesson reminders, last-minute cancellations and waitlist offers come as app notifications instead of text messages; turn reminders off in the app to receive them by text again.</li>
+          <li>To keep your swimmer safe in the water, using the safety information and emergency contact you give us.</li>
           <li>To process payments and maintain transaction records.</li>
           <li>To respond to your questions and provide customer support, including through an AI chat assistant on our website.</li>
           <li>To prepare lesson notes and progress reports about your swimmer, and to translate them into the language you choose.</li>
@@ -64,11 +86,13 @@ export default function PrivacyPolicyPage() {
           <li>
             When you provide your phone number during account registration and tap &quot;Send Verification
             Code&quot;, you consent to receive text messages from Manta Shark Aquatics: a one-time
-            verification passcode, a reminder the day before each lesson you book, and occasional notices
-            about your account (for example, when the phone number on your account changes). We do not
+            verification passcode, a reminder the day before each lesson you book, a message if we have
+            to cancel a lesson that starts within the next 48 hours, a message when a place opens on a
+            waitlist you joined, and occasional notices about your account (for example, when the phone
+            number on your account changes). We do not
             send marketing or promotional text messages.
           </li>
-          <li>Message frequency varies: a passcode only when you request one, and one reminder for each lesson you book. Message and data rates may apply.</li>
+          <li>Message frequency varies: a passcode only when you request one, one reminder for each lesson you book, and the cancellation and waitlist messages above only when they happen. Message and data rates may apply.</li>
           <li>Reply STOP to opt out of SMS at any time. Reply HELP for help, or contact us at {CONTACT_EMAIL}.</li>
           <li>Consent to receive SMS is not a condition of purchasing any goods or services.</li>
           <li>
@@ -93,6 +117,7 @@ export default function PrivacyPolicyPage() {
             reports)
           </li>
           <li>OpenAI (converts coaches&apos; spoken lesson notes from audio into text)</li>
+          <li>Google Firebase Cloud Messaging (delivers app notifications to your phone, if you allow notifications)</li>
           <li>Google (suggests matching addresses as you type your home address when you register)</li>
           <li>
             Google Calendar, only if you choose to connect it: we create one calendar named

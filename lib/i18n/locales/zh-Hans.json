@@ -1511,7 +1511,7 @@
   "register.sendCode": "发送验证码",
   "register.sending": "发送中…",
   "register.signIn": "登录",
-  "register.sms.body": "点击「发送验证码」即表示您同意接收 Manta Shark Aquatics 发送的短信：现在的一次性验证码、每堂课前一天的上课提醒，以及偶尔的账户通知。我们不会发送营销短信。消息频率依预约情况而定。可能产生消息与数据费用。回复 HELP 获取帮助，回复 STOP 取消订阅。同意接收短信并非购买的条件。详见我们的",
+  "register.sms.body": "点击「发送验证码」即表示您同意接收 Manta Shark Aquatics 发送的短信：现在的一次性验证码、每堂课前一天的上课提醒、48 小时内临时取消课程的通知、您加入的候补有名额时的通知，以及偶尔的账户通知。我们不会发送营销短信。消息频率依预约情况而定。可能产生消息与数据费用。回复 HELP 获取帮助，回复 STOP 取消订阅。同意接收短信并非购买的条件。详见我们的",
   "register.sms.end": "。",
   "register.sms.mid": "与",
   "register.sms.privacy": "隐私政策",
@@ -2747,5 +2747,10 @@
   "booking.aria.notOpen": "，尚未开放",
   "booking.aria.hasTimes": "，有空位",
   "chat.fromMe": "您：",
-  "dash.firstStep": "第一步：30 分钟一对一评估，决定从哪一级开始。"
+  "dash.firstStep": "第一步：30 分钟一对一评估，决定从哪一级开始。",
+  "checkout.renewNote": "每月自动扣款 {price}，直到您取消。下次扣款日前随时可以在「我的 → 泳队 → 管理」取消，或写信给我们；已付的这个月可以上完，不退费。",
+  "checkout.terms": "使用者条款",
+  "checkout.priceMissing": "价格暂时无法加载，请稍后再试。",
+  "points.buy.agree": "付款即表示同意",
+  "booking.policy.fixedEnd": "固定班不能在线上提前结束；要结束请联系我们，剩下的课退点或换补课券由学校决定。"
 }

@@ -425,7 +425,9 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
       )}
       {error && <div className="p-err" role="alert">{error}</div>}
 
-      <p className="p-fine" style={{ marginTop: app ? 10 : 16 }}>{t('points.buy.fine')}</p>
+      {/* The terms, before paying (owner, 2026-11-05, 決定 4 選項 A). */}
+      <p className="p-fine" style={{ marginTop: app ? 10 : 16 }}>{t('points.buy.fine')} {t('points.buy.agree')}{' '}
+        <a href="/terms" target="_blank" rel="noopener" style={{ color: BRAND.blue, fontWeight: 700 }}>{t('checkout.terms')}</a>{locale === 'en' ? '.' : '。'}</p>
 
       {signedIn === true && anyAssessed && <ZellePay price={valid ? money(chosen) : '—'} />}
     </div>

@@ -241,7 +241,14 @@ function CheckoutContent() {
                   )}
                   {waitMsg && <p role="status" style={{ fontSize: 14, color: BRAND.navy, margin: '10px 0 0' }}>{waitMsg}</p>}
 
-                  <button type="button" className="b-btn gold co-pay" onClick={handleCheckout} disabled={paying || !selectedStudentId}>
+                  {/* What a monthly membership means, before the button (owner,
+                      2026-11-05, 決定 4 選項 A): renews until cancelled, where
+                      to cancel, the month paid stays; and the terms. */}
+                  {teamPrice
+                    ? <p className="co-note" style={{ textAlign: 'left', lineHeight: 1.6 }}>{t('checkout.renewNote', { price: priceLabel })}{' '}
+                        <a href="/terms" target="_blank" rel="noopener" style={{ color: BRAND.blue, fontWeight: 700 }}>{t('checkout.terms')}</a></p>
+                    : <p className="co-note">{t('checkout.priceMissing')}</p>}
+                  <button type="button" className="b-btn gold co-pay" onClick={handleCheckout} disabled={paying || !selectedStudentId || !teamPrice}>
                     {paying ? t('checkout.redirecting') : t('checkout.subscribe', { price: priceLabel })}
                   </button>
                   <p className="co-note">🔒 {t('checkout.stripeNote')}</p>

@@ -34,6 +34,7 @@ import { ADULT_AGE, accountHolderOf, missingHolderColumn, type HolderRow } from 
 type Svc = any
 
 export const BIRTHDAY_GIFT_POINTS = BASE_POINTS['1on4']
+// Also written out in the terms (Section 3, "three months"): change both together.
 export const BIRTHDAY_GIFT_MONTHS = 3
 export { ADULT_AGE }
 const ACTIVE_WINDOW_DAYS = 60

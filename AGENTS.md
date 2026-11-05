@@ -1120,6 +1120,15 @@ the contained problems were fixed the same day. What to keep doing:
     預約游泳評估 → under the picture (`.msa-mcard-first`); the deck counts
     it, so the picture shrinks and 首頁 stays one screen. Once booked, the
     tile row says 評估已預約 · when.
+  - **Screens agree with the documents** (owner, 2026-11-05, 決定 4 選項
+    A): Swim Team checkout says it renews monthly, where to cancel and that
+    the paid month stays (no button until the price loads); /plans links
+    the terms before paying; the fixed-class confirm says a class cannot be
+    ended online; the sign-up SMS consent lists the same five kinds as the
+    SMS terms. The terms (birthday gift points: three months, also
+    BIRTHDAY_GIFT_MONTHS) and the privacy policy (the app, safety info,
+    emergency contact, birth dates, media, push / Firebase, check-in code)
+    were updated the same day as drafts for the owner's lawyer.
   - The check-in QR says which lesson it is for, that check-in opens 30
     minutes before, and who else has a lesson today; 我的's QR opens the
     one swimmer with a lesson today directly, else lists them first.

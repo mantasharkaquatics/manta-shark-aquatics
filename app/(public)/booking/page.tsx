@@ -4782,7 +4782,7 @@ export default function BookingPage() {
                   : ((selectedStudent2 as any)?.isPartner || (isReschedule && reschedulePartnerBookingIdRef.current)) ? t('booking.crossAccountRule')
                   // A lesson a voucher pays for is a make-up: its cancellation rule
                   // is the voucher's, not the points refund of a single lesson.
-                  : [planSplit.lines.length > 0 ? t('booking.policy.fixed') : null,
+                  : [planSplit.lines.length > 0 ? t('booking.policy.fixed') + ' ' + t('booking.policy.fixedEnd') : null,
                      (planSplit.singles.some(x => !recurCover.has(lessonKey(x))) || (planSplit.lines.length === 0 && voucherUsing === 0)) ? t('booking.policy.single') : null,
                      voucherUsing > 0 ? t('booking.policy.makeUp') : null].filter(Boolean).join(' ')}{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, textDecoration: 'underline', fontWeight: 600 }}>
