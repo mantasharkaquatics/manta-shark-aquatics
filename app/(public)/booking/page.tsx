@@ -26,8 +26,9 @@ import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import FamilyBooking from './FamilyBooking'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS, AmPmColumns, hh12 } from './parts'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, hh12 } from './parts'
 import Sheet from '@/components/ui/Sheet'
+import Icon from '@/components/ui/Icon'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 import LoadFailed from '@/components/LoadFailed'
@@ -1344,7 +1345,7 @@ export default function BookingPage() {
     <div role="status" style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '12px 14px', margin: '12px 0 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {rows.map(r => (
         <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.5, flex: '1 1 220px' }}><span aria-hidden>📍 </span>{text(r)}</span>
+          <span style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.5, flex: '1 1 220px' }}><span aria-hidden><Icon name="pin" /> </span>{text(r)}</span>
           <button type="button" onClick={() => pickLocation(r.id, keepDate)}
             style={{ minHeight: '44px', padding: '0 18px', borderRadius: '999px', border: `1.5px solid ${NAVY}`, background: NAVY, color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             {t('booking.loc.elsewhereSee', { there: r.name })}
@@ -2722,7 +2723,7 @@ export default function BookingPage() {
       }}>
         {recurPlan.length > 0 ? (
           <>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
+            <div style={{ fontSize: '56px', marginBottom: '16px', color: '#1f7a57', lineHeight: 1 }}><Icon name="check" size={56} /></div>
             <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: '28px', fontWeight: 900, color: '#16294a', marginBottom: '12px' }}>
               {t('booking.recur.successBooked', { n: recurBooked })}
             </h2>
@@ -2757,7 +2758,7 @@ export default function BookingPage() {
               background: '#eef4fc', border: '1px solid #c9d8ee',
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
-              <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+              <span style={{ fontSize: '20px', flexShrink: 0, color: '#2050a0' }}><Icon name="mail" /></span>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.emailSent')}
               </p>
@@ -2785,7 +2786,7 @@ export default function BookingPage() {
               background: '#f1edfb', border: '1px solid #d8cdf3',
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
-              <span style={{ fontSize: '20px', flexShrink: 0 }}>🔔</span>
+              <span style={{ fontSize: '20px', flexShrink: 0, color: '#2050a0' }}><Icon name="bell" /></span>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.window.a')}<strong style={{ color: '#16294a' }}>{t('booking.success.window.strong')}</strong>{t(isReschedule ? 'booking.success.moveWindow.b' : 'booking.success.window.b')}
               </p>
@@ -2793,7 +2794,7 @@ export default function BookingPage() {
           </>
         ) : (
           <>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
+            <div style={{ fontSize: '56px', marginBottom: '16px', color: '#1f7a57', lineHeight: 1 }}><Icon name="check" size={56} /></div>
             <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: '28px', fontWeight: 900, color: '#16294a', marginBottom: '12px' }}>
               {isReschedule ? t('booking.success.rescheduled') : t('booking.success.booked')}
             </h2>
@@ -2817,7 +2818,7 @@ export default function BookingPage() {
               background: '#eef4fc', border: '1px solid #c9d8ee',
               borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', textAlign: 'left',
             }}>
-              <span style={{ fontSize: '20px', flexShrink: 0 }}>📧</span>
+              <span style={{ fontSize: '20px', flexShrink: 0, color: '#2050a0' }}><Icon name="mail" /></span>
               <p style={{ fontSize: '14px', color: '#56647d', margin: 0, lineHeight: 1.5 }}>
                 {t('booking.success.emailSent')}
               </p>
@@ -2866,12 +2867,12 @@ export default function BookingPage() {
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', gap: '8px' }}>
             {/* Moving a lesson shared with another family waits on THEIR yes,
                 not this parent's (found 2026-10-07). */}
-            <span>📅</span> {t(reschedulePartnerBookingIdRef.current ? 'booking.rescheduleBannerPair' : 'booking.rescheduleBanner')}
+            <Icon name="calendar" /> {t(reschedulePartnerBookingIdRef.current ? 'booking.rescheduleBannerPair' : 'booking.rescheduleBanner')}
           </div>
         )}
         {makeUp && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '10px', fontSize: '14px', color: '#1f7a57', lineHeight: 1.6 }}>
-            🎟 {t(makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
+            <Icon name="ticket" /> {t(makeUp.usableFrom && makeUp.usableFrom > localDs(today) ? 'booking.makeUp.bannerWindow' : 'booking.makeUp.banner', {
               names: makeUp.studentNames.join(' & '),
               kind: t('voucher.kind.' + makeUp.courseSlug + (makeUp.courseSlug === '1on1' ? '.' + (makeUp.minutes === 60 ? 60 : 30) : makeUp.courseSlug === '1on2' && makeUp.minutes === 60 ? '.60' : '')),
               date: fmtDate(new Date(makeUp.expiresOn + 'T12:00:00Z'), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
@@ -2885,7 +2886,7 @@ export default function BookingPage() {
             2026-11-05): it stays only to say the assessment is paid. */}
         {lockedStudent && selectedStudent && !makeUp && (step < 1 || trialHasCredit) && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-            <span>📌 {t('booking.lockedFor')}<strong style={{ color: '#16294a' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
+            <span><Icon name="bookmark" /> {t('booking.lockedFor')}<strong style={{ color: '#16294a' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
             {step < 1 && <button onClick={changeStudent}
               style={{ background: 'none', border: 'none', padding: 0, color: '#56647d', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}>
               {t('booking.changeStudent', { name: selectedStudent.full_name.split(' ')[0] })}
@@ -2899,7 +2900,7 @@ export default function BookingPage() {
         {showLoc && locList.length > 1 && selectedStudent && step < 4 && location !== undefined && (
           <div style={{ marginBottom: '20px' }}>
             <div id="msa-loc-label" style={{ fontSize: '13px', fontWeight: 700, color: '#56647d', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
-              📍 {t('booking.loc.title')}
+              <Icon name="pin" /> {t('booking.loc.title')}
             </div>
             <div role="radiogroup" aria-labelledby="msa-loc-label"
               style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
@@ -2962,7 +2963,7 @@ export default function BookingPage() {
                   <button key={l.id} role="radio" aria-checked={location === l.id} onClick={() => setLocation(l.id)}
                     style={{ minHeight: '48px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
                       border: `1.5px solid ${location === l.id ? NAVY : '#d3deec'}`, background: location === l.id ? NAVY : '#fff', color: location === l.id ? '#fff' : '#16294a' }}>
-                    📍 {l.name}
+                    <Icon name="pin" /> {l.name}
                   </button>
                 ))}
               </div>
@@ -3116,7 +3117,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                       {/* minWidth 0: the left side gives way, so large text never pushes the price off the screen (50-role test). */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
-                        <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
+                        <CourseIcon slug={ct.slug} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>{tDb(locale, 'course_types', ct.id, ct.name)}</div>
                           <div style={{ fontSize: '13px', color: '#56647d' }}>
@@ -3168,7 +3169,7 @@ export default function BookingPage() {
                 background: '#fdecea', border: '1px solid #f5c2bd',
                 borderRadius: '10px', fontSize: '14px', color: '#c0392b',
               }}>
-                ⚠️ {t('booking.short.body', { have: nf(balance), need: nf(cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)) })}
+                <Icon name="warn" /> {t('booking.short.body', { have: nf(balance), need: nf(cheapestFor(selectedCourse.slug, paidSeats, isHourLesson ? 60 : 30)) })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
@@ -3180,7 +3181,7 @@ export default function BookingPage() {
             {selectedCourse?.slug === '1on2' && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#56647d', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
-                  👥 {t('booking.select2nd')}
+                  <Icon name="people" /> {t('booking.select2nd')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {students.filter(s => s.id !== selectedStudent?.id).map(s => (
@@ -3220,13 +3221,13 @@ export default function BookingPage() {
                 </div>
                 {selectedStudent2 && !(selectedStudent2 as any).isPartner && balance < cheapestFor('1on2', 2, isHourLesson ? 60 : 30) && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '8px', fontSize: '13px', color: '#c0392b' }}>
-                    ⚠️ {t('booking.short.twoSeats', { have: nf(balance), need: nf(cheapestFor('1on2', 2, isHourLesson ? 60 : 30)) })}
+                    <Icon name="warn" /> {t('booking.short.twoSeats', { have: nf(balance), need: nf(cheapestFor('1on2', 2, isHourLesson ? 60 : 30)) })}
                     <div><BuyPointsLink label={t('booking.short.cta')} /></div>
                   </div>
                 )}
                 {selectedStudent2 && (selectedStudent2 as any).isPartner && (
                   <div style={{ marginTop: '10px', padding: '10px 14px', background: '#f1edfb', border: '1px solid #d8cdf3', borderRadius: '8px', fontSize: '13px', color: '#6d4fc2' }}>
-                    📋 {t('booking.crossAccount')}
+                    <Icon name="clipboard" /> {t('booking.crossAccount')}
                     {/* The shared-lesson cancellation rule, before the family commits (owner, 2026-10-07). */}
                     <div style={{ marginTop: '6px', color: '#56647d' }}>{t('booking.crossAccountRule')}</div>
                   </div>
@@ -3696,7 +3697,7 @@ export default function BookingPage() {
                   ? lessonLength === 30 && Object.keys(openings.days[localDs(selectedDate)] || {}).some(tm => bookableNow(localDs(selectedDate), tm) && isWithin24Hours(localDs(selectedDate), tm))
                   : timeSlots.some(sl => sl.available && sl.within24h)) && (
                   <div style={{ background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <span style={{ fontSize: '16px', color: '#a36100' }}><Icon name="warn" /></span>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 700, color: GOLD, marginBottom: '4px' }}>{t('booking.within24.title')}</div>
                       <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.5 }}>{t('booking.within24.body')}</div>
@@ -4646,7 +4647,7 @@ export default function BookingPage() {
                       const other = !!x.fixed && x.coachId !== x.fixed.split('|')[2]
                       return (
                       <span key={x.date + x.time} style={{ fontSize: '13px', fontWeight: other ? 800 : 600, padding: '5px 10px', borderRadius: '6px', background: other ? SUB_COLOR : `${GOLD}18`, border: `1px solid ${other ? SUB_COLOR : `${GOLD}44`}`, color: other ? '#fff' : GOLD }}>
-                        {recurCover.has(lessonKey(x)) ? '🎟 ' : ''}
+                        {recurCover.has(lessonKey(x)) ? <><Icon name="ticket" /> </> : ''}
                         {fmtDate(new Date(x.date + 'T00:00:00'), dateLoc, { weekday: 'short', month: 'short', day: 'numeric' })}
                         {planTimes.size > 1 ? ` · ${x.label}` : ''}
                         {planCoaches.length > 1 ? ` · ${x.coachName || ''}` : ''}
@@ -4727,7 +4728,7 @@ export default function BookingPage() {
             </div>
             {!isTrial && !isReschedule && !makeUp && !arrearsBlocks && (recurPlan.length > 0 ? recurTotal > balance : bookingCost > balance) && (
               <div style={{ background: '#fdecea', border: '1px solid #f5c2bd', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', fontSize: '14px', color: '#c0392b' }}>
-                ⚠️ {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
+                <Icon name="warn" /> {t('booking.short.body', { have: balance, need: recurPlan.length > 0 ? recurTotal : bookingCost })}
                 <div><BuyPointsLink label={t('booking.short.cta')} /></div>
               </div>
             )}
@@ -4736,7 +4737,7 @@ export default function BookingPage() {
                 <input type="checkbox" checked={payWithVouchers} onChange={e => setPayWithVouchers(e.target.checked)}
                   style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#1f7a57', flexShrink: 0 }} />
                 <span style={{ fontSize: '14px', color: '#16294a', lineHeight: 1.6 }}>
-                  <b>🎟 {t('booking.voucherAuto.use', { n: voucherCould })}</b><br />
+                  <b><Icon name="ticket" /> {t('booking.voucherAuto.use', { n: voucherCould })}</b><br />
                   <span style={{ color: '#56647d', fontSize: '13px' }}>
                     {payWithVouchers ? t('booking.voucherAuto.on', { n: voucherUsing }) : t('booking.voucherAuto.off')}
                   </span>

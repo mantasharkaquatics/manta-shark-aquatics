@@ -31,6 +31,7 @@ import { stageEarned } from '@/lib/ribbons'
 import StageRibbon from '@/components/StageRibbon'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { makeShareCard } from '@/lib/share-card'
+import Icon from '@/components/ui/Icon'
 
 const GOLD = '#c9a84c'
 /* Amber that reads as text on white (the brand amber #f09800 is for fills). */
@@ -697,7 +698,7 @@ export default function SkillTree({
                   )
                 })}
                 <div className="mst-stn fin" aria-hidden="true">
-                  <span className="dot">🏁</span><span className="nm">{t('tree.route.finish')}</span>
+                  <span className="dot"><Icon name="flag" /></span><span className="nm">{t('tree.route.finish')}</span>
                 </div>
               </div>
             )}

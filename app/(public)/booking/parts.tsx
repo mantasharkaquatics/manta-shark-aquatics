@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
 const GOLD = BRAND.blue
@@ -16,8 +17,15 @@ const AMBER = BRAND.amber
 export const COURSE_COLORS: Record<string, string> = {
   '1on1': '#c97d00', '1on2': '#4a90c4', '1on4': '#4caf72', 'team': '#e05a4a',
 }
+/* Line icons (components/ui/Icon, 決定 10): one person, two, a group of
+   children (no grown-up), the pool. Drawn in the course's colour. */
 export const COURSE_ICONS: Record<string, string> = {
-  '1on1': '👤', '1on2': '👥', '1on4': '👨‍👩‍👧‍👦', 'team': '🏊',
+  '1on1': 'user', '1on2': 'people', '1on4': 'group', 'team': 'pool',
+}
+export function CourseIcon({ slug }: { slug: string }) {
+  return <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 44, height: 44, borderRadius: '50%', background: (COURSE_COLORS[slug] || GOLD) + '1f', color: COURSE_COLORS[slug] || GOLD, fontSize: 22 }}>
+    <Icon name={COURSE_ICONS[slug] || 'user'} />
+  </span>
 }
 
 export function SectionTitle({ eyebrow, title, gap = 24 }: { eyebrow?: string; title: string; gap?: number }) {

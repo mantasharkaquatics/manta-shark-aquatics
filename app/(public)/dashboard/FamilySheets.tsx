@@ -13,6 +13,7 @@ import ZellePay from '@/components/ZellePay'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { fmtDate } from '@/lib/fmt-date'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import Icon from '@/components/ui/Icon'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
@@ -407,7 +408,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                       <a href={`/api/invoices/${row.invoice.id}/pdf`} target="_blank" rel="noopener noreferrer"
                         title={t('points.card.receiptTitle', { number: row.invoice.number })}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '4px', padding: '6px 10px', minHeight: '36px', borderRadius: '8px', border: '1px solid #c9d8ee', fontSize: '13px', fontWeight: 700, color: GOLD, textDecoration: 'none' }}>
-                        <span aria-hidden>🧾</span>{t('points.card.receipt')}
+                        <span aria-hidden><Icon name="receipt" /></span>{t('points.card.receipt')}
                       </a>
                     )}
                   </div>

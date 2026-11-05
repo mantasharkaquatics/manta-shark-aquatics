@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client'
 import { myFamilyRole } from '@/lib/my-parent'
 import { fmtDate } from '@/lib/fmt-date'
 import { openChat } from '@/lib/chat-open'
+import Icon from '@/components/ui/Icon'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -381,7 +382,7 @@ export default function FixedClassPage() {
           )}
           {onePool && (() => {
             const url = locationMapUrl(onePool)
-            const body = <>📍 {onePool.name}{onePool.address && onePool.address.trim().toLowerCase() !== onePool.name.trim().toLowerCase() ? ' · ' + onePool.address : ''}</>
+            const body = <><Icon name="pin" /> {onePool.name}{onePool.address && onePool.address.trim().toLowerCase() !== onePool.name.trim().toLowerCase() ? ' · ' + onePool.address : ''}</>
             return <p className="ac-sub" style={{ fontSize: 14, marginTop: 4 }}>{url
               ? <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('dash.pool.mapAria', { name: onePool.name })} style={{ color: 'inherit', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: 2 }}>{body}</a>
               : body}</p>

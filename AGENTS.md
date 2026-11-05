@@ -1193,6 +1193,14 @@ the contained problems were fixed the same day. What to keep doing:
     app/globals.css. The check-in QR, the lesson detail, the vouchers, a
     day of the month view and the booking page's "not open yet" are sheets;
     我的's 登出 is a ConfirmDialog; its 'whose QR' is a Sheet.
+  - **Line icons, not emoji (owner, 2026-11-05, 決定 10 選項 A)**: every
+    icon in the parent pages and the app is `components/ui/Icon` (the tab
+    bar's drawing: 24-unit box, 1.9 stroke, round ends, currentColor; no
+    size = 1.15em on the text line). Something to stand out sits on a
+    round of the brand blue (#e8f0fb with #2050a0) or amber. Course cards
+    use `CourseIcon` (booking/parts.tsx; 1-on-4 is a group of children, not
+    a family). New icon: add its shape to Icon.tsx, never an emoji in a
+    page. Emails, push texts and the celebration keep theirs.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

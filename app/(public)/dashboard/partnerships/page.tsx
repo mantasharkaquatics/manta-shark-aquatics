@@ -11,6 +11,7 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { createClient } from '@/lib/supabase/client'
 import { myFamilyRole } from '@/lib/my-parent'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 
 type Partnership = {
   id: string
@@ -179,7 +180,7 @@ export default function PartnershipsPage() {
                   return (
                     <div key={p.id} className="ac-item ac-item-actions">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div className="ac-icon" aria-hidden="true">🤝</div>
+                        <div className="ac-icon" aria-hidden="true"><Icon name="link" /></div>
                         <div>
                           <b>{t('link.linkedAccount')}</b>
                           <small>{students.length > 0 ? t('link.students', { names: students.map(s => s.full_name).join(', ') }) : t('link.noStudents')}</small>
@@ -195,7 +196,7 @@ export default function PartnershipsPage() {
             </section>
           ) : (
             <section className="ac-card ac-empty">
-              <div className="ac-icon" style={{ margin: '0 auto' }} aria-hidden="true">🤝</div>
+              <div className="ac-icon" style={{ margin: '0 auto' }} aria-hidden="true"><Icon name="link" /></div>
               <b>{t('link.emptyTitle')}</b>
               <small className="ac-sub" style={{ fontSize: 14 }}>{t('link.emptyDesc')}</small>
             </section>

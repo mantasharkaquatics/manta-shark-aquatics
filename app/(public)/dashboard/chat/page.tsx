@@ -11,6 +11,7 @@ import { myParentId } from '@/lib/my-parent'
 import { isNativeApp } from '@/lib/native-app'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 
 /* 訊息, the phone app's message screen (owner, 2026-10-28; the quiet school-colour style): two
    tabs -- 通知 first, then 客服, which is where the screen opens (owner,
@@ -66,12 +67,13 @@ const css = `
 .ib-ask .yes { background: ${BRAND.amber}; color: ${BRAND.navy}; border: 0; }
 .ib-ask .no { background: #fff; color: ${BRAND.navy}; border: 1px solid #d6e0ee; }
 .ib-n { display: flex; gap: 10px; align-items: flex-start; }
-.ib-n .ico { font-size: 20px; line-height: 1.3; }
+.ib-n .ico { font-size: 20px; line-height: 1.3; color: #2050a0; }
 `
+// Line icons by name (components/ui/Icon, 決定 10).
 const ICON: Record<string, string> = {
-  report: '📝', stage_up: '🏅', level_up: '🏆', reminder_24h: '⏰', waitlist_offer: '🎟️', test: '🔔',
-  block_cancellation_notice: '⚠️', team_practice_cancelled: '⚠️',
-  booking_confirmed: '📅', booking_series_confirmed: '📅', booking_rescheduled: '📅', booking_cancelled: '📅',
+  report: 'note', stage_up: 'medal', level_up: 'trophy', reminder_24h: 'clock', waitlist_offer: 'ticket', test: 'bell',
+  block_cancellation_notice: 'warn', team_practice_cancelled: 'warn',
+  booking_confirmed: 'calendar', booking_series_confirmed: 'calendar', booking_rescheduled: 'calendar', booking_cancelled: 'calendar',
 }
 
 export default function ChatPage() {
@@ -213,13 +215,13 @@ export default function ChatPage() {
               <>
                 {inbox.closures.map(c => (
                   <div key={c.id} className="ib-card closure">
-                    <h2><span aria-hidden="true">⚠️</span>{t('inbox.closure')}</h2>
+                    <h2><span aria-hidden="true"><Icon name="warn" /></span>{t('inbox.closure')}</h2>
                     <p>{closureText(t, locale, c)}</p>
                   </div>
                 ))}
                 {inbox.announcements.map(a => (
                   <article key={a.id} className={'ib-card' + (newer(a.created_at, seenAtOpen?.announcements) ? ' new' : '')}>
-                    <h2><span aria-hidden="true">📣</span>{a.pinned && <span className="ib-pin">{t('inbox.pinned')}</span>}{a.title}</h2>
+                    <h2><span aria-hidden="true"><Icon name="megaphone" /></span>{a.pinned && <span className="ib-pin">{t('inbox.pinned')}</span>}{a.title}</h2>
                     {a.body && <p>{a.body}</p>}
                     <small>{when(a.created_at)}</small>
                   </article>
@@ -227,7 +229,7 @@ export default function ChatPage() {
                 {inbox.notices.map(n => {
                   const inner = (
                     <div className="ib-n">
-                      <span className="ico" aria-hidden="true">{ICON[n.kind] || '🔔'}</span>
+                      <span className="ico" aria-hidden="true"><Icon name={ICON[n.kind] || 'bell'} /></span>
                       <div style={{ minWidth: 0 }}>
                         <h2>{n.title}</h2>
                         {n.body && <p>{n.body}</p>}

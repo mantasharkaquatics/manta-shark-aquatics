@@ -11,8 +11,9 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import { openChat } from '@/lib/chat-open'
 import { APP_BACK_EVENT } from '@/lib/app-back'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS, AmPmColumns, MonthCalendar, hh12 } from './parts'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, MonthCalendar, hh12 } from './parts'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 
 /* Several of the family's swimmers booked together (owner, 2026-11-03),
    opened when two or more children are ticked on the booking page's first
@@ -303,7 +304,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
 
   if (done) return (
     <div style={box} role="status">
-      <h2 style={{ margin: '0 0 8px', fontSize: 20, color: NAVY }}>✅ {t('fam.doneTitle')}</h2>
+      <h2 style={{ margin: '0 0 8px', fontSize: 20, color: NAVY }}><span style={{ color: '#1f7a57' }}><Icon name="check" /></span> {t('fam.doneTitle')}</h2>
       <p style={{ margin: '0 0 10px', color: '#16294a', lineHeight: 1.6 }}>{t('fam.doneBody')}</p>
       {booked && (
         <div style={{ background: '#f6f9fd', borderRadius: 10, padding: '10px 12px', margin: '0 0 14px', fontSize: 14, lineHeight: 1.7, color: '#16294a' }}>
@@ -347,7 +348,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                      <span style={{ fontSize: 28 }} aria-hidden="true">{COURSE_ICONS[c.slug]}</span>
+                      <CourseIcon slug={c.slug} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 16, fontWeight: 700, color: '#16294a', marginBottom: 2 }}>{tDb(locale as never, 'course_types', c.id, c.name)}</div>
                         {c.duration_minutes != null && c.max_students != null && (

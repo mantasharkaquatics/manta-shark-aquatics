@@ -10,6 +10,7 @@ import { errorKey } from '@/lib/i18n/errors'
 import { BRAND } from '@/lib/brand'
 import BrandRoot from '@/components/brand/BrandRoot'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
+import Icon from '@/components/ui/Icon'
 
 // Swim Team is the only thing still bought as a plan: a monthly membership per
 // swimmer, billed to a card. Lessons are paid for out of the points wallet and
@@ -251,7 +252,7 @@ function CheckoutContent() {
                   <button type="button" className="b-btn gold co-pay" onClick={handleCheckout} disabled={paying || !selectedStudentId || !teamPrice}>
                     {paying ? t('checkout.redirecting') : t('checkout.subscribe', { price: priceLabel })}
                   </button>
-                  <p className="co-note">🔒 {t('checkout.stripeNote')}</p>
+                  <p className="co-note"><Icon name="lock" /> {t('checkout.stripeNote')}</p>
                   <button type="button" className="b-btn line co-back" onClick={() => router.push('/plans')}>
                     ← {t('checkout.backToPoints')}
                   </button>

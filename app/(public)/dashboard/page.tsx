@@ -44,6 +44,7 @@ import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from '.
 import AddToCalendar from '@/components/AddToCalendar'
 import { lookOf, type SwimmerLook } from '@/lib/swimmer-look'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 
 /* The phone layout lives here rather than in inline styles, because an inline
    style beats a media query and these three sections have to be shaped
@@ -156,7 +157,7 @@ ${REPORT_SHEET_CSS}
   background: none; border: 0; border-radius: 14px; font-family: inherit; text-align: center; text-decoration: none; cursor: pointer }
 @media (hover: hover) { .msa-more-row:hover { background: #fff } }
 .msa-more-row:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
-.msa-more-ico { width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #d3deec; display: grid; place-items: center; font-size: 19px }
+.msa-more-ico { width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #d3deec; display: grid; place-items: center; font-size: 19px; color: #2050a0 }
 .msa-more-link { color: #2050a0; font-size: 13px; font-weight: 800; line-height: 1.3 }
 .msa-more-text { color: #56647d; font-size: 11.5px; line-height: 1.3; margin-top: -4px }
 .msa-act { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px }
@@ -935,7 +936,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
 
           {creditLive(r) && (
             <div className="msa-report-credit">
-              <p style={{ ...h, color: '#1f6b43', margin: '0 0 6px' }}>🎁 {t('assess.credit.title')}</p>
+              <p style={{ ...h, color: '#1f6b43', margin: '0 0 6px' }}><Icon name="gift" /> {t('assess.credit.title')}</p>
               <p style={{ fontSize: '13px', color: '#2c5a41', lineHeight: 1.6, margin: 0 }}>
                 {t('assess.credit.body', { days: ASSESSMENT_CREDIT_DAYS, n: r.credit.needed, points: r.credit.points })}
               </p>
@@ -951,7 +952,7 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
           )}
           {r.credit.status === 'awarded' && (
             <div className="msa-report-credit">
-              <p style={{ ...h, color: '#1f6b43', margin: 0 }}>🎁 {t('assess.credit.awarded', { points: r.credit.points })}</p>
+              <p style={{ ...h, color: '#1f6b43', margin: 0 }}><Icon name="gift" /> {t('assess.credit.awarded', { points: r.credit.points })}</p>
             </div>
           )}
 
@@ -1003,8 +1004,8 @@ function PoolLink({ id, prefix, plain, style }: { id?: string | null; prefix?: s
   return <>{prefix}{url ? (
     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
       aria-label={t('dash.pool.mapAria', { name: loc.name })} title={t('dash.pool.mapAria', { name: loc.name })}
-      style={{ color: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: '2px', ...style }}>📍 {loc.name}</a>
-  ) : <span style={{ whiteSpace: 'nowrap', ...style }}>📍 {loc.name}</span>}</>
+      style={{ color: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: '#c9d8ee', textUnderlineOffset: '2px', ...style }}><Icon name="pin" /> {loc.name}</a>
+  ) : <span style={{ whiteSpace: 'nowrap', ...style }}><Icon name="pin" /> {loc.name}</span>}</>
 }
 /** The pool's address, phone and arrival notes, under a lesson's details.
  *  Only a family with a booking is sent them (/api/locations), so for anyone
@@ -1025,8 +1026,8 @@ function PoolDetails({ id }: { id?: string | null }) {
   return (
     <div style={{ marginTop: '12px', background: '#f5f8fd', border: '1px solid #e3ebf6', borderRadius: '10px', padding: '10px 12px', fontSize: '13px', color: '#16294a', lineHeight: 1.55, display: 'grid', gap: '6px' }}>
       {realAddr && (url
-        ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#16294a', fontWeight: 600 }}>📍 {realAddr}</a>
-        : <span style={{ fontWeight: 600 }}>📍 {realAddr}</span>)}
+        ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#16294a', fontWeight: 600 }}><Icon name="pin" /> {realAddr}</a>
+        : <span style={{ fontWeight: 600 }}><Icon name="pin" /> {realAddr}</span>)}
       {fmt && <span>{t('dash.pool.phone')} <a href={`tel:+1${phone}`} style={{ color: '#1f5fbf', fontWeight: 600 }}>{fmt}</a></span>}
       {notes && <span style={{ whiteSpace: 'pre-wrap' }}><span style={{ color: '#56647d' }}>{t('dash.pool.directions')}</span> {notes}</span>}
     </div>
@@ -2837,7 +2838,7 @@ export default function DashboardPage() {
             </div>
             {g.fixed.map(f => (
               <div key={f.id} className="msa-plan-row">
-                <span className="msa-plan-ic" aria-hidden="true">📌</span>
+                <span className="msa-plan-ic" aria-hidden="true"><Icon name="bookmark" /></span>
                 <span className="msa-plan-tx">
                   <b>{t('dash.tag.fixed')} · {t('dash.plan.when', {
                     weekday: fmtDate(new Date(`2026-01-${String(4 + f.weekday).padStart(2, '0')}T12:00:00Z`), intlOf(locale), { weekday: 'long', timeZone: 'UTC' }),
@@ -2854,7 +2855,7 @@ export default function DashboardPage() {
             ))}
             {g.vouchers.length > 0 && (
               <div className="msa-plan-row">
-                <span className="msa-plan-ic" aria-hidden="true">🎟</span>
+                <span className="msa-plan-ic" aria-hidden="true"><Icon name="ticket" /></span>
                 <span className="msa-plan-tx">
                   <b>{t(g.vouchers.length === 1 ? 'dash.plan.voucherRowOne' : 'dash.plan.voucherRow', { n: g.vouchers.length })}</b>
                   <span className={g.vouchers[0].expiresOn <= soon ? 'msa-plan-soon' : undefined}>
@@ -2879,7 +2880,7 @@ export default function DashboardPage() {
                 : t('team.active')
               return (
                 <div key={m.id} className="msa-plan-row">
-                  <span className="msa-plan-ic" aria-hidden="true">🏊</span>
+                  <span className="msa-plan-ic" aria-hidden="true"><Icon name="pool" /></span>
                   <span className="msa-plan-tx">
                     <b>{t('team.title')}{tier ? ' · ' + tier : ''}</b>
                     <span className={failed || lapsed ? 'msa-plan-bad' : undefined}>{line}</span>
@@ -3181,14 +3182,14 @@ export default function DashboardPage() {
           /* One line, opened for the whole note (2026-11-04: three lines on
              首頁, which must not grow). */
           <details className="msa-viewnote msa-viewnote-d" role="note">
-            <summary><span aria-hidden="true">👀</span><span>{t('dash.viewer.short', { name: mainName })}</span><i aria-hidden="true">ⓘ</i></summary>
+            <summary><span aria-hidden="true"><Icon name="eye" /></span><span>{t('dash.viewer.short', { name: mainName })}</span><i aria-hidden="true">ⓘ</i></summary>
             <p>{t('dash.viewer.note', { name: mainName })}</p>
           </details>
         )}
         {/* On the app's home, which does not scroll, the same ask as one line. */}
         {safetyMissing && !viewer && appHome && (
           <button type="button" className="tap-auto msa-newrep msa-safebar msa-home" onClick={() => setSafetyOpen(true)}>
-            <span aria-hidden="true">🛟</span>
+            <span aria-hidden="true"><Icon name="lifebuoy" /></span>
             <span style={{ flex: 1, minWidth: 0 }}>{t('safety.banner.title')}</span>
             <b>{t('safety.banner.cta')} ›</b>
           </button>
@@ -3214,7 +3215,7 @@ export default function DashboardPage() {
           const n = mergePendingInvites(pendingPartnerBookings).length
           return (
             <button type="button" className="tap-auto msa-newrep msa-invbar msa-home" onClick={() => router.push('/dashboard/schedule#invites')}>
-              <span aria-hidden="true">🔔</span>
+              <span aria-hidden="true"><Icon name="bell" /></span>
               <span style={{ flex: 1, minWidth: 0 }}>{t(n === 1 ? 'dash.invite.bannerOne' : 'dash.invite.banner', { n })}</span>
               <b>{t('dash.newReportsView')} ›</b>
             </button>
@@ -3226,7 +3227,7 @@ export default function DashboardPage() {
         <section className="msa-home msa-kids" aria-label={t('dash.mySwimmers')}>
           {students.filter(s => newReportCount(s) > 0).map(s => (
             <button key={s.id} type="button" className="tap-auto msa-newrep" onClick={() => openRecords(s)}>
-              <span aria-hidden="true">📋</span>
+              <span aria-hidden="true"><Icon name="clipboard" /></span>
               <span style={{ flex: 1, minWidth: 0 }}>{t(newReportCount(s) === 1 ? 'dash.newReportsOne' : 'dash.newReports', { name: s.full_name, n: newReportCount(s) })}</span>
               <b>{t('dash.newReportsView')} ›</b>
             </button>
@@ -3264,7 +3265,7 @@ export default function DashboardPage() {
                           return (
                             <div className="msa-mcard-next">
                               <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
-                                <span className="ic" aria-hidden="true">📅</span>
+                                <span className="ic" aria-hidden="true"><Icon name="calendar" /></span>
                                 <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
                                   <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
                                 <span className="go" aria-hidden="true">›</span>
@@ -3298,13 +3299,13 @@ export default function DashboardPage() {
                       <p className="msa-mcard-hint">{t(nextLine() ? 'dash.assess.hintBooked' : 'dash.assess.hint', { name: student.full_name })}</p>
                       {nextLine() || (
                         <div className="msa-mcard-next msa-mcard-none">
-                          <span className="ic" aria-hidden="true">📅</span>
+                          <span className="ic" aria-hidden="true"><Icon name="calendar" /></span>
                           <span className="tx"><span className="k">{t('dash.next.lesson')}</span><span className="v">{t('dash.next.none')}</span></span>
                         </div>
                       )}
                       {!nextLine() && !viewer && (
                         <div className="msa-mcard-btns msa-mcard-end">
-                          <button className="tap-auto msa-mcard-book" onClick={() => router.push('/booking?student=' + student.id)}>📅 {t('assess.cta.button')}</button>
+                          <button className="tap-auto msa-mcard-book" onClick={() => router.push('/booking?student=' + student.id)}><Icon name="calendar" /> {t('assess.cta.button')}</button>
                         </div>
                       )}
                       {(pastBookings.some(b => b.student_id === student.id) || monthlyBtn) && (
@@ -3340,7 +3341,7 @@ export default function DashboardPage() {
                         {nextLine()}
                         {report && creditLive(report) && (
                           <div className="msa-mcard-credit">
-                            🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
+                            <Icon name="gift" /> {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
                           </div>
                         )}
                         <div className="msa-mcard-btns msa-mcard-end">
@@ -3423,29 +3424,29 @@ export default function DashboardPage() {
                     <div className="msa-mcard-tiles">
                       {hasLevel && (
                         <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
-                          <i aria-hidden="true">🗺️</i><span>{t('dash.skillTree')}</span>
+                          <i aria-hidden="true"><Icon name="map" /></i><span>{t('dash.skillTree')}</span>
                         </button>
                       )}
                       {(hasLevel || hasPast) && (
                         <button type="button" className="tap-auto" onClick={() => openRecords(student)}>
-                          <i aria-hidden="true">📋</i><span>{t('dash.records')}</span><NewDot n={newReportCount(student)} />
+                          <i aria-hidden="true"><Icon name="clipboard" /></i><span>{t('dash.records')}</span><NewDot n={newReportCount(student)} />
                         </button>
                       )}
                       {monthly.length > 0 && (
                         <button type="button" className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
-                          <i aria-hidden="true">📝</i>
+                          <i aria-hidden="true"><Icon name="note" /></i>
                           <span>{t('monthly.cardLine', { month: fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
                           <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
                         </button>
                       )}
                       {hasLevel && report && (
                         <button type="button" className="tap-auto" onClick={() => setReportFor(student)}>
-                          <i aria-hidden="true">🏅</i><span>{t('assess.report.button')}</span>
+                          <i aria-hidden="true"><Icon name="medal" /></i><span>{t('assess.report.button')}</span>
                         </button>
                       )}
                       {trialB && (
                         <button type="button" className="tap-auto wide" onClick={() => router.push('/dashboard/schedule')}>
-                          <i aria-hidden="true">📅</i>
+                          <i aria-hidden="true"><Icon name="calendar" /></i>
                           <span>{t('dash.trial.bookedLine', { when: fmtDate(new Date(trialB.session_date + 'T12:00:00Z'), intlOf(locale), { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) + ' ' + formatTime(trialB.start_time) })}</span>
                         </button>
                       )}
@@ -3462,7 +3463,7 @@ export default function DashboardPage() {
                   )}
                   {hasLevel && report && creditLive(report) && (
                     <div className="msa-mcard-credit">
-                      🎁 {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
+                      <Icon name="gift" /> {t(report.credit.daysLeft === 1 ? 'assess.credit.cardLineOne' : 'assess.credit.cardLine', { done: report.credit.lessons, n: report.credit.needed, days: report.credit.daysLeft })}
                     </div>
                   )}
                 </div>
@@ -3560,7 +3561,7 @@ export default function DashboardPage() {
               <div className={'msa-nextline' + (hot ? ' hot' : '')}>
                 <div className="msa-nextline-row">
                   <button type="button" className="tap-auto msa-nextline-main" onClick={() => setLessonDetail(next)}>
-                    <span className="ic" aria-hidden="true">{hot ? '📍' : '📅'}</span>
+                    <span className="ic" aria-hidden="true"><Icon name={hot ? 'pin' : 'calendar'} /></span>
                     <span className="tx"><b>{names} · {when} {formatTime(next.start_time)}</b><small>{sub}</small></span>
                     {!hot && <span className="go" aria-hidden="true">›</span>}
                   </button>
@@ -3589,7 +3590,7 @@ export default function DashboardPage() {
             <>
               <button type="button" className="tap-auto msa-plansum" aria-expanded={open} aria-controls="msa-plans-list"
                 onClick={() => setPlansOpen(!open)}>
-                <span className="msa-plan-ic" aria-hidden="true">📌</span>
+                <span className="msa-plan-ic" aria-hidden="true"><Icon name="bookmark" /></span>
                 <span className="msa-plan-tx">
                   <b>{t('dash.plans.title')}</b>
                   {parts.join(' · ')}
@@ -3634,7 +3635,7 @@ export default function DashboardPage() {
                   <div key={b.id} style={{ background: '#f3effc', border: '1px solid #d6cbf2', borderRadius: '14px', padding: '16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#6d4fc2', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔔 {t('dash.invite.badge')}</div>
+                        <div style={{ fontSize: '11px', color: '#6d4fc2', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}><Icon name="bell" /> {t('dash.invite.badge')}</div>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>
                           {b._partner_student_name
                             ? t('dash.invite.lineWith', { name: student?.full_name || '', partner: b._partner_student_name })
@@ -4281,7 +4282,7 @@ export default function DashboardPage() {
                       ) : booking.status === 'in_cart' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
-                            🛒 {t('dash.cart.held')}
+                            <Icon name="cart" /> {t('dash.cart.held')}
                           </div>
                         </div>
                       ) : booking._group ? null : (
@@ -4523,18 +4524,18 @@ export default function DashboardPage() {
           {/* A row of three small buttons (owner, 2026-10-26), not three
               full-width rows. */}
           {!viewer && <Link href="/dashboard/partnerships" className="msa-more-row">
-            <span className="msa-more-ico" aria-hidden="true">👥</span>
+            <span className="msa-more-ico" aria-hidden="true"><Icon name="people" /></span>
             <span className="msa-more-link">{t('quick.partnerships')}</span>
           </Link>}
           {wallet && (
             <button className="tap-auto msa-more-row" onClick={() => { setReferralFocus(true); setPointsOpen(true) }}>
-              <span className="msa-more-ico" aria-hidden="true">🎁</span>
+              <span className="msa-more-ico" aria-hidden="true"><Icon name="gift" /></span>
               <span className="msa-more-link">{t('dash.more.refer')}</span>
               <span className="msa-more-text">{t('dash.more.referBonus', { n: REFERRAL_POINTS })}</span>
             </button>
           )}
           <button className="tap-auto msa-more-row" onClick={() => setSuggestOpen(true)}>
-            <span className="msa-more-ico" aria-hidden="true">💬</span>
+            <span className="msa-more-ico" aria-hidden="true"><Icon name="chat" /></span>
             <span className="msa-more-link">{t('suggest.link')}</span>
           </button>
         </nav>

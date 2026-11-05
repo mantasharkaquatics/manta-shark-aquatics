@@ -98,7 +98,7 @@ html.msa-app .ac-empty .ac-sub { font-size: 13px !important; }
 .ac-hit { position: relative; } .ac-hit::after { content: ''; position: absolute; inset: -12px -10px; }
 .ac-empty { text-align: center; border-style: dashed; padding: 30px 22px; }
 .ac-empty b { display: block; font-size: 16px; color: ${BRAND.navy}; margin: 8px 0 4px; }
-.ac-icon { width: 46px; height: 46px; border-radius: 50%; background: #eef4fc; display: grid; place-items: center; font-size: 21px; flex-shrink: 0; }
+.ac-icon { width: 46px; height: 46px; border-radius: 50%; background: #eef4fc; display: grid; place-items: center; font-size: 21px; flex-shrink: 0; color: #2050a0; }
 .ac-code { flex: 1; background: #eef4fc; border: 1px solid #c9d8ee; border-radius: 10px; padding: 12px 16px; text-align: center;
   font-size: 19px; font-weight: 800; letter-spacing: .2em; color: ${BRAND.navy}; font-variant-numeric: tabular-nums; }
 .ac-back-drop { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55); display: flex; align-items: center;

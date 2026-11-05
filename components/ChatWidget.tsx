@@ -9,6 +9,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { useRouter } from 'next/navigation'
 import { appLook, photoPickerPlugin } from '@/lib/native-app'
 import { fmtDate } from '@/lib/fmt-date'
+import Icon from '@/components/ui/Icon'
 
 // Palette B (2026-09): a navy header on a white window, the family's own
 // messages in the LOGO blue, the school's in white. The launcher is blue so it
@@ -145,9 +146,10 @@ export async function claimGuestChat() {
  *  chat (push_log via /api/app/inbox; owner, 2026-10-28). */
 export type ChatEvent = { id: string; kind: string; title: string; body: string; url: string | null; created_at: string }
 const EVENT_ICON: Record<string, string> = {
-  report: '📝', stage_up: '🏅', level_up: '🏆',
-  block_cancellation_notice: '⚠️', team_practice_cancelled: '⚠️',
-  booking_confirmed: '📅', booking_series_confirmed: '📅', booking_rescheduled: '📅', booking_cancelled: '📅',
+  // Line icons by name (components/ui/Icon, 決定 10).
+  report: 'note', stage_up: 'medal', level_up: 'trophy',
+  block_cancellation_notice: 'warn', team_practice_cancelled: 'warn',
+  booking_confirmed: 'calendar', booking_series_confirmed: 'calendar', booking_rescheduled: 'calendar', booking_cancelled: 'calendar',
 }
 export const CHAT_EVENT_KINDS = new Set(Object.keys(EVENT_ICON))
 
@@ -890,7 +892,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         <div className="pc-mode">{mode === 'human' || (toTeam && !guest) ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
         <div className="pc-feed" ref={listRef}>
           {items.length === 0 && historyReady && (
-            <div className="pc-empty"><span aria-hidden="true">👋</span>{t('chat.empty')}</div>
+            <div className="pc-empty"><span aria-hidden="true" style={{ color: '#2050a0' }}><Icon name="chat" /></span>{t('chat.empty')}</div>
           )}
           {items.map((it, i) => {
             const prev = items[i - 1]
@@ -899,7 +901,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             const key = it.k === 'm' ? it.m.id : 'e-' + it.e.id
             if (it.k === 'e') {
               const e = it.e
-              const inner = <><span aria-hidden="true">{EVENT_ICON[e.kind] || '🔔'}</span><b>{e.title}</b>{e.url && <u>{t('chat.event.open')}</u>}</>
+              const inner = <><span aria-hidden="true"><Icon name={EVENT_ICON[e.kind] || 'bell'} /></span><b>{e.title}</b>{e.url && <u>{t('chat.event.open')}</u>}</>
               return (
                 <Fragment key={key}>
                   {pill && <div className="pc-pill">{pillText}</div>}
@@ -958,7 +960,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         </div>
 {about && (
           <div className="pc-about" role="status" style={{ fontSize: '13px', color: '#16294a', background: '#eef4fc', borderTop: '1px solid #c9d8ee', padding: '9px 16px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <span aria-hidden="true">📅</span>
+            <span aria-hidden="true"><Icon name="calendar" /></span>
             <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}><b style={{ display: 'block', fontSize: '12px', color: '#56647d' }}>{t('chat.about.q')}</b>{about}</span>
             <button type="button" className="tap-auto" onClick={() => setAbout('')} style={{ background: 'none', border: 'none', color: '#2050a0', fontWeight: 800, cursor: 'pointer', fontSize: '12.5px', padding: 0, whiteSpace: 'nowrap' }}>{t('chat.about.no')}</button>
           </div>
@@ -1120,7 +1122,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {messages.length === 0 && historyReady && (
               <div style={{ textAlign: 'center', color: '#56647d', fontSize: '14px', marginTop: '40px' }}>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>👋</div>
+                <div style={{ fontSize: '32px', marginBottom: '8px', color: '#2050a0' }}><Icon name="chat" /></div>
                 {t(guest ? 'chat.guest.empty' : 'chat.empty')}
               </div>
             )}
@@ -1209,7 +1211,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
 
           {about && (
             <div className="pc-about" role="status" style={{ fontSize: '13px', color: '#16294a', background: '#eef4fc', borderTop: '1px solid #c9d8ee', padding: '9px 16px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <span aria-hidden="true">📅</span>
+              <span aria-hidden="true"><Icon name="calendar" /></span>
               <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}><b style={{ display: 'block', fontSize: '12px', color: '#56647d' }}>{t('chat.about.q')}</b>{about}</span>
               <button type="button" className="tap-auto" onClick={() => setAbout('')} style={{ background: 'none', border: 'none', color: '#2050a0', fontWeight: 800, cursor: 'pointer', fontSize: '12.5px', padding: 0, whiteSpace: 'nowrap' }}>{t('chat.about.no')}</button>
             </div>

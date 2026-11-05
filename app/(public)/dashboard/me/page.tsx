@@ -18,6 +18,7 @@ import QRModal from '../CheckinQr'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import Sheet from '@/components/ui/Sheet'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import Icon from '@/components/ui/Icon'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -65,7 +66,10 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-r a, .mx-r button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; }
 .mx-r em { font-style: normal; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: #fff; font-size: 22px;
   box-shadow: 0 3px 10px rgba(18,37,74,.1); }
-.mx-r a.amb em { background: #f09800; }
+.mx-r a.amb em { background: #f09800; color: #12254a; }
+.mx-r em { color: #2050a0; }
+/* 決定 10: line icons on a pale blue round, as the tab bar draws them. */
+.mx-mini .ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e8f0fb; color: #2050a0; flex: none; font-size: 15px; }
 .mx-r button:focus-visible, .mx-mini button:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px; }
 .mx-sec { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; font-weight: 800; color: ${BRAND.navy}; margin: 16px 2px 8px; }
 .mx-sec small { font-size: 12px; font-weight: 700; color: ${BRAND.mute}; }
@@ -315,9 +319,9 @@ export default function MePage() {
 
         {!viewer && (
           <nav className="mx-r" aria-label={t('points.card.title')}>
-            <Link href="/plans#buy" className="amb"><em aria-hidden="true">💳</em>{t('dash.topUp')}</Link>
-            <button type="button" className="tap-auto" onClick={() => setSheet('refer')}><em aria-hidden="true">🎁</em>{t('dash.more.refer')}</button>
-            <Link href="/dashboard/partnerships"><em aria-hidden="true">👥</em>{t('quick.partnerships')}</Link>
+            <Link href="/plans#buy" className="amb"><em aria-hidden="true"><Icon name="card" /></em>{t('dash.topUp')}</Link>
+            <button type="button" className="tap-auto" onClick={() => setSheet('refer')}><em aria-hidden="true"><Icon name="gift" /></em>{t('dash.more.refer')}</button>
+            <Link href="/dashboard/partnerships"><em aria-hidden="true"><Icon name="people" /></em>{t('quick.partnerships')}</Link>
           </nav>
         )}
 
@@ -349,10 +353,10 @@ export default function MePage() {
         </nav>
 
         <nav className="mx-mini">
-          <Link href="/dashboard/account"><span aria-hidden="true">👤</span><span>{t('app.me.account')}</span></Link>
-          {app && <Link href="/dashboard/me/notifications"><span aria-hidden="true">🔔</span><span>{t('push.settings.title')}</span></Link>}
-          <Link href="/dashboard/me/school"><span aria-hidden="true">🏫</span><span>{t('app.me.school')}</span></Link>
-          <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true">💬</span><span>{t('suggest.link')}</span></button>
+          <Link href="/dashboard/account"><span aria-hidden="true" className="ic"><Icon name="user" /></span><span>{t('app.me.account')}</span></Link>
+          {app && <Link href="/dashboard/me/notifications"><span aria-hidden="true" className="ic"><Icon name="bell" /></span><span>{t('push.settings.title')}</span></Link>}
+          <Link href="/dashboard/me/school"><span aria-hidden="true" className="ic"><Icon name="school" /></span><span>{t('app.me.school')}</span></Link>
+          <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true" className="ic"><Icon name="chat" /></span><span>{t('suggest.link')}</span></button>
         </nav>
 
         {/* Asked first (owner, 2026-11-04: too easy to tap by mistake). */}
