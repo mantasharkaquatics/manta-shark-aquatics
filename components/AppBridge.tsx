@@ -88,6 +88,7 @@ export default function AppBridge() {
   // The phone's text size may have been changed while the app was away (lib/native-app.ts).
   useEffect(() => {
     if (!appPlatform()) return
+    applyPhoneTextSize()
     const on = () => { if (document.visibilityState === 'visible') applyPhoneTextSize() }
     document.addEventListener('visibilitychange', on)
     return () => document.removeEventListener('visibilitychange', on)

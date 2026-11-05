@@ -112,7 +112,11 @@ export function coverViewport() {
    case the setting was changed meanwhile (components/AppBridge.tsx). */
 export const TEXT_SIZE_FN =
   `function(){try{var h=document.documentElement;if(!/iPhone|iPad|iPod/.test(navigator.userAgent)&&!(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1))return;` +
-  `var was=h.style.font;h.style.font='-apple-system-body';var px=parseFloat(getComputedStyle(h).fontSize);h.style.font=was;` +
+  // Measured on a span of its own: set on <html> itself the system font read
+  // back as the standard size whatever the phone said (2026-11-05, from the
+  // app's own report: a span said 19px and 23px, <html> stayed unchanged).
+  `var sp=document.createElement('span');sp.style.font='-apple-system-body';sp.style.position='absolute';sp.style.visibility='hidden';sp.textContent='x';` +
+  `(document.body||h).appendChild(sp);var px=parseFloat(getComputedStyle(sp).fontSize);sp.remove();` +
   `if(!(px>0))return;var k=Math.min(1.4,Math.max(1,px/17));var v=k>1.02?Math.round(k*100)+'%':'';` +
   `h.style.webkitTextSizeAdjust=v;h.style.textSizeAdjust=v;if(v)h.setAttribute('data-text-size',v);else h.removeAttribute('data-text-size')}catch(e){}}`
 export const applyPhoneTextSize = () => {
@@ -129,7 +133,7 @@ export const APP_DETECT_SCRIPT =
   // left customers on a page with no way back): the 首頁 tab instead, which
   // sends a signed-out family on to the login page (proxy.ts).
   `if(/^\\/(zh-Hant|zh-Hans)?\\/?$/.test(location.pathname))location.replace('/dashboard');` +
-  `window.__msaTextSize=${TEXT_SIZE_FN};window.__msaTextSize();` +
+  `window.__msaTextSize=${TEXT_SIZE_FN};window.__msaTextSize();document.addEventListener('DOMContentLoaded',function(){window.__msaTextSize()});` +
   `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
