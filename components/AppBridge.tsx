@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { handleAppBack } from '@/lib/app-back'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
-import { APP_CLASS, applyPhoneTextSize, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
+import { APP_CLASS, TEXT_SIZE_FN, applyPhoneTextSize, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
 
 /* Push notifications inside the phone app (owner, 2026-10-27; lib/push.ts).
    Renders nothing, and does nothing in a browser.
@@ -78,7 +78,7 @@ export default function AppBridge() {
         document.body.appendChild(box)
         const [a, b] = [...box.querySelectorAll('span')].map(x => Math.round(x.getBoundingClientRect().height * 10) / 10)
         box.remove()
-        const report = { bodyPx, headScript: typeof (window as unknown as { __msaTextSize?: unknown }).__msaTextSize, htmlAdjust: h.style.webkitTextSizeAdjust || null, data: h.getAttribute('data-text-size'), plain16: a, adjusted150: b, ua: navigator.userAgent.slice(0, 160) }
+        const report = { bodyPx, headScript: (window as unknown as { __msaLate?: number }).__msaLate ? 'late' : typeof (window as unknown as { __msaTextSize?: unknown }).__msaTextSize, htmlAdjust: h.style.webkitTextSizeAdjust || null, data: h.getAttribute('data-text-size'), plain16: a, adjusted150: b, ua: navigator.userAgent.slice(0, 160) }
         fetch('/api/app/diag', { method: 'POST', body: JSON.stringify(report), keepalive: true }).catch(() => {})
       } catch { /* a look only */ }
     }, 3000)
@@ -88,6 +88,11 @@ export default function AppBridge() {
   // The phone's text size may have been changed while the app was away (lib/native-app.ts).
   useEffect(() => {
     if (!appPlatform()) return
+    // A build whose <head> script never ran still follows the phone.
+    const w = window as unknown as { __msaTextSize?: unknown }
+    if (typeof w.__msaTextSize !== 'function') {
+      try { new Function('window.__msaTextSize=' + TEXT_SIZE_FN + ';window.__msaLate=1')() } catch {}
+    }
     applyPhoneTextSize()
     const on = () => { if (document.visibilityState === 'visible') applyPhoneTextSize() }
     document.addEventListener('visibilitychange', on)

@@ -1062,12 +1062,16 @@ the contained problems were fixed the same day. What to keep doing:
   `openChat('', { about })` (lib/chat-open). The chat shows 要問這堂課嗎？
   with the lesson above the box (不是這堂 drops it) and starts the message
   with （關於這堂課：…）, so the desk and the assistant know which one.
-- **The app's <head> script runs base64-encoded** (APP_DETECT_INLINE in
-  lib/native-app.ts). In production the inline text came out with a piece
-  missing (2026-11-05: classList.add('msa-appwindow...'), a syntax error, so
-  the text size and the 首頁 redirect never ran) while the local dev server
-  showed it whole. Keep APP_DETECT_SCRIPT free of regular expressions with
-  slashes, and check the live page after changing it.
+- **The app's <head> script is an array of plain strings joined with ''**
+  (APP_DETECT_SCRIPT and TEXT_SIZE_FN in lib/native-app.ts). Written as a
+  `+` chain of template strings with ${...} in them, the production
+  minifier folded it wrongly and dropped a whole piece (2026-11-05:
+  classList.add('msa-appwindow...'), a syntax error, so the text size and
+  the 首頁 redirect never ran). The dev server does not minify and never
+  shows this: after changing the script, run `next build` and check the
+  string in .next/server/chunks/ssr (it must parse with `new Function`).
+  AppBridge defines the text-size function itself if the head script did
+  not.
 - app/api/app/diag is a temporary log of the iPhone text-size measurements
   (AppBridge, once per launch); remove both once the text size works.
 - **app/(public)/error.tsx** is the translated, branded page for a page

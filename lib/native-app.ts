@@ -110,15 +110,17 @@ export function coverViewport() {
    the cards and tabs stop fitting. Run before the first paint (in
    APP_DETECT_SCRIPT) and again whenever the app comes back to the front, in
    case the setting was changed meanwhile (components/AppBridge.tsx). */
-export const TEXT_SIZE_FN =
-  `function(){try{var h=document.documentElement;if(!/iPhone|iPad|iPod/.test(navigator.userAgent)&&!(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1))return;` +
-  // Measured on a span of its own: set on <html> itself the system font read
-  // back as the standard size whatever the phone said (2026-11-05, from the
-  // app's own report: a span said 19px and 23px, <html> stayed unchanged).
-  `var sp=document.createElement('span');sp.style.font='-apple-system-body';sp.style.position='absolute';sp.style.visibility='hidden';sp.textContent='x';` +
-  `(document.body||h).appendChild(sp);var px=parseFloat(getComputedStyle(sp).fontSize);sp.remove();` +
-  `if(!(px>0))return;var k=Math.min(1.4,Math.max(1,px/17));var v=k>1.02?Math.round(k*100)+'%':'';` +
-  `h.style.webkitTextSizeAdjust=v;h.style.textSizeAdjust=v;if(v)h.setAttribute('data-text-size',v);else h.removeAttribute('data-text-size')}catch(e){}}`
+/* Measured on a span of its own: set on <html> itself the system font read
+   back as the standard size whatever the phone said (2026-11-05, from the
+   app's own report: a span said 19px and 23px, <html> stayed unchanged).
+   Plain strings joined at run time -- see APP_DETECT_SCRIPT for why. */
+export const TEXT_SIZE_FN = [
+  "function(){try{var h=document.documentElement;if(!/iPhone|iPad|iPod/.test(navigator.userAgent)&&!(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1))return;",
+  "var sp=document.createElement('span');sp.style.font='-apple-system-body';sp.style.position='absolute';sp.style.visibility='hidden';sp.textContent='x';",
+  "(document.body||h).appendChild(sp);var px=parseFloat(getComputedStyle(sp).fontSize);sp.remove();",
+  "if(!(px>0))return;var k=Math.min(1.4,Math.max(1,px/17));var v=k>1.02?Math.round(k*100)+'%':'';",
+  "h.style.webkitTextSizeAdjust=v;h.style.textSizeAdjust=v;if(v)h.setAttribute('data-text-size',v);else h.removeAttribute('data-text-size')}catch(e){}}",
+].join('')
 export const applyPhoneTextSize = () => {
   if (typeof window === 'undefined') return
   const h = document.documentElement, before = h.getAttribute('data-text-size')
@@ -127,25 +129,29 @@ export const applyPhoneTextSize = () => {
   if (h.getAttribute('data-text-size') !== before) window.dispatchEvent(new Event('resize'))
 }
 
-export const APP_DETECT_SCRIPT =
-  `try{if(navigator.userAgent.indexOf('${APP_UA}')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){document.documentElement.classList.add('${APP_CLASS}');` +
-  // The website's home page is not part of the app (owner, 2026-11-03: it
-  // left customers on a page with no way back): the 首頁 tab instead, which
-  // sends a signed-out family on to the login page (proxy.ts).
-  // Plain comparisons, no regular expression (see APP_DETECT_INLINE below).
-  `var pth=location.pathname;if(pth==='/'||pth==='/zh-Hant'||pth==='/zh-Hans'||pth==='/zh-Hant/'||pth==='/zh-Hans/')location.replace('/dashboard');` +
-  `window.__msaTextSize=${TEXT_SIZE_FN};window.__msaTextSize();document.addEventListener('DOMContentLoaded',function(){window.__msaTextSize()});` +
-  `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
+/* The <head> script. Written as plain strings in an array joined at run
+   time, never as template strings or `+` chains: the production build's
+   minifier folded the earlier `a${APP_CLASS}b` + `c` + ... chain wrongly and
+   dropped a whole piece -- from the class name's closing quote through the
+   首頁 redirect (seen 2026-11-05 in the live page and reproduced with a local
+   `next build`: classList.add('msa-appwindow...'), a syntax error, so none of
+   it ran: no text size, no redirect from the website's home page). The dev
+   server never minifies, so it never showed there.
+   The website's home page is not part of the app (owner, 2026-11-03: it left
+   customers on a page with no way back): the 首頁 tab instead, which sends a
+   signed-out family on to the login page (proxy.ts). Plain comparisons for
+   the path, no regular expression. */
+export const APP_DETECT_SCRIPT = [
+  "try{if(navigator.userAgent.indexOf('", APP_UA, "')>-1||(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())){",
+  "document.documentElement.classList.add('", APP_CLASS, "');",
+  "var pth=location.pathname;if(pth==='/'||pth==='/zh-Hant'||pth==='/zh-Hans'||pth==='/zh-Hant/'||pth==='/zh-Hans/')location.replace('/dashboard');",
+  "window.__msaTextSize=", TEXT_SIZE_FN, ";window.__msaTextSize();document.addEventListener('DOMContentLoaded',function(){window.__msaTextSize()});",
+  "var f=function(){var m=document.querySelector('meta[name=\"viewport\"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)",
+  "}}catch(e){}",
+].join('')
 
-/* What the root layout puts in <head>: the script above, base64-encoded and
-   run from there. Inline as plain text, the production build lost a piece
-   of it -- from the class name's closing quote through the 首頁 redirect
-   (seen 2026-11-05 in the live page: classList.add('msa-appwindow...'), a
-   syntax error, so none of it ran: no text size, no redirect from the
-   website's home page). Base64 has no quotes or slashes for anything on
-   the way to rewrite; the local dev server never showed it. */
-export const APP_DETECT_INLINE =
-  `try{new Function(atob('${typeof btoa === 'function' ? btoa(APP_DETECT_SCRIPT) : Buffer.from(APP_DETECT_SCRIPT).toString('base64')}'))()}catch(e){}`
+/* What the root layout puts in <head>. */
+export const APP_DETECT_INLINE = APP_DETECT_SCRIPT
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
 export const appLook = () => typeof document !== 'undefined' && document.documentElement.classList.contains(APP_CLASS)
