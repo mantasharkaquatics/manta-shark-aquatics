@@ -9,7 +9,7 @@ import { isLocale } from '@/lib/i18n'
 import { sendEmail } from '@/lib/email'
 import { findProof, normalizePhone, EMAIL_NOT_VERIFIED, PHONE_NOT_VERIFIED, type OtpTable } from '@/lib/registration-proof'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
-import { contactProblem, medicalToStore } from '@/lib/safety-info'
+import { contactProblem, medicalToStore, supportToStore } from '@/lib/safety-info'
 import { isGender } from '@/lib/swimmer-look'
 import { saveContact, saveMedical } from '@/lib/safety-info-server'
 
@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
   const students = (Array.isArray(body.students) ? body.students : [])
     .map((s: any) => ({ full_name: str(s?.full_name, 120), date_of_birth: typeof s?.date_of_birth === 'string' ? s.date_of_birth : '', me: s?.is_account_holder === true,
       medical: medicalToStore(s?.medical),
+      support: supportToStore(s?.medical),
       // Boy or girl (owner, 2026-10-29). The form asks it; a page loaded before
       // the question existed sends none, and the app's card asks it later.
       gender: isGender(s?.gender) ? s.gender : null }))
@@ -211,7 +212,7 @@ export async function POST(req: NextRequest) {
   if (!stuErr && made) {
     for (const r of made as { id: string; sort_order: number }[]) {
       const s = students[r.sort_order - 1]
-      if (s) await saveMedical(svc, parent.id, r.id, s.medical ?? null)
+      if (s) await saveMedical(svc, parent.id, r.id, s.medical ?? null, s.support)
     }
   }
 

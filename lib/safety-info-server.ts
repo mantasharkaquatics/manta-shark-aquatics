@@ -6,7 +6,7 @@ import { phoneDigits, type EmergencyContact } from '@/lib/safety-info'
 
 type Svc = any
 
-export type SafetyStudent = { id: string; full_name: string; medical_notes: string | null; answered: boolean }
+export type SafetyStudent = { id: string; full_name: string; medical_notes: string | null; support_notes: string | null; answered: boolean }
 export type SafetyInfo = { contact: EmergencyContact | null; students: SafetyStudent[]; missing: boolean }
 
 /** A missing column (docs/migration-safety-info.sql not run yet) reads as
@@ -23,27 +23,37 @@ export async function readSafety(svc: Svc, parentId: string): Promise<SafetyInfo
   }
   let rows: any[] = []
   {
-    const r = await svc.from('students').select('id, full_name, medical_notes, medical_confirmed_at').eq('parent_id', parentId).eq('is_active', true).order('sort_order')
-    if (r.error) {
-      const r2 = await svc.from('students').select('id, full_name, medical_notes').eq('parent_id', parentId).eq('is_active', true).order('sort_order')
-      if (r2.error) return null
-      rows = r2.data || []
-    } else rows = r.data || []
+    // Newest columns first; each step back is a migration not run yet.
+    let got = false
+    for (const cols of ['id, full_name, medical_notes, medical_confirmed_at, support_notes', 'id, full_name, medical_notes, medical_confirmed_at', 'id, full_name, medical_notes']) {
+      const r = await svc.from('students').select(cols).eq('parent_id', parentId).eq('is_active', true).order('sort_order')
+      if (!r.error) { rows = r.data || []; got = true; break }
+    }
+    if (!got) return null
   }
   const contact = parent?.emergency_contact_name && parent?.emergency_contact_phone
     ? { name: parent.emergency_contact_name, relation: parent.emergency_contact_relation || '', phone: parent.emergency_contact_phone }
     : null
   const students: SafetyStudent[] = rows.map(s => ({
     id: s.id, full_name: s.full_name, medical_notes: s.medical_notes ?? null,
+    support_notes: s.support_notes && String(s.support_notes).trim() ? String(s.support_notes) : null,
     // Notes written before the question existed count as answered.
     answered: !!s.medical_confirmed_at || !!(s.medical_notes && String(s.medical_notes).trim()),
   }))
   return { contact, students, missing: !contact || !contact.relation || students.some(s => !s.answered) }
 }
 
-/** One swimmer's answer: null = no known conditions. */
-export async function saveMedical(svc: Svc, parentId: string, studentId: string, notes: string | null): Promise<boolean> {
+/** One swimmer's answer: null = no known conditions. support: the optional
+ *  learning / sensory needs (null = none, undefined = leave as they are). */
+export async function saveMedical(svc: Svc, parentId: string, studentId: string, notes: string | null, support?: string | null): Promise<boolean> {
   const now = new Date().toISOString()
+  if (support !== undefined) {
+    const r0 = await svc.from('students').update({ medical_notes: notes, medical_confirmed_at: now, support_notes: support })
+      .eq('id', studentId).eq('parent_id', parentId).select('id')
+    if (!r0.error) return (r0.data || []).length === 1
+    // docs/migration-support-notes.sql not run: the rest is still saved.
+    console.error('[safety] support_notes not saved (run docs/migration-support-notes.sql)', r0.error.message)
+  }
   const r = await svc.from('students').update({ medical_notes: notes, medical_confirmed_at: now })
     .eq('id', studentId).eq('parent_id', parentId).select('id')
   if (!r.error) return (r.data || []).length === 1
@@ -64,17 +74,15 @@ export async function saveContact(svc: Svc, parentId: string, c: EmergencyContac
 
 /** What a coach needs for the swimmers in their lessons: medical notes and
  *  the family's emergency contact, keyed by student id. */
-export async function safetyForStudents(svc: Svc, studentIds: string[]): Promise<Record<string, { medical: string | null; answered: boolean; contact: EmergencyContact | null }>> {
+export type CoachSafety = { medical: string | null; support: string | null; answered: boolean; contact: EmergencyContact | null }
+export async function safetyForStudents(svc: Svc, studentIds: string[]): Promise<Record<string, CoachSafety>> {
   const ids = [...new Set(studentIds.filter(Boolean))]
-  const out: Record<string, { medical: string | null; answered: boolean; contact: EmergencyContact | null }> = {}
+  const out: Record<string, CoachSafety> = {}
   if (ids.length === 0) return out
   let studs: any[] = []
-  {
-    const r = await svc.from('students').select('id, parent_id, medical_notes, medical_confirmed_at').in('id', ids)
-    if (r.error) {
-      const r2 = await svc.from('students').select('id, parent_id, medical_notes').in('id', ids)
-      studs = r2.data || []
-    } else studs = r.data || []
+  for (const cols of ['id, parent_id, medical_notes, medical_confirmed_at, support_notes', 'id, parent_id, medical_notes, medical_confirmed_at', 'id, parent_id, medical_notes']) {
+    const r = await svc.from('students').select(cols).in('id', ids)
+    if (!r.error) { studs = r.data || []; break }
   }
   const pids = [...new Set(studs.map(s => s.parent_id).filter(Boolean))]
   let parents: any[] = []
@@ -90,6 +98,7 @@ export async function safetyForStudents(svc: Svc, studentIds: string[]): Promise
     const p: any = pmap.get(s.parent_id)
     out[s.id] = {
       medical: s.medical_notes && String(s.medical_notes).trim() ? String(s.medical_notes).trim() : null,
+      support: s.support_notes && String(s.support_notes).trim() ? String(s.support_notes).trim() : null,
       answered: !!s.medical_confirmed_at || !!(s.medical_notes && String(s.medical_notes).trim()),
       contact: p?.emergency_contact_name && p?.emergency_contact_phone
         ? { name: p.emergency_contact_name, relation: p.emergency_contact_relation || '', phone: p.emergency_contact_phone }

@@ -1156,6 +1156,16 @@ the contained problems were fixed the same day. What to keep doing:
     keep working (Supabase signs them in; signInWithPassword only adds
     `weakPassword`). Supabase's own minimum is 8 on both projects (owner
     sets it); its "password requirements" (capitals, symbols) stay off.
+  - **Learning or sensory needs (owner, 2026-11-05, 決定 7 選項 A)**: under
+    the illness/allergy question every safety form (sign-up, add a swimmer,
+    the safety sheet) has an optional second one -- how to talk with the
+    child, what upsets them, what helps; no diagnosis asked.
+    students.support_notes (docs/migration-support-notes.sql, both
+    projects), carried as `support` on MedicalAnswer (`none: null` = the
+    medical question not answered yet). The account page shows it as its
+    own purple chip 上課須知, never under 健康; coaches see a 上課須知 flag and
+    the text, the desk sees it on Members. Same readers as medical_notes;
+    the AI never gets either.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

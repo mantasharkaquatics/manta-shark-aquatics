@@ -45,7 +45,7 @@ export default function AccountPage() {
   // The new swimmer's answer to the safety question (owner, 2026-10-22).
   const [newMedical, setNewMedical] = useState<MedicalAnswer | null>(null)
   // What is on file for the family's safety (lib/safety-info.ts).
-  type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]; missing: boolean }
+  type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; support_notes?: string | null; answered: boolean }[]; missing: boolean }
   const [safety, setSafety] = useState<Safety | null>(null)
   const [safetyOpen, setSafetyOpen] = useState(false)
   // Changing their own email or phone (owner, 2026-10-22).
@@ -300,8 +300,14 @@ export default function AccountPage() {
                         {s.is_account_holder && !viewOnly && !(showAddForm && newMe) && <span className="ac-tag">{t('account.isYou')}</span>}
                       </div>
                       {h && (
-                        <span className={'hl' + (!h.answered ? ' bad' : h.medical_notes ? ' note' : '')} title={h.medical_notes || undefined}>
-                          {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('account.healthNone')}
+                        <span className="hls">
+                          <span className={'hl' + (!h.answered ? ' bad' : h.medical_notes ? ' note' : '')} title={h.medical_notes || undefined}>
+                            {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('account.healthNone')}
+                          </span>
+                          {/* Learning / sensory needs: their own chip, not 健康 (決定 7). */}
+                          {h.support_notes && (
+                            <span className="hl sup" title={h.support_notes}>{t('account.supportLabel')}{t('account.healthSep')}{h.support_notes}</span>
+                          )}
                         </span>
                       )}
                     </div>

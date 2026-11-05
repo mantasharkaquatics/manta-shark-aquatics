@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
-import { contactProblem, formatPhone, MEDICAL_MAX, CONTACT_NAME_MAX, RELATION_MAX, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
+import { contactProblem, formatPhone, MEDICAL_MAX, SUPPORT_MAX, CONTACT_NAME_MAX, RELATION_MAX, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
 
 /* The safety questions (owner, 2026-10-22; lib/safety-info.ts), styled inline
    so the same fields sit in the register form, My Account and the dashboard. */
@@ -16,12 +16,17 @@ const S = {
   err: { fontSize: 13, color: '#c0392b', margin: '6px 0 0' } as React.CSSProperties,
 }
 
-/** "Does {name} have any medical conditions or allergies?" none / yes + text. */
+/** "Does {name} have any medical conditions or allergies?" none / yes + text,
+ *  then the optional learning / sensory needs (決定 7) under a line. */
 export function MedicalQuestion({ id, name, value, onChange }: {
   id: string; name: string; value: MedicalAnswer | null; onChange: (v: MedicalAnswer) => void
 }) {
   const t = useT()
-  const has = value ? !value.none : false
+  const has = value?.none === false
+  // The needs answer rides along whatever happens to the medical one.
+  const sup = value?.support !== undefined ? { support: value.support } : {}
+  // Typing needs before the medical question keeps it unanswered.
+  const setSupport = (v: string) => onChange(value ? { ...value, support: v } : { none: null, notes: '', support: v })
   return (
     <div role="radiogroup" aria-labelledby={`${id}-q`}>
       <p id={`${id}-q`} style={{ ...S.label, color: '#16294a', fontWeight: 600 }}>
@@ -29,12 +34,12 @@ export function MedicalQuestion({ id, name, value, onChange }: {
       </p>
       <div style={{ display: 'grid', gap: 8 }}>
         <label style={{ ...S.radioRow, borderColor: value?.none ? BRAND.blue : '#d5e0ef' }}>
-          <input type="radio" name={`${id}-med`} checked={value?.none === true} onChange={() => onChange({ none: true, notes: '' })}
+          <input type="radio" name={`${id}-med`} checked={value?.none === true} onChange={() => onChange({ ...sup, none: true, notes: '' })}
             style={{ width: 18, height: 18, accentColor: BRAND.blue }} />
           {t('safety.medical.none')}
         </label>
         <label style={{ ...S.radioRow, borderColor: has ? BRAND.blue : '#d5e0ef' }}>
-          <input type="radio" name={`${id}-med`} checked={has} onChange={() => onChange({ none: false, notes: value?.notes || '' })}
+          <input type="radio" name={`${id}-med`} checked={has} onChange={() => onChange({ ...sup, none: false, notes: value?.notes || '' })}
             style={{ width: 18, height: 18, accentColor: BRAND.blue }} />
           {t('safety.medical.has')}
         </label>
@@ -43,10 +48,19 @@ export function MedicalQuestion({ id, name, value, onChange }: {
         <div style={{ marginTop: 8 }}>
           <label htmlFor={`${id}-notes`} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('safety.medical.has')}</label>
           <textarea id={`${id}-notes`} rows={3} maxLength={MEDICAL_MAX} value={value?.notes || ''}
-            onChange={e => onChange({ none: false, notes: e.target.value })}
+            onChange={e => onChange({ ...sup, none: false, notes: e.target.value })}
             placeholder={t('safety.medical.placeholder')} style={{ ...S.input, resize: 'vertical', lineHeight: 1.5 }} />
         </div>
       )}
+      <div style={{ borderTop: '1px solid #e3eaf4', marginTop: 14, paddingTop: 12 }}>
+        <label htmlFor={`${id}-support`} style={{ ...S.label, color: '#16294a', fontWeight: 600 }}>
+          {t('safety.support.q', { name: name || t('safety.medical.thisSwimmer') })} <span style={{ color: BRAND.mute, fontWeight: 500 }}>{t('safety.support.optional')}</span>
+        </label>
+        <textarea id={`${id}-support`} rows={2} maxLength={SUPPORT_MAX} value={value?.support || ''}
+          onChange={e => setSupport(e.target.value)} aria-describedby={`${id}-support-h`}
+          placeholder={t('safety.support.placeholder')} style={{ ...S.input, resize: 'vertical', lineHeight: 1.5 }} />
+        <p id={`${id}-support-h`} style={S.hint}>{t('safety.support.hint')}</p>
+      </div>
     </div>
   )
 }
@@ -97,7 +111,7 @@ export function safetyErrorKey(code: string | null | undefined): string {
 
 type Info = {
   contact: EmergencyContact | null
-  students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]
+  students: { id: string; full_name: string; medical_notes: string | null; support_notes?: string | null; answered: boolean }[]
   missing: boolean
 }
 
@@ -121,7 +135,7 @@ export function SafetyEditor({ parentPhone, onClose, onSaved }: { parentPhone?: 
       if (!live) return
       if (!d) { setLoadErr(true); return }
       setInfo(d)
-      setAnswers(Object.fromEntries(d.students.map(s => [s.id, s.answered ? { none: !s.medical_notes, notes: s.medical_notes || '' } : null])))
+      setAnswers(Object.fromEntries(d.students.map(s => [s.id, s.answered ? { none: !s.medical_notes, notes: s.medical_notes || '', support: s.support_notes || '' } : (s.support_notes ? { none: null, notes: '', support: s.support_notes } : null)])))
       if (d.contact) setContact({ name: d.contact.name, relation: d.contact.relation, phone: formatPhone(d.contact.phone) })
     }).catch(() => { if (live) setLoadErr(true) })
     return () => { live = false }

@@ -1872,5 +1872,8 @@
   "admin.ann.removeYes": "確定撤下",
   "admin.ann.err.load": "公告讀不出來，請重新整理頁面。",
   "admin.ann.err.save": "沒有存到，請再試一次。",
-  "admin.ann.err.expiry": "結束日期已經過了。"
+  "admin.ann.err.expiry": "結束日期已經過了。",
+  "coach.safety.supportFlag": "上課須知",
+  "coach.safety.support": "學習或感官需求",
+  "admin.safety.support": "學習或感官需求"
 }

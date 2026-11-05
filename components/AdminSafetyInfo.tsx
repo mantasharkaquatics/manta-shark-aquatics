@@ -6,7 +6,7 @@ import { formatPhone } from '@/lib/safety-info'
 
 type Info = {
   contact: { name: string; relation: string; phone: string } | null
-  students: { id: string; full_name: string; medical_notes: string | null; answered: boolean }[]
+  students: { id: string; full_name: string; medical_notes: string | null; support_notes?: string | null; answered: boolean }[]
   missing: boolean
 }
 
@@ -38,6 +38,10 @@ export default function AdminSafetyInfo({ parentId }: { parentId: string }) {
             <p className={`whitespace-pre-wrap ${s.medical_notes ? 'text-red-200' : 'text-gray-400'}`}>
               {!s.answered ? t('admin.safety.notAnswered') : s.medical_notes || t('admin.safety.none')}
             </p>
+            {s.support_notes && (<>
+              <p className="text-violet-300 text-xs font-semibold mt-2">{t('admin.safety.support')}</p>
+              <p className="whitespace-pre-wrap text-violet-100">{s.support_notes}</p>
+            </>)}
           </div>
         ))}
         <div className="rounded-lg px-3 py-2 text-sm border bg-[#0d1529] border-[#1e3a6e]">

@@ -19,12 +19,13 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li>Account information: name, email address, phone number, home address, and password.</li>
           <li>Student information: swimmer names, dates of birth, and swim-level progress.</li>
-          {/* Added 2026-11-05 (owner, 決定 4 選項 A). Draft wording, to be reviewed by counsel. */}
+          {/* Added 2026-11-05 (owner, 決定 4 選項 A; learning / sensory needs 決定 7). Draft wording, to be reviewed by counsel. */}
           <li>
             Safety information you give us about each swimmer: whether they have any medical condition
-            or allergy our staff should know about, and any notes you add. Only our coaches and front
-            desk can see it; it is not shared with other families, view-only family members or the AI
-            chat assistant, and we keep it while the swimmer is enrolled.
+            or allergy our staff should know about, any notes you add, and, if you choose to tell us,
+            learning or sensory needs (for example how your child communicates or what helps them feel
+            safe; no diagnosis is asked). Only our coaches and front desk can see it; it is not shared
+            with other families or the AI chat assistant, and we keep it while the swimmer is enrolled.
           </li>
           <li>
             An emergency contact you name for your family (their name, relationship to you and phone

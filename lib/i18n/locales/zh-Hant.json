@@ -2757,5 +2757,10 @@
   "dash.here.useQr": "改用 QR Code",
   "err.passwordSimple": "這個密碼太容易被猜到了，請換一個（不要全部同一個字、連號、生日或常見密碼）。",
   "err.passwordEmail": "密碼不能和 email 一樣，請換一個。",
-  "register.passwordOk": "可以使用"
+  "register.passwordOk": "可以使用",
+  "safety.support.q": "{name} 有沒有教練應該知道的學習或感官需求？",
+  "safety.support.optional": "（選填）",
+  "safety.support.placeholder": "例如：怎麼跟孩子溝通、怕什麼（噪音、水潑到臉）、什麼能讓孩子安心",
+  "safety.support.hint": "不需要診斷，寫教練上課時用得到的就好。",
+  "account.supportLabel": "上課須知"
 }

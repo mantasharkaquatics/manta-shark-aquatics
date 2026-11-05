@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { contactProblem, medicalToStore } from '@/lib/safety-info'
+import { contactProblem, medicalToStore, supportToStore } from '@/lib/safety-info'
 import { readSafety, saveContact, saveMedical } from '@/lib/safety-info-server'
 
 export const runtime = 'nodejs'
@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic'
    conditions / allergies, and one emergency contact. lib/safety-info.ts.
 
    GET   what is on file, and whether anything is still missing
-   POST  { contact?: {name, relation, phone}, students?: [{id, none, notes}] }
+   POST  { contact?: {name, relation, phone}, students?: [{id, none, notes, support?}] }
+         (support: the optional learning / sensory needs, 決定 7)
          saves what is sent; every part is checked before anything is written. */
 
 export async function GET() {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const problem = contactProblem(body.contact, me?.phone)
     if (problem) return NextResponse.json({ error: 'Invalid emergency contact', code: 'CONTACT_' + problem.toUpperCase() }, { status: 400 })
   }
-  const answers: { id: string; notes: string | null }[] = []
+  const answers: { id: string; notes: string | null; support: string | null | undefined }[] = []
   if (Array.isArray(body.students)) {
     const { data: mine } = await svc.from('students').select('id').eq('parent_id', parent.id).eq('is_active', true)
     const own = new Set((mine || []).map((s: { id: string }) => s.id))
@@ -41,13 +42,13 @@ export async function POST(req: NextRequest) {
       if (!s || typeof s.id !== 'string' || !own.has(s.id)) return NextResponse.json({ error: 'Unknown swimmer', code: 'STUDENT' }, { status: 400 })
       const stored = medicalToStore(s)
       if (stored === undefined) return NextResponse.json({ error: 'Answer the medical question for every swimmer', code: 'MEDICAL', id: s.id }, { status: 400 })
-      answers.push({ id: s.id, notes: stored })
+      answers.push({ id: s.id, notes: stored, support: supportToStore(s) })
     }
   }
 
   let ok = true
   if (body.contact !== undefined) ok = (await saveContact(svc, parent.id, body.contact)) && ok
-  for (const a of answers) ok = (await saveMedical(svc, parent.id, a.id, a.notes)) && ok
+  for (const a of answers) ok = (await saveMedical(svc, parent.id, a.id, a.notes, a.support)) && ok
   if (!ok) return NextResponse.json({ error: 'Could not save. Please try again.' }, { status: 500 })
   const info = await readSafety(svc, parent.id)
   return NextResponse.json({ ok: true, ...(info || {}) })

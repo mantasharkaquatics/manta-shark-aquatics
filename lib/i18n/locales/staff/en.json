@@ -1872,5 +1872,8 @@
   "admin.ann.removeYes": "Take it down",
   "admin.ann.err.load": "Could not load the announcements. Please reload the page.",
   "admin.ann.err.save": "Not saved. Please try again.",
-  "admin.ann.err.expiry": "The end date has already passed."
+  "admin.ann.err.expiry": "The end date has already passed.",
+  "coach.safety.supportFlag": "Learning needs",
+  "coach.safety.support": "Learning or sensory needs",
+  "admin.safety.support": "Learning or sensory needs"
 }

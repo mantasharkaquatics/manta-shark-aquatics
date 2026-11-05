@@ -39,6 +39,9 @@ export const ACCT_CSS = `
   border-radius: 999px; padding: 3px 9px; background: #e8f5ef; color: #1f7a57; }
 .ac-kid .hl.bad { background: #fdecea; color: #b4321f; }
 .ac-kid .hl.note { background: #fff6e5; color: #8a5300; }
+.ac-kid .hls { flex: none; max-width: 55%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ac-kid .hls .hl { max-width: 100%; }
+.ac-kid .hl.sup { background: #ece8fb; color: #4b3a9a; }
 /* Inside the app (owner, 2026-11-04): the account pages start right under
    the top bar, with a smaller heading, and do not bounce. */
 html.msa-app .ac-wrap { padding: 10px 16px 16px; }

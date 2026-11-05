@@ -19,7 +19,7 @@ type Student = {
   current_stage?: number | null
   profile_photo_url?: string
   /** Medical notes and the family's emergency contact (app/coach/page.tsx). */
-  safety?: { medical: string | null; answered: boolean; contact: { name: string; relation: string; phone: string } | null } | null
+  safety?: { medical: string | null; support?: string | null; answered: boolean; contact: { name: string; relation: string; phone: string } | null } | null
 }
 
 type Booking = {
@@ -246,6 +246,9 @@ export default function CoachDashboardClient({
                           {booking.students?.safety?.medical && (
                             <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-400/40">{t('coach.safety.flag')}</span>
                           )}
+                          {booking.students?.safety?.support && (
+                            <span className="inline-block mt-1 ml-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-200 border border-violet-400/40">{t('coach.safety.supportFlag')}</span>
+                          )}
                         </div>
                         <span className="ml-auto text-gray-500 text-xs">{t('coach.today.viewProgress')}</span>
                       </button>
@@ -290,6 +293,11 @@ export default function CoachDashboardClient({
                   <div className={`mt-3 rounded-lg p-3 border text-sm ${selectedStudent.safety.medical ? 'bg-red-500/10 border-red-400/40' : 'bg-white/5 border-[#1e3a6e]'}`}>
                     <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${selectedStudent.safety.medical ? 'text-red-300' : 'text-gray-400'}`}>{t('coach.safety.medical')}</p>
                     <p className="text-white whitespace-pre-wrap">{selectedStudent.safety.medical || (selectedStudent.safety.answered ? t('coach.safety.none') : t('coach.safety.notAnswered'))}</p>
+                    {/* Learning / sensory needs (決定 7): how to talk with the child, what upsets them, what helps. */}
+                    {selectedStudent.safety.support && (<>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-violet-300 mt-3 mb-1">{t('coach.safety.support')}</p>
+                      <p className="text-white whitespace-pre-wrap">{selectedStudent.safety.support}</p>
+                    </>)}
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mt-3 mb-1">{t('coach.safety.contact')}</p>
                     {selectedStudent.safety.contact ? (
                       <p className="text-white">

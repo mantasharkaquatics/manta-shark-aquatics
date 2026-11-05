@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
-import { medicalToStore } from '@/lib/safety-info'
+import { medicalToStore, supportToStore } from '@/lib/safety-info'
 import { saveMedical } from '@/lib/safety-info-server'
 import { isGender } from '@/lib/swimmer-look'
 
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   // without the column yet (docs/migration-account-holder-swimmer.sql) still
   // adds the swimmer; the answer is then simply not stored.
   // The "answered" stamp, on its own (lib/safety-info-server).
-  await saveMedical(svc, parent.id, row.id, medical)
+  await saveMedical(svc, parent.id, row.id, medical, supportToStore(body?.medical))
 
   const me = body?.is_account_holder === true && isAdultOn(dob, getTodayLA())
   const holder = await recordNewSwimmers(svc, parent.id, [row.id], me ? row.id : null)

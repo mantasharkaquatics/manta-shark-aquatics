@@ -2757,5 +2757,10 @@
   "dash.here.useQr": "Show the QR code instead",
   "err.passwordSimple": "That password is too easy to guess. Please avoid one repeated character, runs like 12345678, dates and common passwords.",
   "err.passwordEmail": "Your password can't be your email address. Please choose another.",
-  "register.passwordOk": "Good to use"
+  "register.passwordOk": "Good to use",
+  "safety.support.q": "Does {name} have any learning or sensory needs the coach should know about?",
+  "safety.support.optional": "(optional)",
+  "safety.support.placeholder": "For example: how to communicate with them, what upsets them (noise, splashing on the face), what helps them feel safe",
+  "safety.support.hint": "No diagnosis needed — just what helps the coach in the water.",
+  "account.supportLabel": "Lesson notes"
 }
