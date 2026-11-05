@@ -1071,9 +1071,7 @@ the contained problems were fixed the same day. What to keep doing:
   shows this: after changing the script, run `next build` and check the
   string in .next/server/chunks/ssr (it must parse with `new Function`).
   AppBridge defines the text-size function itself if the head script did
-  not.
-- app/api/app/diag is a temporary log of the iPhone text-size measurements
-  (AppBridge, once per launch); remove both once the text size works.
+  not. Confirmed on the owner's iPhone 2026-11-05 (larger text: 140%).
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
