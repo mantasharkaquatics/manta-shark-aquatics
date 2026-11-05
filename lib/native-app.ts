@@ -113,11 +113,15 @@ export function coverViewport() {
 /* Measured on a span of its own: set on <html> itself the system font read
    back as the standard size whatever the phone said (2026-11-05, from the
    app's own report: a span said 19px and 23px, <html> stayed unchanged).
+   The size already set is taken off first: the span inherits it, so every
+   later run (on load, on return to the app) read the enlarged font and
+   enlarged it again -- one step up on the phone went to the 140% cap
+   (owner, 2026-11-05). Nothing is painted in between.
    Plain strings joined at run time -- see APP_DETECT_SCRIPT for why. */
 export const TEXT_SIZE_FN = [
   "function(){try{var h=document.documentElement;if(!/iPhone|iPad|iPod/.test(navigator.userAgent)&&!(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1))return;",
   "var sp=document.createElement('span');sp.style.font='-apple-system-body';sp.style.position='absolute';sp.style.visibility='hidden';sp.textContent='x';",
-  "(document.body||h).appendChild(sp);var px=parseFloat(getComputedStyle(sp).fontSize);sp.remove();",
+  "h.style.webkitTextSizeAdjust='';h.style.textSizeAdjust='';(document.body||h).appendChild(sp);var px=parseFloat(getComputedStyle(sp).fontSize);sp.remove();",
   "if(!(px>0))return;var k=Math.min(1.4,Math.max(1,px/17));var v=k>1.02?Math.round(k*100)+'%':'';",
   "h.style.webkitTextSizeAdjust=v;h.style.textSizeAdjust=v;if(v)h.setAttribute('data-text-size',v);else h.removeAttribute('data-text-size')}catch(e){}}",
 ].join('')
