@@ -2752,5 +2752,7 @@
   "checkout.terms": "使用者条款",
   "checkout.priceMissing": "价格暂时无法加载，请稍后再试。",
   "points.buy.agree": "付款即表示同意",
-  "booking.policy.fixedEnd": "固定班不能在线上提前结束；要结束请联系我们，剩下的课退点或换补课券由学校决定。"
+  "booking.policy.fixedEnd": "固定班不能在线上提前结束；要结束请联系我们，剩下的课退点或换补课券由学校决定。",
+  "dash.here.short": "我到了",
+  "dash.here.useQr": "改用 QR Code"
 }

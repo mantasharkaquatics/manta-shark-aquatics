@@ -36,7 +36,7 @@ const SwimmerDeck = dynamic(() => import('@/components/swimmer/SwimmerDeck'), { 
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { openChat, ACCOUNT_CHANGED_EVENT, chatIsOpen, onChatStateChange } from '@/lib/chat-open'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
-import QRModal from './CheckinQr'
+import QRModal, { warmQr } from './CheckinQr'
 import { DEFAULT_LOCATION_ID, lessonPoolShown, locationMapUrl, poolHasDetails, type Location } from '@/lib/locations'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { appLook } from '@/lib/native-app'
@@ -262,6 +262,7 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
   font-family: inherit; font-size: 15px; font-weight: 900; cursor: pointer }
 .msa-nextline-in:disabled { opacity: .7; cursor: progress }
 .msa-nextline-msg { padding: 0 14px 10px; font-size: 12.5px; line-height: 1.5; color: #8a5300 }
+.msa-nextline-qr { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: #12254a; text-decoration: underline; cursor: pointer }
 .msa-nextline-main:focus-visible, .msa-nextline-in:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
 /* A short phone (iPhone SE): everything a little tighter, so the swimmer keeps what room there is. */
 @media (max-height: 700px) {
@@ -1392,6 +1393,13 @@ export default function DashboardPage() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
+  // Today's swimmers' check-in codes, drawn ahead so 報到 opens at once.
+  useEffect(() => {
+    const tdy = getTodayLA()
+    const ids = upcomingBookings.filter(b => b.session_date === tdy && b.status === 'confirmed' && !b.checked_in)
+      .flatMap(b => (b._group || [b]).map(x => x.student_id)).filter((x): x is string => !!x)
+    if (ids.length) warmQr([...new Set(ids)])
+  }, [upcomingBookings])
   // The "cancel this unpaid assessment?" confirm, by booking id.
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
 
@@ -3558,11 +3566,13 @@ export default function DashboardPage() {
                   {hot && who && (
                     <button type="button" className="tap-auto msa-nextline-in" disabled={hereBusy === who.id}
                       onClick={() => (here[who.id]?.open ? checkInHere(who) : setQrStudent(who))}>
-                      {hereBusy === who.id ? t('dash.here.locating') : t('dash.checkIn')}
+                      {hereBusy === who.id ? t('dash.here.locating') : here[who.id]?.open ? t('dash.here.short') : t('dash.checkIn')}
                     </button>
                   )}
                 </div>
-                {who && hereMsg?.id === who.id && <div className="msa-nextline-msg" role="alert">{hereMsg.text}</div>}
+                {/* Location refused or not at the pool: the QR is one tap away (決定 5). */}
+                {who && hereMsg?.id === who.id && <div className="msa-nextline-msg" role="alert">{hereMsg.text}{' '}
+                  <button type="button" className="tap-auto msa-nextline-qr" onClick={() => { setHereMsg(null); setQrStudent(who) }}>{t('dash.here.useQr')}</button></div>}
               </div>
             )
           })()}

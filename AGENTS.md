@@ -1132,6 +1132,20 @@ the contained problems were fixed the same day. What to keep doing:
   - The check-in QR says which lesson it is for, that check-in opens 30
     minutes before, and who else has a lesson today; 我的's QR opens the
     one swimmer with a lesson today directly, else lists them first.
+  - **Check-in (owner, 2026-11-05, 決定 5, "照建議三件一起做")**: the QR
+    stays fixed (MSA:<base64 id>) so it can be printed on a card -- no
+    daily code. The phone keeps each swimmer's QR picture (localStorage
+    msa_qr_v1:<id>) and 首頁 draws today's swimmers' codes while idle
+    (`warmQr`), so 報到 opens at once. The desk's camera scan no longer
+    checks in by itself: a swimmer on the list opens the same confirm as a
+    name picked by hand (swimmer and parent), recorded as 'qr_code'. The
+    one-tap 「我到了」 (lib/venues.ts, /api/checkin/self) turns on when a pool
+    has coordinates in Admin > 場館 -- the owner enters Brea's; the next-
+    lesson line's button then reads 我到了, and a refusal (too far, no
+    location) offers 改用 QR Code. NFC and a geofenced "check in?" prompt
+    wait for the new site (owner's plan, July 2027); automatic check-in
+    without a tap is not to be built (a parent passing the pool would mark
+    a child present).
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

@@ -45,6 +45,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState('')
   const [confirmStudent, setConfirmStudent] = useState<Student | null>(null)
+  // How the swimmer in the confirm came: picked by name, or a scanned code.
+  const [confirmVia, setConfirmVia] = useState<'manual' | 'qr_code'>('manual')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -153,7 +155,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   async function checkin(student: Student) {
     setConfirmStudent(null)
     setLoading(student.id)
-    await doCheckin(student.id, 'manual')
+    await doCheckin(student.id, confirmVia)
+    setConfirmVia('manual')
     setLoading('')
     setQuery('')
   }
@@ -245,6 +248,12 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       setScanLoading(false)
       return
     }
+    // A code is fixed and can be copied: the desk sees whose it is (swimmer
+    // and parent) and confirms, as with a name picked by hand (owner,
+    // 2026-11-05, 決定 5). A code for a swimmer not on this list goes
+    // straight to the server, which names them or refuses.
+    const known = students.find(s => s.id === studentId)
+    if (known) { setConfirmVia('qr_code'); setConfirmStudent(known); setScanLoading(false); return }
     await doCheckin(studentId, 'qr_code')
     setScanLoading(false)
   }
@@ -367,7 +376,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       </div>
 
       {confirmStudent && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setConfirmStudent(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { setConfirmStudent(null); setConfirmVia('manual') }}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-[#c9a84c]/20 flex items-center justify-center mx-auto mb-4">
@@ -382,7 +391,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmStudent(null)} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
+              <button onClick={() => { setConfirmStudent(null); setConfirmVia('manual') }} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
               <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">{t('admin.checkin.confirmTitle')}</button>
             </div>
           </div>

@@ -2752,5 +2752,7 @@
   "checkout.terms": "Terms of Service",
   "checkout.priceMissing": "The price could not be loaded. Please try again shortly.",
   "points.buy.agree": "By paying you agree to the",
-  "booking.policy.fixedEnd": "A fixed class can't be ended online: contact us, and the school decides whether the remaining lessons' points are returned or become make-up vouchers."
+  "booking.policy.fixedEnd": "A fixed class can't be ended online: contact us, and the school decides whether the remaining lessons' points are returned or become make-up vouchers.",
+  "dash.here.short": "I'm here",
+  "dash.here.useQr": "Show the QR code instead"
 }

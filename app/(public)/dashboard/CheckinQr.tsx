@@ -14,9 +14,32 @@ const NAVY = BRAND.navy
 const GOLD = BRAND.blue
 const AMBER = BRAND.amber
 
+const QR_OPTS = { width: 280, margin: 2, color: { dark: '#1a2744', light: '#ffffff' }, errorCorrectionLevel: 'H' as const }
+
+/* Draws and keeps today's swimmers' codes while the phone is idle, so even
+   the first 報到 of the day opens at once (決定 5). */
+export function warmQr(studentIds: string[]) {
+  const need = studentIds.filter(id => !cachedQr(id))
+  if (!need.length) return
+  const run = () => import('qrcode').then(({ default: QRCode }) => Promise.all(need.map(id =>
+    QRCode.toDataURL(makeQRPayload(id), QR_OPTS).then(url => { try { localStorage.setItem(QR_KEY + id, url) } catch {} })
+  ))).catch(() => {})
+  const w = window as Window & { requestIdleCallback?: (cb: () => void) => number }
+  if (w.requestIdleCallback) w.requestIdleCallback(run); else setTimeout(run, 1500)
+}
+
 // QR payload: base64 encode of student_id so it's not raw UUID
 function makeQRPayload(studentId: string): string {
   return `MSA:${btoa(studentId)}`
+}
+
+// v1: bump if the code's look or payload ever changes.
+const QR_KEY = 'msa_qr_v1:'
+function cachedQr(studentId: string): string {
+  try {
+    const url = localStorage.getItem(QR_KEY + studentId) || ''
+    return url.startsWith('data:image/png;base64,') ? url : ''
+  } catch { return '' }
 }
 
 /* lesson: today's lesson of this swimmer, written out ("3:35 PM · Coach
@@ -26,18 +49,21 @@ function makeQRPayload(studentId: string): string {
 export default function QRModal({ student, onClose, lesson, others = [] }: { student: { id: string; full_name: string }; onClose: () => void; lesson?: string | null; others?: string[] }) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string>('')
+  // The code never changes for a swimmer, so its picture is kept on the
+  // phone after the first time and shown at once (owner, 2026-11-05,
+  // 決定 5: "點開才會顯示 QR code, 有點慢").
+  const [made, setMade] = useState<{ id: string; url: string }>(() => ({ id: student.id, url: cachedQr(student.id) }))
+  const qrDataUrl = made.id === student.id && made.url ? made.url : cachedQr(student.id)
   const box = useDialogFocus(true)
 
   useEffect(() => {
+    if (cachedQr(student.id)) return
     const payload = makeQRPayload(student.id)
     let live = true
-    import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(payload, {
-      width: 280,
-      margin: 2,
-      color: { dark: '#1a2744', light: '#ffffff' },
-      errorCorrectionLevel: 'H',
-    })).then(url => { if (live) setQrDataUrl(url) }).catch(() => {})
+    import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(payload, QR_OPTS)).then(url => {
+      try { localStorage.setItem(QR_KEY + student.id, url) } catch {}
+      if (live) setMade({ id: student.id, url })
+    }).catch(() => {})
     return () => { live = false }
   }, [student.id])
 
