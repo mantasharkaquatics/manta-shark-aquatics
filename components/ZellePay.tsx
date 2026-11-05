@@ -33,11 +33,13 @@ const CSS = `
 .zp-qr { width: 112px; height: auto; display: block; border-radius: 6px; }
 /* On a phone the QR is on the screen the bank app would need to scan: the
    email and its copy button lead there instead (2026-11-04). */
-@media (max-width: 600px), (pointer: coarse) and (max-width: 900px) { .zp-qr { display: none; } .zp-top { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px), (pointer: coarse) and (max-width: 900px) { .zp-qr { display: none; } .zp-top { grid-template-columns: minmax(0, 1fr); } .zp-s1-desk { display: none; } .zp-s1-phone { display: inline !important; } }
+/* No QR on a phone, so step 1 says copy and paste instead (50-role test, 2026-11-05). */
+.zp-s1-phone { display: none; }
 .zp-label { font-size: 11px; letter-spacing: .06em; color: ${BRAND.mute}; margin: 0 0 2px; }
 .zp-name { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; line-height: 1.3; }
 .zp-email { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid #eef2f8; }
-.zp-email span { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 600; color: ${BRAND.navy};  line-height: 1.45; }
+.zp-email span { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 600; color: ${BRAND.navy};  line-height: 1.45; overflow-wrap: anywhere; }
 .zp-copy { flex: none; font: inherit; font-size: 12px; font-weight: 700; color: ${BRAND.blue}; background: #eef3fb; border: 1px solid #cfdcef; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .zp-copy[data-done="1"] { color: #1f7a57; background: #e6f4ee; border-color: #b7e0cc; }
 .zp-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
@@ -54,7 +56,7 @@ export default function ZellePay({ price, style }: { price?: string; style?: Rea
   const copy = async () => {
     try { await navigator.clipboard.writeText(ZELLE_EMAIL); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch {}
   }
-  const steps = [t('points.zelle.step1'), ...(price ? [t('points.zelle.step2', { price })] : []), t('points.zelle.step3'), t('points.zelle.step4')]
+  const steps: React.ReactNode[] = [<><span className="zp-s1-desk">{t('points.zelle.step1')}</span><span className="zp-s1-phone">{t('points.zelle.step1Phone')}</span></>, ...(price ? [t('points.zelle.step2', { price })] : []), t('points.zelle.step3'), t('points.zelle.step4')]
   return (
     <details className="zp p-zelle" style={style}>
       <style>{CSS}</style>

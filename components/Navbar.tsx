@@ -273,6 +273,10 @@ export default function Navbar() {
 
   // Any navigation closes whatever was open.
   useEffect(() => { setOpen(null) }, [pathname])
+  // In the app this bar is hidden but for the closure notice it carries: it
+  // is no menu there, so it is no navigation landmark either (50-role test,
+  // 2026-11-05: VoiceOver found an empty "main menu" first).
+  useEffect(() => { if (appLook()) navRef.current?.setAttribute('role', 'none') }, [])
 
   // A click anywhere else, or Escape, closes a menu. Escape hands focus back
   // to the button that opened it (found 2026-10-15): the item that had focus

@@ -22,13 +22,14 @@ export default async function PublicLayout({ children }: { children: React.React
           (found 2026-10-15: no parent page had a <main>). A flex column, as
           the body is, so each page's top element lays out exactly as it did
           when it sat in the body directly. */}
+      {/* The app's bars come before the page in reading order (back first). */}
+      <AppShell />
       <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
         {children}
       </main>
       {/* Not in the phone app (app/globals.css .msa-web-only). */}
       <div className="msa-web-only"><Footer locations={pools} /></div>
       <GlobalChat />
-      <AppShell />
     </div>
   )
 }

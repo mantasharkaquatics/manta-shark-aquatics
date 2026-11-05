@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 import {
   GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type SwimmerLook,
 } from '@/lib/swimmer-look'
@@ -368,6 +369,9 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     const el = deckRef.current
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
   }
+  // Focus moves in, stays in, Esc closes, and goes back to 換造型 (50-role test).
+  const closeRef = useRef<() => void>(() => {})
+  const sheetBox = useDialogFocus(!!draft, () => closeRef.current())
   const closeSheet = async () => {
     const it = items.find(x => x.id === editing)
     const d = draft
@@ -383,6 +387,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     if (res?.ok) say(t('swimmer.saved', { name: it.name }))
     else { onLook(it.id, before); say(t('swimmer.saveFailed')) }
   }
+  useEffect(() => { closeRef.current = () => { closeSheet() } })
   const set = <K extends keyof SwimmerLook>(k: K, v: SwimmerLook[K]) => setDraft(d => {
     if (!d) return d
     const n = { ...d, [k]: v }
@@ -429,9 +434,11 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
         {items.map((it, i) => {
           // Every card carries everything it can show, so arriving in the middle changes nothing React draws.
           const stage = (
-            <div className="sw-stage" role="img" aria-label={t('swimmer.stageLabel', { name: it.name })}>
+            <div className="sw-stage">
               {!ready && <div className="sw-msg">{t('swimmer.loading')}</div>}
-              <div className="sw-live" ref={el => { if (el) liveEls.current.set(it.id, el); else liveEls.current.delete(it.id) }} />
+              {/* The picture alone is the image: 換造型 and the name over it are
+                  read as themselves (50-role test, 2026-11-05). */}
+              <div className="sw-live" role="img" aria-label={t('swimmer.stageLabel', { name: it.name })} ref={el => { if (el) liveEls.current.set(it.id, el); else liveEls.current.delete(it.id) }} />
               {ready && [0, 1, 2].map(k => (
                 <div key={k} className="sw-hold" aria-hidden="true"
                   ref={el => { const a = holdEls.current.get(it.id) || []; a[k] = el; holdEls.current.set(it.id, a) }}
@@ -469,7 +476,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
       )}
 
       <div className={'sw-scrim' + (draft ? ' on' : '')} onClick={closeSheet} />
-      <div className={'sw-sheet' + (draft ? ' on' : '')} role="dialog" aria-modal="true" aria-labelledby="sw-sheet-t" aria-hidden={!draft}>
+      <div ref={sheetBox} className={'sw-sheet' + (draft ? ' on' : '')} role="dialog" aria-modal="true" aria-labelledby="sw-sheet-t" aria-hidden={!draft} inert={!draft}>
         <div className="sw-grab" aria-hidden="true" />
         <div className="sw-top">
           <b id="sw-sheet-t">{t('swimmer.dress')}</b>

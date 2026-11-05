@@ -13,7 +13,9 @@ import { SuggestionSheet, PointsCard, ReferralCard, type WalletSummary } from '.
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { BRAND } from '@/lib/brand'
 import { fmtDate } from '@/lib/fmt-date'
+import { getTodayLA, formatTime12h } from '@/lib/date'
 import QRModal from '../CheckinQr'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -85,7 +87,8 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-mini button { border: 0; font-family: inherit; cursor: pointer; text-align: left; }
 .mx-mini a, .mx-mini button { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 800;
   color: ${BRAND.ink}; text-decoration: none; min-width: 0; }
-.mx-mini a span, .mx-mini button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Two lines rather than cut off (50-role test, 2026-11-05). */
+.mx-mini a span, .mx-mini button span { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
 .mx-out { align-self: center; margin-top: 12px; padding: 8px 18px; border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 700;
   color: ${BRAND.mute}; cursor: pointer; }
 .mx-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; border-radius: 8px; }
@@ -141,12 +144,23 @@ export default function MePage() {
   const [me, setMe] = useState<{ name: string; email: string; family?: string } | null>(null)
   const [role, setRole] = useState<'main' | 'full' | 'viewer' | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
+  // The balance did not arrive: say so on the card, tap to try again (50-role
+  // test, 2026-11-05: it showed "— 點" and the card did nothing).
+  const [walletErr, setWalletErr] = useState(false)
+  const reloadWallet = () => {
+    setWalletErr(false)
+    fetch('/api/parent/wallet', { cache: 'no-store' }).then(x => (x.ok ? x.json() : null)).catch(() => null)
+      .then(w => { if (w) setWallet(w); else setWalletErr(true) })
+  }
   const [kids, setKids] = useState<Kid[]>([])
   const [pickQr, setPickQr] = useState(false)
   /* The sheets 我的 opens over itself (owner, 2026-11-04: over 首頁 the tab
      changed under them): the statement alone, refer-a-friend alone, the
      suggestion box, and the sign-out question. */
   const [sheet, setSheet] = useState<null | 'points' | 'refer' | 'suggest' | 'out'>(null)
+  // Focus into each sheet, kept there, and back to its button on close (50-role test, 2026-11-05).
+  const sheetBox = useDialogFocus(sheet === 'points' || sheet === 'refer' || sheet === 'out', () => setSheet(null))
+  const pickBox = useDialogFocus(pickQr, () => setPickQr(false))
   const [plans, setPlans] = useState<{ fixed: Fixed[]; vouchers: Voucher[]; team: Team[]; at: number } | null>(null)
 
   useEffect(() => {
@@ -180,6 +194,7 @@ export default function MePage() {
         get('/api/parent/vouchers'), get('/api/parent/team-memberships')])
       if (!live) return
       if (w) setWallet(w)
+      else if (r !== 'viewer') setWalletErr(true)
       setPlans({ fixed: f?.classes || [], vouchers: v?.vouchers || [], team: tm?.memberships || [], at: Date.now() })
     })().catch(() => {})
     return () => { live = false }
@@ -238,9 +253,31 @@ export default function MePage() {
   // 2026-11-04: it used to go to 首頁 first, and closing left the family
   // there); with several swimmers, which one first.
   const [qrKid, setQrKid] = useState<Kid | null>(null)
-  const openQr = () => {
-    if (kids.length === 1) setQrKid(kids[0])
-    else if (kids.length > 1) setPickQr(true)
+  // Who has a lesson today, and when: those come first in the picker, and one
+  // alone opens at once (50-role test, 2026-11-05: the desk scanned swimmers
+  // with nothing booked). Read when the QR is asked for.
+  const [today, setToday] = useState<Record<string, string>>({})
+  const openQr = async () => {
+    if (kids.length === 1) { setQrKid(kids[0]); return }
+    if (kids.length === 0) return
+    const map: Record<string, string> = {}
+    try {
+      const tdy = getTodayLA()
+      const { data: bs } = await supabase.from('bookings').select('student_id, class_session_id').in('student_id', kids.map(k => k.id)).eq('status', 'confirmed')
+      const ids = [...new Set((bs || []).map((b: { class_session_id: string }) => b.class_session_id).filter(Boolean))]
+      if (ids.length) {
+        const { data: ss } = await supabase.from('class_sessions').select('id, start_time, session_date').in('id', ids).eq('session_date', tdy)
+        const at = new Map((ss || []).filter((x: { session_date: string }) => x.session_date === tdy).map((x: { id: string; start_time: string }) => [x.id, x.start_time]))
+        for (const b of (bs || []) as { student_id: string; class_session_id: string }[]) {
+          const st = at.get(b.class_session_id)
+          if (st && (!map[b.student_id] || st < map[b.student_id])) map[b.student_id] = st
+        }
+      }
+    } catch {}
+    setToday(map)
+    const withLesson = kids.filter(k => map[k.id])
+    if (withLesson.length === 1) setQrKid(withLesson[0])
+    else setPickQr(true)
   }
   useEffect(() => {
     if (!pickQr && !sheet) return
@@ -259,14 +296,16 @@ export default function MePage() {
           four round shortcuts, the plans sliding sideways, four small
           buttons. One screen, nothing to scroll. */}
       <div className="mx">
+        <h1 className="sr-only">{t('app.tab.me')}</h1>
         <div style={{ position: 'relative' }}>
           <button type="button" className="mx-card tap-auto" aria-live="polite"
-            onClick={() => (viewer ? router.push('/dashboard/account') : wallet && setSheet('points'))}>
+            onClick={() => (viewer ? router.push('/dashboard/account') : walletErr ? reloadWallet() : wallet && setSheet('points'))}>
             <span className="t">{t('me.card.member')}</span>
             <span className="n">{name}</span>
             {viewer && me?.family && <span className="low" style={{ color: '#cfe0ff' }}>{t('dash.viewer.short', { name: me.family })}</span>}
             {!viewer && <span className="p">
-              <b>{wallet ? wallet.balancePurchased.toLocaleString() : '—'}</b><span className="u">{t('dash.pointsUnit')}</span>
+              {walletErr && !wallet ? <span className="u">{t('me.card.walletErr')}</span>
+                : <><b>{wallet ? wallet.balancePurchased.toLocaleString() : '—'}</b><span className="u">{t('dash.pointsUnit')}</span></>}
               {wallet && wallet.balanceGranted > 0 && <span className="g">{t('dash.pointsGift', { n: wallet.balanceGranted.toLocaleString() })}</span>}
             </span>}
             {owe && wallet ? <span className="owe">{t('points.card.arrearsTitle', { n: wallet.arrears.toLocaleString() })}</span>
@@ -326,7 +365,7 @@ export default function MePage() {
 
       {sheet === 'points' && wallet && (
         <div className="msa-sheet-back" onClick={() => setSheet(null)}>
-          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('me.r.history')}>
+          <div ref={sheetBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('me.r.history')}>
             <div className="msa-sheet-head">
               <b>{t('me.r.history')}</b>
               <button className="msa-sheet-x" onClick={() => setSheet(null)} aria-label={t('common.close')}>✕</button>
@@ -337,7 +376,7 @@ export default function MePage() {
       )}
       {sheet === 'refer' && (
         <div className="msa-sheet-back" onClick={() => setSheet(null)}>
-          <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('dash.more.refer')}>
+          <div ref={sheetBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('dash.more.refer')}>
             <div className="msa-sheet-head">
               <b>{t('dash.more.refer')}</b>
               <button className="msa-sheet-x" onClick={() => setSheet(null)} aria-label={t('common.close')}>✕</button>
@@ -349,7 +388,7 @@ export default function MePage() {
       {sheet === 'suggest' && <SuggestionSheet onClose={() => setSheet(null)} />}
       {sheet === 'out' && (
         <div className="mx-pick" onClick={() => setSheet(null)}>
-          <div role="dialog" aria-modal="true" aria-label={t('me.out.ask')} onClick={e => e.stopPropagation()}>
+          <div ref={sheetBox} role="dialog" aria-modal="true" aria-label={t('me.out.ask')} onClick={e => e.stopPropagation()}>
             <h2>{t('me.out.ask')}</h2>
             <p className="mx-pick-p">{t('me.out.body')}</p>
             <button type="button" className="danger" onClick={signOut}>{t('nav.signOut')}</button>
@@ -357,12 +396,18 @@ export default function MePage() {
           </div>
         </div>
       )}
-      {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} />}
+      {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} lesson={today[qrKid.id] ? formatTime12h(today[qrKid.id]) : null}
+        others={kids.filter(k => k.id !== qrKid.id && today[k.id]).map(k => k.full_name)} />}
       {pickQr && (
         <div className="mx-pick" onClick={() => setPickQr(false)}>
-          <div role="dialog" aria-modal="true" aria-label={t('me.qr.pick')} onClick={e => e.stopPropagation()}>
+          <div ref={pickBox} role="dialog" aria-modal="true" aria-label={t('me.qr.pick')} onClick={e => e.stopPropagation()}>
             <h2>{t('me.qr.pick')}</h2>
-            {kids.map(k => <button key={k.id} type="button" className="tap-auto" onClick={() => { setPickQr(false); setQrKid(k) }}>{k.full_name}<span aria-hidden="true">›</span></button>)}
+            {[...kids].sort((a, b) => (today[a.id] ? 0 : 1) - (today[b.id] ? 0 : 1)).map(k => (
+              <button key={k.id} type="button" className="tap-auto" onClick={() => { setPickQr(false); setQrKid(k) }} style={today[k.id] || Object.keys(today).length === 0 ? undefined : { opacity: 0.6 }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>{k.full_name}
+                  {Object.keys(today).length > 0 && <small style={{ fontSize: 12, fontWeight: 700, color: today[k.id] ? '#1f7a57' : '#56647d' }}>{today[k.id] ? t('me.qr.todayAt', { time: formatTime12h(today[k.id]) }) : t('me.qr.noneToday')}</small>}
+                </span><span aria-hidden="true">›</span></button>
+            ))}
             <button type="button" className="x" onClick={() => setPickQr(false)}>{t('common.cancel')}</button>
           </div>
         </div>

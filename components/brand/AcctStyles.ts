@@ -21,7 +21,7 @@ export const ACCT_CSS = `
 .ac-label { font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: ${BRAND.blue}; margin: 0 0 6px; }
 .ac-desc { font-size: 14px; color: ${BRAND.mute}; margin: 0 0 16px; line-height: 1.55; }
 .ac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 12px; }
-.ac-k { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #8a97ad; margin-bottom: 4px; }
+.ac-k { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #5f6b80; margin-bottom: 4px; }
 .ac-v { font-size: 15px; font-weight: 600; color: ${BRAND.ink}; overflow-wrap: anywhere; }
 .ac-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .ac-row b { display: block; font-size: 15.5px; color: ${BRAND.navy}; margin-bottom: 3px; }
@@ -58,7 +58,7 @@ html.msa-app .ac-empty .ac-sub { font-size: 13px !important; }
   html.msa-app .ac-head { margin-bottom: 8px; }
 }
 .ac-tag { font-size: 12px; font-weight: 700; color: ${BRAND.blue}; margin-top: 2px; }
-.ac-muted { font-size: 12.5px; color: #8a97ad; }
+.ac-muted { font-size: 12.5px; color: #5f6b80; }
 .ac-note { font-size: 13px; color: ${BRAND.mute}; margin: 14px 0; }
 .ac-input { width: 100%; box-sizing: border-box; background: #fff; border: 1px solid #d5e0ef; border-radius: 10px; padding: 11px 14px;
   font-family: inherit; font-size: 15px; color: ${BRAND.ink}; outline: none; transition: border-color .15s, box-shadow .15s; }
@@ -89,6 +89,10 @@ html.msa-app .ac-empty .ac-sub { font-size: 13px !important; }
 .ac-toggle span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: left .2s; }
 .ac-toggle[aria-checked="true"] span { left: 23px; }
+/* A 44px finger target around the small switch, the look unchanged (50-role test, 2026-11-05). */
+.ac-toggle::after { content: ''; position: absolute; inset: -9px -2px; }
+/* A small text button with a 44px finger target. */
+.ac-hit { position: relative; } .ac-hit::after { content: ''; position: absolute; inset: -12px -10px; }
 .ac-empty { text-align: center; border-style: dashed; padding: 30px 22px; }
 .ac-empty b { display: block; font-size: 16px; color: ${BRAND.navy}; margin: 8px 0 4px; }
 .ac-icon { width: 46px; height: 46px; border-radius: 50%; background: #eef4fc; display: grid; place-items: center; font-size: 21px; flex-shrink: 0; }

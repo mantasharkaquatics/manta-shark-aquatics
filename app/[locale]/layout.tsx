@@ -59,6 +59,8 @@ export default async function LocaleLayout({
             (found 2026-10-15: no parent page had a <main>). A flex column, as
             the body is, so each page's top element lays out exactly as it did
             when it sat in the body directly. */}
+        {/* The app's bars come before the page in reading order (back first). */}
+        <AppShell />
         <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
           {children}
         </main>
@@ -66,7 +68,6 @@ export default async function LocaleLayout({
             phone app still gets the app's bars, never the website footer. */}
         <div className="msa-web-only"><Footer locations={pools} /></div>
         <GlobalChat />
-        <AppShell />
       </div>
     </LocaleProvider>
   )

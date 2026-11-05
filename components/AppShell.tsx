@@ -88,13 +88,14 @@ const css = `
     border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
     transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
   html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: var(--app-tab-gap); }
-  .msa-tb .lb { display: block; max-height: 1.6em; overflow: hidden; transition: max-height .22s ease, opacity .18s ease; }
+  /* One line each, cut rather than run into the next tab at large text (50-role test, 2026-11-05). */
+  .msa-tb .lb { display: block; max-height: 1.6em; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
   html.msa-tabs-small .msa-tb .ic { transform: scale(.9); }
   @media (prefers-reduced-motion: reduce) { .msa-ab, .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
   .msa-tb a { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    border-radius: 26px; padding: 0; font-size: 10.5px; font-weight: 800; color: #7a869b; text-decoration: none;
+    border-radius: 26px; padding: 0; font-size: 10.5px; font-weight: 800; color: #56647d; text-decoration: none;
     cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
   .msa-tb [aria-current="page"] { color: ${BRAND.navy}; background: #e6edf8; }
   .msa-tb a:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -2px; }
@@ -263,6 +264,21 @@ export default function AppShell() {
   const home = /^\/(zh-Hant|zh-Hans)?\/?$/.test(pathname)
   useEffect(() => { if (app && home) router.replace('/dashboard') }, [app, home, router])
 
+  /* Each tab names itself in the page title, in the reader's language
+     (50-role test, 2026-11-05: every app page had the website's English title). */
+  const titleKey = (() => {
+    const bare = pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/'
+    if (bare === '/dashboard') return 'home'
+    if (bare.startsWith('/booking')) return 'book'
+    if (bare === '/dashboard/schedule') return 'schedule'
+    if (bare === '/dashboard/chat') return 'chat'
+    if (bare.startsWith('/dashboard/me')) return 'me'
+    return null
+  })()
+  useEffect(() => {
+    if (app && titleKey) document.title = t('app.tab.' + titleKey) + ' · Manta Shark'
+  }, [app, titleKey, t])
+
   // The message screen fills the screen with its own header and tabs.
   if (!app || pathname === '/dashboard/chat' || home) return null
 
@@ -286,7 +302,14 @@ export default function AppShell() {
     if (k === 'home') return pathname === '/dashboard'
     if (k === 'book') return pathname.startsWith('/booking')
     if (k === 'schedule') return pathname === '/dashboard/schedule'
-    if (k === 'me') return pathname.startsWith('/dashboard/me') || pathname === '/dashboard/account' || pathname === '/dashboard/partnerships'
+    // Everything 我的 opens keeps 我的 lit: the money pages (我的 holds all
+    // the money) and the school pages too (50-role test, 2026-11-05).
+    if (k === 'me') {
+      const bare = pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/'
+      return bare.startsWith('/dashboard/me') || bare === '/dashboard/account' || bare === '/dashboard/partnerships'
+        || bare === '/plans' || bare.startsWith('/dashboard/fixed-class') || bare === '/checkout'
+        || ['/programs', '/levels', '/faq', '/about', '/policies', '/adaptive-swim', '/terms', '/privacy-policy', '/waiver', '/media-release', '/sms-terms'].includes(bare)
+    }
     return false
   }
 

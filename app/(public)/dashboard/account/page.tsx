@@ -232,7 +232,7 @@ export default function AccountPage() {
                   <div className="ac-v" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ minWidth: 0, overflowWrap: 'anywhere', ...(item.missing ? { color: '#b4321f' } : {}) }}>{item.value}</span>
                     {item.edit && !viewOnly && (item.edit === 'safety' || !isGuardian) && (
-                      <button type="button" className="tap-auto" onClick={() => {
+                      <button type="button" className="tap-auto ac-hit" onClick={() => {
                         if (item.edit === 'safety') { setSafetyOpen(true); return }
                         setContactSaved(null); setContactEdit(item.edit!)
                       }}

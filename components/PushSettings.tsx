@@ -82,6 +82,8 @@ export default function PushSettings() {
       </div>
       {error && <div className="ac-err" role="alert" style={{ marginTop: 10 }}>{t('push.settings.error')}</div>}
       <p className="ac-note" style={{ marginTop: 12 }}>{t('push.settings.always')}</p>
+      {/* Push takes the place of the text messages: say so (50-role test, 2026-11-05). */}
+      <p className="ac-note" style={{ marginTop: 6 }}>{t('push.settings.smsNote')}</p>
     </section>
   )
 }

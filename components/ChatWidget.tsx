@@ -53,7 +53,7 @@ const PAGE_CSS = `
 .pc-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .pc-empty { margin: 40px auto 0; text-align: center; color: ${BRAND.mute}; font-size: 15px; display: flex; flex-direction: column; gap: 8px; }
 .pc-empty span { font-size: 32px; }
-.pc-pill { align-self: center; font-size: 11.5px; font-weight: 600; color: #8a94a6; padding: 6px 0 0; }
+.pc-pill { align-self: center; font-size: 11.5px; font-weight: 600; color: #5f6b80; padding: 6px 0 0; }
 .pc-note { align-self: center; max-width: 90%; text-align: center; font-size: 12px; color: ${BRAND.mute}; }
 .pc-strip { display: flex; align-items: center; gap: 10px; margin: 2px 4px; padding: 10px 12px; border-radius: 10px; text-decoration: none;
   background: #fff; border: 1px solid ${BRAND.line}; border-left: 3px solid ${BRAND.amber}; color: ${BRAND.ink}; font-size: 13.5px; line-height: 1.45; }
@@ -108,8 +108,12 @@ const PAGE_CSS = `
 .pc-inp:focus-within { padding-bottom: 11px; }
 /* Typing shows as the box's own edge turning blue, not a ring around it
    that crowded the line above. */
-.pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
+.pc-inp input.kb-focus:focus, .pc-inp input.kb-focus:focus-visible, .pc-inp textarea.kb-focus:focus, .pc-inp textarea.kb-focus:focus-visible { outline: none !important; box-shadow: none !important; border-color: ${BRAND.blue}; }
 .pc-inp input:not([type=file]) { flex: 1; min-width: 0; height: 46px; font: inherit; font-size: 16px; padding: 0 16px; border-radius: 999px; border: 1px solid #dbe3ef; background: #fff; color: ${BRAND.ink}; outline: none; }
+/* A box that grows with the question, up to five lines (50-role test,
+   2026-11-05: one line showed only the last few words). */
+.pc-inp textarea { flex: 1; min-width: 0; min-height: 46px; max-height: 132px; resize: none; overflow-y: auto; font: inherit; font-size: 16px; line-height: 22px; padding: 11px 16px; border-radius: 23px; border: 1px solid #dbe3ef; background: #fff; color: ${BRAND.ink}; outline: none; box-sizing: border-box; display: block; }
+.pc-inp:has(textarea) { align-items: flex-end; }
 .pc-cam { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: none; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send { width: 44px; height: 44px; min-height: 0; flex-shrink: 0; border-radius: 50%; border: 0; background: ${BRAND.amber}; color: ${BRAND.navy}; cursor: pointer; display: grid; place-items: center; }
 .pc-send:disabled { background: #e6ebf2; color: #9aa6ba; cursor: not-allowed; }
@@ -204,7 +208,19 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
      nothing in it -- not for one whose history is still on its way, where
      it flashed up and vanished (owner, 2026-10-28). */
   const [historyReady, setHistoryReady] = useState(false)
+  // The words typed so far survive leaving the chat (50-role test,
+  // 2026-11-05): kept for this browser tab only, never the photos.
   const [input, setInput] = useState('')
+  const draftRead = useRef(false)
+  useEffect(() => {
+    if (!draftRead.current) {
+      draftRead.current = true
+      let d = ''
+      try { d = sessionStorage.getItem('msa_chat_draft') || '' } catch {}
+      if (d) { setInput(d); return }
+    }
+    try { if (input) sessionStorage.setItem('msa_chat_draft', input); else sessionStorage.removeItem('msa_chat_draft') } catch {}
+  }, [input])
   const [sending, setSending] = useState(false)
   // The i18n key of the "not sent" line, or null (the guest chat has its own).
   const [sendFailed, setSendFailed] = useState<string | null>(null)
@@ -338,6 +354,13 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
      launcher. */
   const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // The page's box is a textarea that grows with what is typed (up to its max-height).
+  useLayoutEffect(() => {
+    const el = inputRef.current as unknown as HTMLElement | null
+    if (!el || el.tagName !== 'TEXTAREA') return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight + 2, 132) + 'px'
+  }, [input])
   const launcherRef = useRef<HTMLButtonElement>(null)
   const focusOnOpenRef = useRef(false)
   const focusLauncherRef = useRef(false)
@@ -667,8 +690,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   async function sendMessage(text?: string) {
     const typed = (text ?? input).trim()
     // Which lesson it is about, at the head of the message (then cleared).
-    const body = typed && about && !text ? `${t('chat.about.prefix', { what: about })}\n${typed}` : typed
-    if (typed && about && !text) setAbout('')
+    // A reply button counts too (50-role test, 2026-11-05: it dropped the lesson).
+    const body = typed && about ? `${t('chat.about.prefix', { what: about })}\n${typed}` : typed
+    if (typed && about) setAbout('')
     if (guest) {
       if (!body || sending || limited) return
       setSending(true)
@@ -755,6 +779,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       if (awaitTimerRef.current) { clearTimeout(awaitTimerRef.current); awaitTimerRef.current = null }
       // ai-reply never answered: the desk is told (app/api/chat/thread).
       await threadAction({ action: 'flag', thread_id: threadId })
+      // And the family sees that it went to the desk, on this screen only
+      // (50-role test, 2026-11-05: the message just sat there unanswered).
+      setMessages(prev => [...prev, { id: 'local-ai-fail-' + prev.length, thread_id: threadId, sender_type: 'system', body: t('chat.aiFailed'), created_at: new Date().toISOString(), metadata: null } as never])
     }
   }
 
@@ -860,7 +887,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
       <div className="pc" ref={panelRef} tabIndex={-1}>
         <style>{PAGE_CSS}</style>
         <div ref={liveRef} className="sr-only" aria-live="polite" aria-atomic="true" />
-        <div className="pc-mode">{mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
+        <div className="pc-mode">{mode === 'human' || (toTeam && !guest) ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
         <div className="pc-feed" ref={listRef}>
           {items.length === 0 && historyReady && (
             <div className="pc-empty"><span aria-hidden="true">👋</span>{t('chat.empty')}</div>
@@ -902,6 +929,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                   {!mine && avatar(m)}
                   <div className="pc-col">
                     {!mine && <div className="pc-nm">{nameOf(m)}</div>}
+                    {/* Who sent it, for a screen reader too (50-role test, 2026-11-05). */}
+                    {mine && <span className="sr-only">{t('chat.fromMe')}</span>}
                     <div className={'pc-bub' + (mine ? ' mine' : '') + (m.metadata?.photo ? ' ph' : '')}>
                       {body}
                       {m.sender_type === 'ai' && m.id === lastAi?.id && Array.isArray(m.metadata?.options) && (
@@ -967,11 +996,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
           <button type="button" className="pc-cam tap-auto" onClick={choosePhotos} disabled={photoBusy || !threadId || picked.length >= MAX_PHOTOS} aria-label={t('chat.photo.send')}>
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
           </button>
-          <input ref={inputRef} className="kb-focus" aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}
+          <textarea ref={inputRef as unknown as React.RefObject<HTMLTextAreaElement>} className="kb-focus" rows={1} aria-label={t('chat.placeholder')} placeholder={t('chat.placeholder')}
             value={input} maxLength={800} onChange={e => setInput(e.target.value)}
             onKeyDown={e => {
               if (e.key !== 'Enter' || e.shiftKey) return
               if (e.nativeEvent.isComposing || e.keyCode === 229) return
+              e.preventDefault()
               sendMessage()
             }} />
           <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')}>
@@ -1066,7 +1096,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               style={{ display: 'block', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, color: '#fff', fontSize: '16px' }}>{t('chat.title')}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{mode === 'human' ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{mode === 'human' || (toTeam && !guest) ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
             </div>
             <button onClick={closePanel} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontSize: '20px', cursor: 'pointer', padding: '4px' }} aria-label={t('common.close')}>✕</button>
           </div>
@@ -1103,12 +1133,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               return (
               <Fragment key={msg.id}>
               {newDay && (
-                <div style={{ textAlign: 'center', fontSize: '11px', color: '#8a97ad', margin: '4px 0' }}>
+                <div style={{ textAlign: 'center', fontSize: '11px', color: '#5f6b80', margin: '4px 0' }}>
                   {fmtDate(new Date(msg.created_at), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })}
                 </div>
               )}
               {msg.sender_type === 'system' ? (
-              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11.5px', color: '#8a97ad', padding: '2px 0' }}>
+              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11.5px', color: '#5f6b80', padding: '2px 0' }}>
                 {/* The desk handing the chat back: a fixed line, so it is
                     shown in the family's language (rows from before the key
                     carry only the English body). */}

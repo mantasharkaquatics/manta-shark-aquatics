@@ -75,7 +75,12 @@ export default function PartnershipsPage() {
     }
   }
 
-  const handleJoin = async () => {
+  /* 連結 first asks whose code it is and says what each family will see; the
+     link is made on 確認連結 (50-role test, 2026-11-05: it linked at once). */
+  const [joinAsk, setJoinAsk] = useState<string | null>(null)
+  const closeJoinAsk = () => { if (!joinBusy) setJoinAsk(null) }
+  const joinBox = useDialogFocus(joinAsk !== null, closeJoinAsk)
+  const handleJoin = async (confirmed = false) => {
     if (joinBusy) return
     setJoinError(null)
     setJoinBusy(true)
@@ -83,10 +88,12 @@ export default function PartnershipsPage() {
       const res = await fetch('/api/partnerships/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase() }),
+        body: JSON.stringify({ invite_code: inputCode.trim().toUpperCase(), ...(confirmed ? {} : { preview: true }) }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setJoinError(data.code === 'code_expired' ? t('err.inviteCodeExpired') : tErr(data.error)); return }
+      if (!res.ok) { setJoinAsk(null); setJoinError(data.code === 'code_expired' ? t('err.inviteCodeExpired') : tErr(data.error)); return }
+      if (!confirmed) { setJoinAsk(String(data.preview?.name || '')); return }
+      setJoinAsk(null)
       setJoinSuccess(true)
       setInputCode('')
       await load()
@@ -236,7 +243,7 @@ export default function PartnershipsPage() {
                   <input className="ac-input" autoComplete="new-password" type="text" placeholder="MSA-XXXXXX"
                     aria-label={t('link.enterCode')} value={inputCode}
                     onChange={e => setInputCode(e.target.value.toUpperCase())} style={{ letterSpacing: '0.1em', flex: 1 }} />
-                  <button type="button" className="ac-btn gold" onClick={handleJoin} disabled={!inputCode.trim() || joinBusy} aria-busy={joinBusy}>{joinBusy ? t('link.linking') : t('link.linkBtn')}</button>
+                  <button type="button" className="ac-btn gold" onClick={() => handleJoin(false)} disabled={!inputCode.trim() || joinBusy} aria-busy={joinBusy}>{joinBusy ? t('link.linking') : t('link.linkBtn')}</button>
                 </div>
                 {joinError && <div className="ac-err" role="alert">{joinError}</div>}
               </>
@@ -246,6 +253,19 @@ export default function PartnershipsPage() {
         </div>
       </div>
 
+      {joinAsk !== null && (
+        <div className="ac-back-drop" onClick={closeJoinAsk}>
+          <div ref={joinBox} className="ac-modal" role="dialog" aria-modal="true" aria-labelledby="link-join-title" onClick={e => e.stopPropagation()}>
+            <div className="eyebrow">{t('link.join.eyebrow')}</div>
+            <h2 id="link-join-title">{joinAsk ? t('link.join.title', { name: joinAsk }) : t('link.join.titlePlain')}</h2>
+            <p>{t('link.join.body')}</p>
+            <div className="ac-pair">
+              <button type="button" className="ac-btn line" onClick={closeJoinAsk} disabled={joinBusy}>{t('common.cancel')}</button>
+              <button type="button" className="ac-btn gold" onClick={() => handleJoin(true)} disabled={joinBusy} aria-busy={joinBusy}>{joinBusy ? t('link.linking') : t('link.join.yes')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Unlink confirmation */}
       {revokeConfirm && (
         <div className="ac-back-drop" onClick={closeRevoke}>

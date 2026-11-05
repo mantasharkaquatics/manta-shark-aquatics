@@ -12,6 +12,7 @@ import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 import ZellePay from '@/components/ZellePay'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { fmtDate } from '@/lib/fmt-date'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
@@ -28,6 +29,8 @@ export function SuggestionSheet({ onClose }: { onClose: () => void }) {
   const t = useT()
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'confirm' | 'sending' | 'done' | 'error' | 'many'>('idle')
+  // Focus in and back out; Esc is handled below (50-role test, 2026-11-05).
+  const suggestBox = useDialogFocus(true)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -47,7 +50,7 @@ export function SuggestionSheet({ onClose }: { onClose: () => void }) {
   const keep = !!text.trim() && state !== 'done'
   return (
     <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
-      <div className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.link')}>
+      <div ref={suggestBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.link')}>
         <div className="msa-sheet-head">
           <b>{t('suggest.link')}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>

@@ -1096,6 +1096,43 @@ the contained problems were fixed the same day. What to keep doing:
     dashboard says so with the lesson; a new swimmer's card says when the
     assessment is booked; /plans shows no buying until some swimmer is
     assessed, and its balance is written as 我的 writes it (bought + gift).
+  - **A failed read is not "nothing here"**: components/LoadFailed says the
+    data did not arrive, with 再試一次 and 傳訊息給我們. The booking page
+    keeps `slotsError` / `openingsErr` apart from "no times", and its
+    reads carry AbortSignal.timeout so 要怎麼上 never spins for ever; 我的
+    and /plans say when the balance did not load (tap to try again).
+  - **Every 傳訊息給我們 about a lesson carries it**: `aboutOf(b)` on the
+    dashboard (when, course, coach, the pool when more than one, who), used
+    by the lesson sheet, the lesson detail, the "cannot cancel / move
+    online" dialogs and the late-cancel dialog; the chat adds it to a reply
+    button's message too. The fixed-class page has the same for the class.
+  - **Late cancel says so** (owner, 2026-11-05, 決定 1 選項 A): kind
+    'grace' has its own eyebrow, title (點數不退，換成補課券), amber button
+    (確定取消（換補課券）) and a green line on a doctor's note with
+    傳訊息給我們. Families never read 寬限 / grace any more: 晚取消機會 /
+    late-cancel pass (staff screens keep 寬限).
+  - **Renewing asks first** (owner, 2026-11-05, 決定 2): the fixed-class
+    page's 確認續報 opens a confirm (who, when, coach, points taken and
+    left). Joining another family's code asks too: the accept route takes
+    `preview: true` and answers whose code it is without linking.
+  - The check-in QR says which lesson it is for, that check-in opens 30
+    minutes before, and who else has a lesson today; 我的's QR opens the
+    one swimmer with a lesson today directly, else lists them first.
+  - The chat box is a growing textarea (Enter sends, Shift+Enter a new
+    line); a draft survives leaving the chat (sessionStorage
+    msa_chat_draft); an AI reply that fails leaves a local note that the
+    desk has it. Leaving 預約 for another tab saves the booking in progress
+    (saveResume) and coming back restores it.
+  - Times on the dashboard and the booking page keep AM/PM with the time
+    (no-break space; NOT in lib/date, whose times go into SMS); lesson
+    lines break between words (word-break: keep-all). At large text the
+    home greeting is one smaller line and the level one line.
+  - Screen readers: the 3D picture alone is the image; 換造型's sheet, the
+    lesson sheet and 我的's sheets use useDialogFocus; coach chips and the
+    schedule's list/week/month say which is on; calendar days say "not open
+    yet" / "has open times"; the app's top bar comes before <main>; the
+    hidden website nav is no landmark in the app; each tab sets the page
+    title.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

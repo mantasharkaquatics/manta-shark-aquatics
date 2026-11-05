@@ -29,6 +29,8 @@ import FamilyBooking from './FamilyBooking'
 import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
+import LoadFailed from '@/components/LoadFailed'
+import { appLook } from '@/lib/native-app'
 import SwimmerFace from '@/components/swimmer/SwimmerFace'
 import { lookOf } from '@/lib/swimmer-look'
 import { fmtDate } from '@/lib/fmt-date'
@@ -109,7 +111,8 @@ function formatTime(t: string): string {
   const [h, m] = t.split(':').map(Number)
   const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h % 12 || 12
-  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`
+  // No break between the time and AM/PM (50-role test: 9:10 / AM at large text).
+  return `${h12}:${String(m).padStart(2,'0')}\u00a0${ampm}`
 }
 
 /* "11:30a" for a calendar cell. A phone gives each of the seven columns about
@@ -314,6 +317,10 @@ export default function BookingPage() {
   // True while a day's times are being fetched. Without it the empty list read
   // as "no times this day" for the two to four seconds the fetch takes.
   const [slotsLoading, setSlotsLoading] = useState(false)
+  // A read that failed is not "no times" (50-role test, 2026-11-05: a
+  // dropped connection read as a full day, or loaded for ever).
+  const [slotsError, setSlotsError] = useState(false)
+  const [openingsErr, setOpeningsErr] = useState(false)
   const slotsSeq = useRef(0)
   const [trialEligible, setTrialEligible] = useState(false)
   const [trialHasCredit, setTrialHasCredit] = useState(false)
@@ -322,6 +329,8 @@ export default function BookingPage() {
   // flashed "Swim Assessment completed" for every swimmer while it loaded
   // (found 2026-10-07).
   const [trialReason, setTrialReason] = useState<string | null>(null)
+  // The assessment already booked (reason 'booked'): when and with whom.
+  const [trialBooked, setTrialBooked] = useState<{ date: string; start: string; coach: string | null } | null>(null)
   // When an unpaid assessment hold ends (reason 'awaiting_payment').
   const [trialHoldEnds, setTrialHoldEnds] = useState<string | null>(null)
   const [lockedStudent, setLockedStudent] = useState(false)
@@ -439,6 +448,7 @@ export default function BookingPage() {
         setTrialEligible(!!j.eligible)
         setTrialHasCredit(!!j.hasCredit)
         setTrialReason(typeof j.reason === 'string' ? j.reason : null)
+        setTrialBooked(j.booked && typeof j.booked.date === 'string' ? j.booked : null)
         setTrialHoldEnds(typeof j.pendingExpiresAt === 'string' ? j.pendingExpiresAt : null)
         if (lockedRef.current) {
           if (j.hasCredit) {
@@ -589,8 +599,8 @@ export default function BookingPage() {
     if (location === undefined) return
     const url = groupClassesUrl(location)
     let live = true
-    fetch(url)
-      .then(r => r.json()).catch(() => null)
+    fetch(url, { signal: AbortSignal.timeout(15000) })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null)
       .then(r => {
         if (!live) return
         setGroupWeeks(r?.days || [])
@@ -832,10 +842,15 @@ export default function BookingPage() {
   }, [selectedDate, selectedCoach, selectedCourse, location])
 
   async function loadTimeSlots() {
-    if (!selectedDate || !selectedCoach || !selectedCourse) return
+    if (!selectedDate || !selectedCourse) return
+    // No coach to ask (their list did not load): stop the spinner the date
+    // tap started, and say why.
+    if (!selectedCoach) { setSlotsLoading(false); return }
     const seq = ++slotsSeq.current
-    setSlotsLoading(true)
-    try { await buildTimeSlots(seq) } finally { if (seq === slotsSeq.current) setSlotsLoading(false) }
+    setSlotsLoading(true); setSlotsError(false)
+    try { await buildTimeSlots(seq) }
+    catch { if (seq === slotsSeq.current) { setTimeSlots([]); setSlotsError(true) } }
+    finally { if (seq === slotsSeq.current) setSlotsLoading(false) }
   }
 
   async function buildTimeSlots(seq: number) {
@@ -844,7 +859,8 @@ export default function BookingPage() {
     const dateStr = localDs(selectedDate)
 
     // Server API bypasses RLS: booked slots, coach blocks, and availability zones in one call
-    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}${locQ}`)
+    const bookedRes = await fetch(`/api/coach/booked-times?coach_id=${selectedCoach.id}&session_date=${dateStr}&student_id=${selectedStudent?.id || ''}${locQ}`, { signal: AbortSignal.timeout(15000) })
+    if (!bookedRes.ok) throw new Error('booked-times ' + bookedRes.status)
     const { times: bookedTimes, blocked: coachBlocked, zones, studentBusy, legacyWindows } = await bookedRes.json()
     // The second swimmer of a sibling 1-on-2 (picked, or the sibling of the
     // lesson being moved) has their own lessons too (found 2026-10-03).
@@ -1235,17 +1251,18 @@ export default function BookingPage() {
     if (step !== 3 || !privateFlow || !selectedStudent || !selectedCourse || location === undefined) return
     let live = true
     const q = openingsQs(location)
-    fetch(`/api/bookings/openings?${q}`)
+    setOpeningsErr(false)
+    fetch(`/api/bookings/openings?${q}`, { signal: AbortSignal.timeout(15000) })
       .then(r => r.ok ? r.json() : null)
       .then((j: Openings | null) => {
         if (!live) return
-        setOpenings(j); setOpeningsFor(q)
+        setOpenings(j); setOpeningsFor(q); setOpeningsErr(!j)
         // Kept for the notice too: back at the other pool, this one is "elsewhere".
         if (j && location) otherReads.current.set(`o|${q}|${slotsRefresh}`, j)
         // One coach is no choice: behave as if they had been picked.
         if (j && j.coaches.length === 1) setCoachFilter(j.coaches[0].id)
       })
-      .catch(() => { if (live) { setOpenings(null); setOpeningsFor(q) } })
+      .catch(() => { if (live) { setOpenings(null); setOpeningsFor(q); setOpeningsErr(true) } })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, privateFlow, selectedCourse, selectedStudent, selectedStudent2, slotsRefresh, rescheduleSibling, location])
@@ -1411,7 +1428,7 @@ export default function BookingPage() {
     return i < 0 ? 999 : i
   }
   const Face =({ id, size = 22 }: { id: string; size?: number }) => (
-    <span title={coachName(id)} style={{ width: size, height: size, borderRadius: '50%', background: coachColor(id), color: '#16294a',
+    <span title={coachName(id)} aria-hidden="true" style={{ width: size, height: size, borderRadius: '50%', background: coachColor(id), color: '#16294a',
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.45), fontWeight: 800, flexShrink: 0 }}>
       {coachName(id).slice(0, 1)}
     </span>
@@ -1624,7 +1641,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (step !== 3 || !lastKey || lastLesson?.key === lastKey) return
     let live = true
-    fetch(`/api/parent/last-lesson?${lastKey}`).then(r => r.ok ? r.json() : null).catch(() => null)
+    fetch(`/api/parent/last-lesson?${lastKey}`, { signal: AbortSignal.timeout(12000) }).then(r => r.ok ? r.json() : null).catch(() => null)
       .then(j => { if (live) setLastLesson({ key: lastKey, last: j?.last ?? null, assessCoachId: j?.assessCoachId ?? null }) })
     return () => { live = false }
   }, [step, lastKey, lastLesson])
@@ -1632,8 +1649,8 @@ export default function BookingPage() {
     if (step !== 3 || !wayFlow || myFixed) return
     let live = true
     Promise.all([
-      fetch('/api/parent/fixed-classes').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`/api/parent/assessments?lang=${locale}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/parent/fixed-classes', { signal: AbortSignal.timeout(12000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/parent/assessments?lang=${locale}`, { signal: AbortSignal.timeout(12000) }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([fc, ar]) => {
       if (!live) return
       setMyFixed(fc?.classes || []); setMyReports(ar?.reports || [])
@@ -2231,6 +2248,15 @@ export default function BookingPage() {
     try { window.sessionStorage.setItem(RESUME_KEY, JSON.stringify(snap)); savedResumeRef.current = true } catch {}
   }
 
+  /* Leaving the booking for another tab of the app keeps what was chosen:
+     back on 預約 it is all there again (50-role test, 2026-11-05: it started
+     over). Not after the booking is made, and only once a course is chosen. */
+  const keepOnLeave = useRef<() => void>(() => {})
+  useEffect(() => {
+    keepOnLeave.current = () => { if (!success && step >= 2 && selectedCourse && appLook()) saveResume() }
+  })
+  useEffect(() => () => keepOnLeave.current(), [])
+
   /** Puts a saved booking back (see takeResume). Only what still exists comes
    *  back: a swimmer, course or coach no longer on the account is dropped,
    *  and so is any time now inside the lead time. Everything is re-checked
@@ -2804,13 +2830,17 @@ export default function BookingPage() {
           </>
         )}
 
+        {/* What is left, read again after the booking (50-role test, 2026-11-05). */}
+        {!isTrial && !isReschedule && !isPartnerBookingSuccess && (
+          <p style={{ fontSize: '14px', color: '#16294a', fontWeight: 700, margin: '0 0 16px' }}>{t('booking.success.left', { n: nf(balance) })}</p>
+        )}
         <Link href="/dashboard" style={{
           display: 'block', padding: '13px 32px',
           background: AMBER, color: NAVY, borderRadius: '8px',
-          fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
-          textTransform: 'uppercase', textDecoration: 'none', marginBottom: '12px',
+          fontSize: '15px', fontWeight: 800, textDecoration: 'none', marginBottom: '12px',
         }}>
-          {t('common.backToDashboard')}
+          {/* In the app this is the 首頁 tab, so it says so (50-role test). */}
+          {appLook() ? t('booking.success.home') : t('common.backToDashboard')}
         </Link>
         <p style={{ fontSize: '13px', color: '#56647d', margin: 0 }}>
           {t('booking.success.redirecting', { n: countdown })}
@@ -2855,13 +2885,16 @@ export default function BookingPage() {
           </div>
         )}
 
-        {lockedStudent && selectedStudent && !makeUp && (
+        {/* Once the 學員 line below says who it is (step 1 on), this box
+            would say it twice with a second "change" (50-role test,
+            2026-11-05): it stays only to say the assessment is paid. */}
+        {lockedStudent && selectedStudent && !makeUp && (step < 1 || trialHasCredit) && (
           <div style={{ marginBottom: '20px', padding: '14px 18px', background: '#eef4fc', border: '1px solid #c9d8ee', borderRadius: '10px', fontSize: '14px', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
             <span>📌 {t('booking.lockedFor')}<strong style={{ color: '#16294a' }}>{selectedStudent.full_name}</strong>{trialHasCredit ? t('booking.assessmentPrepaid') : ''}</span>
-            <button onClick={changeStudent}
+            {step < 1 && <button onClick={changeStudent}
               style={{ background: 'none', border: 'none', padding: 0, color: '#56647d', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}>
               {t('booking.changeStudent', { name: selectedStudent.full_name.split(' ')[0] })}
-            </button>
+            </button>}
           </div>
         )}
 
@@ -2986,17 +3019,23 @@ export default function BookingPage() {
                       </div>
                     </div>
                     {can && !on && <span aria-hidden="true" style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #c5d3e6', flexShrink: 0 }} />}
+                    {/* A swimmer still to be assessed is booked alone: say where a tap goes (50-role test). */}
+                    {multi && s.current_level == null && <span style={{ flexShrink: 0, fontSize: '13px', fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('booking.toAssess')} ›</span>}
                   </div>
                 </SelectCard>
                 )
               })}
             </div>
+            {/* In the bar that stays above the tabs, as on the confirm step
+                (50-role test, 2026-11-05: below the cards it sat behind them). */}
             {multi && ticked.length > 0 && (
-              <button type="button" className="kb-focus"
-                onClick={() => { if (ticked.length === 1) { go1(ticked[0]); return } setSiblingMode(true); window.scrollTo(0, 0) }}
-                style={{ marginTop: '16px', width: '100%', minHeight: '52px', borderRadius: '14px', border: 'none', background: AMBER, color: NAVY, fontSize: '16px', fontWeight: 800, cursor: 'pointer' }}>
-                {ticked.length === 1 ? t('fam.go1') : t('fam.goN', { n: ticked.length })} →
-              </button>
+              <div className="msa-book-bar" style={{ position: 'sticky', bottom: 0, zIndex: 5, marginTop: '16px', paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', background: PAGE_TINT, borderTop: '1px solid #d6e0ee' }}>
+                <button type="button" className="kb-focus"
+                  onClick={() => { if (ticked.length === 1) { go1(ticked[0]); return } setSiblingMode(true); window.scrollTo(0, 0) }}
+                  style={{ width: '100%', minHeight: '52px', borderRadius: '14px', border: 'none', background: AMBER, color: NAVY, fontSize: '16px', fontWeight: 800, cursor: 'pointer' }}>
+                  {ticked.length === 1 ? t('fam.go1') : t('fam.goN', { n: ticked.length })} →
+                </button>
+              </div>
             )}
           </div>
           )
@@ -3037,7 +3076,13 @@ export default function BookingPage() {
                       <Link href="/dashboard" style={{ color: GOLD, fontWeight: 700, textDecoration: 'underline' }}>{t('booking.notice.payOrCancel')}</Link>
                     </>
                   : trialReason === 'booked'
-                  ? t('booking.notice.booked')
+                  // When and with whom, a way to see it and to ask; then
+                  // what opens next (50-role test, 2026-11-05).
+                  ? (trialBooked ? <>
+                      <b>{t('booking.notice.bookedAt', { when: fmtDate(new Date(trialBooked.date + 'T12:00:00Z'), dateLoc, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' ' + formatTime(trialBooked.start), coach: trialBooked.coach || '' })}</b>{' '}
+                      {t('booking.notice.bookedNext')}{' '}
+                      <Link href="/dashboard/schedule" style={{ color: GOLD, fontWeight: 700, textDecoration: 'underline' }}>{t('booking.notice.bookedSee')}</Link>
+                    </> : t('booking.notice.booked'))
                   : trialReason === 'school_cancelled'
                   ? t('booking.notice.schoolCancelled')
                   : t('booking.notice.done')}
@@ -3073,10 +3118,11 @@ export default function BookingPage() {
                   <div key={ct.id} aria-disabled={needsAssessment || undefined}
                     style={needsAssessment ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
                   <SelectCard selected={!isTrial && selectedCourse?.id === ct.id} disabled={needsAssessment} onClick={() => { if (needsAssessment) return; if (selectedCourse?.id !== ct.id) clearTime(); requestAdvance(); setSelectedCourse(ct); setIsTrial(false) }} color={color}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                      {/* minWidth 0: the left side gives way, so large text never pushes the price off the screen (50-role test). */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
                         <span style={{ fontSize: '28px' }}>{COURSE_ICONS[ct.slug]}</span>
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>{tDb(locale, 'course_types', ct.id, ct.name)}</div>
                           <div style={{ fontSize: '13px', color: '#56647d' }}>
                             {t(ct.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: ct.duration_minutes, max: ct.max_students })}
@@ -3085,7 +3131,7 @@ export default function BookingPage() {
                             <div style={{ marginTop: '5px', fontSize: '12px', fontWeight: 700, color: '#9a5b00' }}>{t('booking.afterAssessment')}</div>
                           )}
                           {ct.slug === '1on4' && myGroupBand && (
-                            <div style={{ whiteSpace: 'nowrap', marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
+                            <div style={{ maxWidth: '100%', marginTop: '5px', display: 'inline-block', padding: '2px 9px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, color: myBandColor, background: myBandColor + '1f', border: `1px solid ${myBandColor}44` }}>
                               {t('booking.yourClass', { r: bandRange(myGroupBand.min, myGroupBand.max) })}
                             </div>
                           )}
@@ -3321,6 +3367,13 @@ export default function BookingPage() {
         {step === 3 && !askWay && (
           <div>
             {!groupFlow && !fixedPath && <SectionTitle title={t('booking.s4.title')} />}
+            {/* The coaches' open times did not load: say so before any date
+                is tapped (50-role test, 2026-11-05). */}
+            {privateFlow && openingsErr && !slotsLoading && (
+              <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f3dfb4', marginBottom: '12px' }}>
+                <LoadFailed onRetry={() => setSlotsRefresh(x => x + 1)} />
+              </div>
+            )}
             {fixedPath && <SectionTitle title={t('booking.fixed.title')} />}
             {arrearsNotice}
             {/* Drawn at once, with only 不限教練 until the coaches arrive: the row
@@ -3338,7 +3391,7 @@ export default function BookingPage() {
                     || Object.values(openings?.days || {}).some(d => Object.values(d).some(l => l.includes(c.id))))].map(c => {
                     const on = coachFilter === c.id
                     return (
-                      <button key={c.id} onClick={() => pickFilter(c.id)}
+                      <button key={c.id} onClick={() => pickFilter(c.id)} aria-pressed={on}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0, minHeight: '44px',
                           padding: c.id === 'any' ? '0 18px' : '0 16px 0 8px', borderRadius: '999px', cursor: 'pointer',
                           border: `1.5px solid ${on ? NAVY : '#d3deec'}`, background: on ? NAVY : '#fff',
@@ -3435,7 +3488,8 @@ export default function BookingPage() {
                     // a month swipe on the card (found 2026-10-15).
                     <button key={dsC} className="kb-focus"
                       title={elsewhere.length > 0 ? t('booking.loc.elsewhereTip', { there: elsewhere.map(x => x.name).join(', ') }) : undefined}
-                      aria-label={fmtDate(date, dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      // What the dots and the grey say, in words too (50-role test, 2026-11-05).
+                      aria-label={fmtDate(date, dateLoc, { weekday: 'long', month: 'long', day: 'numeric' }) + (locked ? t('booking.aria.notOpen') : available && dotsHere && dotsHere.length > 0 ? t('booking.aria.hasTimes') : '')}
                       aria-pressed={isSelected}
                       aria-current={isTodayDate ? 'date' : undefined}
                       aria-disabled={(!available && !locked) || undefined}
@@ -3452,7 +3506,7 @@ export default function BookingPage() {
                         padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
                         background: isSelected ? NAVY : hasPick ? `${GOLD}20` : 'transparent',
-                        color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#7b879c' : available ? NAVY : '#b7c2d4',
+                        color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#7b879c' : available ? NAVY : locked ? '#7b879c' : '#b7c2d4',
                         fontSize: '16px', fontWeight: isSelected || hasPick ? 700 : 500,
                         cursor: available || locked ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
@@ -3840,7 +3894,9 @@ export default function BookingPage() {
                   )
                 })()) : shownTimeSlots.length === 0 ? (
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '8px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
-                    {slotsLoading ? <MascotLoading text={t('booking.loading')} /> : <MascotEmpty small text={t('booking.noSlots')} />}
+                    {slotsLoading ? <MascotLoading text={t('booking.loading')} />
+                      : (slotsError || (privateFlow && openingsErr)) ? <LoadFailed onRetry={() => { setSlotsError(false); if (openingsErr) setSlotsRefresh(x => x + 1); else loadTimeSlots() }} />
+                      : <MascotEmpty small text={t('booking.noSlots')} />}
                   </div>
                 ) : (
                   <>
@@ -4234,7 +4290,7 @@ export default function BookingPage() {
                 {fixedFlow && selectedSlot && selectedDate && selectedCoach && !recurOpen && !makeUp && !fixedPath && (
                   <button disabled={recurBusy}
                     onClick={() => { setFixedOnly(false); openFixed(localDs(selectedDate), selectedSlot.time, selectedCoach.id) }}
-                    style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: recurBusy ? 'wait' : 'pointer' }}>
+                    style={{ marginTop: '10px', width: '100%', padding: '13px', background: 'transparent', border: `1px solid ${GOLD}`, borderRadius: '10px', color: GOLD, fontSize: '14px', fontWeight: 700, cursor: recurBusy ? 'wait' : 'pointer' }}>
                     {recurBusy ? t('booking.recur.loading') : t('booking.recur.cta', { weekday: fmtDate(selectedDate, locale === 'en' ? 'en-US' : locale, { weekday: 'long' }), time: selectedSlot.label })}
                   </button>
                 )}
@@ -4505,11 +4561,12 @@ export default function BookingPage() {
                   disabled={!canContinue}
                   style={{
                     flex: 2, padding: '14px',
-                    background: canContinue ? AMBER : '#eef2f8',
-                    color: canContinue ? NAVY : '#56647d',
+                    // A button that cannot be pressed yet looks like every other
+                    // one in the app: the same amber, faded (50-role test, 2026-11-05).
+                    background: AMBER, color: NAVY, opacity: canContinue ? 1 : 0.45,
                     border: 'none', borderRadius: '10px',
-                    fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
-                    textTransform: 'uppercase', cursor: canContinue ? 'pointer' : 'not-allowed',
+                    fontSize: '15px', fontWeight: 800,
+                    cursor: canContinue ? 'pointer' : 'not-allowed',
                   }}
                 >{t('booking.continue')}</button>
               </div>
@@ -4753,8 +4810,8 @@ export default function BookingPage() {
                   background: submitting ? '#eef2f8' : AMBER,
                   color: submitting ? '#56647d' : NAVY,
                   border: 'none', borderRadius: '10px',
-                  fontSize: '14px', fontWeight: 700, letterSpacing: '1.5px',
-                  textTransform: 'uppercase', cursor: submitting || arrearsBlocks ? 'not-allowed' : 'pointer',
+                  fontSize: '15px', fontWeight: 800,
+                  cursor: submitting || arrearsBlocks ? 'not-allowed' : 'pointer',
                   opacity: arrearsBlocks ? 0.5 : 1,
                 }}
               >{submitting ? (isTrial && !trialHasCredit ? t('booking.redirecting') : t('booking.submitting')) : planMany ? t('booking.recur.yesBook', { n: recurPlan.length }) : isTrial ? (trialHasCredit ? t('booking.confirmBooking') : t('booking.continueToPayment')) : isReschedule ? t('booking.confirmReschedule') : t('booking.confirmBooking')}</button>

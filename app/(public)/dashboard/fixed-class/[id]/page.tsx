@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { tDb } from '@/lib/i18n'
 import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
@@ -20,6 +20,7 @@ import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { createClient } from '@/lib/supabase/client'
 import { myFamilyRole } from '@/lib/my-parent'
 import { fmtDate } from '@/lib/fmt-date'
+import { openChat } from '@/lib/chat-open'
 
 type FC = {
   id: string; studentId: string; student2Id: string | null; studentNames: string[]
@@ -121,10 +122,17 @@ export default function FixedClassPage() {
   // class its date (lib/i18n/errors errorKeyFor, F81).
   const tErrOf = (j: Parameters<typeof errorKeyFor>[0]) => { const r = errorKeyFor(j, d => day(d)); return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t('cart.err.network')) }
   const weekdayName = (wd: number) => day(`2026-01-${String(4 + wd).padStart(2, '0')}`, { weekday: 'long' })
+  // The class (or one of its lessons) at the head of a message to the desk.
+  const aboutClass = (extra?: string) => fc ? [t('fixedPage.ask.class', { weekday: weekdayName(fc.weekday), time: formatTime12h(fc.time) }), tDb(locale, 'course_types', fc.courseTypeId, fc.courseName), t('dash.up.coach', { name: fc.coachName }), fc.studentNames.join('、'), extra].filter(Boolean).join(' · ') : ''
 
   const [fc, setFc] = useState<FC | null>(null)
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; ask?: string } | null>(null)
+  const router = useRouter()
+  // A lesson inside 24 hours cannot be taken leave of here: tapping it says
+  // where to go instead (50-role test, 2026-11-05: it did nothing).
+  const [in24, setIn24] = useState<{ date: string; start: string } | null>(null)
+  const in24Box = useDialogFocus(!!in24, () => setIn24(null))
 
   // Leave for any lesson more than 24 hours away -- the home page only lists
   // the next two weeks, and a family who knows of a trip months ahead takes
@@ -134,6 +142,9 @@ export default function FixedClassPage() {
   /* The leave confirm had no name, kept focus on the date button behind it
      and ignored Esc (found 2026-10-15). Not closable while the leave runs. */
   const leaveBox = useDialogFocus(!!leaveFor && !!fc, () => { if (!leaving) setLeaveFor(null) })
+  // Renewing takes the points at once: ask first (owner, 2026-11-05, 決定 2).
+  const [renewAsk, setRenewAsk] = useState(false)
+  const renewBox = useDialogFocus(renewAsk, () => setRenewAsk(false))
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
   async function takeLeave() {
     if (!leaveFor) return
@@ -337,9 +348,12 @@ export default function FixedClassPage() {
       // Lessons whose voucher could not be written stay on their old slot
       // (lib/fixed-move.ts step 4); say so rather than let the family think
       // every week moved.
+      const stayedList: string[] = Array.isArray(j.notMoved) ? j.notMoved.map((x: unknown) => String((x as { date?: string })?.date ?? x)).filter((d: string) => /^\d{4}-\d{2}-\d{2}/.test(d)) : []
       const stayed: number = Array.isArray(j.notMoved) ? j.notMoved.length : 0
-      if (stayed > 0) parts.push(t('fixedPage.move.notMoved', { n: stayed }))
-      setMsg({ ok: stayed === 0, text: parts.join(' ') })
+      // Which ones, by date, and a way to the desk (50-role test, 2026-11-05).
+      const stayedDates = stayedList.map(d => day(d.slice(0, 10), { month: 'short', day: 'numeric', weekday: 'short' })).join('、')
+      if (stayed > 0) parts.push(stayedDates ? t('fixedPage.move.notMovedDates', { dates: stayedDates, time: formatTime12h(fc.time) }) : t('fixedPage.move.notMoved', { n: stayed }))
+      setMsg({ ok: stayed === 0, text: parts.join(' '), ask: stayed > 0 ? aboutClass(stayedDates || undefined) : undefined })
       setOpts(null); setPick(null); setPlan(null); setMoveOpen(false)
       await load()
     } catch { setMErr(t('cart.err.network')) }
@@ -380,7 +394,39 @@ export default function FixedClassPage() {
         </div>
 
         {/* Announced: the dialog that led here has closed, and its opener may be gone. */}
-        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? '✓ ' : ''}{msg.text}</div></div>}
+        {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? '✓ ' : ''}{msg.text}</div>
+          {msg.ask && <button type="button" className="ac-btn line" style={{ marginTop: 10 }} onClick={() => openChat('', { about: msg.ask })}>{t('dash.up.messageUs')}</button>}</div>}
+        {in24 && fc && (
+          <div className="fc-leave-back" onClick={() => setIn24(null)}>
+            <div ref={in24Box} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-in24-title">
+              <div className="eb">{t('fixedPage.in24h')}</div>
+              <h3 id="fc-in24-title">{t('fixedPage.in24.title')}</h3>
+              <div className="what">{fc.studentNames.join(locale === 'en' ? ' & ' : '、')} · {tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
+                <small>{day(in24.date)} · {formatTime12h(in24.start)}</small></div>
+              <p>{t('fixedPage.in24.body')}</p>
+              <div className="row">
+                <button className="keep" onClick={() => { const d = in24; setIn24(null); openChat('', { about: aboutClass(day(d.date, { month: 'short', day: 'numeric', weekday: 'short' }) + ' ' + formatTime12h(d.start)) }) }}>{t('dash.up.messageUs')}</button>
+                <button className="go" style={{ background: '#f09800', color: '#12254a' }} onClick={() => { setIn24(null); router.push('/dashboard/schedule') }}>{t('fixedPage.in24.toSchedule')}</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {renewAsk && fc && (
+          <div className="fc-leave-back" onClick={() => !busy && setRenewAsk(false)}>
+            <div ref={renewBox} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-renew-title">
+              <div className="eb" style={{ color: '#2050a0' }}>{t('fixedPage.renew.ask.eyebrow')}</div>
+              <h3 id="fc-renew-title">{t('fixedPage.renew.ask.title', { n: ticked.size })}</h3>
+              <div className="what">{fc.studentNames.join(locale === 'en' ? ' & ' : '、')} · {tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
+                <small>{t('fixedPage.renew.ask.when', { weekday: weekdayName(fc.weekday), time: formatTime12h(fc.time), coach: fc.coachName })}</small></div>
+              <p>{t('fixedPage.renew.ask.body', { points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}</p>
+              <div className="row">
+                <button className="keep" onClick={() => setRenewAsk(false)} disabled={busy}>{t('fam.ask.back')}</button>
+                <button className="go" style={{ background: '#f09800', color: '#12254a' }} disabled={busy}
+                  onClick={async () => { await confirmRenew(); setRenewAsk(false) }}>{busy ? '…' : t('fixedPage.renew.ask.yes')}</button>
+              </div>
+            </div>
+          </div>
+        )}
         {leaveFor && fc && (
           <div className="fc-leave-back" onClick={() => !leaving && setLeaveFor(null)}>
             <div ref={leaveBox} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-leave-title">
@@ -475,7 +521,10 @@ export default function FixedClassPage() {
                   </div>
                 </>
               ) : opts.length === 0 ? (
-                <p className="ac-note">{t('fixedPage.move.none')}</p>
+                <>
+                  <p className="ac-note">{t('fixedPage.move.noneAsk')}</p>
+                  <button type="button" className="ac-btn line" style={{ marginTop: 8 }} onClick={() => openChat('', { about: aboutClass(t('fixedPage.ask.move')) })}>{t('dash.up.messageUs')}</button>
+                </>
               ) : (
                 <>
                 <div className="fc-days" role="tablist">
@@ -509,7 +558,11 @@ export default function FixedClassPage() {
                 {fc.last && <div><div className="ac-k">{t('fixedPage.last')}</div><div className="ac-v">{day(fc.last)}</div></div>}
               </div>
               <div className="fc-lessons">
-                {fc.lessons.map(l => viewer || l.within24h || !l.bookingId ? (
+                {fc.lessons.map(l => !viewer && l.within24h && l.bookingId ? (
+                  <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} onClick={() => { setMsg(null); setIn24({ date: l.date, start: l.start }) }}>
+                    {day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}<em>{t('fixedPage.in24h')}</em>
+                  </button>
+                ) : viewer || l.within24h || !l.bookingId ? (
                   <span key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'}>{day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
                 ) : (
                   <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} title={t('fixedPage.leave.tap')}
@@ -569,12 +622,12 @@ export default function FixedClassPage() {
                       )}
                       <div className="fc-sum">
                         <div><span>{t('booking.recur.wouldAdd')}</span><span>{ticked.size}</span></div>
-                        <div><span>{t('booking.recur.wouldTotal')}</span><span>{t('points.unit', { n: total })}</span></div>
-                        <div><span>{t('booking.price.after')}</span><span>{t('points.unit', { n: Math.max(0, balance - total) })}</span></div>
+                        <div><span>{t('booking.recur.wouldTotal')}</span><span>{t('points.unit', { n: total.toLocaleString() })}</span></div>
+                        <div><span>{t('booking.price.after')}</span><span>{t('points.unit', { n: Math.max(0, balance - total).toLocaleString() })}</span></div>
                       </div>
                       <div className="ac-pair" style={{ marginTop: 12 }}>
                         <button className="ac-btn line" onClick={() => setRenewOpenUI(false)}>{t('common.cancel')}</button>
-                        <button className="ac-btn gold" disabled={busy || owed > 0 || ticked.size < FIXED_CLASS_MIN_LESSONS} onClick={confirmRenew}>
+                        <button className="ac-btn gold" disabled={busy || owed > 0 || ticked.size < FIXED_CLASS_MIN_LESSONS} onClick={() => setRenewAsk(true)}>
                           {ticked.size < FIXED_CLASS_MIN_LESSONS
                             ? t('booking.recur.needMore', { n: FIXED_CLASS_MIN_LESSONS, m: FIXED_CLASS_MIN_LESSONS - ticked.size })
                             : t('fixedPage.renew.confirm', { n: ticked.size, points: total })}

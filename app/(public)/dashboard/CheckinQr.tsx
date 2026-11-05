@@ -19,7 +19,11 @@ function makeQRPayload(studentId: string): string {
   return `MSA:${btoa(studentId)}`
 }
 
-export default function QRModal({ student, onClose }: { student: { id: string; full_name: string }; onClose: () => void }) {
+/* lesson: today's lesson of this swimmer, written out ("3:35 PM · Coach
+   Mitch"), so the desk can see it is the right one; others: the family's
+   other swimmers with a lesson today, who need their own code (50-role test,
+   2026-11-05). */
+export default function QRModal({ student, onClose, lesson, others = [] }: { student: { id: string; full_name: string }; onClose: () => void; lesson?: string | null; others?: string[] }) {
   const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>('')
@@ -87,6 +91,7 @@ export default function QRModal({ student, onClose }: { student: { id: string; f
           <div style={{ fontFamily: FONT_DISPLAY, fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
             {student.full_name}
           </div>
+          {lesson && <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginTop: '4px' }}>{t('dash.qr.today', { lesson })}</div>}
         </div>
 
         {/* QR Code */}
@@ -106,7 +111,8 @@ export default function QRModal({ student, onClose }: { student: { id: string; f
 
         {/* Instructions */}
         <p style={{ fontSize: '12px', color: '#56647d', margin: '0 0 20px', lineHeight: 1.6 }}>
-          {t('dash.qr.help')}
+          {t('dash.qr.help')} {t('dash.qr.window')}
+          {others.length > 0 && <><br /><b style={{ color: '#9a5b00' }}>{t('dash.qr.others', { names: others.join('、') })}</b></>}
         </p>
 
         {/* Download button. Not in the app: the iPhone web view cannot save

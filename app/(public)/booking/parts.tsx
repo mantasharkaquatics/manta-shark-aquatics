@@ -106,7 +106,7 @@ export function SelectCard({ selected, onClick, color = GOLD, disabled = false, 
 /* Where the family is in the booking (owner, 2026-11-01, version 2): who,
    then which lesson, then how, then when. */
 const STEPS_CSS = `.bk-steps { display: flex; gap: 8px; list-style: none; margin: 0 0 22px; padding: 0 }
-.bk-steps li { flex: 1; text-align: center; padding: 0 0 8px; border-bottom: 3px solid #d3deec; font-size: 13.5px; font-weight: 800; color: #8a97ad }
+.bk-steps li { flex: 1; text-align: center; padding: 0 0 8px; border-bottom: 3px solid #d3deec; font-size: 13.5px; font-weight: 800; color: #5f6b80 }
 .bk-steps li.done { color: #56647d; border-color: #9fb3d3 }
 .bk-steps li.on { color: #16294a; border-color: #f09800 }`
 export function StepBar({ steps, at }: { steps: string[]; at: number }) {

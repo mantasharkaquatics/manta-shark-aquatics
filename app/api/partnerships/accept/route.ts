@@ -75,6 +75,17 @@ export async function POST(req: NextRequest) {
   if (existingPartnership)
     return NextResponse.json({ error: 'These accounts are already linked' }, { status: 400 })
 
+  // { preview: true }: say whose code it is (first name and an initial) and
+  // link nothing, so the family can confirm before the two families see each
+  // other's swimmers (50-role test, 2026-11-05). A working code gives its
+  // attempt back, as a link does; a wrong one has kept it above.
+  if (body.preview === true) {
+    const { data: who } = await supabase.from('parents').select('first_name, last_name').eq('id', partnership.initiator_parent_id).maybeSingle()
+    await giveBack()
+    const name = [who?.first_name, who?.last_name ? String(who.last_name).slice(0, 1) + '.' : ''].filter(Boolean).join(' ')
+    return NextResponse.json({ preview: { name } })
+  }
+
   // Only while the code is still pending (found 2026-10-05): two parents
   // entering the same code at once both passed the read above, and the second
   // update overwrote the first family's link. Now only one update can match.

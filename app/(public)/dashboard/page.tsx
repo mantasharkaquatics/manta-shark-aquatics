@@ -78,7 +78,8 @@ ${REPORT_SHEET_CSS}
 .msa-week { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch }
 .msa-week::-webkit-scrollbar { display: none }
 .msa-wday { flex: 0 0 min(300px, 80%); scroll-snap-align: start; background: #fff; border: 1px solid #e3ebf6; border-radius: 18px; padding: 14px; min-height: 180px }
-.msa-wday.today { border: 2px solid #2050a0; box-shadow: 0 8px 22px rgba(32,80,160,.12) }
+/* A shadow that fits the scroll box's own bottom room, so it is not cut flat (50-role test). */
+.msa-wday.today { border: 2px solid #2050a0; box-shadow: 0 4px 8px rgba(32,80,160,.12) }
 .msa-wday.past { opacity: .6 }
 .msa-wday-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px }
 .msa-wday-h b { font-size: 21px; font-weight: 900; color: #12254a }
@@ -206,7 +207,9 @@ ${REPORT_SHEET_CSS}
 html.msa-app:has(.msa-root[data-view="home"]) { overscroll-behavior-y: none }
 html.msa-app .msa-root[data-view="home"] { height: calc(100dvh - var(--app-tab-h)); min-height: 0 !important; display: flex; flex-direction: column; overflow: hidden }
 html.msa-app [data-view="home"] .msa-hello-in { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; padding: 12px 20px 0 }
-html.msa-app [data-view="home"] .msa-hello h1 { font-size: 21px; line-height: 1.25 }
+html.msa-app [data-view="home"] .msa-hello h1 { font-size: 21px; line-height: 1.25; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* The greeting stays one line (the date wraps under it instead), so large text
+   or a long English greeting never pushes 報到 under the tabs (50-role test). */
 html.msa-app [data-view="home"] .msa-hello-date { order: 1; margin: 0; font-size: 12.5px; letter-spacing: .5px }
 html.msa-app [data-view="home"] .msa-main { flex: 1 1 0; min-height: 0; width: 100%; display: flex; flex-direction: column;
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 10px 20px 12px }
@@ -222,6 +225,11 @@ html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .
 .msa-deck-name .msa-mcard-name { min-height: 0; max-width: 100%; -webkit-line-clamp: 1; line-clamp: 1; font-size: 27px; line-height: 1.1;
   text-shadow: 0 1px 10px rgba(10,24,52,.35) }
 .msa-deck-name .msa-mcard-lv { margin-top: 0; background: rgba(13,30,62,.5) }
+/* Large text: the level stays one line and the greeting a size smaller, so
+   換造型 never sits on the name and the greeting keeps the name (50-role test). */
+html[data-text-size] .msa-deck-name .msa-mcard-lv { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block }
+html[data-text-size] .msa-deck-name .msa-mcard-lv i { display: inline-block; margin-right: 7px; vertical-align: middle }
+html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px }
 /* The card's own row of small tiles. */
 .msa-mcard-tiles { display: flex; gap: 6px; margin-top: 10px }
 .sw-stage + .msa-mcard-tiles { margin-top: 0 }
@@ -289,6 +297,10 @@ html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .
 .msa-newrep b { color: #b4321f; font-size: 13px; white-space: nowrap }
 .msa-newrep.msa-safebar { background: #fff7e6; border-color: #f3dfb4 }
 .msa-newrep.msa-safebar b { color: #8a5300 }
+/* Short lines of names and times break between words, not inside 教練 or a
+   date (50-role test, 2026-11-05: 教／練 at large text). A run too long for
+   the line still breaks (overflow-wrap). */
+.msa-lesson, .msa-nextline, .msa-lsheet, .msa-plan { word-break: keep-all; overflow-wrap: anywhere }
 /* The lesson sheet is a portal on <body>, outside .msa-root: it carries .msa-viewer itself. */
 .msa-viewer .msa-lesson-actions { display: none !important }
 .msa-viewnote { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 24px; padding: 14px 16px; border: 1px solid #c9d8ee;
@@ -375,6 +387,10 @@ html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .
 .msa-lsheet .msa-lesson-row { flex-direction: column; align-items: stretch !important; flex-wrap: nowrap }
 .msa-lsheet .msa-lesson-side { flex-direction: column !important; align-items: stretch !important; gap: 10px }
 .msa-lsheet .msa-lesson-status { justify-content: flex-start }
+/* 報到 is the thing to do once a lesson is under way: the sheet's big amber
+   button; 課程進行中 is a quiet line, not a button (50-role test, 2026-11-05). */
+.msa-lsheet .msa-lesson-status > button { width: 100%; min-height: 50px; font-size: 17px !important; border-radius: 12px !important }
+.msa-lsheet .msa-lesson-actions > .msa-inprog { border: 0 !important; padding: 2px 0 !important; font-size: 14px !important; color: #56647d }
 .msa-lsheet .msa-lesson-actions { flex-direction: column; align-items: stretch; gap: 10px; margin-top: 6px }
 .msa-lsheet .msa-lesson-actions > button, .msa-lsheet .msa-lesson-actions > div, .msa-lsheet .msa-lesson-actions > a {
   padding: 13px 16px !important; font-size: 16px !important; border-radius: 12px !important; letter-spacing: 0; text-align: center;
@@ -557,7 +573,8 @@ function formatTime(t: string): string {
   const [h, m] = t.split(':').map(Number)
   const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h % 12 || 12
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
+  // No break between the time and AM/PM (50-role test: 9:10 / AM at large text).
+  return `${h12}:${String(m).padStart(2, '0')}\u00a0${ampm}`
 }
 
 // 08/27/2026. Purchase lines put two dates, a count and a button on one row, so
@@ -624,10 +641,11 @@ const MAX_SWIMMERS = 3
 const SWIMMER_COLORS = ['#2050a0', '#c2621a', '#2e9d6a', '#7b5ea7', '#c2185b']
 
 
+// Dark enough to read as text on their own pale tint (50-role test, 2026-11-05).
 const STATUS_COLORS: Record<string, string> = {
-  confirmed: '#4caf72',
-  cancelled: '#e05a4a',
-  completed: '#a0a0a0',
+  confirmed: '#1f7a57',
+  cancelled: '#b4321f',
+  completed: '#5f6b80',
   pending: GOLD,
 }
 
@@ -1213,8 +1231,8 @@ export default function DashboardPage() {
      bottom, the buttons big and 取消 last; the card in the list keeps only
      what it says. A move waiting on an answer keeps its buttons on the card. */
   const [lessonSheet, setLessonSheet] = useState<string | null>(null)
-  const lessonSheetRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => { if (lessonSheet) lessonSheetRef.current?.focus() }, [lessonSheet])
+  // Focus in, kept in, back to the lesson on close (50-role test, 2026-11-05).
+  const lessonSheetRef = useDialogFocus(!!lessonSheet, () => setLessonSheet(null))
   const swimmerItems = useMemo(() => students.map(s => ({ id: s.id, name: s.full_name, look: lookOf(s) })), [students])
   const [wallet, setWallet] = useState<WalletSummary | null>(null)
   const [teamMemberships, setTeamMemberships] = useState<any[]>([])
@@ -1355,7 +1373,7 @@ export default function DashboardPage() {
      for them. */
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; studentName?: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   // Good news after a cancellation (a voucher added or given back) -- not an
@@ -2875,12 +2893,23 @@ export default function DashboardPage() {
   // Why a button cannot do its job online, said in words first. It used to
   // open the chat straight away with the reason only in a hover tooltip,
   // which a phone never shows -- the family saw a chat window and no reason.
-  const openChatOr = (msg: string, title?: string) => {
-    const toggle = document.querySelector('[data-chat-toggle]') as HTMLElement | null
+  /* Which lesson a message is about, at the head of it (owner, 2026-11-04):
+     when, what, with whom, for whom -- and the pool once there is more than
+     one (50-role test, 2026-11-05: the coach and pool were missing, and the
+     dialogs' own 傳訊息給我們 carried nothing). */
+  const aboutOf = (b: Booking) => {
+    const names = (b._group ? b._group.map(m => m.student_name) : [b.student_name]).filter(Boolean).join('、')
+    const course = b.is_trial ? t('common.assessment') : (b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name)
+    const when = fmtDate(new Date(b.session_date + 'T12:00:00Z'), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+    const pool = pools.show ? pools.list.find(l => l.id === b.location_id)?.name : null
+    return [when + ' ' + formatTime(b.start_time), course, b.coach_name ? t('dash.up.coach', { name: b.coach_name }) : null, pool, names].filter(Boolean).join(' · ')
+  }
+  const chatAbout = (b?: Booking) => openChat('', b ? { about: aboutOf(b) } : {})
+  const openChatOr = (msg: string, title?: string, b?: Booking) => {
     setInfoModal({
       title: title || t('dash.up.cancelLocked'),
       message: msg,
-      ...(toggle ? { actionLabel: t('dash.up.messageUs'), onAction: () => toggle.click() } : {}),
+      actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(b),
     })
   }
 
@@ -2888,7 +2917,15 @@ export default function DashboardPage() {
     <PoolsCtx.Provider value={pools}>
     <div className={'msa-root msa-fill' + (viewer ? ' msa-viewer' : '')} data-view={view} style={{ fontFamily: FONT_BODY, background: 'linear-gradient(180deg, #f4f7fb 0, #e9eff7 640px)', marginTop: 'calc(-1 * var(--nav-space, 0px))', paddingTop: 'var(--nav-space, 0px)', minHeight: '100vh' }}>
       {/* QR Modal */}
-      {qrStudent && <QRModal student={qrStudent} onClose={() => setQrStudent(null)} />}
+      {qrStudent && (() => {
+        // Today's lesson for this swimmer, and the others who need their own code.
+        const tdy = getTodayLA()
+        const todays = upcomingBookings.filter(b => b.session_date === tdy && b.status === 'confirmed' && !b.checked_in)
+        const mineB = todays.find(b => b.student_id === qrStudent.id || b._group?.some(x => x.student_id === qrStudent.id))
+        const others = [...new Set(todays.flatMap(b => (b._group || [b]).filter(x => x.student_id !== qrStudent.id && !x.checked_in).map(x => x.student_name || '')))].filter(Boolean)
+        return <QRModal student={qrStudent} onClose={() => setQrStudent(null)} others={others}
+          lesson={mineB ? [formatTime(mineB.start_time), mineB.coach_name ? t('dash.up.coach', { name: mineB.coach_name }) : null].filter(Boolean).join(' · ') : null} />
+      })()}
 
       {recordsFor && (
         <RecordsSheet
@@ -3019,9 +3056,13 @@ export default function DashboardPage() {
       {cancelTarget && (
         <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div ref={cancelBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-cancel-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
-            <div id="dash-cancel-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
+            {/* Inside 24 hours it says so in its title and button, not only in
+                the body (owner, 2026-11-05, 決定 1 選項 A). */}
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : cancelTarget.kind === 'grace' ? 'dash.cancelModal.eyebrowGrace' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
+            <div id="dash-cancel-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.titleReject' : cancelTarget.kind === 'grace' ? 'dash.cancelModal.titleGrace' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.titleLeave' : 'dash.cancelModal.titleCancel')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              {/* Whose lesson, first (50-role test, 2026-11-05). */}
+              {cancelTarget.studentName && <div style={{ fontSize: '14px', fontWeight: 800, color: '#16294a', marginBottom: '2px' }}>{cancelTarget.studentName}</div>}
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{cancelTarget.courseTypeId ? tDb(locale, 'course_types', cancelTarget.courseTypeId, cancelTarget.courseName) : cancelTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{cancelTarget.date} · {cancelTarget.time}</div>
             </div>
@@ -3049,6 +3090,17 @@ export default function DashboardPage() {
                 <> {t('dash.cancelModal.pairBoth')}</>
               )}
             </p>
+            {/* Ill with a doctor's note: the desk returns the points and the
+                pass is kept -- say it before the pass is spent (決定 1). */}
+            {cancelTarget.type !== 'reject' && cancelTarget.kind === 'grace' && (
+              <p style={{ fontSize: '13px', color: '#1f6b45', background: '#e7f6ec', borderRadius: '10px', padding: '10px 12px', lineHeight: 1.6, margin: '-12px 0 20px' }}>
+                {t('dash.cancelModal.sick')}{' '}
+                <button type="button" className="tap-auto" style={{ border: 0, background: 'none', padding: 0, font: 'inherit', fontWeight: 800, color: '#2050a0', cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={() => { const tg = cancelTarget; setCancelTarget(null); openChat('', { about: [tg.studentName, tg.date + ' ' + tg.time, tg.courseTypeId ? tDb(locale, 'course_types', tg.courseTypeId, tg.courseName) : tg.courseName].filter(Boolean).join(' · ') }) }}>
+                  {t('dash.up.messageUs')} ›
+                </button>
+              </p>
+            )}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
@@ -3062,8 +3114,8 @@ export default function DashboardPage() {
                   #d93825, not #e05a4a: white on that red was 3.7:1 (found
                   2026-10-15); this is the same red just dark enough for 4.5:1,
                   as are the reschedule-decline and unpaid-cancel buttons. */}
-              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
+              <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: cancelTarget.kind === 'grace' ? AMBER : '#d93825', color: cancelTarget.kind === 'grace' ? '#12254a' : '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : cancelTarget.kind === 'grace' ? 'dash.cancelModal.yesGrace' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
               </button>
             </div>
           </div>
@@ -3077,6 +3129,7 @@ export default function DashboardPage() {
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
             <div id="dash-res-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
+              {rescheduleTarget.studentName && <div style={{ fontSize: '14px', fontWeight: 800, color: '#16294a', marginBottom: '2px' }}>{rescheduleTarget.studentName}</div>}
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
               <div style={{ fontSize: '12px', color: '#56647d' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
             </div>
@@ -3483,14 +3536,16 @@ export default function DashboardPage() {
               : fmtDate(new Date(next.session_date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })
             const hot = isToday && next.status === 'confirmed' && !!who
             const left = mins(next.start_time) - nowMin
-            const sub = [hot ? null : next.is_trial ? t('common.assessment') : t('dash.next.lesson'), next.coach_name ? t('dash.up.coach', { name: next.coach_name }) : null,
-              hot ? (left > 0 ? (left <= 120 ? t('dash.nextLine.inMin', { n: left }) : null) : t('dash.nextLine.now')) : null].filter(Boolean).join(' · ')
+            // Whose lesson and how soon come first, so large text cuts the coach,
+            // not those (50-role test, 2026-11-05).
+            const sub = [hot ? (left > 0 ? (left <= 120 ? t('dash.nextLine.inMin', { n: left }) : null) : t('dash.nextLine.now')) : null,
+              hot ? null : next.is_trial ? t('common.assessment') : t('dash.next.lesson'), next.coach_name ? t('dash.up.coach', { name: next.coach_name }) : null].filter(Boolean).join(' · ')
             return (
               <div className={'msa-nextline' + (hot ? ' hot' : '')}>
                 <div className="msa-nextline-row">
                   <button type="button" className="tap-auto msa-nextline-main" onClick={() => setLessonDetail(next)}>
                     <span className="ic" aria-hidden="true">{hot ? '📍' : '📅'}</span>
-                    <span className="tx"><b>{when} {formatTime(next.start_time)} · {names}</b><small>{sub}</small></span>
+                    <span className="tx"><b>{names} · {when} {formatTime(next.start_time)}</b><small>{sub}</small></span>
                     {!hot && <span className="go" aria-hidden="true">›</span>}
                   </button>
                   {hot && who && (
@@ -3632,12 +3687,14 @@ export default function DashboardPage() {
 
       {/* UPCOMING LESSONS */}
         <section ref={upcomingRef} className="msa-sched" style={{ marginBottom: '36px', scrollMarginTop: '100px' }}>
+          {/* The 課表 tab's own heading, for screen readers (50-role test, 2026-11-05). */}
+          {view === 'schedule' && <h1 className="sr-only">{t('app.tab.schedule')}</h1>}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
             <h2 className="msa-sec-h" style={{ margin: 0 }}>{t('dash.upcomingLessons')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
+              <div role="group" aria-label={t('dash.upcomingLessons')} style={{ display: 'inline-flex', border: '1px solid #e3ebf6', borderRadius: '8px', overflow: 'hidden' }}>
                 {(['list', 'week', 'month'] as const).map(v => (
-                  <button key={v} onClick={() => setLessonView(v)}
+                  <button key={v} onClick={() => setLessonView(v)} aria-pressed={lessonView === v}
                     style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
                       background: lessonView === v ? NAVY : '#fff',
                       color: lessonView === v ? '#fff' : '#56647d' }}>
@@ -3729,10 +3786,10 @@ export default function DashboardPage() {
                           {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
                             <button key={b.id + j} className="tap-auto" onClick={e => { e.stopPropagation(); setLessonDetail(b) }}
                               aria-label={t(b.checked_in ? 'dash.month.lessonAriaIn' : 'dash.month.lessonAria', { time: t12(b.start_time), date: dayLong, name: b.student_name || '' })}
-                              style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center',
+                              style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center', overflow: 'hidden',
                               border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
                               background: isPast ? '#f6f9fd' : `${GOLD}14` }}>
-                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', color: isPast ? '#56647d' : '#16294a' }}>
+                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', overflowWrap: 'anywhere', lineHeight: 1.2, color: isPast ? '#56647d' : '#16294a' }}>
                                 {t12c(b.start_time)}{b.checked_in ? ' ✓' : ''}
                               </span>
                               {students.length > 1 && (
@@ -4001,10 +4058,10 @@ export default function DashboardPage() {
                                         /* Greyed, but it says why (2026-11-04: a tap on it did nothing). */
                                         if (rDis) {
                                           if (reschedulingId === m.id) return
-                                          setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => openChat(), closeLabel: t('common.close') })
+                                          setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(m), closeLabel: t('common.close') })
                                           return
                                         }
-                                        setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
+                                        setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', studentName: m.student_name, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
                                       }}
                                       aria-disabled={rDis}
                                       style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
@@ -4029,7 +4086,7 @@ export default function DashboardPage() {
                                       </button>
                                     ) : late ? (
                                       <button
-                                        onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }))}
+                                        onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }), undefined, m)}
                                         title={lateLockHelp({ ...m, student_name: spentName })}
                                         style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                                         {t('dash.up.cancelLocked')}
@@ -4216,15 +4273,15 @@ export default function DashboardPage() {
                               treats the move as a regular lesson, and the swimmer has no
                               level yet), so its row offers one "message us" button below.
                               A checked-in lesson is happening: nothing to move. */}
-                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && (
+                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && !lessonStarted(booking) && (
                           <button
                             onClick={() => {
                               /* Greyed, but it says why (as on the grouped rows). */
                               if (isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner') {
-                                setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => openChat(), closeLabel: t('common.close') })
+                                setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(booking), closeLabel: t('common.close') })
                                 return
                               }
-                              setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
+                              setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', studentName: booking.student_name, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
                             }}
                             disabled={reschedulingId === booking.id}
                             aria-disabled={isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
@@ -4243,7 +4300,7 @@ export default function DashboardPage() {
                             if (booking.is_trial) return (
                               <button
                                 title={t('dash.up.trialContactHelp')}
-                                onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'))}
+                                onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'), booking)}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.trialContact')}
                               </button>
@@ -4267,7 +4324,7 @@ export default function DashboardPage() {
                               </button>
                             )
                             if (lessonStarted(booking)) return (
-                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '11px', fontWeight: 600 }}>
+                              <div className="msa-inprog" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '11px', fontWeight: 600 }}>
                                 {t('dash.up.inProgress')}
                               </div>
                             )
@@ -4282,7 +4339,7 @@ export default function DashboardPage() {
                               </button>
                             ) : late ? (
                               <button
-                                onClick={() => openChatOr(lateLockHelp(booking))}
+                                onClick={() => openChatOr(lateLockHelp(booking), undefined, booking)}
                                 title={lateLockHelp(booking)}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                                 {t('dash.up.cancelLocked')}
@@ -4319,11 +4376,8 @@ export default function DashboardPage() {
                           /* The chat opens knowing which lesson (owner, 2026-11-04):
                              it asks "this lesson?" above the box and heads the
                              message with it, so the desk sees which one. */
-                          const names = (sheetB._group ? sheetB._group.map(m => m.student_name) : [sheetB.student_name]).filter(Boolean).join('、')
-                          const course = sheetB.is_trial ? t('common.assessment') : (sheetB.course_type_id ? tDb(locale, 'course_types', sheetB.course_type_id, sheetB.course_name) : sheetB.course_name)
-                          const when = fmtDate(new Date(sheetB.session_date + 'T12:00:00Z'), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
                           setLessonSheet(null)
-                          openChat('', { about: [when + ' ' + formatTime(sheetB.start_time), course, names].filter(Boolean).join(' · ') })
+                          chatAbout(sheetB)
                         }}>{t('dash.up.messageUs')}</button>
                         <button type="button" className="tap-auto" onClick={() => setLessonSheet(null)}>{t('common.close')}</button>
                       </div>
@@ -4426,8 +4480,16 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   <PoolDetails id={b.location_id} />
-                  <button onClick={() => setLessonDetail(null)}
-                    style={{ marginTop: '18px', width: '100%', padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' }}>{t('common.close')}</button>
+                  {/* Late, ill, a question about this one: straight to the desk,
+                      with the lesson (50-role test, 2026-11-05). */}
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+                    {b.status !== 'cancelled' && (
+                      <button onClick={() => { setLessonDetail(null); chatAbout(b) }}
+                        style={{ flex: 1, padding: '12px', background: '#f09800', border: 0, borderRadius: '10px', color: '#12254a', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{t('dash.up.messageUs')}</button>
+                    )}
+                    <button onClick={() => setLessonDetail(null)}
+                      style={{ flex: 1, padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
+                  </div>
                 </div>
               </div>
             )

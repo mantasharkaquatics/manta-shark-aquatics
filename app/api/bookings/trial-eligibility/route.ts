@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   const sessionIds = active.map(b => b.class_session_id).filter(Boolean)
   const sessionMap: Record<string, any> = {}
   if (sessionIds.length > 0) {
-    const { data: ss } = await svc.from('class_sessions').select('id, session_date, end_time').in('id', sessionIds)
+    const { data: ss } = await svc.from('class_sessions').select('id, session_date, start_time, end_time, coach_id').in('id', sessionIds)
     for (const x of ss || []) sessionMap[x.id] = x
   }
   const notEnded = (b: any) => {
@@ -139,7 +139,24 @@ export async function GET(req: NextRequest) {
   }
   else reason = 'done'
 
+  // When it is, for the booking page to say instead of a bare "booked"
+  // (50-role test, 2026-11-05).
+  let booked: { date: string; start: string; coach: string | null } | null = null
+  if (reason === 'booked') {
+    const b = active.find(notEnded)
+    const cs = b ? sessionMap[b.class_session_id] : null
+    if (cs?.session_date) {
+      let coach: string | null = null
+      if (cs.coach_id) {
+        const { data: c } = await svc.from('coaches').select('first_name').eq('id', cs.coach_id).maybeSingle()
+        coach = c?.first_name ?? null
+      }
+      booked = { date: cs.session_date, start: String(cs.start_time || '').slice(0, 5), coach }
+    }
+  }
+
   return NextResponse.json({
+    booked,
     eligible: eligible || reason === 'eligible',
     hasCredit,
     trialUsedAt: reason === 'eligible' ? null : st.trial_used_at,

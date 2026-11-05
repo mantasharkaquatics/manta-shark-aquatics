@@ -45,9 +45,9 @@ const css = `
      balance share a line, each class's price sits in its own button (the
      separate price list is gone), and the card is tighter than the website's. */
   html.msa-app:has(.p-app), html.msa-app:has(.p-app) body { overscroll-behavior: none; }
-  .p-app-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+  .p-app-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 0 0 10px; }
   .p-app h1 { font-size: 24px; font-weight: 800; color: ${BRAND.navy}; margin: 0; }
-  .p-app-have { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; white-space: nowrap; }
+  .p-app-have { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; min-width: 0; }
   .p-app .p-card { padding: 16px; border-radius: 16px; }
   .p-app .p-seg { display: grid; width: 100%; margin-bottom: 12px; }
   .p-app .p-seg button { padding: 8px 4px; line-height: 1.3; }
@@ -55,6 +55,9 @@ const css = `
   .p-app .p-counts { margin-bottom: 8px; gap: 10px; }
   .p-app .p-count { padding: 10px 8px; }
   .p-app .p-count b, .b-root.zh .p-app .p-count b { font-size: 22px; }
+  /* Large text or English: the count wraps inside its button rather than push the page wider (50-role test). */
+  .p-app .p-count b { white-space: normal; overflow-wrap: anywhere; line-height: 1.1; }
+  .p-app-head h1 { white-space: nowrap; }
   .p-app .p-count span { margin-top: 4px; }
   .p-app .p-total { margin-top: 12px; padding-top: 12px; margin-bottom: 12px; }
   .p-app .p-total strong { font-size: 24px; }
@@ -78,6 +81,9 @@ const css = `
     .p-app .p-total { margin-top: 8px; padding-top: 8px; margin-bottom: 8px; }
     .p-app .p-buy { min-height: 44px; padding-top: 10px; padding-bottom: 10px; }
     .p-app-note { margin-top: 6px !important; }
+    /* The still-to-assess card too (50-role test, 2026-11-05): one line on a short phone. */
+    .p-app .p-toassess { padding: 8px 12px; margin-bottom: 8px; }
+    .p-app .p-toassess span { display: none; }
   }
   /* The assessment card sits over the hero's bottom edge: the first thing a
      new family needs, before any price. */
@@ -372,7 +378,7 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
           return (
             <button key={n} type="button" className="p-count" aria-pressed={lessons === n} onClick={() => setLessons(n)}>
               <b>{t('points.buy.presetCount', { n })}</b>
-              <span>{money(price)} · {t('points.unit', { n: num(price) })}</span>
+              <span>{money(price)} · <span style={{ display: 'inline', whiteSpace: 'nowrap', margin: 0, fontSize: 'inherit' }}>{t('points.unit', { n: num(price) })}</span></span>
             </button>
           )
         })}
@@ -410,7 +416,8 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
       {needsAssessment && (
         <div className="p-warn" role="alert">
           <div style={{ marginBottom: 8 }}>{t('points.buy.err.assessment')}</div>
-          <Link href={app ? '/booking' : localePath('/assessment', locale)} className="b-link">{t('plans.assessFirst.cta')}</Link>
+          {/* In the app it books, so it says so (50-role test, 2026-11-05). */}
+          <Link href={app ? '/booking' : localePath('/assessment', locale)} className="b-link">{app ? t('points.toAssess.cta') + ' →' : t('plans.assessFirst.cta')}</Link>
         </div>
       )}
       {assessmentPending && (
@@ -493,21 +500,25 @@ export default function PlansContent() {
   // Written as 我的's member card writes it: the points bought, and the gift
   // apart (50-role test, 2026-11-05: 2,920 here, 2,880 there).
   const [balance, setBalance] = useState<{ bought: number; gift: number } | null>(null)
+  const [balErr, setBalErr] = useState(false)
+  const [balTry, setBalTry] = useState(0)
   useEffect(() => {
-    if (!compact || signedIn !== true) return
-    fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
+    if (!compact || signedIn !== true || viewer) return
+    fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null)).catch(() => null)
       .then(j => {
-        if (!j || typeof j.balance !== 'number') return
+        if (!j || typeof j.balance !== 'number') { setBalErr(true); return }
         const gift = Math.max(0, Number(j.balanceGranted) || 0)
+        setBalErr(false)
         setBalance({ bought: typeof j.balancePurchased === 'number' ? j.balancePurchased : j.balance - gift, gift })
-      }).catch(() => {})
-  }, [compact, signedIn])
+      })
+  }, [compact, signedIn, viewer, balTry])
   if (compact) return (
     <BrandRoot>
       <style>{css}</style>
       <div className={'p-app' + (app ? '' : ' p-web')}>
         <div className="p-app-head">
           <h1>{t('points.app.title')}</h1>
+          {balance == null && balErr && <button type="button" className="p-app-have tap-auto" style={{ border: 0, background: 'none', font: 'inherit', cursor: 'pointer', color: '#56647d' }} onClick={() => { setBalErr(false); setBalTry(n => n + 1) }}>{t('me.card.walletErr')}</button>}
           {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance.bought) })}{balance.gift > 0 && <> <span className="p-app-gift">{t('dash.pointsGift', { n: num(balance.gift) })}</span></>}</p>}
         </div>
         {/* Only the children still to be assessed, by name (the assessment is paid by card, not points). */}

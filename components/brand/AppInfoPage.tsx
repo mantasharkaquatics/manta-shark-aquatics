@@ -21,6 +21,8 @@ const css = `
   .ai { padding: 14px 16px 24px; max-width: 640px; margin: 0 auto; }
   html.msa-app body:has(.ai), html.msa-app body:has(.ai) .rn-space, html.msa-app .b-root:has(.ai) { background: #e9eff7; }
   .ai h1 { font-size: 24px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 4px; line-height: 1.3; }
+  /* No subtitle: the same room under the title as a subtitle leaves (50-role test). */
+  .ai h1:not(:has(+ .ai-sub)) { margin-bottom: 14px; }
   .ai-sub { font-size: 14px; color: ${BRAND.mute}; line-height: 1.6; margin: 0 0 14px; }
   .ai .ai-sec { font-family: inherit; font-size: 13px; font-weight: 800; color: ${BRAND.mute}; margin: 18px 0 8px; }
   .ai-list { display: flex; flex-direction: column; gap: 8px; }

@@ -104,6 +104,9 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  // What was booked, kept for the done card (50-role test, 2026-11-05: it said
+  // only "all booked").
+  const [booked, setBooked] = useState<{ rows: string[]; when: string; total: number; left: number } | null>(null)
   const locQ = location ? `&location=${encodeURIComponent(location)}` : ''
   const course = courses.find(c => c.slug === slug) || null
   const kidName = (id: string) => kids.find(k => k.id === id)?.full_name || ''
@@ -267,6 +270,10 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   // Asked once before booking (2026-11-04: one tap took 1,300 points with no
   // last look -- the one-child flow has its own confirm page).
   const [asking, setAsking] = useState(false)
+  // The question opens where the button was: brought fully into view, above
+  // the app's tabs (50-role test, 2026-11-05: on a small phone they covered it).
+  const askRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (asking) requestAnimationFrame(() => askRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })) }, [asking])
   async function confirm() {
     setAsking(false)
     if (!plan || !opt || !slug || !way) return
@@ -278,7 +285,13 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     }).catch(() => null)
     const d = r ? await r.json().catch(() => ({})) : {}
     setBusy(false)
-    if (r?.ok) { setDone(true); window.scrollTo(0, 0); return }
+    if (r?.ok) {
+      const when = way === 'weekly'
+        ? t('fam.done.weekly', { weekday: wkName(dowOf(dts[0])), n: dts.length, from: mdOf(dts[0]), to: mdOf(dts[dts.length - 1]) })
+        : dayLabel(dts[0])
+      setBooked({ rows: plan.map(p => `${kidName(p.kid)} · ${p.time ? t12(p.time) : ''}${coachName(p.coach) ? ' · ' + t('dash.up.coach', { name: coachName(p.coach) }) : ''}`), when, total, left: Math.max(0, balance - total) })
+      setDone(true); window.scrollTo(0, 0); return
+    }
     const who = typeof d.which === 'number' && plan[d.which] ? `${kidName(plan[d.which].kid)}：` : ''
     const k = d.code === 'week_gone' ? 'fam.err.weekGone' : d.error === 'NOT_ENOUGH_POINTS' ? null : errorKey(d.error)
     setErr(who + (d.error === 'NOT_ENOUGH_POINTS' ? t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() }) : k ? t(k) : t('fam.err.generic')))
@@ -293,7 +306,14 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   if (done) return (
     <div style={box} role="status">
       <h2 style={{ margin: '0 0 8px', fontSize: 20, color: NAVY }}>✅ {t('fam.doneTitle')}</h2>
-      <p style={{ margin: '0 0 14px', color: '#16294a', lineHeight: 1.6 }}>{t('fam.doneBody')}</p>
+      <p style={{ margin: '0 0 10px', color: '#16294a', lineHeight: 1.6 }}>{t('fam.doneBody')}</p>
+      {booked && (
+        <div style={{ background: '#f6f9fd', borderRadius: 10, padding: '10px 12px', margin: '0 0 14px', fontSize: 14, lineHeight: 1.7, color: '#16294a' }}>
+          <div style={{ fontWeight: 800 }}>{booked.when}</div>
+          {booked.rows.map(r => <div key={r}>{r}</div>)}
+          <div style={{ marginTop: 6, color: '#56647d' }}>{t('fam.done.points', { points: booked.total.toLocaleString(), left: booked.left.toLocaleString() })}</div>
+        </div>
+      )}
       <Link href="/dashboard/schedule" style={{ display: 'inline-block', padding: '12px 20px', borderRadius: 10, background: AMBER, color: NAVY, fontWeight: 800, textDecoration: 'none' }}>{t('fam.toSchedule')}</Link>
     </div>
   )
@@ -594,7 +614,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
               <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() })} <Link href="/plans#buy" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('booking.short.cta')}</Link></p>
             ) : (
               asking ? (
-                <div role="alertdialog" aria-label={t('fam.ask.title')} style={{ background: '#f6f9fd', border: '1px solid #c9d8ee', borderRadius: 12, padding: 14 }}>
+                <div ref={askRef} role="alertdialog" aria-label={t('fam.ask.title')} style={{ background: '#f6f9fd', border: '1px solid #c9d8ee', borderRadius: 12, padding: 14, scrollMarginBottom: 'calc(var(--app-tab-h, 0px) + 16px)' }}>
                   <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 16, color: NAVY }}>{t('fam.ask.title')}</p>
                   <p style={{ margin: '0 0 12px', fontSize: 14, color: '#56647d', lineHeight: 1.55 }}>
                     {plan.map(p => kidName(p.kid)).join('、')} · {t('fam.ask.body', { n: (weekly ? ticked.size : 1) * plan.length, points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}
