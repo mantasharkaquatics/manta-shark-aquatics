@@ -205,14 +205,14 @@ export default function AccountPage() {
         <div className="ac-head">
           <Link href="/dashboard" className="ac-back">← {t('common.backToDashboard')}</Link>
           <h1 className="ac-h1">{t('account.title')}</h1>
-          <p className="ac-sub">{t('account.subtitle')}</p>
+          <p className="ac-sub">{viewOnly ? t('account.subtitleViewer', { name: parent?.first_name || '' }) : t('account.subtitle')}</p>
         </div>
 
         <div className="ac-stack">
 
           {/* Profile */}
           <section className="ac-card">
-            <p className="ac-label">{t('account.profile')}</p>
+            <p className="ac-label">{isGuardian ? t('account.profileMain', { name: parent?.first_name || '' }) : t('account.profile')}</p>
             <div className="ac-grid">
               {([
                 { label: t('account.name'), value: `${parent?.first_name} ${parent?.last_name}` },

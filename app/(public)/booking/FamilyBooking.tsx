@@ -10,6 +10,7 @@ import { singleMaxDate, FIXED_CLASS_MIN_LESSONS, SINGLE_BOOKING_DAYS } from '@/l
 import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import { openChat } from '@/lib/chat-open'
+import { APP_BACK_EVENT } from '@/lib/app-back'
 import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
 import { fmtDate } from '@/lib/fmt-date'
 
@@ -199,6 +200,26 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     if (level === 'slug' || level === 'way') setDay(null)
     setOpt(null); setPlan(null); setSwap(null); setCands(null); setTicked(new Set()); setWeeks(26); setErr(null)
   }
+  /* The Android back button, one step at a time -- the chosen time, then the
+     day, the way, the course, and only then out to choosing children
+     (50-role test, 2026-11-05: it went straight back to the first step).
+     Once booked it leaves the page. */
+  const back = useRef<() => boolean>(() => false)
+  useEffect(() => {
+    back.current = () => {
+      if (done) return false
+      if (opt) { reset('opt'); return true }
+      if (day != null) { setDay(null); reset('day'); return true }
+      if (way) { setWay(null); reset('way'); return true }
+      if (slug) { setSlug(null); reset('slug'); return true }
+      onExit(); return true
+    }
+  })
+  useEffect(() => {
+    const on = (e: Event) => { if (!e.defaultPrevented && back.current()) e.preventDefault() }
+    window.addEventListener(APP_BACK_EVENT, on)
+    return () => window.removeEventListener(APP_BACK_EVENT, on)
+  }, [])
   function pickOpt(o: Opt) {
     const p = plansAt(o.ds, o.time, o.coach)[0]
     if (!p) return

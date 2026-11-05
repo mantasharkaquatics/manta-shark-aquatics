@@ -289,6 +289,7 @@ html.msa-app [data-view="home"] .msa-viewnote, html.msa-app [data-view="home"] .
 .msa-newrep b { color: #b4321f; font-size: 13px; white-space: nowrap }
 .msa-newrep.msa-safebar { background: #fff7e6; border-color: #f3dfb4 }
 .msa-newrep.msa-safebar b { color: #8a5300 }
+/* The lesson sheet is a portal on <body>, outside .msa-root: it carries .msa-viewer itself. */
 .msa-viewer .msa-lesson-actions { display: none !important }
 .msa-viewnote { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 24px; padding: 14px 16px; border: 1px solid #c9d8ee;
   border-radius: 14px; background: #eef4fc; color: #16294a; font-size: 14px; line-height: 1.6 }
@@ -1862,6 +1863,25 @@ export default function DashboardPage() {
     }, 1000)
     return () => clearInterval(iv)
   }, [upcomingBookings])
+  /* Back from paying for the Swim Assessment (Stripe returns to
+     ?trial=success or ?trial=cancelled): say so, with the lesson, instead of
+     a page that looks as it did before (50-role test, 2026-11-05). */
+  const trialReturn = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('trial') : null)
+  const [trialMsg, setTrialMsg] = useState<string | null>(null)
+  useEffect(() => {
+    const how = trialReturn.current
+    if (!how || loading) return
+    trialReturn.current = null
+    try { const u = new URL(window.location.href); u.searchParams.delete('trial'); window.history.replaceState(null, '', u.toString()) } catch {}
+    if (how !== 'success') { setTrialMsg(t('dash.trial.cancelled')); return }
+    const b = upcomingBookings.find(x => x.is_trial)
+    setTrialMsg(b ? t('dash.trial.paid', {
+      name: b.student_name || '',
+      when: fmtDate(new Date(b.session_date + 'T12:00:00Z'), intlOf(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' ' + formatTime(b.start_time),
+      coach: b.coach_name || '',
+    }) : t('dash.trial.paidPlain'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, upcomingBookings])
   /* Once a minute: the check-in window and the 24-hour cancel line are read
      from the clock at render and rely on this to move on time. The countdowns
      tick by themselves (Countdown); the whole page used to re-render every
@@ -3327,10 +3347,13 @@ export default function DashboardPage() {
               const hasPast = pastBookings.some(b => b.student_id === student.id)
               const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
               const booked = upcomingBookings.some(b => mine(b) && b.status !== 'cancelled')
+              // A new swimmer whose assessment is booked: say when, instead of
+              // an empty row (50-role test, 2026-11-05).
+              const trialB = !hasLevel && !hasPast ? upcomingBookings.find(b => mine(b) && b.status !== 'cancelled') : undefined
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
                   {stage}
-                  {(hasLevel || hasPast || monthly.length > 0 || !viewer) && (
+                  {(hasLevel || hasPast || monthly.length > 0 || !viewer || trialB) && (
                     <div className="msa-mcard-tiles">
                       {hasLevel && (
                         <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
@@ -3352,6 +3375,12 @@ export default function DashboardPage() {
                       {hasLevel && report && (
                         <button type="button" className="tap-auto" onClick={() => setReportFor(student)}>
                           <i aria-hidden="true">🏅</i><span>{t('assess.report.button')}</span>
+                        </button>
+                      )}
+                      {trialB && (
+                        <button type="button" className="tap-auto wide" onClick={() => router.push('/dashboard/schedule')}>
+                          <i aria-hidden="true">📅</i>
+                          <span>{t('dash.trial.bookedLine', { when: fmtDate(new Date(trialB.session_date + 'T12:00:00Z'), intlOf(locale), { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) + ' ' + formatTime(trialB.start_time) })}</span>
                         </button>
                       )}
                       {/* A new swimmer with nothing booked yet: the one thing to do next. */}
@@ -3454,7 +3483,7 @@ export default function DashboardPage() {
               : fmtDate(new Date(next.session_date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })
             const hot = isToday && next.status === 'confirmed' && !!who
             const left = mins(next.start_time) - nowMin
-            const sub = [hot ? null : t('dash.next.lesson'), next.coach_name ? t('dash.up.coach', { name: next.coach_name }) : null,
+            const sub = [hot ? null : next.is_trial ? t('common.assessment') : t('dash.next.lesson'), next.coach_name ? t('dash.up.coach', { name: next.coach_name }) : null,
               hot ? (left > 0 ? (left <= 120 ? t('dash.nextLine.inMin', { n: left }) : null) : t('dash.nextLine.now')) : null].filter(Boolean).join(' · ')
             return (
               <div className={'msa-nextline' + (hot ? ' hot' : '')}>
@@ -3580,6 +3609,7 @@ export default function DashboardPage() {
         {/* Reschedule Action Modal */}
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
       <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
+      <NoticeModal title={t('dash.trial.title')} message={trialMsg} closeLabel={t('common.close')} onClose={() => setTrialMsg(null)} />
       {rescheduleActionModal && (
         <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div ref={resActionBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-resaction-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
@@ -4271,7 +4301,7 @@ export default function DashboardPage() {
                 }
                 const sheetB = lessonSheet ? upcomingBookings.find(b => b.id === lessonSheet) : undefined
                 const sheet = inApp && sheetB && typeof document !== 'undefined' ? createPortal(
-                  <div className="msa-lsheet-wrap" onClick={e => { if (e.target === e.currentTarget) setLessonSheet(null) }}>
+                  <div className={'msa-lsheet-wrap' + (viewer ? ' msa-viewer' : '')} onClick={e => { if (e.target === e.currentTarget) setLessonSheet(null) }}>
                     <div className="msa-lsheet" role="dialog" aria-modal="true" aria-labelledby="msa-lsheet-h" ref={lessonSheetRef} tabIndex={-1}
                       onKeyDown={e => { if (e.key === 'Escape') setLessonSheet(null) }}
                       onClickCapture={e => {

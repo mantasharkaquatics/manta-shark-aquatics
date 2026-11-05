@@ -9,7 +9,7 @@ import { localePath } from '@/lib/i18n/paths'
 import { BRAND } from '@/lib/brand'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import ClosureBanner from '@/components/ClosureBanner'
-import { APP_SET_LOCALE_EVENT } from '@/lib/native-app'
+import { APP_SET_LOCALE_EVENT, appLook } from '@/lib/native-app'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
    pixels inside the window, the name set as a wordmark instead of the round logo,
@@ -324,6 +324,10 @@ export default function Navbar() {
   function goToLocalisedUrl(next: Locale) {
     const seg = pathname.split('/')[1] || ''
     const bare = isLocale(seg) && seg !== 'en' ? pathname.slice(seg.length + 1) || '/' : pathname
+    // Inside the app every page stays on its bare path and the cookie carries
+    // the language: /zh-Hant/... pages are the website's, without the app's
+    // bars (50-role test, 2026-11-05: switching on 儲值 left the app).
+    if (appLook()) { if (bare !== pathname) router.replace(bare); return }
     const target = localePath(bare, next)
     if (target !== pathname) router.push(target)
   }

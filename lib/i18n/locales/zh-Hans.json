@@ -2693,5 +2693,15 @@
   "booking.fixed.toSingle": "改选单次上课",
   "legal.enOnly": "本文件只有英文版，内容以英文版为准。有任何问题，欢迎发消息给我们。",
   "booking.perSwimmerShort": "每位学员",
-  "dash.viewer.short": "只能查看 · 预约和付款由 {name} 处理"
+  "dash.viewer.short": "只能查看 · 预约和付款由 {name} 处理",
+  "viewer.bookByMain": "预约和报名由主账号处理。",
+  "viewer.priceGroup": "团体课每位 {n} 点",
+  "account.subtitleViewer": "{name} 的家庭账户（只能看）",
+  "account.profileMain": "主账号（{name}）",
+  "points.buy.afterAssess": "孩子做完游泳评估后，就可以在这里充值。",
+  "dash.trial.title": "游泳评估",
+  "dash.trial.paid": "已付款。{name} 的游泳评估已预约：{when}，{coach} 教练。可以在课表看到。",
+  "dash.trial.paidPlain": "已付款，游泳评估已预约，可以在课表看到。",
+  "dash.trial.cancelled": "付款没有完成。这个时间会先保留一小段时间，可以到课表按「立即付款」完成，或在那里取消。",
+  "dash.trial.bookedLine": "评估已预约 · {when}"
 }

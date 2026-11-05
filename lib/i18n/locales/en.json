@@ -320,7 +320,7 @@
   "booking.price.batchBase": "Base price, {n} lessons",
   "booking.price.batchDiscount": "Discounts",
   "booking.price.offPeak": "Off-peak time",
-  "booking.price.total": "Points for this lesson",
+  "booking.price.total": "Points for this booking",
   "booking.price.partnerLater": "Points are taken when the other family accepts. If they don't accept within 15 minutes, nothing is charged.",
   "booking.recur.areBookedForN": "are booked for {n} lessons each",
   "booking.recur.basket": "Selected: {n} lessons · {points} pts",
@@ -2693,5 +2693,15 @@
   "booking.fixed.toSingle": "Book single lessons instead",
   "legal.enOnly": "This document is available in English only.",
   "booking.perSwimmerShort": "per swimmer",
-  "dash.viewer.short": "View only · {name} books and pays"
+  "dash.viewer.short": "View only · {name} books and pays",
+  "viewer.bookByMain": "Booking and sign-ups are made by the main account.",
+  "viewer.priceGroup": "Group lessons: {n} pts per child",
+  "account.subtitleViewer": "{name}'s family account (view only)",
+  "account.profileMain": "Main account ({name})",
+  "points.buy.afterAssess": "Points can be bought once a swimmer has had the Swim Assessment.",
+  "dash.trial.title": "Swim Assessment",
+  "dash.trial.paid": "Paid. {name}'s Swim Assessment is booked: {when}, Coach {coach}. It is in your schedule.",
+  "dash.trial.paidPlain": "Paid. The Swim Assessment is booked and in your schedule.",
+  "dash.trial.cancelled": "The payment was not finished. The time is held for a short while: open Schedule and tap Pay Now to finish, or cancel it there.",
+  "dash.trial.bookedLine": "Assessment booked · {when}"
 }

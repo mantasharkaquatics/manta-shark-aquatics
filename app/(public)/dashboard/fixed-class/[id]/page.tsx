@@ -447,8 +447,9 @@ export default function FixedClassPage() {
                           {moved.length > 0 && <li>{t('fixedPage.move.sumMove', { n: moved.length, weekday: weekdayName(pick.weekday), time: formatTime12h(pick.time), date: firstTo ? md(firstTo) : '' })}</li>}
                           {later.length > 0 && <li>{t('fixedPage.move.sumLater', { n: later.length, dates: later.map(i => md(i.to!)).join(locale === 'en' ? ', ' : '、') })}</li>}
                           {other.length > 0 && <li>{t('fixedPage.move.sumOther', { n: other.length, coach: [...new Set(other.map(i => optCoaches.get(i.coachId || '') || ''))].filter(Boolean).join(locale === 'en' ? ', ' : '、') })}</li>}
-                          {vouch.length > 0 && <li>{t('fixedPage.move.sumVoucher', { n: vouch.length })}</li>}
                         </ul>
+                        {/* Not under "N move": those N do not count it (50-role test, 2026-11-05). */}
+                        {vouch.length > 0 && <p style={{ margin: '6px 0 0' }}>{t('fixedPage.move.sumVoucher', { n: vouch.length })}</p>}
                       </div>
                     )
                   })()}

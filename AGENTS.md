@@ -1074,6 +1074,28 @@ the contained problems were fixed the same day. What to keep doing:
   not. TEXT_SIZE_FN clears the size it set before measuring: the measuring
   span inherits it, and without that every run enlarged the last one (one
   step up on the phone reached the 140% cap; owner, 2026-11-05).
+- **The 14-role app test (owner, 2026-11-05)**: 14 roles over the app, 100
+  findings, each re-checked; 72 fixed directly, 10 asked one by one. What
+  to keep doing:
+  - **A sheet drawn into <body> (createPortal) is outside .msa-root**, so
+    the root's classes do not reach it: the lesson sheet carries
+    .msa-viewer itself. `useIsViewer()` (lib/use-viewer.ts) is the one-line
+    way for any page to leave out what a viewer cannot do (課程項目 has no
+    book/join buttons for a viewer, /plans keeps the prices but not the
+    buying, 我的 shows the viewer's own name and whose family it is).
+  - **The language switch never leaves the app**: inside the app every page
+    stays on its bare path and the cookie carries the language
+    (components/Navbar goToLocalisedUrl); /zh-Hant/... pages also carry
+    AppShell and hide the footer, for links opened in the app.
+  - **Android back steps back, never sideways**: the booking's success card
+    leaves the page; a move or a make-up steps back once, then returns to
+    where it came from; the every-week path closes the panel, then the
+    time, then the weekday; FamilyBooking has its own steps (opt, day, way,
+    course, then out).
+  - Back from paying for the assessment (?trial=success / cancelled) the
+    dashboard says so with the lesson; a new swimmer's card says when the
+    assessment is booked; /plans shows no buying until some swimmer is
+    assessed, and its balance is written as 我的 writes it (bought + gift).
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

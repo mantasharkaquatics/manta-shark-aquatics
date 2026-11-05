@@ -20,6 +20,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { useFamilyStatus } from '@/lib/use-family-status'
 import { myFamilyRole } from '@/lib/my-parent'
+import { useIsViewer } from '@/lib/use-viewer'
 import ZellePay from '@/components/ZellePay'
 import { appLook } from '@/lib/native-app'
 
@@ -60,6 +61,7 @@ const css = `
   .p-app-note { margin: 10px 4px 0 !important; }
   /* The same screen on the website, under its floating bar. */
   .p-app.p-web { padding-top: 104px; padding-bottom: 40px; }
+  .p-app-gift { font-size: 12px; font-weight: 800; color: #1f7a57; background: #e6f6ec; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
   .p-toassess { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #fff7e6;
     border: 1px solid #f3dfb4; border-radius: 14px; padding: 12px 14px; margin: 0 0 10px; }
   .p-toassess b { display: block; font-size: 15px; color: ${BRAND.navy}; }
@@ -230,7 +232,7 @@ function TeamButton({ signedIn }: { signedIn: boolean | null }) {
  * dollars and the points are shown side by side at every step -- a parent
  * should never have to work out what a number on this page is worth.
  */
-function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | null; anyAssessed: boolean; app?: boolean }) {
+function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedIn: boolean | null; anyAssessed: boolean; app?: boolean; locked?: boolean }) {
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
@@ -315,8 +317,24 @@ function TopUp({ signedIn, anyAssessed, app = false }: { signedIn: boolean | nul
     setBusy(false)
   }
 
+  // The prices stay readable for a viewer (the page is called 點數與價目), only
+  // the buying goes (50-role test, 2026-11-05).
   if (viewerRole) return (
-    <div className="p-card"><p className="p-fine" style={{ fontSize: 14 }}>{t('viewer.cantPay')}</p></div>
+    <div className="p-card">
+      <p className="p-fine" style={{ fontSize: 14, marginTop: 0 }}>{t('viewer.cantPay')}</p>
+      <ul className="p-fine" style={{ fontSize: 14, margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.8 }}>
+        <li>{t('appinfo.price.private', { a: BASE_POINTS['1on1'], b: BASE_POINTS['1on2'] })}</li>
+        <li>{t('viewer.priceGroup', { n: BASE_POINTS['1on4'] })}</li>
+        <li>{t('points.chip.oneDollar')}</li>
+      </ul>
+    </div>
+  )
+
+  // No swimmer assessed yet: points could not be used, so no buying to start
+  // with -- the box above says whose assessment to book (50-role test,
+  // 2026-11-05: the buttons worked until the checkout refused).
+  if (locked && owed === 0) return (
+    <div className="p-card"><p className="p-fine" style={{ fontSize: 14, margin: 0 }}>{t('points.buy.afterAssess')}</p></div>
   )
 
   return (
@@ -471,11 +489,18 @@ export default function PlansContent() {
      your swimmer", Swim Team band, closing call -- was four and a half
      screens with no balance on it. Visitors keep the full page. */
   const compact = app || signedIn === true
-  const [balance, setBalance] = useState<number | null>(null)
+  const viewer = useIsViewer()
+  // Written as 我的's member card writes it: the points bought, and the gift
+  // apart (50-role test, 2026-11-05: 2,920 here, 2,880 there).
+  const [balance, setBalance] = useState<{ bought: number; gift: number } | null>(null)
   useEffect(() => {
     if (!compact || signedIn !== true) return
     fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null))
-      .then(j => { if (j && typeof j.balance === 'number') setBalance(j.balance) }).catch(() => {})
+      .then(j => {
+        if (!j || typeof j.balance !== 'number') return
+        const gift = Math.max(0, Number(j.balanceGranted) || 0)
+        setBalance({ bought: typeof j.balancePurchased === 'number' ? j.balancePurchased : j.balance - gift, gift })
+      }).catch(() => {})
   }, [compact, signedIn])
   if (compact) return (
     <BrandRoot>
@@ -483,19 +508,19 @@ export default function PlansContent() {
       <div className={'p-app' + (app ? '' : ' p-web')}>
         <div className="p-app-head">
           <h1>{t('points.app.title')}</h1>
-          {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance) })}</p>}
+          {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance.bought) })}{balance.gift > 0 && <> <span className="p-app-gift">{t('dash.pointsGift', { n: num(balance.gift) })}</span></>}</p>}
         </div>
         {/* Only the children still to be assessed, by name (the assessment is paid by card, not points). */}
         {toAssess.length > 0 && (
           <div className="p-toassess">
             <div>
               <b>{t('points.toAssess.title', { names: toAssess.map(k => k.name).join(locale === 'en' ? ' & ' : '、') })}</b>
-              <span>{t('points.toAssess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}</span>
+              <span>{viewer ? t('viewer.bookByMain') : t('points.toAssess.body', { price: money(TRIAL_PRICE_CENTS / 100) })}</span>
             </div>
-            <Link href={'/booking?student=' + toAssess[0].id} className="p-toassess-go">{t('points.toAssess.cta')} →</Link>
+            {!viewer && <Link href={'/booking?student=' + toAssess[0].id} className="p-toassess-go">{t('points.toAssess.cta')} →</Link>}
           </div>
         )}
-        <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app />
+        <TopUp signedIn={signedIn} anyAssessed={anyAssessed} app locked={signedIn === true && !anyAssessed && toAssess.length > 0} />
         <p className="p-fine p-app-note">{t('points.price.hour')}</p>
       </div>
     </BrandRoot>

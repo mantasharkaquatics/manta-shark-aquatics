@@ -2652,10 +2652,25 @@ export default function BookingPage() {
      app would otherwise leave it altogether (lib/app-back.ts). */
   const appBack = useRef<() => boolean>(() => false)
   appBack.current = () => {
-    if (isReschedule || makeUp) return false
-    if (siblingMode) { setSiblingMode(false); window.scrollTo(0, 0); return true }
+    // Done: back leaves the page (to 首頁, the tab's way back), never steps
+    // "into" a booking that has been made -- it emptied the success card
+    // one press at a time (50-role test, 2026-11-05).
+    if (success) return false
+    // A move or a make-up started from 課表 or 我的: one step back, then home
+    // to where it came from, the chosen time kept (50-role test, 2026-11-05).
+    if (isReschedule || makeUp) {
+      if (step === 4) { setStep(3); return true }
+      if (window.history.length > 1) { window.history.back(); return true }
+      router.push(isReschedule ? '/dashboard/schedule' : '/dashboard/me'); return true
+    }
+    // Several children: FamilyBooking steps back through its own steps.
+    if (siblingMode) return false
     if (step === 4) { setStep(3); setRecurPlan([]); return true }
     if (step === 3) {
+      // The every-week panel closes first, then the time, then the weekday;
+      // only then back to 要怎麼上 (50-role test, 2026-11-05).
+      if (wayFlow && way === 'fixed' && recurOpen) { setRecurOpen(false); setSelectedSlot(null); return true }
+      if (wayFlow && way === 'fixed' && fixedDow != null) { setFixedDow(null); setSelectedDate(null); setSelectedSlot(null); return true }
       if (wayFlow && way) { resetWay(); return true }
       setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()); return true
     }

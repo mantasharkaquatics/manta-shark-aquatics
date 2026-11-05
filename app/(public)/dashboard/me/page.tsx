@@ -138,7 +138,7 @@ export default function MePage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const app = useSyncExternalStore(noSubscribe, appLook, () => false)
-  const [me, setMe] = useState<{ name: string; email: string } | null>(null)
+  const [me, setMe] = useState<{ name: string; email: string; family?: string } | null>(null)
   const [role, setRole] = useState<'main' | 'full' | 'viewer' | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [kids, setKids] = useState<Kid[]>([])
@@ -156,6 +156,7 @@ export default function MePage() {
       if (!user) { router.replace('/login?next=/dashboard/me'); return }
       const [pid, r] = await Promise.all([myParentId(supabase, user.id), myFamilyRole(supabase)])
       let name = ''
+      let familyFirst = ''
       let ks: Kid[] = []
       if (pid) {
         const [{ data }, { data: st }] = await Promise.all([
@@ -163,12 +164,17 @@ export default function MePage() {
           supabase.from('students').select('id, full_name, current_level').eq('parent_id', pid).eq('is_active', true).order('sort_order'),
         ])
         name = [data?.first_name, data?.last_name].filter(Boolean).join(' ')
+        familyFirst = String(data?.first_name || '')
         ks = (st || []) as Kid[]
       }
+      // A second guardian or a view-only member is not the parents row: their
+      // own name, as the dashboard greets them (50-role test, 2026-11-05).
+      const um = user.user_metadata || {}
+      if (r && r !== 'main' && um.first_name) name = [um.first_name, um.last_name].filter(Boolean).map(String).join(' ')
       if (!live) return
       setRole(r)
       setKids(ks)
-      setMe({ name, email: user.email || '' })
+      setMe({ name, email: user.email || '', family: familyFirst })
       const get = (u: string) => fetch(u, { cache: 'no-store' }).then(x => (x.ok ? x.json() : null)).catch(() => null)
       const [w, f, v, tm] = await Promise.all([r === 'viewer' ? null : get('/api/parent/wallet'), get('/api/parent/fixed-classes'),
         get('/api/parent/vouchers'), get('/api/parent/team-memberships')])
@@ -258,6 +264,7 @@ export default function MePage() {
             onClick={() => (viewer ? router.push('/dashboard/account') : wallet && setSheet('points'))}>
             <span className="t">{t('me.card.member')}</span>
             <span className="n">{name}</span>
+            {viewer && me?.family && <span className="low" style={{ color: '#cfe0ff' }}>{t('dash.viewer.short', { name: me.family })}</span>}
             {!viewer && <span className="p">
               <b>{wallet ? wallet.balancePurchased.toLocaleString() : '—'}</b><span className="u">{t('dash.pointsUnit')}</span>
               {wallet && wallet.balanceGranted > 0 && <span className="g">{t('dash.pointsGift', { n: wallet.balanceGranted.toLocaleString() })}</span>}

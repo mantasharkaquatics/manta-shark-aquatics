@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
 import GlobalChat from '@/components/GlobalChat'
+import AppShell from '@/components/AppShell'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { FONT_BODY } from '@/lib/brand'
 import { footerLocations } from '@/lib/public-locations'
@@ -61,8 +62,11 @@ export default async function LocaleLayout({
         <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
           {children}
         </main>
-        <Footer locations={pools} />
+        {/* As in (public)/layout.tsx: a /zh-Hant/... link opened inside the
+            phone app still gets the app's bars, never the website footer. */}
+        <div className="msa-web-only"><Footer locations={pools} /></div>
         <GlobalChat />
+        <AppShell />
       </div>
     </LocaleProvider>
   )
