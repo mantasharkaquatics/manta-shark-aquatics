@@ -237,6 +237,10 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
   min-height: 54px; padding: 6px 3px; border: 0; border-radius: 12px; background: rgba(255,255,255,0.12); color: #fff; font-family: inherit;
   font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; cursor: pointer }
 .msa-mcard-tiles button.wide { flex-grow: 1.35 }
+.msa-mcard-first p { margin: 10px 2px 8px; font-size: 13px; line-height: 1.45; color: #c9d6ec }
+.msa-mcard-first button { width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: #f09800; color: #12254a; font: inherit; font-size: 15.5px; font-weight: 900; cursor: pointer }
+.msa-mcard-first button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
+.sw-stage + .msa-mcard-first p { margin-top: 0 }
 .msa-mcard-tiles i { font-style: normal; font-size: 18px; line-height: 1 }
 .msa-mcard-tiles span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere }
 .msa-mcard-tiles .msa-new-dot { position: absolute; top: 4px; right: 4px; margin: 0 }
@@ -3406,7 +3410,7 @@ export default function DashboardPage() {
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
                   {stage}
-                  {(hasLevel || hasPast || monthly.length > 0 || !viewer || trialB) && (
+                  {(hasLevel || hasPast || monthly.length > 0 || trialB) && (
                     <div className="msa-mcard-tiles">
                       {hasLevel && (
                         <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
@@ -3436,12 +3440,15 @@ export default function DashboardPage() {
                           <span>{t('dash.trial.bookedLine', { when: fmtDate(new Date(trialB.session_date + 'T12:00:00Z'), intlOf(locale), { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) + ' ' + formatTime(trialB.start_time) })}</span>
                         </button>
                       )}
-                      {/* A new swimmer with nothing booked yet: the one thing to do next. */}
-                      {!hasLevel && !hasPast && !booked && !viewer && (
-                        <button type="button" className="tap-auto wide" onClick={() => router.push('/booking?student=' + student.id)}>
-                          <i aria-hidden="true">📅</i><span>{t('assess.cta.button')}</span>
-                        </button>
-                      )}
+                    </div>
+                  )}
+                  {/* A new swimmer with nothing booked yet: the one thing to do
+                      next, said and in amber (owner, 2026-11-05, 決定 3 選項 A).
+                      The deck counts this line, so the picture gives way. */}
+                  {!hasLevel && !hasPast && !booked && !viewer && (
+                    <div className="msa-mcard-first">
+                      <p>{t('dash.firstStep')}</p>
+                      <button type="button" className="tap-auto" onClick={() => router.push('/booking?student=' + student.id)}>{t('assess.cta.button')} →</button>
                     </div>
                   )}
                   {hasLevel && report && creditLive(report) && (

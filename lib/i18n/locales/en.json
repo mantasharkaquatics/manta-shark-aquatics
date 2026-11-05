@@ -2746,5 +2746,6 @@
   "push.settings.smsNote": "While the app can notify you, lesson reminders, pool closures and waitlist offers come as app notifications instead of text messages. Turn reminders off here and they come by text again.",
   "booking.aria.notOpen": ", not open yet",
   "booking.aria.hasTimes": ", has open times",
-  "chat.fromMe": "You:"
+  "chat.fromMe": "You:",
+  "dash.firstStep": "First step: a 30-minute one-on-one assessment that sets the level to start at."
 }

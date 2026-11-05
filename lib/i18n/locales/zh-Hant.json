@@ -2746,5 +2746,6 @@
   "push.settings.smsNote": "App 收得到通知時，上課提醒、停課和候補通知會改用 App 通知，不再傳簡訊；在這裡關掉上課提醒，就會改回簡訊。",
   "booking.aria.notOpen": "，尚未開放",
   "booking.aria.hasTimes": "，有空位",
-  "chat.fromMe": "您："
+  "chat.fromMe": "您：",
+  "dash.firstStep": "第一步：30 分鐘一對一評估，決定從哪一級開始。"
 }

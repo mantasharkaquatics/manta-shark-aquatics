@@ -1115,6 +1115,11 @@ the contained problems were fixed the same day. What to keep doing:
     page's 確認續報 opens a confirm (who, when, coach, points taken and
     left). Joining another family's code asks too: the accept route takes
     `preview: true` and answers whose code it is without linking.
+  - **A new swimmer's home card leads to the assessment** (owner, 2026-11-05,
+    決定 3 選項 A): one line (dash.firstStep) and a full-width amber
+    預約游泳評估 → under the picture (`.msa-mcard-first`); the deck counts
+    it, so the picture shrinks and 首頁 stays one screen. Once booked, the
+    tile row says 評估已預約 · when.
   - The check-in QR says which lesson it is for, that check-in opens 30
     minutes before, and who else has a lesson today; 我的's QR opens the
     one swimmer with a lesson today directly, else lists them first.
