@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
-import { APP_DETECT_SCRIPT } from '@/lib/native-app'
+import { APP_DETECT_INLINE } from '@/lib/native-app'
 import AppBridge from "@/components/AppBridge";
 import { SITE_OG_IMAGE } from "@/lib/og";
 import { placeName } from "@/lib/location-place";
@@ -89,7 +89,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: APP_DETECT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: APP_DETECT_INLINE }} />
       </head>
       <body className="min-h-full flex flex-col">
         <ScrollRestoration />

@@ -78,7 +78,7 @@ export default function AppBridge() {
         document.body.appendChild(box)
         const [a, b] = [...box.querySelectorAll('span')].map(x => Math.round(x.getBoundingClientRect().height * 10) / 10)
         box.remove()
-        const report = { bodyPx, htmlAdjust: h.style.webkitTextSizeAdjust || null, data: h.getAttribute('data-text-size'), plain16: a, adjusted150: b, ua: navigator.userAgent.slice(0, 160) }
+        const report = { bodyPx, headScript: typeof (window as unknown as { __msaTextSize?: unknown }).__msaTextSize, htmlAdjust: h.style.webkitTextSizeAdjust || null, data: h.getAttribute('data-text-size'), plain16: a, adjusted150: b, ua: navigator.userAgent.slice(0, 160) }
         fetch('/api/app/diag', { method: 'POST', body: JSON.stringify(report), keepalive: true }).catch(() => {})
       } catch { /* a look only */ }
     }, 3000)

@@ -132,9 +132,20 @@ export const APP_DETECT_SCRIPT =
   // The website's home page is not part of the app (owner, 2026-11-03: it
   // left customers on a page with no way back): the 首頁 tab instead, which
   // sends a signed-out family on to the login page (proxy.ts).
-  `if(/^\\/(zh-Hant|zh-Hans)?\\/?$/.test(location.pathname))location.replace('/dashboard');` +
+  // Plain comparisons, no regular expression (see APP_DETECT_INLINE below).
+  `var pth=location.pathname;if(pth==='/'||pth==='/zh-Hant'||pth==='/zh-Hans'||pth==='/zh-Hant/'||pth==='/zh-Hans/')location.replace('/dashboard');` +
   `window.__msaTextSize=${TEXT_SIZE_FN};window.__msaTextSize();document.addEventListener('DOMContentLoaded',function(){window.__msaTextSize()});` +
   `var f=function(){var m=document.querySelector('meta[name="viewport"]');if(m&&!/viewport-fit/.test(m.content))m.content+=', viewport-fit=cover'};f();document.addEventListener('DOMContentLoaded',f)}}catch(e){}`
+
+/* What the root layout puts in <head>: the script above, base64-encoded and
+   run from there. Inline as plain text, the production build lost a piece
+   of it -- from the class name's closing quote through the 首頁 redirect
+   (seen 2026-11-05 in the live page: classList.add('msa-appwindow...'), a
+   syntax error, so none of it ran: no text size, no redirect from the
+   website's home page). Base64 has no quotes or slashes for anything on
+   the way to rewrite; the local dev server never showed it. */
+export const APP_DETECT_INLINE =
+  `try{new Function(atob('${typeof btoa === 'function' ? btoa(APP_DETECT_SCRIPT) : Buffer.from(APP_DETECT_SCRIPT).toString('base64')}'))()}catch(e){}`
 
 /** Inside the app with the app look on (see APP_DETECT_SCRIPT). */
 export const appLook = () => typeof document !== 'undefined' && document.documentElement.classList.contains(APP_CLASS)
