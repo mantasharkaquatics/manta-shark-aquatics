@@ -1166,6 +1166,16 @@ the contained problems were fixed the same day. What to keep doing:
     own purple chip 上課須知, never under 健康; coaches see a 上課須知 flag and
     the text, the desk sees it on Members. Same readers as medical_notes;
     the AI never gets either.
+  - **One kind of time button (owner, 2026-11-05, 決定 8 選項 A)**: every
+    list of times in booking -- every week, one at a time, the
+    assessment, a move, a make-up, 30 or 60 minutes, one child or several --
+    is `AmPmColumns` (app/(public)/booking/parts.tsx): 上午 left, 下午 right,
+    09:10 / 02:00 (`hh12`). Several children booked one lesson at a time
+    pick the day on `MonthCalendar` (parts.tsx), drawn like the one-child
+    calendar (open days dotted, the 14-day legend), not a row of date
+    chips. The one-child calendar in page.tsx keeps its own extras (coach
+    dots, locked days, vouchers, other pools); keep the two looking alike.
+    The group class's week grid is its own layout and was not changed.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

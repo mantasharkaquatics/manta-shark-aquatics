@@ -11,7 +11,7 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import { openChat } from '@/lib/chat-open'
 import { APP_BACK_EVENT } from '@/lib/app-back'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS, AmPmColumns, MonthCalendar, hh12 } from './parts'
 import { fmtDate } from '@/lib/fmt-date'
 
 /* Several of the family's swimmers booked together (owner, 2026-11-03),
@@ -60,8 +60,6 @@ const later = (t: string, steps: number) => toHm(toMin(t) + SLOT_STEP_MINUTES * 
 const addDays = (ds: string, n: number) => { const d = new Date(ds + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const dowOf = (ds: string) => new Date(ds + 'T12:00:00Z').getUTCDay()
 const t12 = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}` }
-/** 09:10, 02:00 -- for a list already headed 上午 / 下午 (as the one-child page). */
-const hh12 = (tm: string) => { const [h, m] = tm.slice(0, 5).split(':').map(Number); return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}` }
 const scrollTo = (el: HTMLElement | null) => { if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
 function perms<T>(a: T[]): T[][] { return a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p])) }
 
@@ -445,18 +443,10 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
               })}
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '2px 2px 8px' }}>
-              {singleDays.map(d => {
-                const has = (countFor.get(d) || 0) > 0, on = day === d
-                return (
-                  <button key={d} type="button" disabled={!has} aria-pressed={on} onClick={() => { setDay(d); reset('day') }}
-                    style={{ flex: '0 0 auto', padding: '10px 12px', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: has ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
-                      border: `1.5px solid ${on ? NAVY : has ? '#d3deec' : '#e3ebf6'}`, background: on ? NAVY : has ? '#fff' : '#f6f9fd', color: on ? '#fff' : has ? NAVY : '#b7c2d4' }}>
-                    {dayLabel(d)}
-                  </button>
-                )
-              })}
-            </div>
+            // The same month calendar as one child's (決定 8 選項 A): only the
+            // days every ticked child can have are open.
+            <MonthCalendar days={singleDays} open={d => (countFor.get(d) || 0) > 0} selected={typeof day === 'string' ? day : null}
+              onPick={d => { setDay(d); reset('day') }} dateTagName={dateLoc} legend={t('booking.lock.legend', { n: SINGLE_BOOKING_DAYS })} />
           )}
           {loading && <p style={{ color: '#56647d', textAlign: 'center' }}>{t('booking.loading')}</p>}
           {!loading && [...countFor.values()].every(v => !v) && (
@@ -485,27 +475,19 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
               {list.length === 0 ? (
                 <p style={{ margin: 0, padding: 18, textAlign: 'center', fontSize: 14, color: '#56647d', background: '#fff', borderRadius: 12, border: '1px dashed #e3ebf6' }}>{t('fam.noTimes')}</p>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginTop: 10, alignItems: 'start' }}>
-                  {([['am', list.filter(o => o.time < '12:00')], ['pm', list.filter(o => o.time >= '12:00')]] as const).map(([half, part]) => (
-                    <section key={half} aria-label={t('booking.fixed.' + half)}>
-                      <div style={{ textAlign: 'center', padding: '6px 4px', borderRadius: 9, background: '#dfe7f3', marginBottom: 8, fontSize: 14, fontWeight: 800, color: NAVY }}>{t('booking.fixed.' + half)}</div>
-                      {part.length === 0 && <p style={{ margin: 0, padding: '14px 6px', textAlign: 'center', fontSize: 13, color: '#7b879c', borderRadius: 10, border: '1px dashed #d3deec' }}>{t('booking.fixed.halfNone')}</p>}
-                      <div style={{ display: 'grid', gap: 8 }}>
-                        {part.map(o => {
-                          const on = opt?.key === o.key && opt.ds === o.ds
-                          return (
-                            <button key={o.key} type="button" onClick={() => pickOpt(o)} aria-pressed={on}
-                              style={{ minHeight: 48, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
-                                border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a', fontVariantNumeric: 'tabular-nums' }}>
-                              <span style={{ display: 'block', fontSize: 16, fontWeight: 700 }}>{hh12(o.time)}</span>
-                              {o.coachName && <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#56647d' }}>{t('dash.up.coach', { name: o.coachName })}</span>}
-                              {weekly && o.ds !== mainStart && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#56647d', marginTop: 2 }}>{t('booking.fixed.startsOn', { date: mdOf(o.ds) })}</span>}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </section>
-                  ))}
+                <div style={{ marginTop: 10 }}>
+                  <AmPmColumns items={list} time={o => o.time} count={false} render={o => {
+                    const on = opt?.key === o.key && opt.ds === o.ds
+                    return (
+                      <button key={o.key} type="button" onClick={() => pickOpt(o)} aria-pressed={on}
+                        style={{ minHeight: 48, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                          border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ display: 'block', fontSize: 16, fontWeight: 700 }}>{hh12(o.time)}</span>
+                        {o.coachName && <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#56647d' }}>{t('dash.up.coach', { name: o.coachName })}</span>}
+                        {weekly && o.ds !== mainStart && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#56647d', marginTop: 2 }}>{t('booking.fixed.startsOn', { date: mdOf(o.ds) })}</span>}
+                      </button>
+                    )
+                  }} />
                 </div>
               )}
             </div>

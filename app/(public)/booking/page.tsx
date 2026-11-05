@@ -26,7 +26,7 @@ import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import FamilyBooking from './FamilyBooking'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS } from './parts'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS, AmPmColumns, hh12 } from './parts'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 import LoadFailed from '@/components/LoadFailed'
@@ -1814,12 +1814,6 @@ export default function BookingPage() {
     const id = requestAnimationFrame(() => scrollTo(fixedTimesRef.current))
     return () => cancelAnimationFrame(id)
   }, [fixedDow])
-  /** 9:10 -> "09:10", 14:00 -> "02:00": a 12-hour clock with two-digit
-   *  hours and no AM/PM, for a list already headed 上午 / 下午. */
-  const hh12 = (tm: string) => {
-    const [h, m] = tm.slice(0, 5).split(':').map(Number)
-    return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  }
   /** The every-week path (BK15): which weekday, then which time on it. The
    *  fixed-class panel below takes it from there (start, which dates, total). */
   function renderFixedPicker() {
@@ -3613,8 +3607,7 @@ export default function BookingPage() {
                           <p style={{ color: '#56647d', fontSize: '14px', margin: 0 }}>{t('booking.noHourOptions')}</p>
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
-                          {rows.map((h: any) => {
+                        <AmPmColumns items={rows} time={h => String(h.start_time)} render={h => {
                             const o = h.pick
                             // By date and time: basket keys carry the coach (2026-10-05).
                             const sel = hourBasket ? !!basketAt(localDs(selectedDate), h.start_time) : selectedHour?.start_time === h.start_time
@@ -3648,7 +3641,7 @@ export default function BookingPage() {
                                 )}
                                 {/* Start time only, as the 30-minute grid shows it.
                                     The end time is in the summary once one is picked. */}
-                                {formatTime(h.start_time)}
+                                {hh12(h.start_time)}
                                 {!isReschedule && !makeUp && h.points != null && (
                                   <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : '#9aa6ba' }}>
                                     {t('points.unit', { n: nf(h.points) })}
@@ -3669,8 +3662,7 @@ export default function BookingPage() {
                                 <CoachNames ids={(h.opts as { coach1_id: string }[]).map(x => x.coach1_id)} first={h.pick?.coach1_id} />
                               </button>
                             )
-                          })}
-                        </div>
+                          }} />
                       )}
                       {(() => {
                         const cur = selectedHour ? rows.find((h: any) => h.start_time === selectedHour.start_time) : null
@@ -3820,8 +3812,7 @@ export default function BookingPage() {
                       {batchFlow && (
                         <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                       )}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
-                        {times.map(tm => {
+                      <AmPmColumns items={times} time={tm => tm} render={tm => {
                           const ids = day[tm]
                           const hit0 = basketAt(ds0, tm)
                           const inBasket = batchFlow && !!hit0
@@ -3848,7 +3839,7 @@ export default function BookingPage() {
                                 color: on ? GOLD : affordable0 ? '#16294a' : '#9aa6ba',
                                 fontSize: '15px', fontWeight: 700, cursor: affordable0 ? 'pointer' : 'not-allowed', fontVariantNumeric: 'tabular-nums',
                               }}>
-                              {inBasket ? '✓ ' : ''}{formatTime(tm)}
+                              {inBasket ? '✓ ' : ''}{hh12(tm)}
                               {pr && <PriceTag price={pr} dim={!affordable0} onlyOff />}
                               {pr?.offPeak && (
                                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: '#56647d', marginTop: '3px' }}>{t('booking.offPeak')}</div>
@@ -3858,8 +3849,7 @@ export default function BookingPage() {
                                 first={chosenCoach || spreadPick(ds0, ids)} />
                             </button>
                           )
-                        })}
-                      </div>
+                        }} />
                       {curShown && (
                         <div style={{ marginTop: '12px', background: '#fff', border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 14px' }}>
                           <div style={{ fontSize: '13.5px', color: '#56647d', marginBottom: '10px' }}>
@@ -3903,8 +3893,7 @@ export default function BookingPage() {
                   {batchFlow && (
                     <div style={{ fontSize: '13px', color: '#56647d', marginBottom: '8px' }}>{t('booking.oneADay')}</div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' }}>
-                    {(lessonLength === 60 ? [] : shownTimeSlots).map(slot => {
+                  {lessonLength !== 60 && <AmPmColumns items={shownTimeSlots} time={slot => slot.time} render={slot => {
                       const ds0 = selectedDate ? localDs(selectedDate) : ''
                       // This grid is ONE coach's times: only that coach's lesson
                       // shows ticked here (found 2026-10-05).
@@ -3950,7 +3939,7 @@ export default function BookingPage() {
                           textAlign: 'center', fontVariantNumeric: 'tabular-nums',
                         }}
                       >
-                        {inBasket ? '✓ ' : ''}{slot.label}
+                        {inBasket ? '✓ ' : ''}{hh12(slot.time)}
                         {(() => {
                           if (isReschedule || isTrial || !selectedDate) return null
                           const pr = priceAt(localDs(selectedDate), slot.time, 30)
@@ -3973,8 +3962,7 @@ export default function BookingPage() {
                       </button>
                       )
                       return waitBtn ? <div key={slot.time}>{cell}{waitBtn}</div> : cell
-                    })}
-                  </div>
+                    }} />}
                   </>
                 )}
                 {elsewhereNote(elsewhereDay(localDs(selectedDate)), r => t('booking.loc.elsewhereDay', {

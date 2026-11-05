@@ -5,7 +5,9 @@
    問題 6 選項 A): the step bar, the answered-step lines, the section titles,
    the choice cards and the course colours and icons. */
 
+import { useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
+import { fmtDate } from '@/lib/fmt-date'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
 const GOLD = BRAND.blue
@@ -122,5 +124,111 @@ export function StepBar({ steps, at }: { steps: string[]; at: number }) {
         ))}
       </ol>
     </>
+  )
+}
+
+/** 9:10 -> "09:10", 14:00 -> "02:00": a 12-hour clock with two-digit hours
+ *  and no AM/PM, for a list already headed 上午 / 下午. */
+export const hh12 = (tm: string) => {
+  const [h, m] = String(tm).slice(0, 5).split(':').map(Number)
+  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/* Every list of times in booking is two columns, morning left and afternoon
+   right, each time as 09:10 / 02:00 (owner, 2026-11-02 for every week;
+   2026-11-05, 決定 8 選項 A: single lessons, one child or several, the
+   assessment, a move and a make-up too -- one kind of time button). A
+   column on a wide screen holds more than one time per row. */
+export function AmPmColumns<T>({ items, time, render, count = true }: {
+  items: T[]; time: (x: T) => string; render: (x: T) => React.ReactNode; count?: boolean
+}) {
+  const t = useT()
+  const halves = [['am', items.filter(x => String(time(x)).slice(0, 5) < '12:00')], ['pm', items.filter(x => String(time(x)).slice(0, 5) >= '12:00')]] as const
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', alignItems: 'start' }}>
+      {halves.map(([half, part]) => (
+        <section key={half} aria-label={t('booking.fixed.' + half)}>
+          <div style={{ textAlign: 'center', padding: '6px 4px', borderRadius: '9px', background: '#dfe7f3', marginBottom: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: BRAND.navy }}>{t('booking.fixed.' + half)}</span>
+            {count && <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#56647d', marginLeft: '6px' }}>{t('booking.fixed.count', { n: part.length })}</span>}
+          </div>
+          {part.length === 0 && (
+            <p style={{ margin: 0, padding: '14px 6px', textAlign: 'center', fontSize: '13px', color: '#7b879c', borderRadius: '10px', border: '1px dashed #d3deec' }}>{t('booking.fixed.halfNone')}</p>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+            {part.map(x => render(x))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/* A month calendar of dates to pick from, drawn like the one-child booking
+   calendar (決定 8 選項 A): several children booked one lesson at a time
+   used to get a sideways row of date chips instead. `days` are the dates
+   that may be offered (YYYY-MM-DD, in order); `open` says which have a time.
+   The first month starts on the Sunday of the first day's week. */
+export function MonthCalendar({ days, open, selected, onPick, dateTagName, legend }: {
+  days: string[]; open: (ds: string) => boolean; selected: string | null; onPick: (ds: string) => void; dateTagName: string | string[] | undefined; legend?: string
+}) {
+  const t = useT()
+  const months = [...new Set(days.map(d => d.slice(0, 7)))]
+  const [mi, setMi] = useState(() => Math.max(0, selected ? months.indexOf(selected.slice(0, 7)) : 0))
+  const ym = months[Math.min(mi, months.length - 1)]
+  if (!ym) return null
+  const [y, m] = ym.split('-').map(Number)
+  const inSet = new Set(days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const last = new Date(y, m, 0).getDate()
+  // The first month starts on the Sunday of the first offered day's week
+  // (days of the month before it are left blank), the others on the 1st.
+  const startDay = mi === 0 && days[0] ? Number(days[0].slice(8, 10)) : 1
+  const from = startDay - new Date(y, m - 1, startDay).getDay()
+  const cells: (string | null)[] = []
+  for (let d = from; d <= last; d++) cells.push(d < 1 ? null : `${ym}-${pad(d)}`)
+  const today = new Date(); const todayDs = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+  const navBtn = (dir: -1 | 1, can: boolean, label: string) => (
+    <button type="button" onClick={() => can && setMi(mi + dir)} disabled={!can} aria-label={label}
+      style={{ background: 'transparent', border: 'none', color: can ? '#56647d' : '#9aa6ba', fontSize: '22px', cursor: can ? 'pointer' : 'default', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {dir < 0 ? '‹' : '›'}
+    </button>
+  )
+  return (
+    <div style={{ background: '#fff', borderRadius: '16px', padding: '14px 12px', border: '1px solid #e3ebf6' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        {navBtn(-1, mi > 0, t('booking.cal.prevMonth'))}
+        <span style={{ fontSize: '16px', fontWeight: 700, color: '#16294a' }}>{t('booking.calMonth', { month: t('date.month.' + m), year: y })}</span>
+        {navBtn(1, mi < months.length - 1, t('booking.cal.nextMonth'))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '8px' }}>
+        {[0, 1, 2, 3, 4, 5, 6].map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: '#56647d', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+        {cells.map((ds, j) => {
+          if (!ds) return <div key={'e' + j} />
+          const ok = inSet.has(ds) && open(ds)
+          const on = selected === ds
+          const isToday = ds === todayDs
+          const dt = new Date(Number(ds.slice(0, 4)), Number(ds.slice(5, 7)) - 1, Number(ds.slice(8, 10)))
+          return (
+            <button key={ds} type="button" className="kb-focus" aria-pressed={on} aria-disabled={!ok || undefined}
+              aria-current={isToday ? 'date' : undefined}
+              aria-label={fmtDate(dt, dateTagName, { weekday: 'long', month: 'long', day: 'numeric' }) + (ok ? t('booking.aria.hasTimes') : '')}
+              onClick={() => { if (ok && !on) onPick(ds) }}
+              style={{ padding: '10px 4px', minHeight: '48px', borderRadius: '10px', border: '2px solid transparent', fontFamily: 'inherit',
+                background: on ? BRAND.navy : 'transparent', color: on ? '#fff' : ok ? BRAND.navy : '#b7c2d4',
+                fontSize: '16px', fontWeight: on ? 700 : ok ? 600 : 500, cursor: ok ? 'pointer' : 'not-allowed',
+                outline: isToday && !on ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px' }}>
+              {Number(ds.slice(8, 10))}
+              {ok && !on && <span aria-hidden="true" style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', background: AMBER, margin: '2px auto 0' }} />}
+            </button>
+          )
+        })}
+      </div>
+      {legend && <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: '12.5px', color: '#56647d', lineHeight: 1.5 }}>{legend}</p>}
+    </div>
   )
 }
