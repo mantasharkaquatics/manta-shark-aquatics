@@ -92,10 +92,8 @@ const CSS = `
   padding: 10px 16px calc(16px + var(--app-sab, env(safe-area-inset-bottom, 0px))) }
 .sw-sheet.on { transform: none }
 .sw-grab { width: 38px; height: 5px; border-radius: 3px; background: #d3dbe7; margin: 0 auto 10px }
-.sw-top { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.sw-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; touch-action: none }
 .sw-top b { font-size: 17px }
-.sw-done { height: 36px; min-height: 36px; padding: 0 18px; border-radius: 999px; border: 0; background: #f09800; color: #12254a;
-  font: inherit; font-weight: 800; font-size: 14.5px; cursor: pointer }
 .sw-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 2px 4px; scrollbar-width: none }
 .sw-tabs::-webkit-scrollbar { display: none }
 .sw-tabs button { flex: 1 0 auto; height: 34px; min-height: 34px; padding: 0 9px; border-radius: 999px; border: 1px solid #dbe4f0;
@@ -480,7 +478,8 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
         <div className="sw-grab" aria-hidden="true" />
         <div className="sw-top">
           <b id="sw-sheet-t">{t('swimmer.dress')}</b>
-          <button type="button" className="sw-done tap-auto" onClick={closeSheet}>{t('swimmer.done')}</button>
+          {/* The round ✕ every sheet has (決定 9); closing saves, as 完成 did. */}
+          <button type="button" className="msa-sheet-x tap-auto" onClick={closeSheet} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
         </div>
         <div className="sw-tabs" role="tablist">
           {TABS.map(k => (

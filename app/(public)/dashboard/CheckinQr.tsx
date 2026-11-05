@@ -54,7 +54,7 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
   // 決定 5: "點開才會顯示 QR code, 有點慢").
   const [made, setMade] = useState<{ id: string; url: string }>(() => ({ id: student.id, url: cachedQr(student.id) }))
   const qrDataUrl = made.id === student.id && made.url ? made.url : cachedQr(student.id)
-  const box = useDialogFocus(true)
+  const box = useDialogFocus(true, onClose)
 
   useEffect(() => {
     if (cachedQr(student.id)) return
@@ -75,50 +75,19 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
     a.click()
   }
 
+  // Pop-up kind ①, a sheet (決定 9): the title is the swimmer, the ✕ top right.
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: '20px',
-      }}
-    >
-      <div
-        ref={box}
-        onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')}
-        style={{
-          background: '#fff', borderRadius: '20px',
-          border: '1px solid #e3ebf6',
-          padding: '36px', maxWidth: '360px', width: '100%',
-          textAlign: 'center', position: 'relative',
-        }}
-      >
-        {/* Close button. Named, or a screen reader says "times". */}
-        <button
-          onClick={onClose}
-          className="tap-auto"
-          aria-label={t('common.close')}
-          style={{
-            position: 'absolute', top: '16px', right: '16px',
-            background: '#eef2f8', border: 'none',
-            borderRadius: '50%', width: '32px', height: '32px',
-            color: '#56647d', fontSize: '16px',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        ><span aria-hidden="true">×</span></button>
-
-        {/* Header */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '6px' }}>
-            {t('dash.qr.eyebrow')}
-          </div>
-          <div style={{ fontFamily: FONT_DISPLAY, fontSize: '22px', fontWeight: 900, color: '#16294a' }}>
-            {student.full_name}
-          </div>
-          {lesson && <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', marginTop: '4px' }}>{t('dash.qr.today', { lesson })}</div>}
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()}
+        role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')} style={{ background: '#fff', textAlign: 'center' }}>
+        <div className="msa-sheet-head" style={{ background: '#fff' }}>
+          <span style={{ textAlign: 'left', minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '2px' }}>{t('dash.qr.eyebrow')}</span>
+            <b style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{student.full_name}</b>
+          </span>
+          <button type="button" className="msa-sheet-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
         </div>
+        {lesson && <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', margin: '-4px 0 14px' }}>{t('dash.qr.today', { lesson })}</div>}
 
         {/* QR Code */}
         <div style={{

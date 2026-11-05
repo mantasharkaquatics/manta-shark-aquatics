@@ -3,26 +3,8 @@
    in the page. */
 /** The sheet's styles (also used by the assessment sheet on /dashboard). */
 export const REPORT_SHEET_CSS = `
-.msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  /* The first moment after opening takes no taps: a quick double tap on the
-     button that opened it used to land on the dim area and close it again
-     (2026-11-04). */
-  animation: msa-sheet-guard .35s }
-@keyframes msa-sheet-guard { from, to { pointer-events: none } }
-.msa-sheet { background: #f6f9fd; border: 1px solid #e3ebf6; border-radius: 18px; box-shadow: 0 30px 60px rgba(14,29,59,0.3);
-  width: 100%; max-width: 520px; max-height: 86vh; max-height: 86dvh; overflow-y: auto; padding: 20px;
-  overscroll-behavior: contain }
-/* The title and close button stay at the top while the sheet scrolls, and the
-   sheet is measured against the screen actually visible (dvh): on an iPhone
-   88vh is taller than the space left by Safari's bars, which cut the title
-   off the top of the records sheet (owner, 2026-10-26). */
-.msa-sheet-head { display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: -20px; z-index: 2; margin: -20px -20px 14px; padding: 16px 20px 10px;
-  background: #f6f9fd; border-radius: 18px 18px 0 0 }
-.msa-sheet-head b { font-size: 17px; color: #12254a }
-.msa-sheet-x { width: 34px; height: 34px; border-radius: 9px; border: none; background: #e8eef7;
-  color: #34435e; font-size: 16px; cursor: pointer }
+/* .msa-sheet-back / .msa-sheet / .msa-sheet-head / .msa-sheet-x live in
+   app/globals.css now: every information sheet uses them (決定 9). */
 .msa-report-hero { background: linear-gradient(135deg, #12254a, #1d3f7a); border-radius: 16px; padding: 18px; color: #fff }
 .msa-report-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #9fb8e6; text-transform: uppercase }
 .msa-report-name { font-family: var(--font-display), 'PingFang TC', serif; font-size: 26px; font-weight: 900; margin-top: 8px; line-height: 1.15 }
@@ -51,8 +33,4 @@ export const REPORT_SHEET_CSS = `
 .msa-report-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 12px 0 8px }
 .msa-report-segs i { height: 7px; border-radius: 4px; background: #cfe8d8 }
 .msa-report-segs i.on { background: #2e9d6a }
-@media (max-width: 640px) {
-  .msa-sheet-back { align-items: flex-end; padding: 0 }
-  .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; max-height: 88dvh; padding-bottom: calc(20px + env(safe-area-inset-bottom)) }
-}
 `

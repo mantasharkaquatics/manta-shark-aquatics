@@ -27,6 +27,7 @@ import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
 import FamilyBooking from './FamilyBooking'
 import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, COURSE_ICONS, AmPmColumns, hh12 } from './parts'
+import Sheet from '@/components/ui/Sheet'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { MascotEmpty, MascotLoading, MascotTip } from '@/components/MascotHelper'
 import LoadFailed from '@/components/LoadFailed'
@@ -3334,27 +3335,16 @@ export default function BookingPage() {
           const o = new Date(lockSheet + 'T12:00:00Z'); o.setUTCDate(o.getUTCDate() - SINGLE_DAYS)
           const opens = o.toISOString().slice(0, 10)
           return (
-            <div role="presentation" onClick={() => setLockSheet(null)}
-              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(18,37,74,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-              <div role="dialog" aria-modal="true" aria-labelledby="bk-lock-t" onClick={e => e.stopPropagation()}
-                onKeyDown={e => { if (e.key === 'Escape') setLockSheet(null) }}
-                style={{ width: '100%', maxWidth: '520px', background: '#fff', borderRadius: '22px 22px 0 0', padding: '22px 20px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -10px 30px rgba(18,37,74,.2)' }}>
-                <div id="bk-lock-t" style={{ fontSize: '18px', fontWeight: 800, color: NAVY, lineHeight: 1.4 }}>
-                  {t('booking.lock.title', { date: mdOf(lockSheet) })}
-                </div>
-                <p style={{ margin: '8px 0 18px', fontSize: '14.5px', color: '#3c4b66', lineHeight: 1.65 }}>
-                  {t('booking.lock.body', { n: SINGLE_DAYS, date: mdOf(lockSheet), opens: mdOf(opens) })}
-                </p>
-                <button type="button" autoFocus onClick={() => { const d = dowOfDs(lockSheet); chooseWay('fixed'); toFixedTimes.current = true; setFixedDow(d) }}
-                  style={{ width: '100%', minHeight: '48px', borderRadius: '12px', border: 'none', background: AMBER, color: NAVY, fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
-                  {t('booking.lock.toFixed')}
-                </button>
-                <button type="button" onClick={() => setLockSheet(null)}
-                  style={{ width: '100%', minHeight: '44px', marginTop: '8px', borderRadius: '12px', border: '1px solid #e3ebf6', background: '#fff', color: '#56647d', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
-                  {t('booking.lock.ok')}
-                </button>
-              </div>
-            </div>
+            // Pop-up kind ①, a sheet (決定 9).
+            <Sheet title={t('booking.lock.title', { date: mdOf(lockSheet) })} onClose={() => setLockSheet(null)}>
+              <p style={{ margin: '0 0 18px', fontSize: '14.5px', color: '#3c4b66', lineHeight: 1.65 }}>
+                {t('booking.lock.body', { n: SINGLE_DAYS, date: mdOf(lockSheet), opens: mdOf(opens) })}
+              </p>
+              <button type="button" onClick={() => { const d = dowOfDs(lockSheet); chooseWay('fixed'); toFixedTimes.current = true; setFixedDow(d) }}
+                style={{ width: '100%', minHeight: '48px', borderRadius: '12px', border: 'none', background: AMBER, color: NAVY, fontSize: '15px', fontWeight: 800, cursor: 'pointer' }}>
+                {t('booking.lock.toFixed')}
+              </button>
+            </Sheet>
           )
         })()}
 

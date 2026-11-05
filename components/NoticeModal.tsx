@@ -26,16 +26,15 @@ export default function NoticeModal({ title, message, closeLabel, onClose }: {
   if (!message) return null
 
   return (
+    // Pop-up kind ② with one button (決定 9): centred, closed by the button or the dim area.
     <div
       onClick={onClose}
       role="alertdialog"
       aria-modal="true"
-      style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}
+      className="msa-dlg-back"
+      style={{ zIndex: 1100 }}
     >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: '18px', padding: '28px', maxWidth: '400px', width: '100%', boxShadow: '0 30px 60px rgba(14,29,59,0.3)' }}
-      >
+      <div onClick={e => e.stopPropagation()} className="msa-dlg">
         <div style={{ fontFamily: FONT_DISPLAY, fontSize: '21px', fontWeight: 900, color: BRAND.navy, marginBottom: '12px' }}>{title}</div>
         <p style={{ fontSize: '14px', color: BRAND.mute, lineHeight: 1.6, marginBottom: '22px', whiteSpace: 'pre-line' }}>{message}</p>
         <button

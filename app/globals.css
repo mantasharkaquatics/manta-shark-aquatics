@@ -384,3 +384,65 @@ html.msa-app .bk-body { padding-top: 18px !important; padding-bottom: 16px !impo
   html.msa-app .bk-ticks { display: none !important; }
 }
 html.msa-app .bk-steps { margin-bottom: 16px !important; }
+
+/* ---------------------------------------------------------------------------
+   Pop-ups come in three kinds only (owner, 2026-11-05, 決定 9 選項 A; the
+   14-role test found eight looks and eight ways to close):
+   ① information -> a sheet: .msa-sheet-back > .msa-sheet, its head
+      .msa-sheet-head with the title and a round ✕ (.msa-sheet-x). On a phone
+      it rises from the bottom with a grab bar; pulling the head down, a tap
+      on the dim area, Esc and Android back close it (components/ui/Sheet,
+      components/SheetSwipe). On a wide screen it is a centred card.
+   ② a decision -> a centred dialog: .msa-dlg-back > .msa-dlg, the buttons
+      in .msa-dlg-acts, the way out (.msa-dlg-no) on the left and the action
+      (.msa-dlg-yes, amber; .danger red) on the right. A tap on the dim area
+      is the way out (components/ui/ConfirmDialog).
+   ③ a lot to read -> a whole page with ‹ back at the top left; inside the
+      app the tabs stay (the learning map).
+   --------------------------------------------------------------------------- */
+.msa-sheet-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  /* The first moment after opening takes no taps: a quick double tap on the
+     button that opened it used to land on the dim area and close it again
+     (2026-11-04). */
+  animation: msa-sheet-guard .35s }
+@keyframes msa-sheet-guard { from, to { pointer-events: none } }
+.msa-sheet { background: #f6f9fd; border: 1px solid #e3ebf6; border-radius: 18px; box-shadow: 0 30px 60px rgba(14,29,59,0.3);
+  width: 100%; max-width: 520px; max-height: 86vh; max-height: 86dvh; overflow-y: auto; padding: 20px;
+  overscroll-behavior: contain; position: relative }
+/* The title and close button stay at the top while the sheet scrolls, and the
+   sheet is measured against the screen actually visible (dvh): on an iPhone
+   88vh is taller than the space left by Safari's bars, which cut the title
+   off the top of the records sheet (owner, 2026-10-26). */
+.msa-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  position: sticky; top: -20px; z-index: 2; margin: -20px -20px 14px; padding: 16px 20px 10px;
+  background: #f6f9fd; border-radius: 18px 18px 0 0 }
+.msa-sheet-head b, .msa-sheet-head h2 { font-size: 17px; color: #12254a; margin: 0 }
+.msa-sheet-x { flex: none; width: 34px !important; height: 34px !important; min-height: 34px !important; border-radius: 50%; border: none; background: #e8eef7;
+  color: #34435e; font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0 }
+@media (max-width: 640px) {
+  .msa-sheet-back { align-items: flex-end; padding: 0 }
+  .msa-sheet { border-radius: 18px 18px 0 0; max-height: 88vh; max-height: 88dvh; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    animation: msa-sheet-up .22s ease-out }
+  /* The grab bar: pull the head down to close (components/SheetSwipe). */
+  .msa-sheet-head { padding-top: 24px; touch-action: none }
+  .msa-sheet-head::before { content: ''; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px;
+    border-radius: 9px; background: #cfd8e6 }
+}
+@keyframes msa-sheet-up { from { transform: translateY(40px); opacity: .6 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .msa-sheet { animation: none } }
+
+.msa-dlg-back { position: fixed; inset: 0; z-index: 1000; background: rgba(14,29,59,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 20px; animation: msa-sheet-guard .35s }
+.msa-dlg { background: #fff; border: 1px solid #e3ebf6; border-radius: 20px; padding: 26px 24px 22px; width: 100%; max-width: 400px;
+  max-height: 90vh; max-height: 90dvh; overflow-y: auto; box-shadow: 0 30px 60px rgba(14,29,59,0.3) }
+.msa-dlg-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a36100; margin-bottom: 8px }
+.msa-dlg-title { font-family: var(--font-display), 'PingFang TC', serif; font-size: 20px; font-weight: 900; color: #16294a; margin: 0 0 12px; line-height: 1.3 }
+.msa-dlg-body { font-size: 13.5px; color: #56647d; line-height: 1.6; margin: 0 0 20px }
+.msa-dlg-acts { display: flex; gap: 10px }
+.msa-dlg-acts > * { flex: 1 1 0; min-width: 0 }
+.msa-dlg-no, .msa-dlg-yes { min-height: 46px; padding: 10px 12px; border-radius: 10px; font-family: inherit; font-size: 14px; cursor: pointer; line-height: 1.3 }
+.msa-dlg-no { border: 1px solid #d5deeb; background: #fff; color: #34435e; font-weight: 700 }
+.msa-dlg-yes { border: none; background: #f09800; color: #12254a; font-weight: 800 }
+.msa-dlg-yes.danger { background: #c0392b; color: #fff }
+.msa-dlg-yes:disabled, .msa-dlg-no:disabled { opacity: .55; cursor: default }

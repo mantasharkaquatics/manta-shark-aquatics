@@ -153,9 +153,12 @@ const CSS = `
 
 .mst-head { position: sticky; top: 0; z-index: 5; background: #fff;
   border-bottom: 1px solid #e3ebf6; padding: 16px 20px 12px }
-.mst-x { position: absolute; top: 12px; right: 14px; width: 34px; height: 34px; border: none;
-  border-radius: 9px; background: #eef3f9; color: #56647d;
-  font-size: 17px; cursor: pointer; line-height: 1 }
+.mst-back-btn { position: absolute; top: 12px; left: 10px; width: 40px; height: 40px; border: none; border-radius: 50%;
+  background: #eef3f9; color: #12254a; font-size: 26px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 3px }
+.mst-head { padding-left: 60px !important }
+/* Inside the app the map is a page of its own over the top bar, ending
+   above the tabs, which stay (決定 9). */
+html.msa-app .mst-back { bottom: var(--app-tab-now, 0px); background: #fff; backdrop-filter: none; z-index: 61 }
 .mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px }
 .mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.1;
   font-variant-numeric: tabular-nums }
@@ -390,6 +393,12 @@ export default function SkillTree({
   const [card, setCard] = useState<string | null>(null)
   // Focus into the map as it opens and back after (found 2026-10-15).
   const dialogRef = useDialogFocus(true)
+  // In the app the tabs stay under the map (決定 9): tapping one leaves it.
+  useEffect(() => {
+    const onTab = (e: MouseEvent) => { if (e.target instanceof Element && e.target.closest('.msa-tb a, .msa-tb button')) onClose() }
+    document.addEventListener('click', onTab, true)
+    return () => document.removeEventListener('click', onTab, true)
+  }, [onClose])
 
   useEffect(() => {
     let alive = true
@@ -622,7 +631,8 @@ export default function SkillTree({
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="mst-panel" onClick={e => e.stopPropagation()}>
         <div className="mst-head">
-          <button className="mst-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
+          {/* Pop-up kind ③, a whole page (決定 9): ‹ back at the top left. */}
+          <button className="mst-back-btn tap-auto" onClick={onClose} aria-label={t('app.back')}><span aria-hidden="true">‹</span></button>
           <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>

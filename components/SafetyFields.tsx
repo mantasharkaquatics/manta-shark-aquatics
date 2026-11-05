@@ -186,7 +186,7 @@ export function SafetyEditor({ parentPhone, onClose, onSaved }: { parentPhone?: 
             <p style={{ ...S.hint, marginTop: 4 }}>{t('safety.who')}</p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} aria-label={t('common.close')}
-            className="tap-auto" style={{ background: '#e9eff7', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', fontSize: 16, color: BRAND.navy }}>✕</button>
+            className="msa-sheet-x tap-auto"><span aria-hidden="true">✕</span></button>
         </div>
 
         {loadErr ? <p style={S.err}>{t('safety.err.load')}</p> : !info ? <p style={S.hint}>{t('common.loading')}</p> : (

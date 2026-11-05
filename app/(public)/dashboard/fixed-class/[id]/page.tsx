@@ -58,18 +58,13 @@ button.fc-lesson { font-family: inherit; border: 1px solid transparent; cursor: 
 /* Hover only where there is a mouse: on a phone a tapped date or slot kept
    the hover look and read as selected (AGENTS.md; found 2026-10-08). */
 @media (hover: hover) { button.fc-lesson:hover { border-color: #2050a0; background: #fff; } button.fc-lesson.sub:hover { background: #6a52b0; } }
-.fc-leave-back { position: fixed; inset: 0; background: rgba(14,29,59,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-.fc-leave { background: #fff; border-radius: 20px; border: 1px solid #e3ebf6; padding: 28px; max-width: 380px; width: 100%; }
+/* The page's confirms are pop-ups of kind ② (.msa-dlg in globals, 決定 9);
+   these only shape what is inside. */
 .fc-leave .eb { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #c0392b; margin-bottom: 8px; }
 .fc-leave h3 { font-size: 20px; font-weight: 900; color: #16294a; margin: 0 0 14px; }
 .fc-leave .what { background: #f6f9fd; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; font-weight: 600; color: #16294a; }
 .fc-leave .what small { display: block; font-size: 12px; font-weight: 400; color: #56647d; margin-top: 3px; }
 .fc-leave p { font-size: 13px; color: #56647d; line-height: 1.6; margin: 0 0 20px; }
-.fc-leave .row { display: flex; gap: 10px; }
-.fc-leave .row button { flex: 1; padding: 12px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.fc-leave .keep { border: 1px solid #e3ebf6; background: transparent; color: #56647d; }
-.fc-leave .go { border: none; background: #d93825; color: #fff; }
-.fc-leave .go:disabled { opacity: .6; cursor: wait; }
 .fc-sum { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #f6f9fd; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .fc-sum div { display: flex; justify-content: space-between; gap: 12px; }
 .fc-sum span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -397,39 +392,39 @@ export default function FixedClassPage() {
         {msg && <div className="ac-card" style={{ marginBottom: 14 }}><div className={msg.ok ? 'ac-okmsg' : 'fc-warn'} role={msg.ok ? 'status' : 'alert'}>{msg.ok ? '✓ ' : ''}{msg.text}</div>
           {msg.ask && <button type="button" className="ac-btn line" style={{ marginTop: 10 }} onClick={() => openChat('', { about: msg.ask })}>{t('dash.up.messageUs')}</button>}</div>}
         {in24 && fc && (
-          <div className="fc-leave-back" onClick={() => setIn24(null)}>
-            <div ref={in24Box} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-in24-title">
+          <div className="msa-dlg-back" onClick={() => setIn24(null)}>
+            <div ref={in24Box} className="msa-dlg fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-in24-title">
               <div className="eb">{t('fixedPage.in24h')}</div>
               <h3 id="fc-in24-title">{t('fixedPage.in24.title')}</h3>
               <div className="what">{fc.studentNames.join(locale === 'en' ? ' & ' : '、')} · {tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
                 <small>{day(in24.date)} · {formatTime12h(in24.start)}</small></div>
               <p>{t('fixedPage.in24.body')}</p>
-              <div className="row">
-                <button className="keep" onClick={() => { const d = in24; setIn24(null); openChat('', { about: aboutClass(day(d.date, { month: 'short', day: 'numeric', weekday: 'short' }) + ' ' + formatTime12h(d.start)) }) }}>{t('dash.up.messageUs')}</button>
-                <button className="go" style={{ background: '#f09800', color: '#12254a' }} onClick={() => { setIn24(null); router.push('/dashboard/schedule') }}>{t('fixedPage.in24.toSchedule')}</button>
+              <div className="msa-dlg-acts">
+                <button className="msa-dlg-no" onClick={() => { const d = in24; setIn24(null); openChat('', { about: aboutClass(day(d.date, { month: 'short', day: 'numeric', weekday: 'short' }) + ' ' + formatTime12h(d.start)) }) }}>{t('dash.up.messageUs')}</button>
+                <button className="msa-dlg-yes" onClick={() => { setIn24(null); router.push('/dashboard/schedule') }}>{t('fixedPage.in24.toSchedule')}</button>
               </div>
             </div>
           </div>
         )}
         {renewAsk && fc && (
-          <div className="fc-leave-back" onClick={() => !busy && setRenewAsk(false)}>
-            <div ref={renewBox} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-renew-title">
+          <div className="msa-dlg-back" onClick={() => !busy && setRenewAsk(false)}>
+            <div ref={renewBox} className="msa-dlg fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-renew-title">
               <div className="eb" style={{ color: '#2050a0' }}>{t('fixedPage.renew.ask.eyebrow')}</div>
               <h3 id="fc-renew-title">{t('fixedPage.renew.ask.title', { n: ticked.size })}</h3>
               <div className="what">{fc.studentNames.join(locale === 'en' ? ' & ' : '、')} · {tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
                 <small>{t('fixedPage.renew.ask.when', { weekday: weekdayName(fc.weekday), time: formatTime12h(fc.time), coach: fc.coachName })}</small></div>
               <p>{t('fixedPage.renew.ask.body', { points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}</p>
-              <div className="row">
-                <button className="keep" onClick={() => setRenewAsk(false)} disabled={busy}>{t('fam.ask.back')}</button>
-                <button className="go" style={{ background: '#f09800', color: '#12254a' }} disabled={busy}
+              <div className="msa-dlg-acts">
+                <button className="msa-dlg-no" onClick={() => setRenewAsk(false)} disabled={busy}>{t('fam.ask.back')}</button>
+                <button className="msa-dlg-yes" disabled={busy}
                   onClick={async () => { await confirmRenew(); setRenewAsk(false) }}>{busy ? '…' : t('fixedPage.renew.ask.yes')}</button>
               </div>
             </div>
           </div>
         )}
         {leaveFor && fc && (
-          <div className="fc-leave-back" onClick={() => !leaving && setLeaveFor(null)}>
-            <div ref={leaveBox} className="fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-leave-title">
+          <div className="msa-dlg-back" onClick={() => !leaving && setLeaveFor(null)}>
+            <div ref={leaveBox} className="msa-dlg fc-leave" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="fc-leave-title">
               <div className="eb">{t('dash.cancelModal.eyebrowLeave')}</div>
               <h3 id="fc-leave-title">{t('dash.cancelModal.titleLeave')}</h3>
               <div className="what">{tDb(locale, 'course_types', fc.courseTypeId, fc.courseName)}
@@ -439,9 +434,9 @@ export default function FixedClassPage() {
                 from: day(addDays(leaveFor.date, -14) > todayStr ? addDays(leaveFor.date, -14) : todayStr, { month: 'short', day: 'numeric' }),
                 date: day(addDays(leaveFor.date, 14), { month: 'short', day: 'numeric' }),
               })}</p>
-              <div className="row">
-                <button className="keep" onClick={() => setLeaveFor(null)} disabled={leaving}>{t('dash.cancelModal.keepLesson')}</button>
-                <button className="go" onClick={takeLeave} disabled={leaving}>{leaving ? '…' : t('dash.cancelModal.yesLeave')}</button>
+              <div className="msa-dlg-acts">
+                <button className="msa-dlg-no" onClick={() => setLeaveFor(null)} disabled={leaving}>{t('dash.cancelModal.keepLesson')}</button>
+                <button className="msa-dlg-yes danger" onClick={takeLeave} disabled={leaving}>{leaving ? '…' : t('dash.cancelModal.yesLeave')}</button>
               </div>
             </div>
           </div>

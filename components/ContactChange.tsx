@@ -50,14 +50,14 @@ export default function ContactChange({ field, onClose, onDone }: { field: 'emai
 
   const title = t(field === 'email' ? 'account.contact.titleEmail' : 'account.contact.titlePhone')
   return (
-    <div onClick={() => !busy && onClose()}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(10,20,40,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 12px', overflowY: 'auto' }}>
-      <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="cc-title" onClick={e => e.stopPropagation()}
-        style={{ background: '#f7faff', borderRadius: 16, width: '100%', maxWidth: 440, padding: '22px 20px', boxShadow: '0 20px 60px rgba(10,20,40,0.3)', outline: 'none' }}>
+    // A short form: centred like a decision (決定 9), so the phone's keyboard
+    // pushes it up rather than covering it; the round ✕ as on every sheet.
+    <div className="msa-dlg-back" onClick={() => !busy && onClose()}>
+      <div ref={box} tabIndex={-1} className="msa-dlg" role="dialog" aria-modal="true" aria-labelledby="cc-title" onClick={e => e.stopPropagation()}
+        style={{ maxWidth: 440, outline: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <h2 id="cc-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: BRAND.navy }}>{title}</h2>
-          <button type="button" onClick={onClose} disabled={busy} aria-label={t('common.close')} className="tap-auto"
-            style={{ background: '#e9eff7', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', fontSize: 16, color: BRAND.navy }}>✕</button>
+          <button type="button" onClick={onClose} disabled={busy} aria-label={t('common.close')} className="msa-sheet-x tap-auto"><span aria-hidden="true">✕</span></button>
         </div>
 
         {!requestId ? (

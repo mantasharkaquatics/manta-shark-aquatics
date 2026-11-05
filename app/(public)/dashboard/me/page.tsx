@@ -16,6 +16,8 @@ import { fmtDate } from '@/lib/fmt-date'
 import { getTodayLA, formatTime12h } from '@/lib/date'
 import QRModal from '../CheckinQr'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import Sheet from '@/components/ui/Sheet'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -93,14 +95,9 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
   color: ${BRAND.mute}; cursor: pointer; }
 .mx-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; border-radius: 8px; }
 /* Whose QR, when there is more than one swimmer. */
-.mx-pick { position: fixed; inset: 0; z-index: 90; background: rgba(10,22,48,.45); display: flex; align-items: flex-end; justify-content: center; }
-.mx-pick > div { width: 100%; max-width: 480px; background: #fff; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + var(--app-sab, 0px)); }
-.mx-pick h2 { font-size: 17px; font-weight: 800; color: ${BRAND.navy}; margin: 0 0 12px; }
-.mx-pick a, .mx-pick button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 12px;
+/* 我的's choice of swimmer is a sheet (決定 9): its rows. */
+.mx-pick-list button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 12px;
   background: #f4f7fb; border: 0; font: inherit; font-size: 15.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
-.mx-pick-p { font-size: 14px; color: ${BRAND.mute}; margin: -4px 0 14px; line-height: 1.5; }
-.mx-pick button.danger { justify-content: center; background: #fdecea; color: #c0392b; }
-.mx-pick button.x { justify-content: center; background: none; color: ${BRAND.mute}; margin: 0; }
 /* A short phone: tighter, so it still fits. */
 @media (max-height: 720px) {
   .mx { padding-top: 4px; padding-bottom: 0; }
@@ -159,8 +156,7 @@ export default function MePage() {
      suggestion box, and the sign-out question. */
   const [sheet, setSheet] = useState<null | 'points' | 'refer' | 'suggest' | 'out'>(null)
   // Focus into each sheet, kept there, and back to its button on close (50-role test, 2026-11-05).
-  const sheetBox = useDialogFocus(sheet === 'points' || sheet === 'refer' || sheet === 'out', () => setSheet(null))
-  const pickBox = useDialogFocus(pickQr, () => setPickQr(false))
+  const sheetBox = useDialogFocus(sheet === 'points' || sheet === 'refer', () => setSheet(null))
   const [plans, setPlans] = useState<{ fixed: Fixed[]; vouchers: Voucher[]; team: Team[]; at: number } | null>(null)
 
   useEffect(() => {
@@ -386,31 +382,25 @@ export default function MePage() {
         </div>
       )}
       {sheet === 'suggest' && <SuggestionSheet onClose={() => setSheet(null)} />}
+      {/* A decision: kind ② (決定 9), the way out left, 登出 right. */}
       {sheet === 'out' && (
-        <div className="mx-pick" onClick={() => setSheet(null)}>
-          <div ref={sheetBox} role="dialog" aria-modal="true" aria-label={t('me.out.ask')} onClick={e => e.stopPropagation()}>
-            <h2>{t('me.out.ask')}</h2>
-            <p className="mx-pick-p">{t('me.out.body')}</p>
-            <button type="button" className="danger" onClick={signOut}>{t('nav.signOut')}</button>
-            <button type="button" className="x" onClick={() => setSheet(null)}>{t('common.cancel')}</button>
-          </div>
-        </div>
+        <ConfirmDialog id="me-out" title={t('me.out.ask')} noLabel={t('common.cancel')} yesLabel={t('nav.signOut')} danger
+          onNo={() => setSheet(null)} onYes={signOut}>{t('me.out.body')}</ConfirmDialog>
       )}
       {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} lesson={today[qrKid.id] ? formatTime12h(today[qrKid.id]) : null}
         others={kids.filter(k => k.id !== qrKid.id && today[k.id]).map(k => k.full_name)} />}
+      {/* Whose code: a choice to look at, kind ① (決定 9). */}
       {pickQr && (
-        <div className="mx-pick" onClick={() => setPickQr(false)}>
-          <div ref={pickBox} role="dialog" aria-modal="true" aria-label={t('me.qr.pick')} onClick={e => e.stopPropagation()}>
-            <h2>{t('me.qr.pick')}</h2>
+        <Sheet title={t('me.qr.pick')} onClose={() => setPickQr(false)} className="mx-picksheet">
+          <div className="mx-pick-list">
             {[...kids].sort((a, b) => (today[a.id] ? 0 : 1) - (today[b.id] ? 0 : 1)).map(k => (
               <button key={k.id} type="button" className="tap-auto" onClick={() => { setPickQr(false); setQrKid(k) }} style={today[k.id] || Object.keys(today).length === 0 ? undefined : { opacity: 0.6 }}>
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>{k.full_name}
                   {Object.keys(today).length > 0 && <small style={{ fontSize: 12, fontWeight: 700, color: today[k.id] ? '#1f7a57' : '#56647d' }}>{today[k.id] ? t('me.qr.todayAt', { time: formatTime12h(today[k.id]) }) : t('me.qr.noneToday')}</small>}
                 </span><span aria-hidden="true">›</span></button>
             ))}
-            <button type="button" className="x" onClick={() => setPickQr(false)}>{t('common.cancel')}</button>
           </div>
-        </div>
+        </Sheet>
       )}
     </div>
   )

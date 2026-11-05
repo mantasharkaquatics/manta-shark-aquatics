@@ -1176,6 +1176,23 @@ the contained problems were fixed the same day. What to keep doing:
     chips. The one-child calendar in page.tsx keeps its own extras (coach
     dots, locked days, vouchers, other pools); keep the two looking alike.
     The group class's week grid is its own layout and was not changed.
+  - **Three kinds of pop-up, no others (owner, 2026-11-05, 決定 9 選項 A)**:
+    ① something to look at is a sheet -- `components/ui/Sheet` or the
+    `.msa-sheet-back > .msa-sheet > .msa-sheet-head` classes (title, round
+    ✕ `.msa-sheet-x`); on a phone it rises from the bottom with a grab bar,
+    and pulling the head down closes it (`components/SheetSwipe`, mounted
+    in the (public) layout; it also knows the lesson sheet and 換造型). No
+    關閉 / 完成 / 知道了 buttons at the foot: the ✕, the dim area, the pull,
+    Esc and Android back. ② a decision is a centred dialog --
+    `components/ui/ConfirmDialog` or `.msa-dlg-back > .msa-dlg` with
+    `.msa-dlg-acts`: the way out (`.msa-dlg-no`) left, the action
+    (`.msa-dlg-yes`, `.danger` for red) right; short forms (changing the
+    phone or email) are centred too. ③ a lot to read is a page with ‹ back
+    top left: the learning map, which inside the app covers the top bar
+    and ends above the tabs (a tab tapped leaves it). The styles live in
+    app/globals.css. The check-in QR, the lesson detail, the vouchers, a
+    day of the month view and the booking page's "not open yet" are sheets;
+    我的's 登出 is a ConfirmDialog; its 'whose QR' is a Sheet.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the

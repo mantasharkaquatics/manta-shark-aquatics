@@ -385,7 +385,8 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 @keyframes msa-lsheet-in { from { transform: translateY(40px); opacity: .4 } }
 @media (prefers-reduced-motion: reduce) { .msa-lsheet { animation: none } }
 .msa-lsheet-grab { width: 40px; height: 5px; border-radius: 9px; background: #d5deea; margin: 0 auto 14px }
-.msa-lsheet-h { font-size: 13.5px; font-weight: 800; color: #56647d; margin-bottom: 8px }
+.msa-lsheet-h { font-size: 13.5px; font-weight: 800; color: #56647d }
+.msa-lsheet-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; touch-action: none }
 .msa-lsheet .msa-lesson { display: flex !important; flex-direction: column; align-items: stretch; gap: 10px; border: 0 !important; padding: 0 !important; background: transparent !important }
 .msa-lsheet .msa-lesson-meta { font-size: 15px; line-height: 1.6 }
 .msa-lsheet .msa-lesson-name { font-size: 24px }
@@ -406,7 +407,6 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 .msa-lsheet-more { display: flex; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e3ebf6 }
 .msa-lsheet-more button { flex: 1; min-height: 46px; border: 0; border-radius: 12px; background: #eef3fa; color: #2050a0; font: inherit;
   font-size: 15px; font-weight: 800; cursor: pointer }
-.msa-lsheet-more button:last-child { background: transparent; color: #56647d; border: 1px solid #e3ebf6 }
 .msa-lsheet-more button:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px }
 .msa-day-head:first-child { margin-top: 0 }
 /* Stated once in the heading above, so the card does not repeat it: not as a
@@ -2983,17 +2983,17 @@ export default function DashboardPage() {
 
       {/* Info Modal */}
       {infoModal && (
-        <div onClick={() => setInfoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" aria-describedby="dash-info-msg" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+        <div className="msa-dlg-back" onClick={() => setInfoModal(null)}>
+          <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" aria-describedby="dash-info-msg" className="msa-dlg">
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: infoModal.eyebrow ? '#a36100' : '#c0392b', marginBottom: '8px' }}>{infoModal.eyebrow || t('common.notice')}</div>
             <div id="dash-info-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
             <p id="dash-info-msg" style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setInfoModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+            <div className="msa-dlg-acts">
+              <button onClick={() => setInfoModal(null)} className="msa-dlg-no">
                 {infoModal.closeLabel || t('common.close')}
               </button>
               {infoModal.onAction && (
-                <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                <button onClick={() => { setInfoModal(null); infoModal.onAction?.() }} className="msa-dlg-yes">
                   {infoModal.actionLabel || t('common.ok')}
                 </button>
               )}
@@ -3008,11 +3008,12 @@ export default function DashboardPage() {
         const closeSheet = () => { setVoucherSheet(false); setVoucherKey(null) }
         const inArrears = (wallet?.arrears || 0) > 0
         return (
-        <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={voucherBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '28px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <div style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</div>
-              <button onClick={closeSheet} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#56647d', cursor: 'pointer' }}>×</button>
+        // Pop-up kind ①, a sheet (決定 9).
+        <div className="msa-sheet-back" onClick={closeSheet}>
+          <div ref={voucherBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', maxWidth: '440px' }}>
+            <div className="msa-sheet-head" style={{ background: '#fff', marginBottom: '6px' }}>
+              <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</h2>
+              <button type="button" className="msa-sheet-x tap-auto" onClick={closeSheet} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
             </div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, margin: '0 0 16px' }}>{t('voucher.sheetHint')}</p>
             {/* A wallet in arrears books nothing, a make-up included (owner,
@@ -3066,8 +3067,8 @@ export default function DashboardPage() {
 
       {/* Cancel Confirm Modal */}
       {cancelTarget && (
-        <div onClick={() => setCancelTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={cancelBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-cancel-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+        <div className="msa-dlg-back" onClick={() => setCancelTarget(null)}>
+          <div ref={cancelBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-cancel-title" className="msa-dlg">
             {/* Inside 24 hours it says so in its title and button, not only in
                 the body (owner, 2026-11-05, 決定 1 選項 A). */}
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#c0392b', marginBottom: '8px' }}>{t(cancelTarget.type === 'reject' ? 'dash.cancelModal.eyebrowReject' : cancelTarget.kind === 'grace' ? 'dash.cancelModal.eyebrowGrace' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.eyebrowLeave' : 'dash.cancelModal.eyebrowCancel')}</div>
@@ -3113,8 +3114,8 @@ export default function DashboardPage() {
                 </button>
               </p>
             )}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setCancelTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+            <div className="msa-dlg-acts">
+              <button onClick={() => setCancelTarget(null)} className="msa-dlg-no">
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.keepInvitation' : 'dash.cancelModal.keepLesson')}
               </button>
               {/* The modal closes at once and the row shows "..." while the
@@ -3136,8 +3137,8 @@ export default function DashboardPage() {
 
       {/* Reschedule Confirm Modal */}
       {rescheduleTarget && (
-        <div onClick={() => setRescheduleTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={rescheduleBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-res-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+        <div className="msa-dlg-back" onClick={() => setRescheduleTarget(null)}>
+          <div ref={rescheduleBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-res-title" className="msa-dlg">
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
             <div id="dash-res-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
             <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
@@ -3148,11 +3149,11 @@ export default function DashboardPage() {
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
               {t('dash.resModal.body')}
             </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleTarget(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+            <div className="msa-dlg-acts">
+              <button onClick={() => setRescheduleTarget(null)} className="msa-dlg-no">
                 {t('dash.cancelModal.keepLesson')}
               </button>
-              <button onClick={confirmReschedule} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: AMBER, color: NAVY, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={confirmReschedule} className="msa-dlg-yes">
                 {t('dash.resModal.confirm')}
               </button>
             </div>
@@ -3683,20 +3684,20 @@ export default function DashboardPage() {
       <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
       <NoticeModal title={t('dash.trial.title')} message={trialMsg} closeLabel={t('common.close')} onClose={() => setTrialMsg(null)} />
       {rescheduleActionModal && (
-        <div onClick={() => setRescheduleActionModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div ref={resActionBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-resaction-title" style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e3ebf6', padding: '32px', maxWidth: '380px', width: '100%' }}>
+        <div className="msa-dlg-back" onClick={() => setRescheduleActionModal(null)}>
+          <div ref={resActionBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-resaction-title" className="msa-dlg">
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resAction.eyebrow')}</div>
             <div id="dash-resaction-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{rescheduleActionModal.title}</div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{rescheduleActionModal.message}</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRescheduleActionModal(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{t('dash.up.cancel')}</button>
+            <div className="msa-dlg-acts">
+              <button onClick={() => setRescheduleActionModal(null)} className="msa-dlg-no">{t('dash.up.cancel')}</button>
               <button onClick={async () => {
                 const id = rescheduleActionModal.bookingId
                 setRescheduleActionModal(null)
                 const res = await fetch('/api/bookings/reject-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: id }) })
                 if (res.ok) await fetchAll({ progress: false })
                 else { const j = await res.json().catch(() => ({})); setNotice(errText(j.error, 'err.generic')) }
-              }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('dash.resAction.confirm')}</button>
+              }} className="msa-dlg-yes danger">{t('dash.resAction.confirm')}</button>
             </div>
           </div>
         </div>
@@ -3844,12 +3845,13 @@ export default function DashboardPage() {
                   const rows = byDate[daySheet] || []
                   const dateStr = fmtDate(new Date(daySheet + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })
                   return (
-                    <div className="msa-sheet-wrap" onClick={() => setDaySheet(null)}
-                      style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div className="msa-sheet-back" onClick={() => setDaySheet(null)}>
                       <div ref={dayBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-day-title"
-                        style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '18px 20px 24px', width: '100%', maxWidth: '420px', maxHeight: '78vh', overflowY: 'auto' }}>
-                        <div style={{ width: '38px', height: '4px', borderRadius: '2px', background: '#eef2f8', margin: '0 auto 14px' }} />
-                        <div id="dash-day-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</div>
+                        style={{ background: '#fff', maxWidth: '440px' }}>
+                        <div className="msa-sheet-head" style={{ background: '#fff', marginBottom: '2px' }}>
+                          <h2 id="dash-day-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</h2>
+                          <button type="button" className="msa-sheet-x tap-auto" onClick={() => setDaySheet(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
+                        </div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '14px' }}>
                           {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
                         </div>
@@ -3868,8 +3870,6 @@ export default function DashboardPage() {
                             <span style={{ color: '#9aa6ba', fontSize: '15px', flexShrink: 0 }}>›</span>
                           </button>
                         ))}
-                        <button onClick={() => setDaySheet(null)}
-                          style={{ marginTop: '10px', width: '100%', padding: '12px', background: 'transparent', border: '1px solid #e3ebf6', borderRadius: '10px', color: '#56647d', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
                       </div>
                     </div>
                   )
@@ -4245,17 +4245,17 @@ export default function DashboardPage() {
                           </div>
                           {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
                           {pendingCancelConfirm === booking.id && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                              <div ref={pendCancelBox} role="dialog" aria-modal="true" aria-labelledby="dash-pend-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+                            <div className="msa-dlg-back" onClick={() => { if (pendingPayBusy !== booking.id) setPendingCancelConfirm(null) }}>
+                              <div ref={pendCancelBox} className="msa-dlg" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-pend-title">
                                 <div id="dash-pend-title" style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
                                 <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '20px' }}>
                                   {t('dash.pend.cancelBody')}
                                 </div>
-                                <div style={{ display: 'flex', gap: '10px' }}>
+                                <div className="msa-dlg-acts">
                                   <button
                                     onClick={() => setPendingCancelConfirm(null)}
                                     disabled={pendingPayBusy === booking.id}
-                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                                    className="msa-dlg-no">
                                     {t('dash.pend.keep')}
                                   </button>
                                   <button
@@ -4270,7 +4270,7 @@ export default function DashboardPage() {
                                       setPendingPayBusy(null); setPendingCancelConfirm(null)
                                     }}
                                     disabled={pendingPayBusy === booking.id}
-                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#d93825', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                                    className="msa-dlg-yes danger">
                                     {pendingPayBusy === booking.id ? t('dash.pend.cancelling') : t('dash.cancelModal.yesCancel')}
                                   </button>
                                 </div>
@@ -4383,9 +4383,14 @@ export default function DashboardPage() {
                         if ((e.target as HTMLElement).closest('.msa-lesson button')) window.setTimeout(() => setLessonSheet(null), 0)
                       }}>
                       <div className="msa-lsheet-grab" aria-hidden="true" />
-                      <div id="msa-lsheet-h" className="msa-lsheet-h">
-                        {fmtDate(new Date(sheetB.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
-                        {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
+                      {/* The date, and the round ✕ every sheet has (決定 9: the
+                          關閉 at the bottom is gone). */}
+                      <div className="msa-lsheet-top">
+                        <div id="msa-lsheet-h" className="msa-lsheet-h">
+                          {fmtDate(new Date(sheetB.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
+                          {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
+                        </div>
+                        <button type="button" className="msa-sheet-x tap-auto" onClick={() => setLessonSheet(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
                       </div>
                       {renderLesson(sheetB, true)}
                       <div className="msa-lsheet-more">
@@ -4396,7 +4401,6 @@ export default function DashboardPage() {
                           setLessonSheet(null)
                           chatAbout(sheetB)
                         }}>{t('dash.up.messageUs')}</button>
-                        <button type="button" className="tap-auto" onClick={() => setLessonSheet(null)}>{t('common.close')}</button>
                       </div>
                     </div>
                   </div>, document.body) : null
@@ -4470,16 +4474,18 @@ export default function DashboardPage() {
             const seatPts = seats ? (seats.length > 0 ? seats.reduce((a, x) => a + (x.points_charged ?? 0), 0) : null) : b.points_charged
             const funding = b.is_trial ? t('common.assessment') : b.voucher_id ? t('dash.funding.voucher') : seatPts != null ? t('points.unit', { n: seatPts * (b._hour ? 2 : 1) }) : '—'
             return (
-              <div onClick={() => setLessonDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(14,29,59,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div ref={detailBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', border: '1px solid #e3ebf6', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '380px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <div>
-                      <div id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</div>
+              // Pop-up kind ①, a sheet (決定 9): title and ✕ on top, no 關閉 at the foot.
+              <div className="msa-sheet-back" onClick={() => setLessonDetail(null)}>
+                <div ref={detailBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', maxWidth: '420px' }}>
+                  <div className="msa-sheet-head" style={{ background: '#fff', alignItems: 'flex-start' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <h2 id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</h2>
                       {b.level_min != null && b.level_max != null && (
                         <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
                       )}
                     </div>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '12px', color: statusColor, background: statusColor + '22', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                    <button type="button" className="msa-sheet-x tap-auto" onClick={() => setLessonDetail(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
                   </div>
                   {[
                     // Row labels were hard-coded English (found 2026-10-05).
@@ -4499,14 +4505,10 @@ export default function DashboardPage() {
                   <PoolDetails id={b.location_id} />
                   {/* Late, ill, a question about this one: straight to the desk,
                       with the lesson (50-role test, 2026-11-05). */}
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-                    {b.status !== 'cancelled' && (
-                      <button onClick={() => { setLessonDetail(null); chatAbout(b) }}
-                        style={{ flex: 1, padding: '12px', background: '#f09800', border: 0, borderRadius: '10px', color: '#12254a', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{t('dash.up.messageUs')}</button>
-                    )}
-                    <button onClick={() => setLessonDetail(null)}
-                      style={{ flex: 1, padding: '12px', background: '#fff', border: '1px solid #d5e0ef', borderRadius: '10px', color: '#16294a', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>{t('common.close')}</button>
-                  </div>
+                  {b.status !== 'cancelled' && (
+                    <button onClick={() => { setLessonDetail(null); chatAbout(b) }}
+                      style={{ width: '100%', marginTop: '18px', padding: '12px', background: '#f09800', border: 0, borderRadius: '10px', color: '#12254a', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>{t('dash.up.messageUs')}</button>
+                  )}
                 </div>
               </div>
             )

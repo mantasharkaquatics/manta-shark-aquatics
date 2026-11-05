@@ -3,6 +3,7 @@ import Footer from '@/components/Footer'
 import ActivityPing from '@/components/ActivityPing'
 import GlobalChat from '@/components/GlobalChat'
 import AppShell from '@/components/AppShell'
+import SheetSwipe from '@/components/SheetSwipe'
 import { FONT_BODY } from '@/lib/brand'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { footerLocations } from '@/lib/public-locations'
@@ -24,6 +25,7 @@ export default async function PublicLayout({ children }: { children: React.React
           when it sat in the body directly. */}
       {/* The app's bars come before the page in reading order (back first). */}
       <AppShell />
+      <SheetSwipe />
       <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
         {children}
       </main>
