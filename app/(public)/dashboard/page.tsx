@@ -4307,7 +4307,9 @@ export default function DashboardPage() {
             /* "10:55a" rather than "10:55 AM". The pool runs 6am to 9pm, so 6
                through 9 happen twice a day and the meridiem cannot just be
                dropped -- but one letter of it is enough, and three did not fit. */
-            const t12c = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; return `${h12}:${String(m).padStart(2, '0')}${h >= 12 ? 'p' : 'a'}` }
+            // A month cell's time: 上9:40 / 下3:35 in Chinese, 9:40a / 3:35p in
+            // English (owner, 2026-11-06, run-2 J48 選項 A).
+            const t12c = (t?: string) => { if (!t) return ''; const [h, m] = String(t).slice(0, 5).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; const hm = `${h12}:${String(m).padStart(2, '0')}`; return locale === 'en' ? hm + (h >= 12 ? 'p' : 'a') : (h >= 12 ? '下' : '上') + hm }
             const MAX_PER_DAY = 3
             // Month and weekday names from Intl in the reader's language; they
             // were hard-coded English (found 2026-10-05).
@@ -4376,7 +4378,7 @@ export default function DashboardPage() {
                               style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center', overflow: 'hidden',
                               border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
                               background: isPast ? '#f6f9fd' : `${GOLD}14` }}>
-                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', overflowWrap: 'anywhere', lineHeight: 1.2, color: isPast ? '#56647d' : '#16294a' }}>
+                              <span style={{ display: 'block', fontSize: '9.5px', fontWeight: 800, letterSpacing: '-0.3px', whiteSpace: 'nowrap', lineHeight: 1.2, color: isPast ? '#56647d' : '#16294a' }}>
                                 {t12c(b.start_time)}{b.checked_in ? ' ✓' : ''}
                               </span>
                               {students.length > 1 && (
