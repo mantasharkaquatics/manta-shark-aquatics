@@ -1264,6 +1264,21 @@ the contained problems were fixed the same day. What to keep doing:
     ours, opens again after each check-in, confirms a swimmer not on its
     list after asking the server (`preview: true`), and says "already
     checked in" calmly.
+  - **The seven decisions (owner, 2026-11-06)**: J10 寫給我們 is 意見箱 (an
+    envelope, who reads it up front, a line to 訊息 for leave and lesson
+    changes). J19 the sign-up SMS text says the passcode is needed to create
+    an account and STOP moves texts to email without touching buying or
+    lessons (no "not a condition of purchase"; /sms-terms and the privacy
+    policy agree; lawyer draft). J48 a month cell reads 上9:40 / 下3:35 in
+    Chinese, 9:40a in English, never split. J56 the refund FAQ and /plans
+    line exist but show only with CASH_REFUND_ENABLED (lib/faq.ts). J61 one
+    photo switch still; the release says it can be turned off in My Account
+    and the agreed version is kept (parents.media_release_version,
+    docs/migration-media-version.sql), shown to the family and the desk.
+    J65 改期 opens the move directly (no dialog first); the weekly panel's
+    取消 is 重選時間, the flow otherwise as on 2026-11-02. J87 "cannot cancel
+    online" shows the lesson, the day the month's pass went (graceUsedOn)
+    and that a missed lesson's points are not returned.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).
