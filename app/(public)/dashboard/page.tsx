@@ -1425,7 +1425,7 @@ export default function DashboardPage() {
     return k ? t(k) : (raw || t(fallbackKey))
   }
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
-  const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string } | null>(null)
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string; lesson?: Booking } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
   // Every swimmer's check-in code, drawn ahead (once, while online) so 報到
   // opens at once and still opens with no connection at the pool (J72).
@@ -1563,6 +1563,8 @@ export default function DashboardPage() {
   // two facts every lesson's leave/cancel button depends on.
   const [vouchers, setVouchers] = useState<MakeUpVoucher[]>([])
   const [graceUsed, setGraceUsed] = useState<Set<string>>(new Set())
+  // The lesson each child's grace went on this month (run-2 J87).
+  const [graceOn, setGraceOn] = useState<Record<string, { date: string; time: string | null }>>({})
   const [voucherSheet, setVoucherSheet] = useState(false)
   /* Which child's vouchers the sheet shows -- null for all of them. Each child
      gets their own card under 我的方案 (owner, 2026-10-03). */
@@ -1574,6 +1576,7 @@ export default function DashboardPage() {
       const j = await r.json()
       setVouchers(j.vouchers || [])
       setGraceUsed(new Set(j.graceUsed || []))
+      setGraceOn(j.graceUsedOn || {})
     } catch {}
   }, [])
   useEffect(() => { loadVouchers() }, [loadVouchers])
@@ -2850,10 +2853,15 @@ export default function DashboardPage() {
   // Why a lesson inside 24 hours can't be cancelled online. Silence here reads
   // as a bug -- the button greys out with nothing to explain it -- so the
   // greyed control becomes a "contact us" button carrying the real reason.
-  const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null; student_name?: string }) =>
-    b.partner_booking_id
-      ? t('dash.up.cancelPairHelp')
-      : t('dash.up.graceUsedHelp', { name: (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean).join(' & ') })
+  // Which day the month's pass went on, and what not coming means (owner,
+  // 2026-11-06, run-2 J87 選項 A).
+  const lateLockHelp = (b: { course_slug?: string | null; partner_booking_id?: string | null; student_name?: string; student_id?: string | null }) => {
+    if (b.partner_booking_id) return t('dash.up.cancelPairHelp')
+    const name = joinList(locale, (b.student_name || '').split(',').map(x => x.trim()).filter(Boolean))
+    const on = b.student_id ? graceOn[b.student_id] : undefined
+    const when = on ? fmtDate(new Date(on.date + 'T12:00:00Z'), intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' }) + (on.time ? ' ' + formatTime(on.time) : '') : ''
+    return (when ? t('dash.up.graceUsedOnHelp', { name, when }) : t('dash.up.graceUsedHelp', { name })) + '\n' + t('dash.up.noShowNote')
+  }
   /* The inviter's own row of a 1-on-2 invitation the other family has not
      accepted yet (the invited family's row carries pending_action 'confirm'
      and is answered in the invitations box). Nothing has been charged, so the
@@ -2978,7 +2986,7 @@ export default function DashboardPage() {
   const openChatOr = (msg: string, title?: string, b?: Booking) => {
     setInfoModal({
       title: title || t('dash.up.cancelLocked'),
-      message: msg,
+      message: msg, lesson: b,
       actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(b),
     })
   }
@@ -3135,8 +3143,8 @@ export default function DashboardPage() {
                         </button>
                       ) : late ? (
                         <button
-                          onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }), undefined, m)}
-                          title={lateLockHelp({ ...m, student_name: spentName })}
+                          onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName, student_id: pair.find(x => graceUsed.has(x.student_id || ''))?.student_id || m.student_id }), undefined, m)}
+                          title={lateLockHelp({ ...m, student_name: spentName, student_id: pair.find(x => graceUsed.has(x.student_id || ''))?.student_id || m.student_id })}
                           style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                           {t('dash.up.cancelLocked')}
                         </button>
@@ -3505,7 +3513,15 @@ export default function DashboardPage() {
           <div ref={infoBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-info-title" aria-describedby="dash-info-msg" className="msa-dlg">
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: infoModal.eyebrow ? '#a36100' : '#c0392b', marginBottom: '8px' }}>{infoModal.eyebrow || t('common.notice')}</div>
             <div id="dash-info-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{infoModal.title}</div>
-            <p id="dash-info-msg" style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>{infoModal.message}</p>
+            {/* Which lesson, as the cancel dialog shows it (run-2 J87). */}
+            {infoModal.lesson && (
+              <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+                {infoModal.lesson.student_name && <div style={{ fontSize: '14px', fontWeight: 800, color: '#16294a', marginBottom: '2px' }}>{infoModal.lesson.student_name}</div>}
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '2px' }}>{infoModal.lesson.is_trial ? t('common.assessment') : infoModal.lesson.course_type_id ? tDb(locale, 'course_types', infoModal.lesson.course_type_id, infoModal.lesson.course_name) : infoModal.lesson.course_name}</div>
+                <div style={{ fontSize: '12.5px', color: '#56647d' }}>{fmtDate(new Date(infoModal.lesson.session_date + 'T12:00:00Z'), intlOf(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })} · {formatTime(infoModal.lesson.start_time)}</div>
+              </div>
+            )}
+            <p id="dash-info-msg" style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px', whiteSpace: 'pre-line' }}>{infoModal.message}</p>
             <div className="msa-dlg-acts">
               <button onClick={() => setInfoModal(null)} className="msa-dlg-no">
                 {infoModal.closeLabel || t('common.close')}

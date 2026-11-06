@@ -1683,7 +1683,7 @@
   "voucher.book": "Book with voucher",
   "dash.up.leave": "Take leave",
   "dash.up.leaveLate": "Take leave (within 24h)",
-  "dash.up.graceUsedHelp": "This lesson starts within 24 hours and {name} has already used this month's late-cancel pass, so it can't be cancelled online. Message us if something has come up.",
+  "dash.up.graceUsedHelp": "This lesson starts within 24 hours and {name}'s late-cancel pass for this month has been used, so it can't be cancelled online.",
   "dash.tag.fixed": "Fixed class",
   "dash.tag.makeUp": "Make-up",
   "dash.team.everyDay": "Every day",
@@ -2824,5 +2824,7 @@
   "faq.a.refund": "Yes. Points you paid for and have not spent can be refunded at any time at $1 per point, with no deadline and no fee, in whole or in part. Ask in Messages in the app or at the front desk; our staff process it to the original payment method, and cash paid at the desk is refunded in cash at the desk. Points already spent on lessons (including late cancellations and no-shows), make-up vouchers and points the school added are not refundable. The User Agreement has the full terms.",
   "points.buy.refundLink": "Unused points can be refunded",
   "account.media.version": " (version {v})",
-  "booking.recur.close": "Pick another time"
+  "booking.recur.close": "Pick another time",
+  "dash.up.graceUsedOnHelp": "This lesson starts within 24 hours and {name}'s late-cancel pass for this month was used on the {when} lesson, so it can't be cancelled online.",
+  "dash.up.noShowNote": "If the lesson is missed, its points are not returned. If your child is ill, message us first."
 }

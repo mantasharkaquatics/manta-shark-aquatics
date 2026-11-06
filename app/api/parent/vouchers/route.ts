@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
-import { graceUsedThisMonth, monthOfDate } from '@/lib/vouchers'
+import { graceUsedThisMonth, graceUsedOn, monthOfDate } from '@/lib/vouchers'
 
 export const runtime = 'nodejs'
 
@@ -34,7 +34,8 @@ export async function GET() {
       : { data: [] as any[] }
     const sessOf = new Map((srcSessions || []).map((s: any) => [s.id, s]))
     const lessonOf = new Map((srcBookings || []).map((b: any) => [b.id, sessOf.get(b.class_session_id) as any]))
-    const used = await graceUsedThisMonth(svc, (kids || []).map((k: any) => k.id), today)
+    const kidIds = ((kids || []) as { id: string }[]).map(k => k.id)
+    const [used, usedOn] = await Promise.all([graceUsedThisMonth(svc, kidIds, today), graceUsedOn(svc, kidIds, today).catch(() => ({}))])
     return NextResponse.json({
       vouchers: (vs || []).map((v: any) => ({
         id: v.id, studentId: v.student_id, student2Id: v.student2_id,
@@ -45,6 +46,7 @@ export async function GET() {
       })),
       graceMonth: monthOfDate(today),
       graceUsed: [...used],
+      graceUsedOn: usedOn,
     })
   } catch (e) {
     console.error('parent/vouchers failed:', e)

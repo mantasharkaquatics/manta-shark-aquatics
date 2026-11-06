@@ -111,6 +111,33 @@ export async function graceUsedThisMonth(svc: Svc, studentIds: string[], today: 
   return out
 }
 
+/** The lesson each child's grace this month was used on, as date and time
+ *  (run-2 J87: the "cannot cancel online" box says which day). Two steps,
+ *  not a nested join. Children without one are absent. */
+export async function graceUsedOn(svc: Svc, studentIds: string[], today: string = getTodayLA()): Promise<Record<string, { date: string; time: string | null }>> {
+  const ids = studentIds.filter(id => /^[0-9a-f-]{36}$/i.test(id))
+  if (ids.length === 0) return {}
+  const list = ids.join(',')
+  const { data: vs } = await svc.from('make_up_vouchers')
+    .select('student_id, student2_id, source_booking_id').eq('grace_month', monthOfDate(today))
+    .or(`student_id.in.(${list}),student2_id.in.(${list})`)
+  const src = [...new Set((vs || []).map((v: { source_booking_id: string | null }) => v.source_booking_id).filter(Boolean))] as string[]
+  if (!src.length) return {}
+  const { data: bs } = await svc.from('bookings').select('id, class_session_id').in('id', src)
+  const sess = [...new Set((bs || []).map((b: { class_session_id: string | null }) => b.class_session_id).filter(Boolean))] as string[]
+  const { data: ss } = sess.length ? await svc.from('class_sessions').select('id, session_date, start_time').in('id', sess) : { data: [] }
+  const sOf = new Map((ss || []).map((s: { id: string; session_date: string; start_time: string | null }) => [s.id, s]))
+  const bOf = new Map((bs || []).map((b: { id: string; class_session_id: string | null }) => [b.id, b.class_session_id ? sOf.get(b.class_session_id) : undefined]))
+  const want = new Set(ids)
+  const out: Record<string, { date: string; time: string | null }> = {}
+  for (const v of (vs || []) as { student_id: string | null; student2_id: string | null; source_booking_id: string | null }[]) {
+    const l = v.source_booking_id ? bOf.get(v.source_booking_id) : undefined
+    if (!l) continue
+    for (const s of [v.student_id, v.student2_id]) if (s && want.has(s)) out[s] = { date: l.session_date, time: l.start_time ? String(l.start_time).slice(0, 5) : null }
+  }
+  return out
+}
+
 export type IssueInput = {
   parentId: string
   studentId: string

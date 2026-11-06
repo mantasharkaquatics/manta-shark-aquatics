@@ -1683,7 +1683,7 @@
   "voucher.book": "用券预约",
   "dash.up.leave": "请假",
   "dash.up.leaveLate": "请假（24 小时内）",
-  "dash.up.graceUsedHelp": "这堂课 24 小时内就要开始，{name} 本月的晚取消机会已经用过了，所以不能在线取消。有特殊状况请给我们发消息。",
+  "dash.up.graceUsedHelp": "这堂课 24 小时内就要开始，{name} 本月的晚取消机会已经用过了，所以不能在线取消。",
   "dash.tag.fixed": "固定班",
   "dash.tag.makeUp": "补课",
   "dash.team.everyDay": "每天",
@@ -2824,5 +2824,7 @@
   "faq.a.refund": "可以。您购买的点数没用完的部分，随时可以按 1 点 = 1 美元退款，没有期限、没有手续费，全部或部分都可以。请在 App 的「消息」或到前台申请，由工作人员处理，退回原付款方式；在前台付的现金就在前台退现金。已经用在课程上的点数（包括晚取消和没到的课）、补课券和学校赠送的点数不能退。详细内容以英文的用户协议为准。",
   "points.buy.refundLink": "没用完的可以退款",
   "account.media.version": "（版本 {v}）",
-  "booking.recur.close": "重选时间"
+  "booking.recur.close": "重选时间",
+  "dash.up.graceUsedOnHelp": "这堂课 24 小时内就要开始，{name} 本月的晚取消机会已经用在 {when} 的课，所以不能在线取消。",
+  "dash.up.noShowNote": "没来上课的话，这堂的点数不退。孩子生病请先发消息给我们。"
 }
