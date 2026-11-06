@@ -517,13 +517,13 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   progress bar from total/left, make-up vouchers, swim team), or one
   "no plans yet / book" card. Four small buttons: 帳號與孩子, 通知設定
   (/dashboard/me/notifications, app only -- the push switches moved there),
-  關於學校 (/dashboard/me/school, the six school pages), 寫給我們; then 登出.
+  關於學校 (/dashboard/me/school, the six school pages), 意見箱 (called 寫給我們 until 2026-11-06, run-2 J10: it read like the desk; the sheet now points leave and lesson changes to 訊息); then 登出.
   A view-only member sees no points and no shortcuts. Under 720px of
   height everything tightens and the plan cards drop the child's name.
   **Its sheets open over 我的 itself** (owner, 2026-11-04: from /dashboard
   the tab turned to 首頁 under them): the card and 點數明細 open the points
   card alone with the statement already open (PointsCard historyFirst), 介紹
-  朋友 the referral card alone, 寫給我們 the suggestion box -- all three now
+  朋友 the referral card alone, 意見箱 the suggestion box -- all three now
   live in app/(public)/dashboard/FamilySheets.tsx, shared with the dashboard,
   whose ?points= sheet (from emails) still shows points, referral and team
   together. The suggestion box asks 確定要送出嗎？ before sending, and 登出
@@ -967,7 +967,7 @@ the contained problems were fixed the same day. What to keep doing:
   (2026-10-03); their ::after keeps the tap area large.
 - **Ask before what cannot be undone or costs points**: several children
   booked together now confirm (who, how many lessons, points, what is left);
-  so do 寫給我們 and 登出. A plain cancel says 已取消 and the points returned.
+  so do 意見箱 and 登出. A plain cancel says 已取消 and the points returned.
 - **Typed emails are checked** (lib/email-typo.ts): format and common domain
   misspellings, on sign-up (before a code is sent; a changed address resets
   the timer) and forgot-password (which also takes the address typed on the

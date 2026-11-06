@@ -1603,8 +1603,8 @@
   "success.titlePoints": "充值成功！",
   "success.titleTeam": "欢迎加入泳队！",
   "suggest.error": "没有提交成功，请再试一次。",
-  "suggest.intro": "课程、时段、教练、网站，什么都可以说。每一条我们都会看。",
-  "suggest.link": "写给我们",
+  "suggest.intro": "课程、时段、教练、网站，什么建议都可以说。",
+  "suggest.link": "意见箱",
   "suggest.note": "只有学校主管会看到。",
   "suggest.placeholder": "您的建议",
   "suggest.send": "提交",
@@ -2822,5 +2822,6 @@
   "push.settings.bookingsDescViewer": "预约成功、改时间、取消",
   "push.settings.smsNoteOther": "短信提醒只会传到主账号的手机；在这里关掉上课提醒，您就不会收到这类提醒。",
   "push.settings.smsStop": "不想收短信，回复任何一则短信 STOP 就会停止。",
-  "common.no": "不要"
+  "common.no": "不要",
+  "suggest.deskHint": "要请假、改课或问问题，请到「消息」传给前台"
 }

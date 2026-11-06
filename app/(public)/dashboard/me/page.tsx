@@ -404,7 +404,7 @@ export default function MePage() {
           <Link href="/dashboard/account"><span aria-hidden="true" className="ic"><Icon name="user" /></span><span>{t('app.me.account')}</span></Link>
           {app && <Link href="/dashboard/me/notifications"><span aria-hidden="true" className="ic"><Icon name="bell" /></span><span>{t('push.settings.title')}</span></Link>}
           <Link href="/dashboard/me/school"><span aria-hidden="true" className="ic"><Icon name="school" /></span><span>{t('app.me.school')}</span></Link>
-          <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true" className="ic"><Icon name="chat" /></span><span>{t('suggest.link')}</span></button>
+          <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true" className="ic"><Icon name="mail" /></span><span>{t('suggest.link')}</span></button>
         </nav>
 
         {/* Asked first (owner, 2026-11-04: too easy to tap by mistake). */}

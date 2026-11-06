@@ -15,6 +15,7 @@ import { fmtDate } from '@/lib/fmt-date'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import Icon from '@/components/ui/Icon'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { openChat } from '@/lib/chat-open'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
@@ -73,7 +74,8 @@ export function SuggestionSheet({ onClose }: { onClose: () => void }) {
             <Icon name="check" /> {t('suggest.thanks')}
           </p>
         ) : (<>
-          <p style={{ margin: '0 0 10px', fontSize: '13.5px', color: '#56647d', lineHeight: 1.6 }}>{t('suggest.intro')}</p>
+          {/* Who reads it, said up front (owner, 2026-11-06, run-2 J10: 意見箱). */}
+          <p style={{ margin: '0 0 10px', fontSize: '13.5px', color: '#56647d', lineHeight: 1.6 }}>{t('suggest.intro')}<br /><b style={{ color: '#34435e' }}>{t('suggest.note')}</b></p>
           <textarea ref={area} value={text} onChange={e => setText(e.target.value.slice(0, 2000))} rows={6}
             placeholder={t('suggest.placeholder')} aria-label={t('suggest.title')}
             style={{ width: '100%', borderRadius: '12px', border: '1px solid #d5deeb', padding: '12px', fontSize: '16px', fontFamily: 'inherit', color: '#16294a', resize: 'vertical', boxSizing: 'border-box', background: '#fff' }} />
@@ -83,7 +85,11 @@ export function SuggestionSheet({ onClose }: { onClose: () => void }) {
             style={{ marginTop: '12px', width: '100%', border: 0, borderRadius: '12px', padding: '13px', background: text.trim() ? AMBER : '#e3ebf6', color: text.trim() ? NAVY : '#8592a8', fontWeight: 800, fontSize: '15px', cursor: text.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
             {state === 'sending' ? t('suggest.sending') : t('suggest.send')}
           </button>
-          <p style={{ margin: '10px 0 0', textAlign: 'center', fontSize: '11.5px', color: '#667690' }}>{t('suggest.note')}</p>
+          {/* Leave, a lesson to move, a question: the desk, in 訊息 -- not here. */}
+          <button type="button" className="tap-auto" onClick={() => { onClose(); openChat() }}
+            style={{ display: 'block', width: '100%', margin: '12px 0 0', padding: '10px 4px', border: 0, background: 'none', textAlign: 'left', fontFamily: 'inherit', fontSize: '13.5px', fontWeight: 700, color: '#1f5fbf', cursor: 'pointer', lineHeight: 1.5 }}>
+            {t('suggest.deskHint')} →
+          </button>
         </>)}
       </div>
     </div>

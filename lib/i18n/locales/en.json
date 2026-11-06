@@ -1603,8 +1603,8 @@
   "success.titlePoints": "Points added!",
   "success.titleTeam": "Welcome to the Team!",
   "suggest.error": "That didn't go through. Please try again.",
-  "suggest.intro": "Lessons, times, coaches, the website, anything at all. Every message is read.",
-  "suggest.link": "Write to us",
+  "suggest.intro": "Lessons, times, coaches, the website: any suggestion at all.",
+  "suggest.link": "Suggestion box",
   "suggest.note": "Only our managers see what you write here.",
   "suggest.placeholder": "Your suggestion",
   "suggest.send": "Send",
@@ -2822,5 +2822,6 @@
   "push.settings.bookingsDescViewer": "Bookings made, moved or cancelled",
   "push.settings.smsNoteOther": "Text reminders go only to the main account's phone. Turn lesson reminders off here and you won't get them.",
   "push.settings.smsStop": "To stop texts, reply STOP to any of our messages.",
-  "common.no": "Not now"
+  "common.no": "Not now",
+  "suggest.deskHint": "For leave, a lesson change or a question, message the front desk in Messages"
 }

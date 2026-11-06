@@ -1603,8 +1603,8 @@
   "success.titlePoints": "儲值成功！",
   "success.titleTeam": "歡迎加入泳隊！",
   "suggest.error": "沒有送出，請再試一次。",
-  "suggest.intro": "課程、時段、教練、網站，什麼都可以說。每一則我們都會看。",
-  "suggest.link": "寫給我們",
+  "suggest.intro": "課程、時段、教練、網站，什麼建議都可以說。",
+  "suggest.link": "意見箱",
   "suggest.note": "只有學校主管會看到。",
   "suggest.placeholder": "您的建議",
   "suggest.send": "送出",
@@ -2822,5 +2822,6 @@
   "push.settings.bookingsDescViewer": "預約成功、改時間、取消",
   "push.settings.smsNoteOther": "簡訊提醒只會傳到主帳號的手機；在這裡關掉上課提醒，您就不會收到這類提醒。",
   "push.settings.smsStop": "不想收簡訊，回覆任何一則簡訊 STOP 就會停止。",
-  "common.no": "不要"
+  "common.no": "不要",
+  "suggest.deskHint": "要請假、改課或問問題，請到「訊息」傳給櫃台"
 }
