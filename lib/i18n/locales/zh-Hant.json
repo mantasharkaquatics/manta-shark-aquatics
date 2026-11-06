@@ -576,10 +576,6 @@
   "dash.resAction.eyebrow": "改期",
   "dash.resAction.failed": "改期失敗",
   "dash.resAction.keepsTime": "課程會維持原本的時間。",
-  "dash.resModal.body": "系統會帶您到預約頁面挑選新的時間。您現在的課程要等新預約確認後才會取消。",
-  "dash.resModal.confirm": "確定改期",
-  "dash.resModal.eyebrow": "課程改期",
-  "dash.resModal.title": "要更改這筆預約嗎？",
   "dash.sheet.lesson": "課程",
   "dash.sheet.payment": "付款",
   "dash.showAllRecords": "顯示全部 {n} 筆紀錄",
@@ -2827,5 +2823,6 @@
   "faq.q.refund": "沒用完的點數可以退嗎？",
   "faq.a.refund": "可以。您購買的點數沒用完的部分，隨時可以照 1 點 = 1 美元退款，沒有期限、沒有手續費，全部或部分都可以。請在 App 的「訊息」或到櫃台申請，由工作人員處理，退回原付款方式；在櫃台付的現金就在櫃台退現金。已經用在課程上的點數（包括晚取消和沒到的課）、補課券和學校送的點數不能退。詳細內容以英文的使用者條款為準。",
   "points.buy.refundLink": "沒用完的可以退款",
-  "account.media.version": "（版本 {v}）"
+  "account.media.version": "（版本 {v}）",
+  "booking.recur.close": "重選時間"
 }

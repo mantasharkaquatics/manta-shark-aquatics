@@ -1411,7 +1411,6 @@ export default function DashboardPage() {
      for them. */
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState<{ id: string; slug: string; studentId: string; studentName?: string; courseName: string; courseTypeId?: string; date: string; time: string; partnerBookingId?: string; groupId?: string | null } | null>(null)
   const [rescheduleActionModal, setRescheduleActionModal] = useState<{ bookingId: string; type: 'reject' | 'cancel'; title: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   // Good news after a cancellation (a voucher added or given back) -- not an
@@ -1773,18 +1772,18 @@ export default function DashboardPage() {
   // sheets. Without it the only ways out were the X or a click on the backdrop,
   // and that click also landed on whatever sat underneath.
   useEffect(() => {
-    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleTarget && !rescheduleActionModal && !lessonDetail && !daySheet && !voucherSheet && !teamSheet) return
+    if (!treeFor && !qrStudent && !infoModal && !cancelTarget && !rescheduleActionModal && !lessonDetail && !daySheet && !voucherSheet && !teamSheet) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setTreeFor(null); setQrStudent(null); setInfoModal(null)
-      setCancelTarget(null); setRescheduleTarget(null); setRescheduleActionModal(null)
+      setCancelTarget(null); setRescheduleActionModal(null)
       // The calendar's lesson detail and day list, and the voucher list, had
       // no Esc (found 2026-10-08).
       setLessonDetail(null); setDaySheet(null); setVoucherSheet(false); setVoucherKey(null); setTeamSheet(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet])
+  }, [treeFor, qrStudent, infoModal, cancelTarget, rescheduleActionModal, lessonDetail, daySheet, voucherSheet, teamSheet])
   // Focus into each of these dialogs as it opens, and back to what opened it.
   const infoBox = useDialogFocus(!!infoModal)
   /* Points running low (owner, 2026-10-15): a small notice, once per dip --
@@ -1804,7 +1803,7 @@ export default function DashboardPage() {
     if (monthlyFor) reportOpening.current = false
     if (!r?.popup || lowPopupDone.current || infoModal || pointsOpen) return
     if (qrStudent || recordsFor || reportFor || monthlyFor || suggestOpen || voucherSheet || treeFor || teamSheet
-      || cancelTarget || rescheduleTarget || rescheduleActionModal || pendingCancelConfirm || lessonDetail || daySheet) return
+      || cancelTarget || rescheduleActionModal || pendingCancelConfirm || lessonDetail || daySheet) return
     if (reportLink.current || reportOpening.current || chatOpen || chatIsOpen()) return
     lowPopupDone.current = true
     fetch('/api/parent/low-balance-seen', { method: 'POST' }).catch(() => {})
@@ -1817,7 +1816,7 @@ export default function DashboardPage() {
       closeLabel: t('dash.lowBal.later'),
     })
   }, [wallet, infoModal, pointsOpen, t, qrStudent, recordsFor, reportFor, monthlyFor, suggestOpen, voucherSheet, treeFor, teamSheet,
-    cancelTarget, rescheduleTarget, rescheduleActionModal, pendingCancelConfirm, lessonDetail, daySheet, chatOpen, monthlyRead, students])
+    cancelTarget, rescheduleActionModal, pendingCancelConfirm, lessonDetail, daySheet, chatOpen, monthlyRead, students])
   const voucherBox = useDialogFocus(voucherSheet)
   const cancelBox = useDialogFocus(!!cancelTarget)
   const resActionBox = useDialogFocus(!!rescheduleActionModal)
@@ -1827,7 +1826,6 @@ export default function DashboardPage() {
   // These had none (found 2026-10-15). The points sheet waits for the wallet
   // it shows; the reschedule and unpaid-assessment confirms were not dialogs.
   const pointsBox = useDialogFocus(pointsOpen && !!wallet)
-  const rescheduleBox = useDialogFocus(!!rescheduleTarget)
   const pendCancelBox = useDialogFocus(!!pendingCancelConfirm)
   // An hour invitation arrives as two rows (one per half). Show ONE card
   // spanning both, priced at the number of rows this family actually owes.
@@ -2786,13 +2784,15 @@ export default function DashboardPage() {
     setCancellingId(null)
   }
 
-  function confirmReschedule() {
-    if (!rescheduleTarget) return
+  /* 改期 goes straight to the booking page's move mode (owner, 2026-11-06,
+     run-2 J65 選項 A): the "change this booking?" dialog before it changed
+     nothing, and its 保留課程 read as a warning. The page says the old
+     lesson stays until the new time is confirmed, and asks once at the end. */
+  function goReschedule(rescheduleTarget: { id: string; slug: string; studentId: string; partnerBookingId?: string; groupId?: string | null }) {
     // A 60-minute lesson shared with another family cannot be moved online:
     // the two halves and two families have no path that moves them together
     // (found 2026-10-03: the page offered no times at all). The desk does it.
     if (rescheduleTarget.partnerBookingId && rescheduleTarget.groupId) {
-      setRescheduleTarget(null)
       setNotice(t('err.rescheduleContact'))
       return
     }
@@ -3110,7 +3110,7 @@ export default function DashboardPage() {
                             setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(m), closeLabel: t('common.close') })
                             return
                           }
-                          setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', studentName: m.student_name, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
+                          goReschedule({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
                         }}
                         aria-disabled={rDis}
                         style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
@@ -3330,7 +3330,7 @@ export default function DashboardPage() {
                   setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(booking), closeLabel: t('common.close') })
                   return
                 }
-                setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', studentName: booking.student_name, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
+                goReschedule({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
               }}
               disabled={reschedulingId === booking.id}
               aria-disabled={isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
@@ -3647,32 +3647,6 @@ export default function DashboardPage() {
                   as are the reschedule-decline and unpaid-cancel buttons. */}
               <button onClick={async () => { const tg = cancelTarget; setCancelTarget(null); if (tg.type === 'reject') { await rejectPartnerBooking(tg.id) } else { await cancelBooking(tg.id, { kind: tg.kind, src: tg.src, points: tg.points }) } }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: cancelTarget.kind === 'grace' ? AMBER : '#d93825', color: cancelTarget.kind === 'grace' ? '#12254a' : '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 {t(cancelTarget.type === 'reject' ? 'dash.cancelModal.yesDecline' : cancelTarget.kind === 'grace' ? 'dash.cancelModal.yesGrace' : (cancelTarget.kind === 'leave' || cancelTarget.fixed) ? 'dash.cancelModal.yesLeave' : 'dash.cancelModal.yesCancel')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reschedule Confirm Modal */}
-      {rescheduleTarget && (
-        <div className="msa-dlg-back" onClick={() => setRescheduleTarget(null)}>
-          <div ref={rescheduleBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-res-title" className="msa-dlg">
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '8px' }}>{t('dash.resModal.eyebrow')}</div>
-            <div id="dash-res-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a', marginBottom: '16px' }}>{t('dash.resModal.title')}</div>
-            <div style={{ background: '#f6f9fd', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              {rescheduleTarget.studentName && <div style={{ fontSize: '14px', fontWeight: 800, color: '#16294a', marginBottom: '2px' }}>{rescheduleTarget.studentName}</div>}
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#16294a', marginBottom: '4px' }}>{rescheduleTarget.courseTypeId ? tDb(locale, 'course_types', rescheduleTarget.courseTypeId, rescheduleTarget.courseName) : rescheduleTarget.courseName}</div>
-              <div style={{ fontSize: '12px', color: '#56647d' }}>{rescheduleTarget.date} · {rescheduleTarget.time}</div>
-            </div>
-            <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '24px' }}>
-              {t('dash.resModal.body')}
-            </p>
-            <div className="msa-dlg-acts">
-              <button onClick={() => setRescheduleTarget(null)} className="msa-dlg-no">
-                {t('dash.cancelModal.keepLesson')}
-              </button>
-              <button onClick={confirmReschedule} className="msa-dlg-yes">
-                {t('dash.resModal.confirm')}
               </button>
             </div>
           </div>

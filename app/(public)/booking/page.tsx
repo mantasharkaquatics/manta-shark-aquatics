@@ -4574,7 +4574,8 @@ export default function BookingPage() {
                       </button>
                       <button onClick={() => setRecurOpen(false)}
                         style={{ minHeight: '40px', borderRadius: '9px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '13.5px', cursor: 'pointer' }}>
-                        {t('common.cancel')}
+                        {/* It only closes the panel: not 取消, which read as cancelling a lesson (run-2 J65). */}
+                        {t('booking.recur.close')}
                       </button>
                     </div>
                   </div>
