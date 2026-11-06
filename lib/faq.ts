@@ -11,6 +11,8 @@
 // Adding a question: add its id here, then faq.q.<id> and faq.a.<id> to all
 // three locale files. scripts/i18n-check.mjs will tell you if you missed one.
 
+import { CASH_REFUND_ENABLED } from '@/lib/points'
+
 export type FaqCategory = { id: string; items: readonly string[] }
 
 export const FAQ: readonly FaqCategory[] = [
@@ -28,10 +30,12 @@ export const FAQ: readonly FaqCategory[] = [
   },
   {
     id: 'money',
-    // No refund question: the site does not bring refunds up (owner,
-    // 2026-09-28). The rule is in the Terms, and the assistant still
-    // answers it when asked (lib/ai/policies.ts, REFUNDS).
-    items: ['buy', 'assessCredit', 'referral', 'expiry', 'shared', 'teamBilling'],
+    // The refund question waits for the cash-refund switch (owner,
+    // 2026-11-06, run-2 J56: written now, shown once the lawyer has read the
+    // Terms and CASH_REFUND_ENABLED is on). Until then the site does not
+    // bring refunds up (owner, 2026-09-28); the Terms have the rule and the
+    // assistant answers when asked (lib/ai/policies.ts, REFUNDS).
+    items: ['buy', 'assessCredit', 'referral', 'expiry', ...(CASH_REFUND_ENABLED ? ['refund'] : []), 'shared', 'teamBilling'],
   },
   {
     id: 'team',

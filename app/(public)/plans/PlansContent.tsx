@@ -11,7 +11,7 @@ import {
   BASE_POINTS, MIN_TOPUP_DOLLARS, MAX_TOPUP_DOLLARS,
   TOPUP_COURSES, TOPUP_LESSON_COUNTS, topUpAmount, type TopUpCourse,
   OFF_PEAK_DISCOUNT, OFF_PEAK_ENABLED,
-  ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS,
+  ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS, CASH_REFUND_ENABLED,
 } from '@/lib/points'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/paths'
@@ -432,7 +432,7 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
       {error && <div className="p-err" role="alert">{error}</div>}
 
       {/* The terms, before paying (owner, 2026-11-05, 決定 4 選項 A). */}
-      <p className="p-fine" style={{ marginTop: app ? 10 : 16 }}>{t('points.buy.fine')} {t('points.buy.agree')}{' '}
+      <p className="p-fine" style={{ marginTop: app ? 10 : 16 }}>{t('points.buy.fine')}{CASH_REFUND_ENABLED && <> <Link href={localePath('/faq', locale) + '#faq-q-refund'}>{t('points.buy.refundLink')} ›</Link></>} {t('points.buy.agree')}{' '}
         <a href="/terms" target="_blank" rel="noopener" style={{ color: BRAND.blue, fontWeight: 700 }}>{t('checkout.terms')}</a>{locale === 'en' ? '.' : '。'}</p>
 
       {signedIn === true && anyAssessed && <ZellePay price={valid ? money(chosen) : '—'} />}
