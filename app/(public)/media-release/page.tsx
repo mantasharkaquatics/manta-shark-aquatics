@@ -9,14 +9,14 @@ export default function Page() {
     <LegalPage
       title="Photo & Video Release"
       subtitle="Optional consent for promotional use of lesson photos and videos."
-      meta={<>Version: {LEGAL_VERSIONS.media} · Last updated July 2, 2026</>}
+      meta={<>Version: {LEGAL_VERSIONS.media} · Last updated November 6, 2026</>}
     >
           <h2>Grant of Permission</h2>
           <p>By opting in, I grant Manta Shark Aquatics permission to photograph and video record my child(ren) during lessons and School events, and to use such media for the School’s promotional purposes, including the School website, social media accounts, and printed marketing materials.</p>
           <h2>Conditions</h2>
           <p>Media will never be sold to third parties. Student full names will not be published alongside images without separate written consent. No compensation will be provided for the use of such media.</p>
           <h2>Optional & Revocable</h2>
-          <p>This release is entirely optional and is not a condition of enrollment. You may opt in or out at registration, and you may revoke consent at any time by emailing {CONTACT_EMAIL}, after which we will cease new use of your child’s media and remove identified images from our active channels within a reasonable time.</p>
+          <p>This release is entirely optional and is not a condition of enrollment. You may opt in or out at registration, and you may revoke consent at any time by turning off Photos and videos in My Account in the app, or by emailing {CONTACT_EMAIL}, after which we will cease new use of your child’s media and remove identified images from our active channels within a reasonable time.</p>
 
     </LegalPage>
   )

@@ -11,7 +11,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
    Uses the account page's ac-* styles. */
 
 type Card = { id: string; brand: string; last4: string; exp: string }
-type Acct = { media: boolean; mediaAt: string | null; deletionRequestedAt: string | null; deletionAvailable: boolean; main: boolean }
+type Acct = { media: boolean; mediaAt: string | null; mediaVersion?: string | null; deletionRequestedAt: string | null; deletionAvailable: boolean; main: boolean }
 
 const INTL: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' }
 const BRAND: Record<string, string> = { visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', discover: 'Discover', jcb: 'JCB', diners: 'Diners Club', unionpay: 'UnionPay' }
@@ -54,7 +54,7 @@ export default function AccountPrivacy() {
   async function toggleMedia() {
     if (!acct) return
     const d = await post({ action: 'media', value: !acct.media }, 'media')
-    if (d) setAcct({ ...acct, media: d.media, mediaAt: d.mediaAt })
+    if (d) setAcct({ ...acct, media: d.media, mediaAt: d.mediaAt, mediaVersion: d.mediaVersion ?? acct.mediaVersion })
   }
 
   async function deletion(asking: boolean) {
@@ -94,7 +94,7 @@ export default function AccountPrivacy() {
               {t('account.media.desc')}{' '}
               <Link href="/media-release" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('account.media.read')}</Link>
             </small>
-            {acct.mediaAt && <small style={{ display: 'block', marginTop: 4 }}>{t(acct.media ? 'account.media.onSince' : 'account.media.offSince', { date: day(acct.mediaAt) })}</small>}
+            {acct.mediaAt && <small style={{ display: 'block', marginTop: 4 }}>{t(acct.media ? 'account.media.onSince' : 'account.media.offSince', { date: day(acct.mediaAt) })}{acct.media && acct.mediaVersion ? t('account.media.version', { v: acct.mediaVersion }) : ''}</small>}
           </div>
           <button type="button" role="switch" aria-checked={acct.media} aria-label={t('account.media.title')}
             onClick={toggleMedia} disabled={busy === 'media'} className="tap-auto ac-toggle">

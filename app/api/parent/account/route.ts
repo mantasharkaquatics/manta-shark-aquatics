@@ -1,3 +1,4 @@
+import { LEGAL_VERSIONS } from '@/lib/legal'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { alertAdmin } from '@/lib/admin-alert'
@@ -29,8 +30,11 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: 'Not authorized' }, { status: 401 })
   const { data } = await ctx.svc.from('parents').select('media_release_accepted, media_release_at').eq('id', ctx.parent.id).maybeSingle()
   const { data: del, error } = await ctx.svc.from('parents').select('deletion_requested_at').eq('id', ctx.parent.id).maybeSingle()
+  // The release version agreed to (run-2 J61); none before the column exists.
+  const { data: ver } = await ctx.svc.from('parents').select('media_release_version').eq('id', ctx.parent.id).maybeSingle()
   return NextResponse.json({
     media: !!data?.media_release_accepted, mediaAt: data?.media_release_at || null,
+    mediaVersion: (ver as { media_release_version?: string | null } | null)?.media_release_version || null,
     deletionRequestedAt: error ? null : del?.deletion_requested_at || null,
     deletionAvailable: !error, main: !ctx.guardianId,
   }, { headers: { 'Cache-Control': 'no-store' } })
@@ -47,7 +51,13 @@ export async function POST(req: NextRequest) {
     if (typeof b.value !== 'boolean') return NextResponse.json({ error: 'Invalid request', code: 'bad_request' }, { status: 400 })
     const { error } = await svc.from('parents').update({ media_release_accepted: b.value, media_release_at: now }).eq('id', parent.id)
     if (error) return NextResponse.json({ error: 'Could not save', code: 'server' }, { status: 500 })
-    return NextResponse.json({ ok: true, media: b.value, mediaAt: now })
+    // Which release was agreed to; kept when turned off, as the record of it.
+    let mediaVersion: string | null = null
+    if (b.value) {
+      const v = await svc.from('parents').update({ media_release_version: LEGAL_VERSIONS.media }).eq('id', parent.id)
+      if (!v.error) mediaVersion = LEGAL_VERSIONS.media
+    }
+    return NextResponse.json({ ok: true, media: b.value, mediaAt: now, mediaVersion })
   }
 
   if (b?.action === 'delete_request' || b?.action === 'delete_withdraw') {

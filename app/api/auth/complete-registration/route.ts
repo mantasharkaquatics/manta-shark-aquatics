@@ -196,6 +196,10 @@ export async function POST(req: NextRequest) {
     await release()
     return NextResponse.json(CREATE_FAILED, { status: 500 })
   }
+  // Which photo release they agreed to (owner, 2026-11-06, run-2 J61).
+  // Apart from the insert: before docs/migration-media-version.sql the
+  // column is not there, and sign-up must not fail for it.
+  if (media) await svc.from('parents').update({ media_release_version: LEGAL_VERSIONS.media }).eq('id', parent.id).then(() => {}, () => {})
 
   // The account exists from here on: a swimmer that fails to save is
   // reported, not fatal -- the page opens My Account with the add form.

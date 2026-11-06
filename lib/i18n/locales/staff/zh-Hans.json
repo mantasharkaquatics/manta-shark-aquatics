@@ -1879,5 +1879,6 @@
   "admin.checkin.err.alreadyIn": "{name} 已经报到了（{time} 的课）。",
   "admin.checkin.err.inactive": "{name} 的账号已停用，不能报到。",
   "admin.messages.fromGuardian": "{name}（家人）",
-  "admin.messages.fromViewer": "{name}（只能看的家人，改课请先问主账号）"
+  "admin.messages.fromViewer": "{name}（只能看的家人，改课请先问主账号）",
+  "admin.members.mediaVersion": "版本 {v}"
 }

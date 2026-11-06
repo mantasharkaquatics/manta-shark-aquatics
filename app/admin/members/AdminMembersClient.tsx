@@ -43,6 +43,7 @@ type Parent = {
   newsletter_subscribed: boolean
   media_release_accepted: boolean | null
   media_release_at: string | null
+  media_release_version?: string | null
   deletion_requested_at?: string | null
   address_line1: string | null
   address_line2: string | null
@@ -966,7 +967,7 @@ export default function AdminMembersClient({ parents: initialParents, deactivati
                       <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t('admin.members.photoRelease')}</p>
                       <p className="text-gray-300 text-sm">
                         {parent.media_release_accepted
-                          ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at, locale)}</span>
+                          ? <span className="text-green-400">✓ {formatDateTime(parent.media_release_at, locale)}{parent.media_release_version ? ' · ' + t('admin.members.mediaVersion', { v: parent.media_release_version }) : ''}</span>
                           : parent.media_release_at
                             // Turned off on My Account (2026-10-22): when.
                             ? <span className="text-red-400">✗ {t('admin.members.mediaWithdrawn', { date: formatDateTime(parent.media_release_at, locale) })}</span>

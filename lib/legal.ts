@@ -2,5 +2,5 @@
 export const LEGAL_VERSIONS = {
   terms: '2026-11-05',
   waiver: '2026-07-02',
-  media: '2026-07-02',
+  media: '2026-11-06',
 }

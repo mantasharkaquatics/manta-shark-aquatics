@@ -81,5 +81,15 @@ export default async function AdminMembersPage() {
     }
   } catch { /* nothing shown */ }
 
+  // Which photo release each family agreed to (run-2 J61). On its own and
+  // allowed to fail: before docs/migration-media-version.sql there is none.
+  try {
+    const { data: vers, error } = await serviceClient().from('parents').select('id, media_release_version').not('media_release_version', 'is', null)
+    if (!error && vers) {
+      const v = new Map((vers as { id: string; media_release_version: string }[]).map(r => [r.id, r.media_release_version]))
+      for (const p of parents as { id: string; media_release_version?: string | null }[]) p.media_release_version = v.get(p.id) ?? null
+    }
+  } catch { /* no version shown */ }
+
   return <AdminMembersClient parents={parents} deactivations={deactivations} holderReady={holderReady} />
 }
