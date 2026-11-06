@@ -1511,7 +1511,7 @@
   "register.sendCode": "发送验证码",
   "register.sending": "发送中…",
   "register.signIn": "登录",
-  "register.sms.body": "点击「发送验证码」即表示您同意接收 Manta Shark Aquatics 发送的短信：现在的一次性验证码、每堂课前一天的上课提醒、48 小时内临时取消课程的通知、您加入的候补有名额时的通知，以及偶尔的账户通知。我们不会发送营销短信。消息频率依预约情况而定。可能产生消息与数据费用。回复 HELP 获取帮助，回复 STOP 取消订阅。同意接收短信并非购买的条件。详见我们的",
+  "register.sms.body": "建立账户需要用短信验证码确认您的手机。点击「发送验证码」即表示您同意接收 Manta Shark Aquatics 发送的短信：现在的一次性验证码、每堂课前一天的上课提醒、48 小时内临时取消课程的通知、您加入的候补有名额时的通知，以及偶尔的账户通知。我们不会发送营销短信。消息频率依预约情况而定。可能产生消息与数据费用。回复 HELP 获取帮助；回复 STOP 停止短信，之后改用 Email 通知，不影响购买或上课。收不到验证码请 Email 给我们：{email}。详见我们的",
   "register.sms.end": "。",
   "register.sms.mid": "与",
   "register.sms.privacy": "隐私政策",

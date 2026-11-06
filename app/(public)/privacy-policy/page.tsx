@@ -95,7 +95,7 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>Message frequency varies: a passcode only when you request one, one reminder for each lesson you book, and the cancellation and waitlist messages above only when they happen. Message and data rates may apply.</li>
           <li>Reply STOP to opt out of SMS at any time. Reply HELP for help, or contact us at {CONTACT_EMAIL}.</li>
-          <li>Consent to receive SMS is not a condition of purchasing any goods or services.</li>
+          <li>Creating an account needs a passcode sent by text to confirm your phone; after that, opting out of text messages does not affect buying points or taking lessons.</li>
           <li>
             No mobile information will be shared with third parties or affiliates for marketing or
             promotional purposes. Text messaging originator opt-in data and consent will not be shared

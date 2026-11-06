@@ -46,8 +46,12 @@ export default function SmsTermsPage() {
           Reply STOP to any message to opt out. After opting out you will receive one final
           confirmation message and no further text messages, including lesson reminders; booking
           confirmations and other notices continue by email. Reply START to receive text messages
-          again. Consent to receive text messages is not a condition of purchasing any goods or
-          services. If you cannot receive a verification passcode by text, contact us at{' '}
+          again. Creating an account needs a passcode sent by text to confirm your phone; after
+          that, opting out of text messages does not affect buying points or taking lessons.{' '}
+          {/* Owner, 2026-11-06, run-2 J19: the old "not a condition of purchase" read
+              against the required passcode. Draft for the lawyer. */}
+          If you cannot receive a
+          verification passcode by text, contact us at{' '}
           {CONTACT_EMAIL} and we will help you finish setting up your account.
         </p>
 

@@ -20,6 +20,7 @@ import { safeNext, withNext } from '@/lib/safe-next'
 import { REFERRAL_POINTS } from '@/lib/points'
 import { isAdultOn } from '@/lib/account-holder'
 import { passwordIssue, PASSWORD_ISSUE_KEY } from '@/lib/password-rules'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 import { APP_BACK_EVENT } from '@/lib/app-back'
 
 // A friend's link is remembered for 30 days (owner, 2026-09-29): families
@@ -689,7 +690,7 @@ export default function RegisterClient() {
                 </div>
               )}
               {phoneError && <p id="reg-phone-err" role="alert" className="text-red-600 text-xs mt-1">{phoneError}</p>}
-              <p className="text-xs text-[#56647d] mt-2 leading-relaxed">{t('register.sms.body')}<a href="/privacy-policy" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
+              <p className="text-xs text-[#56647d] mt-2 leading-relaxed">{t('register.sms.body', { email: CONTACT_EMAIL })}<a href="/privacy-policy" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.privacy')}</a>{t('register.sms.mid')}<a href="/sms-terms" target="_blank" className="underline hover:text-[#2050a0]">{t('register.sms.terms')}</a>{t('register.sms.end')}</p>
             </div>
 
             <div className="border-t border-[#d5e0ef] pt-4">

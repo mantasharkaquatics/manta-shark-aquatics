@@ -1511,7 +1511,7 @@
   "register.sendCode": "Send Verification Code",
   "register.sending": "Sending...",
   "register.signIn": "Sign in",
-  "register.sms.body": "By tapping \"Send Verification Code\", you agree to receive text messages from Manta Shark Aquatics: a one-time passcode now, a reminder the day before each lesson you book, a message if we have to cancel a lesson within 48 hours, a message when a place opens on a waitlist you joined, and occasional account notices. No marketing messages. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out. Consent is not a condition of purchase. See our ",
+  "register.sms.body": "Creating an account needs a passcode sent by text to confirm your phone. By tapping \"Send Verification Code\", you agree to receive text messages from Manta Shark Aquatics: a one-time passcode now, a reminder the day before each lesson you book, a message if we have to cancel a lesson within 48 hours, a message when a place opens on a waitlist you joined, and occasional account notices. No marketing messages. Msg frequency varies. Msg & data rates may apply. Reply HELP for help; reply STOP to stop texts, and we will email you instead, with no effect on buying or lessons. If the passcode does not arrive, email us at {email}. See our ",
   "register.sms.end": ".",
   "register.sms.mid": " and ",
   "register.sms.privacy": "Privacy Policy",
