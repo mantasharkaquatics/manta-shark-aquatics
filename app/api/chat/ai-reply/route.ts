@@ -50,7 +50,7 @@ const CANNED: Record<'fallback' | 'cancelGuard' | 'trialGuard' | 'rateLimited' |
   cancelGuard: {
     en: "I can't confirm that cancellation from here, so please don't treat the lesson as cancelled yet. A team member has been notified and will check your account and reply here today.",
     'zh-Hant': '我這邊無法確認這次取消，請先不要把這堂課當作已取消。我們已通知團隊成員，今天會查看您的帳戶並在這裡回覆您。',
-    'zh-Hans': '我这边无法确认这次取消，请先不要把这节课当作已取消。我们已通知团队成员，今天会查看您的账户并在这里回复您。',
+    'zh-Hans': '我这边无法确认这次取消，请先不要把这堂课当作已取消。我们已通知团队成员，今天会查看您的账户并在这里回复您。',
   },
   trialGuard: {
     en: 'I was not able to reserve that time slot just now, so nothing has been booked or charged. A team member has been notified and will reply here today.',

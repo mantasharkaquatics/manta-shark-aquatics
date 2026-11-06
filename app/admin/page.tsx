@@ -44,8 +44,8 @@ export default async function AdminDashboardPage() {
     { data: todaySessions },
     { count: pendingTimeOffCount },
   ] = await Promise.all([
-    supabase.from('parents').select('*', { count: 'exact', head: true }),
-    supabase.from('students').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('parents').select('id', { count: 'exact', head: true }),
+    supabase.from('students').select('id', { count: 'exact', head: true }).eq('is_active', true),
     // What Reviews lists as level recommendations (lib/admin/review-queues.ts):
     // pending level_recommendations, which covers coach upgrade suggestions and
     // assessments alike. This used to count students.upgrade_pending, a column

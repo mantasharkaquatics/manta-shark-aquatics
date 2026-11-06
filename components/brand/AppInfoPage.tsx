@@ -42,7 +42,7 @@ const css = `
   .ai-row div { flex: 1; min-width: 0; }
   .ai-row b { display: block; font-size: 15.5px; color: ${BRAND.navy}; }
   .ai-row span { display: block; font-size: 13px; color: ${BRAND.mute}; line-height: 1.5; margin-top: 2px; }
-  .ai-row i { font-style: normal; font-size: 18px; color: #9aa6ba; flex-shrink: 0; }
+  .ai-row i { font-style: normal; font-size: 18px; color: #6b778c; flex-shrink: 0; }
   .ai-q { background: #fff; border: 1px solid ${BRAND.line}; border-radius: 14px; overflow: hidden; }
   .ai-q button { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px;
     border: 0; background: transparent; text-align: left; font: inherit; font-size: 15px; font-weight: 700; color: ${BRAND.ink};

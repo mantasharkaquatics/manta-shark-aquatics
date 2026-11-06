@@ -348,7 +348,10 @@ html.msa-app .mst-back { bottom: var(--app-tab-now, 0px); background: #fff; back
 @media (prefers-reduced-motion: reduce) { .mst-stn.now .dot, .mst-badge.now svg, .mst-bsheet { animation: none } }
 
 @media (max-width: 640px) {
-  .mst-route { grid-template-columns: repeat(4, 1fr); padding: 14px 14px 4px }
+  .mst-route { grid-template-columns: repeat(4, 1fr); padding: 14px 14px 4px; column-gap: 6px }
+  /* Room between the level names, and a name wraps in its own cell rather
+     than run into the next (14-role test 2, J94). */
+  .mst-stn .nm { font-size: 13px; max-width: 100%; padding: 0 2px; overflow-wrap: anywhere }
   .mst-stn:nth-child(4)::after { display: none }
   .mst-views { margin: 10px 14px 0 }
   .mst-badges { padding: 12px 14px 24px }
@@ -633,7 +636,7 @@ export default function SkillTree({
       <div className="mst-panel" onClick={e => e.stopPropagation()}>
         <div className="mst-head">
           {/* Pop-up kind ③, a whole page (決定 9): ‹ back at the top left. */}
-          <button className="mst-back-btn tap-auto" onClick={onClose} aria-label={t('app.back')}><span aria-hidden="true">‹</span></button>
+          <button className="mst-back-btn tap-auto" onClick={onClose} aria-label={t('app.back')}><Icon name="back" /></button>
           <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
+import { insertParentMessage } from '@/lib/chat-author'
 import { readJson, badRequest } from '@/lib/http'
 
 // A signed-in family's chat message (components/ChatWidget).
@@ -32,9 +33,7 @@ export async function POST(req: NextRequest) {
   const { data: thread } = await svc.from('chat_threads').select('id, parent_id').eq('id', input.thread_id).maybeSingle()
   if (!thread || thread.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data: message, error } = await svc.from('chat_messages')
-    .insert({ thread_id: thread.id, sender_type: 'parent', body })
-    .select('*').single()
+  const { data: message, error } = await insertParentMessage(svc, { thread_id: thread.id, sender_type: 'parent', body }, auth.guardianId)
   if (error || !message) {
     console.error('[chat/send]', error)
     return NextResponse.json({ error: 'failed' }, { status: 500 })

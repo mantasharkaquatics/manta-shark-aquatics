@@ -30,7 +30,7 @@ export default function ConfirmDialog({ eyebrow, title, children, noLabel, yesLa
         <h2 id={id + '-t'} className="msa-dlg-title">{title}</h2>
         {children && <div className="msa-dlg-body">{children}</div>}
         <div className="msa-dlg-acts">
-          <button type="button" className="msa-dlg-no" onClick={onNo} disabled={busy}>{noLabel || t(yesLabel ? 'common.cancel' : 'common.close')}</button>
+          <button type="button" className="msa-dlg-no" onClick={onNo} disabled={busy}>{noLabel || t(yesLabel ? 'common.no' : 'common.close')}</button>
           {yesLabel && onYes && (
             <button type="button" className={'msa-dlg-yes' + (danger ? ' danger' : '')} onClick={onYes} disabled={busy || yesDisabled}>{yesLabel}</button>
           )}

@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
     outcome: result.outcome ?? 'refund',
     points_refunded: result.pointsRefunded ?? 0,
     voucher_expires: result.voucher?.expires_on ?? null,
+    // So the reply can offer to book the make-up at once (14-role test 2, J45).
+    voucher_id: result.voucher?.id ?? null,
     voucher_from: result.voucher?.usable_from ?? null,
   })
 }

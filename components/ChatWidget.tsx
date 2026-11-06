@@ -205,6 +205,21 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   }, [open])
   useEffect(() => () => reportChatOpen(false), [])
   const [threadId, setThreadId] = useState<string | null>(null)
+  // Whose message is whose in a family with more than one person (J07):
+  // until known, every family message counts as one's own, as before.
+  const [fam, setFam] = useState<{ me: string | null; main: string; names: Record<string, string> } | null>(null)
+  useEffect(() => {
+    if (!threadId || fam) return
+    let live = true
+    fetch('/api/chat/thread', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'family' }) })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null)
+      .then(d => { if (live && d && typeof d === 'object') setFam({ me: d.me ?? null, main: String(d.main || ''), names: d.names || {} }) })
+    return () => { live = false }
+  }, [threadId, fam])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isMine = (m: any) => m.sender_type === 'parent' && (!fam || (m.sender_guardian_id ?? null) === fam.me)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const familyName = (m: any) => (m.sender_guardian_id ? fam?.names[m.sender_guardian_id] : fam?.main) || ''
   const [messages, setMessages] = useState<any[]>([])
   /* The greeting ("Hi! How can we help?") is for a conversation that has
      nothing in it -- not for one whose history is still on its way, where
@@ -266,6 +281,20 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   /* The lesson the family opened the chat from (lib/chat-open opts.about):
      offered above the box, and put at the head of the message if kept. */
   const [about, setAbout] = useState('')
+  // Kept for the tab with the draft, so leaving the chat and coming back
+  // still asks "this lesson?" (14-role test 2, J63). A new request wins.
+  const aboutRead = useRef(false)
+  useEffect(() => {
+    if (!aboutRead.current) {
+      aboutRead.current = true
+      let a = ''
+      try { a = sessionStorage.getItem('msa_chat_about') || '' } catch {}
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (a) setAbout(prev => prev || a)
+      return
+    }
+    try { if (about) sessionStorage.setItem('msa_chat_about', about); else sessionStorage.removeItem('msa_chat_about') } catch {}
+  }, [about])
   /* A visitor asking for a person (owner, 2026-10-22, tier 3): a short form
      for a name and an email (phone optional). The desk is alerted and its
      replies are emailed to them (/api/chat/guest/contact). */
@@ -319,7 +348,9 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   useEffect(() => {
     // In the app the chat is a page of its own: go there, and leave the
     // request (and its text) for the page to take when it mounts.
-    const toPage = () => !page && appLook()
+    // Not for a visitor: the chat page is for families, and they were sent to
+    // sign in instead of seeing the "ask the team" form (14-role test 2, J24).
+    const toPage = () => !page && appLook() && !guestRef.current
     const onOpen = (e: Event) => {
       if (toPage()) { router.push('/dashboard/chat'); return }
       takePendingChatOpen()
@@ -878,13 +909,15 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
     const dateLine = (iso: string) => fmtDate(new Date(iso), locale === 'en' ? 'en-US' : locale, { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Los_Angeles' })
     const lastAi = [...messages].reverse().find(m => m.sender_type !== 'system')
-    const avatar = (m: any) => m.sender_type === 'ai'
+    const avatar = (m: (typeof messages)[number]) => m.sender_type === 'parent'
+      ? <span className="pc-av pc-av-desk" aria-hidden="true" style={{ background: '#e6edf8', color: '#2050a0' }}>{familyName(m).charAt(0).toUpperCase()}</span>
+      : m.sender_type === 'ai'
       // eslint-disable-next-line @next/next/no-img-element
       ? <span className="pc-av pc-av-ai" aria-hidden="true"><img src="/mascot.png" alt="" /></span>
       : <span className="pc-av pc-av-desk" aria-hidden="true">{t('chat.deskBadge').trim().charAt(0).toUpperCase()}</span>
     // Never which staff member wrote: families see 櫃台 only (owner,
     // 2026-10-28); the desk's own screen shows who.
-    const nameOf = (m: any) => m.sender_type === 'ai' ? t('chat.fromAi') : t('chat.fromDesk')
+    const nameOf = (m: (typeof messages)[number]) => m.sender_type === 'ai' ? t('chat.fromAi') : m.sender_type === 'parent' ? familyName(m) : t('chat.fromDesk')
     return (
       <div className="pc" ref={panelRef} tabIndex={-1}>
         <style>{PAGE_CSS}</style>
@@ -916,7 +949,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                 <div className="pc-note">{m.metadata?.key === CHAT_HANDBACK_AUTO_KEY ? t('chat.handbackAuto') : m.metadata?.key === CHAT_HANDBACK_KEY || m.body === CHAT_HANDBACK_EN ? t('chat.handback') : m.body}</div>
               </Fragment>
             )
-            const mine = m.sender_type === 'parent'
+            const mine = isMine(m)
             const body = m.metadata?.photo ? (
               <button type="button" className="pc-photo tap-auto" onClick={() => setViewPhoto(photoSrc(m))} aria-label={t('chat.photo.open')}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1147,14 +1180,17 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                 {msg.metadata?.key === CHAT_HANDBACK_AUTO_KEY ? t('chat.handbackAuto') : msg.metadata?.key === CHAT_HANDBACK_KEY || msg.body === CHAT_HANDBACK_EN ? t('chat.handback') : msg.body}
               </div>
             ) : (
-              <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_type === 'parent' ? 'flex-end' : 'flex-start' }}>
+              <div key={msg.id} style={{ display: 'flex', justifyContent: isMine(msg) ? 'flex-end' : 'flex-start' }}>
                 <div style={{
-                  maxWidth: '75%', padding: '10px 14px', borderRadius: msg.sender_type === 'parent' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: msg.sender_type === 'parent' ? BLUE : '#fff',
-                  color: msg.sender_type === 'parent' ? '#fff' : BRAND.ink,
-                  border: msg.sender_type === 'parent' ? 'none' : '1px solid #e3ebf6',
-                  whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.55, fontWeight: msg.sender_type === 'parent' ? 600 : 400,
+                  maxWidth: '75%', padding: '10px 14px', borderRadius: isMine(msg) ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: isMine(msg) ? BLUE : '#fff',
+                  color: isMine(msg) ? '#fff' : BRAND.ink,
+                  border: isMine(msg) ? 'none' : '1px solid #e3ebf6',
+                  whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.55, fontWeight: isMine(msg) ? 600 : 400,
                 }}>
+                  {msg.sender_type === 'parent' && !isMine(msg) && familyName(msg) && (
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#56647d', marginBottom: '4px' }}>{familyName(msg)}</div>
+                  )}
                   {msg.sender_type === 'ai' && (
                     <div style={{ fontSize: '11px', fontWeight: 800, color: BLUE, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
                   )}

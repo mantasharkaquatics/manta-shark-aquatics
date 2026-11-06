@@ -1875,5 +1875,9 @@
   "admin.ann.err.expiry": "結束日期已經過了。",
   "coach.safety.supportFlag": "上課須知",
   "coach.safety.support": "學習或感官需求",
-  "admin.safety.support": "學習或感官需求"
+  "admin.safety.support": "學習或感官需求",
+  "admin.checkin.err.alreadyIn": "{name} 已經報到了（{time} 的課）。",
+  "admin.checkin.err.inactive": "{name} 的帳號已停用，不能報到。",
+  "admin.messages.fromGuardian": "{name}（家人）",
+  "admin.messages.fromViewer": "{name}（只能看的家人，改課請先問主帳號）"
 }

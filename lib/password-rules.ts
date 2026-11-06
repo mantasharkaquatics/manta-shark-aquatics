@@ -20,6 +20,7 @@ const COMMON = new Set([
   'sunshine', 'princess', 'starwars', 'superman', 'trustno', 'whatever', 'master', 'shadow', 'michael',
   'abc', 'abcd', 'abcde', 'aaaa', 'test', 'testtest', 'changeme', 'secret', 'login', 'hello', 'goodluck',
   'mantashark', 'manta', 'shark', 'swim', 'swimming', 'swimmer', 'brea', 'monrovia', 'aquatics',
+  'aa', 'asdf', 'zxcv', 'qwerty123', 'iloveyou', 'football', 'baseball', 'soccer', 'basketball', 'family', 'children',
   '1q2w3e4r', '1qaz2wsx', 'qazwsx', 'zaq12wsx', 'woaini', 'wodemima', 'mima',
 ])
 
@@ -33,19 +34,47 @@ function isRun(s: string): boolean {
   return true
 }
 
+// Keyboard rows and the column walks people type (14-role test 2, J38):
+// any piece of these, 6 or more long, is a guess.
+const KEYBOARD = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm', '1qaz2wsx3edc4rfv5tgb', 'q1w2e3r4t5y6u7i8o9p0', 'qazwsxedcrfv', '1q2w3e4r5t6y7u8i9o0p']
+// Look-alike letters people swap in: P@ssw0rd is password.
+const LEET: Record<string, string> = { '@': 'a', '4': 'a', '0': 'o', '1': 'i', '!': 'i', '3': 'e', '$': 's', '5': 's', '7': 't' }
+
+/** A short pattern repeated, the last copy cut short too (abcabcab, 12121212). */
+function isRepeat(p: string): boolean {
+  for (let n = 1; n <= 4; n++) {
+    if (p.length >= n * 2 && p === p.slice(0, n).repeat(Math.ceil(p.length / n)).slice(0, p.length)) return true
+  }
+  // Pairs: 11223344, aabbccdd.
+  return p.length >= 6 && p.length % 2 === 0 && [...Array(p.length / 2)].every((_, i) => p[2 * i] === p[2 * i + 1])
+}
+function isSimpleCore(c: string): boolean {
+  return c.length <= 2 || isRepeat(c) || isRun(c) || COMMON.has(c)
+    || KEYBOARD.some(k => c.length >= 6 && k.includes(c))
+}
+
 /* null = fine. email: the account's address, when known. */
 export function passwordIssue(password: string, email?: string | null): PasswordIssue | null {
   if (password.length < MIN_PASSWORD) return 'short'
   const p = password.toLowerCase()
-  // One character, or a pattern of up to 4 repeated (11111111, abababab, 12341234).
-  for (let n = 1; n <= 4; n++) {
-    if (p.length >= n * 2 && p.length % n === 0 && p === p.slice(0, n).repeat(p.length / n)) return 'simple'
-  }
-  if (isRun(p)) return 'simple'
+  if (isRepeat(p) || isRun(p)) return 'simple'
   // 01234567890 wraps; 98765432 is a run down (caught above).
   if ('01234567890123456789'.includes(p) || '09876543210987654321'.includes(p)) return 'simple'
-  const core = p.replace(/[\d!.]+$/, '')
-  if (COMMON.has(p) || COMMON.has(core)) return 'simple'
+  if (KEYBOARD.some(k => k.includes(p))) return 'simple'
+  // Two runs side by side: asdf1234, 1234abcd.
+  for (let i = 3; i <= p.length - 3; i++) {
+    const a = p.slice(0, i), b = p.slice(i)
+    if ((isRun(a) || KEYBOARD.some(k => a.length >= 4 && k.includes(a))) && (isRun(b) || KEYBOARD.some(k => b.length >= 4 && k.includes(b)))) return 'simple'
+  }
+  // What is left once the look-alikes are read back and the digits and
+  // signs at either end are dropped: password1!, P@ssw0rd, aaaaaaa1, a1234567.
+  const plain = p.replace(/[@4013!$57]/g, ch => LEET[ch] || ch)
+  // (A letter or two around digits counts too: a1234567, 12345678a.)
+  const digitsCore = p.replace(/^[a-z]+|[a-z]+$/g, '')
+  const cores = [p.replace(/^[\d\W_]+|[\d\W_]+$/g, ''), plain.replace(/^[\d\W_]+|[\d\W_]+$/g, '')]
+  if (digitsCore.length >= p.length - 2) cores.push(digitsCore)
+  for (const c of cores) if (isSimpleCore(c)) return 'simple'
+  if (COMMON.has(plain)) return 'simple'
   // Digits only, as a date (20150612, 06122015) -- a birthday is the first guess.
   if (/^\d{8}$/.test(p)) {
     const y1 = +p.slice(0, 4), m1 = +p.slice(4, 6), d1 = +p.slice(6, 8)

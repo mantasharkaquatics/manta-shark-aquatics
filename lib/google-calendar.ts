@@ -206,6 +206,15 @@ export async function syncFamily(svc: SupabaseClient, parentId: string, only?: {
     let links = (data || []) as GoogleLink[]
     if (only?.ifOlderThanMs) links = links.filter(l => !l.synced_at || Date.now() - new Date(l.synced_at).getTime() > only.ifOlderThanMs!)
     if (!links.length) return
+    // Only the people still in the family (14-role test 2, J05): a removed
+    // member's calendar is not written to.
+    const [{ data: p }, { data: gs }] = await Promise.all([
+      svc.from('parents').select('auth_user_id').eq('id', parentId).maybeSingle(),
+      svc.from('parent_guardians').select('auth_user_id').eq('parent_id', parentId).is('removed_at', null),
+    ])
+    const inFamily = new Set([(p as { auth_user_id?: string | null } | null)?.auth_user_id, ...((gs || []) as { auth_user_id: string | null }[]).map(g => g.auth_user_id)].filter(Boolean))
+    links = links.filter(l => !l.auth_user_id || inFamily.has(l.auth_user_id))
+    if (!links.length) return
     const want = await familyEvents(svc, parentId)
     for (const link of links) {
       try { await syncLink(svc, link, want) } catch (e) {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { localePath } from '@/lib/i18n/paths'
 import { createClient } from '@/lib/supabase/client'
+import { useIsViewer } from '@/lib/use-viewer'
 import { BRAND } from '@/lib/brand'
 import { ASSESSMENT_POINTS, ASSESSMENT_CREDIT_LESSONS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import BrandRoot from '@/components/brand/BrandRoot'
@@ -17,6 +18,11 @@ function BookAssessmentButton({ label }: { label: string }) {
   const router = useRouter()
   const supabase = createClient()
   const [busy, setBusy] = useState(false)
+  const t = useT()
+  // A view-only family member books nothing: said here, instead of a button
+  // that sent them home without a word (14-role test 2, J98).
+  const viewer = useIsViewer()
+  if (viewer) return <p className="b-small">{t('viewer.bookByMain')}</p>
 
   async function go() {
     setBusy(true)

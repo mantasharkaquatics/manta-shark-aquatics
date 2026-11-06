@@ -117,6 +117,6 @@ export async function DELETE(req: NextRequest) {
   const { data: g } = await svc.from('parent_guardians').select('id, auth_user_id')
     .eq('id', id).eq('parent_id', parent.id).is('removed_at', null).maybeSingle()
   if (!g) return bad('not_found', 'Not found', 404)
-  if (!(await removeGuardian(svc, g))) return bad('server', 'Could not remove', 500)
+  if (!(await removeGuardian(svc, g, parent.id))) return bad('server', 'Could not remove', 500)
   return NextResponse.json({ ok: true })
 }

@@ -8,6 +8,7 @@ import { useT, useLocale } from '@/lib/i18n/provider'
 import { LOCALES, type Locale } from '@/lib/i18n'
 import { appLook, coverViewport, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
+import { useFamilyRole } from '@/lib/use-viewer'
 import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
@@ -59,6 +60,8 @@ const css = `
      on the same signal that shrinks the tabs. Slow and eased, fading as it
      goes, both ways (owner: "it went too fast -- smooth out and smooth in"). */
   html.msa-tabs-small .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
+  /* Back while the keyboard is in it, so focus is never on something hidden (J77). */
+  html.msa-tabs-small .msa-ab:focus-within { transform: none; opacity: 1; pointer-events: auto; box-shadow: 0 6px 24px rgba(10,22,48,.16); }
   .msa-ab.sub { padding-left: 4px; }
   .msa-ab-word { flex: 1; min-width: 0; display: inline-flex; align-items: center; font-weight: 800; font-size: 13.5px; letter-spacing: .26em;
     color: ${BRAND.navy}; text-decoration: none; white-space: nowrap; padding: 8px 0; }
@@ -87,22 +90,24 @@ const css = `
     background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
     border: 1px solid rgba(227,235,246,.9); box-shadow: 0 8px 28px rgba(10,22,48,.18);
     transition: left .22s ease, right .22s ease, height .22s ease, bottom .22s ease; }
-  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 50px; bottom: var(--app-tab-gap); }
+  html.msa-tabs-small .msa-tb { left: 56px; right: 56px; height: 56px; bottom: var(--app-tab-gap); }
   /* One line each, cut rather than run into the next tab at large text (50-role test, 2026-11-05). */
-  .msa-tb .lb { display: block; max-height: 1.6em; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: max-height .22s ease, opacity .18s ease; }
+  /* A cap in px, not em: em stayed at the design size while the phone's large
+     text grew the letters, and cut them in half (14-role test 2, J25). */
+  .msa-tb .lb { display: block; line-height: 1.3; max-height: 24px; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: max-height .22s ease, opacity .18s ease; }
   .msa-tb .ic { transition: transform .22s ease; }
   html.msa-tabs-small .msa-tb .lb { max-height: 0; opacity: 0; }
   html.msa-tabs-small .msa-tb .ic { transform: scale(.9); }
   @media (prefers-reduced-motion: reduce) { .msa-ab, .msa-tb, .msa-tb .lb, .msa-tb .ic { transition: none; } }
   .msa-tb a { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    border-radius: 26px; padding: 0; font-size: 10.5px; font-weight: 800; color: #56647d; text-decoration: none;
+    border-radius: 26px; padding: 0 2px; font-size: 10.5px; font-weight: 800; color: #56647d; text-decoration: none;
     cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
   .msa-tb [aria-current="page"] { color: ${BRAND.navy}; background: #e6edf8; }
   .msa-tb a:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -2px; }
   .msa-tb .ic { position: relative; display: block; width: 24px; height: 24px; }
   .msa-tb .bd.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: -2px; right: -4px; border: 2px solid #fff; box-sizing: content-box; }
-  .msa-tb .bd { position: absolute; top: -4px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
-    background: #e5484d; color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-style: normal; }
+  .msa-tb .bd { position: absolute; top: -4px; right: -9px; min-width: 16px; min-height: 16px; padding: 0 4px; border-radius: 999px; box-sizing: border-box;
+    background: #d13438; color: #fff; font-size: 10px; line-height: 1.6; text-align: center; font-style: normal; }
 `
 
 export default function AppShell() {
@@ -113,7 +118,9 @@ export default function AppShell() {
   // render (and hydration) says false.
   const app = useSyncExternalStore(noSubscribe, appLook, () => false)
   const [signedIn, setSignedIn] = useState(false)
-  const [viewer, setViewer] = useState(false)
+  // Known for the tab once asked (J08): 預約 is added once the role is known
+  // to be one that books, so a view-only member never sees it flash.
+  const role = useFamilyRole()
   const [chatOpen, setChatOpen] = useState(false)
   const [unread, setUnread] = useState(0)
   const locale = useLocale()
@@ -147,8 +154,7 @@ export default function AppShell() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSignedIn(!!session)
       // Not inside this callback: Supabase warns it can deadlock.
-      if (session) setTimeout(() => { myFamilyRole(supabase).then(r => setViewer(r === 'viewer')).catch(() => {}) }, 0)
-      else setViewer(false)
+      if (session) setTimeout(() => { myFamilyRole(supabase).catch(() => {}) }, 0)
     })
     const sync = () => { setChatOpen(chatIsOpen()); setUnread(chatUnread()) }
     sync()
@@ -291,7 +297,7 @@ export default function AppShell() {
 
   const tabs: Tab[] = [
     { key: 'home', href: '/dashboard', icon: ICONS.home },
-    ...(viewer ? [] : [{ key: 'book', href: '/booking', icon: ICONS.book }]),
+    ...(role === 'main' || role === 'full' ? [{ key: 'book', href: '/booking', icon: ICONS.book }] : []),
     { key: 'schedule', href: '/dashboard/schedule', icon: ICONS.schedule },
     { key: 'chat', href: '/dashboard/chat', icon: ICONS.chat },
     { key: 'me', href: '/dashboard/me', icon: ICONS.me },

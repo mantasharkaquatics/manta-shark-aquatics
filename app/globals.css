@@ -119,8 +119,10 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
+  /* Text boxes: the same blue ring, which their own styles may replace. */
+  :where(input, select, textarea):focus-visible { outline: 2px solid #2050a0; outline-offset: 2px; }
   body {
     @apply bg-background text-foreground;
   }
@@ -294,6 +296,13 @@
    (selected) button and a white one alike. Mouse and touch never show either:
    :focus-visible only matches keyboard focus (and text fields). */
 .kb-focus:focus-visible { outline: 2px solid #2050a0 !important; outline-offset: 2px !important; }
+/* Every control shows where the keyboard is, as .kb-focus does (14-role
+   test 2, J29: the default was a 1px half-grey line, near invisible on the
+   amber buttons). !important because many controls set outline: none
+   inline. A heading focused by script (tabindex -1) is left alone. */
+:where(a[href], button, [role=button], summary, [tabindex]:not([tabindex="-1"])):focus-visible { outline: 2px solid #2050a0 !important; outline-offset: 2px !important; }
+/* On a filled button a white ring inside keeps the blue readable. */
+.msa-dlg-yes:focus-visible, .msa-nextline-in:focus-visible, .msa-book-bar button:focus-visible { box-shadow: inset 0 0 0 2px #fff; }
 .kb-focus-in:focus-visible { outline: 2px solid #ffffff !important; outline-offset: -4px !important; box-shadow: inset 0 0 0 2px #2050a0 !important; }
 
 /* "Skip to main content" (components/Navbar.tsx): off screen until it has
@@ -346,6 +355,13 @@ html.msa-app .rn { top: var(--app-bar-h) !important; left: 0 !important; right: 
    floating tabs once a page is scrolled to its end. */
 html.msa-app, html.msa-app body { background: #e9eff7; }
 html.msa-app body { padding-bottom: var(--app-tab-h); }
+/* Sign-in pages draw no tabs: no room for them (14-role test 2, J68). */
+html.msa-app body:has(.auth-shell) { padding-bottom: 0; }
+/* What the keyboard reaches is never left behind the tabs or the booking
+   bar (J75). */
+html.msa-app { scroll-padding-top: var(--app-bar-h, 0px); scroll-padding-bottom: calc(var(--app-tab-now) + 16px); }
+html.msa-app:has(.msa-book-bar) { scroll-padding-bottom: calc(var(--app-tab-now) + 96px); }
+html:not(.msa-app):has(.msa-book-bar) { scroll-padding-bottom: 96px; }
 /* A page is exactly the screen between the top bar and the tabs until its
    content needs more; only then does it scroll (owner, 2026-11-01). Page
    roots that used to be "at least 100vh" (.ac-root, .msa-fill) were that
@@ -369,7 +385,9 @@ html.msa-app.msa-tabs-small .rn { top: 0 !important; }
 html.msa-app .msa-book-bar { padding-bottom: 12px !important; }
 /* Its colour runs on down behind the tabs, so the page does not show through
    the strip between the bar and the capsule (2026-11-04). */
-html.msa-app .msa-book-bar::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: var(--app-tab-now); background: inherit; pointer-events: none; }
+html.msa-app .msa-book-bar::after { content: ''; position: absolute; left: 50%; width: 100vw; transform: translateX(-50%); top: 100%; height: var(--app-tab-now); background: #eef3f9; pointer-events: none; }
+/* The page under it in the same colour, so no edge shows at the foot (J68). */
+html.msa-app body:has(.msa-book-bar) { background: #eef3f9; }
 
 /* The booking page in the app: the top bar already leaves room, so the
    page heading sits closer under it -- the 要怎麼上 and every-week steps fit
@@ -417,8 +435,10 @@ html.msa-app .bk-steps { margin-bottom: 16px !important; }
 .msa-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   position: sticky; top: -20px; z-index: 2; margin: -20px -20px 14px; padding: 16px 20px 10px;
   background: #f6f9fd; border-radius: 18px 18px 0 0 }
-.msa-sheet-head b, .msa-sheet-head h2 { font-size: 17px; color: #12254a; margin: 0 }
-.msa-sheet-x { flex: none; width: 34px !important; height: 34px !important; min-height: 34px !important; border-radius: 50%; border: none; background: #e8eef7;
+.msa-sheet-head b, .msa-sheet-head h2 { font-size: 17px; color: #12254a; margin: 0; font-family: inherit; font-weight: 700 }
+/* 34px to see, 44px to hit (14-role test 2, J49). */
+.msa-sheet-x::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; }
+.msa-sheet-x { position: relative; flex: none; width: 34px !important; height: 34px !important; min-height: 34px !important; border-radius: 50%; border: none; background: #e8eef7;
   color: #34435e; font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0 }
 @media (max-width: 640px) {
   .msa-sheet-back { align-items: flex-end; padding: 0 }
@@ -439,10 +459,17 @@ html.msa-app .bk-steps { margin-bottom: 16px !important; }
 .msa-dlg-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a36100; margin-bottom: 8px }
 .msa-dlg-title { font-family: var(--font-display), 'PingFang TC', serif; font-size: 20px; font-weight: 900; color: #16294a; margin: 0 0 12px; line-height: 1.3 }
 .msa-dlg-body { font-size: 13.5px; color: #56647d; line-height: 1.6; margin: 0 0 20px }
-.msa-dlg-acts { display: flex; gap: 10px }
-.msa-dlg-acts > * { flex: 1 1 0; min-width: 0 }
+.msa-dlg-acts { display: flex; flex-wrap: wrap; gap: 10px }
+/* With large text on a small phone the text scrolls and the buttons stay at
+   the dialog's foot (14-role test 2, J102); -22px meets its padding. A thin
+   line above them says there is more. */
+.msa-dlg > .msa-dlg-acts { position: sticky; bottom: -22px; z-index: 1; background: #fff; margin-bottom: -22px; padding: 12px 0 22px;
+  box-shadow: 0 -1px 0 #eef2f8 }
+/* Side by side, or one over the other when the words need it (J117). */
+.msa-dlg-acts > * { flex: 1 1 130px; min-width: 0 }
 .msa-dlg-no, .msa-dlg-yes { min-height: 46px; padding: 10px 12px; border-radius: 10px; font-family: inherit; font-size: 14px; cursor: pointer; line-height: 1.3 }
 .msa-dlg-no { border: 1px solid #d5deeb; background: #fff; color: #34435e; font-weight: 700 }
 .msa-dlg-yes { border: none; background: #f09800; color: #12254a; font-weight: 800 }
 .msa-dlg-yes.danger { background: #c0392b; color: #fff }
 .msa-dlg-yes:disabled, .msa-dlg-no:disabled { opacity: .55; cursor: default }
+.msa-sheet-back:has(> .msa-notice) { z-index: 1100 }

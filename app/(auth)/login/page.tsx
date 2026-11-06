@@ -9,6 +9,7 @@ import { safeNext, withNext } from '@/lib/safe-next'
 import { useT } from '@/lib/i18n/provider'
 import { errorKey } from '@/lib/i18n/errors'
 import PasswordField from '@/components/ui/PasswordField'
+import { looksLikeEmail } from '@/lib/email-typo'
 
 // There is no Navbar over the (auth) pages, so this card is the whole of the
 // brand a parent sees while signing in -- hence the logo. Palette B (2026-09):
@@ -62,9 +63,14 @@ export default function LoginPage() {
   }, [])
 
   const handleLogin = async () => {
+    // Checked here first: an empty form went to the server and came back in
+    // English (14-role test 2, J41).
+    const e = email.trim()
+    if (!e || !looksLikeEmail(e)) { setError(t('forgot.err.email')); return }
+    if (!password) { setError(t('login.err.password')); return }
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({ email: e, password })
     if (error) {
       setError(tErr(error.message))
       setLoading(false)

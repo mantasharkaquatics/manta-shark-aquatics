@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 import { useEffect, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
@@ -24,6 +25,7 @@ export default function PushSettings() {
   // A failed read says so and offers to try again (2026-11-04: the page was left with its title alone).
   const [loadFailed, setLoadFailed] = useState(false)
   const [tries, setTries] = useState(0)
+  const [role, setRole] = useState<string | null>(null)
   useEffect(() => {
     if (!isNativeApp()) return
     // Inside a promise: whatever the bridge returns, a throw stays here.
@@ -31,7 +33,7 @@ export default function PushSettings() {
     fetch('/api/push/settings', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (d) { setLoadFailed(false); setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) }
+        if (d) { setLoadFailed(false); setRole(typeof d.role === 'string' ? d.role : null); setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) }
         else setLoadFailed(true)
       })
       .catch(() => setLoadFailed(true))
@@ -71,7 +73,8 @@ export default function PushSettings() {
           <div key={k} className="ac-row">
             <div>
               <b>{t(`push.settings.${k}`)}</b>
-              <small>{t(`push.settings.${k}Desc`)}</small>
+              {/* A view-only member gets no waitlist offers (J85). */}
+              <small>{t(k === 'bookings' && role === 'viewer' ? 'push.settings.bookingsDescViewer' : `push.settings.${k}Desc`)}</small>
             </div>
             <button type="button" role="switch" aria-checked={on[k]} aria-label={t(`push.settings.${k}`)}
               onClick={() => flip(k)} disabled={saving !== null} className="tap-auto ac-toggle">
@@ -83,7 +86,9 @@ export default function PushSettings() {
       {error && <div className="ac-err" role="alert" style={{ marginTop: 10 }}>{t('push.settings.error')}</div>}
       <p className="ac-note" style={{ marginTop: 12 }}>{t('push.settings.always')}</p>
       {/* Push takes the place of the text messages: say so (50-role test, 2026-11-05). */}
-      <p className="ac-note" style={{ marginTop: 6 }}>{t('push.settings.smsNote')}</p>
+      {/* Texts go to the main account's phone only (J85); and how to stop them (J60). */}
+      <p className="ac-note" style={{ marginTop: 6 }}>{t(role === 'main' || !role ? 'push.settings.smsNote' : 'push.settings.smsNoteOther')}</p>
+      {(role === 'main' || !role) && <p className="ac-note" style={{ marginTop: 6 }}>{t('push.settings.smsStop')} <Link href="/sms-terms" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('legal.smsTerms')} ›</Link></p>}
     </section>
   )
 }

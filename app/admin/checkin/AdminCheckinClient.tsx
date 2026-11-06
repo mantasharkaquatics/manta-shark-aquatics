@@ -42,7 +42,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   const t = useT()
   const locale = useLocale()
   const [query, setQuery] = useState('')
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [result, setResult] = useState<{ success: boolean; info?: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState('')
   const [confirmStudent, setConfirmStudent] = useState<Student | null>(null)
   // How the swimmer in the confirm came: picked by name, or a scanned code.
@@ -68,11 +68,19 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
   }, [])
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState(false)
-  // QR decoding uses the browser's own BarcodeDetector, which Safari (every
-  // iPad/iPhone browser), Firefox and desktop Chrome on Windows/Linux do not
-  // have. The camera used to open there and silently never scan; now the
-  // desk is told straight away to use Chrome or the name search (found 2026-10-08).
+  // QR decoding uses the browser's own BarcodeDetector where there is one,
+  // and jsQR (loaded on this page only) where there is not -- Safari on every
+  // iPad and iPhone, Firefox (14-role test 2, J90). Unsupported now means no
+  // camera at all.
   const [scanUnsupported, setScanUnsupported] = useState(false)
+  const nativeQr = useRef(false)
+  // The name of a swimmer found by preview, for the result line.
+  const previewName = useRef<string | null>(null)
+  // The last code that was not ours, and when: not reported again every
+  // half second while it stays in front of the camera (J111).
+  const lastBad = useRef<{ raw: string; at: number } | null>(null)
+  // A scan, not a name picked: the camera opens again for the next swimmer.
+  const resumeAfter = useRef(false)
   const [scanLoading, setScanLoading] = useState(false)
 
   const [records, setRecords] = useState<AttendanceRecord[]>([])
@@ -133,8 +141,11 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         // English sentence. A swimmer not in this page's list (a QR code for
         // one it did not load) keeps that sentence, which carries the name.
         const key = CHECKIN_ERROR_KEYS[String(data.code || '')]
-        const name = students.find(s => s.id === studentId)?.full_name
-        setResult({ success: false, message: key && (name || data.code === 'not_found') ? t(key, { name: name ?? '' }) : data.error || t('admin.checkin.err.failed') })
+        const name = students.find(s => s.id === studentId)?.full_name || previewName.current
+        // Already in: said calmly, not as a red failure (J11). A database
+        // error is the screen's own words, not the English (J89).
+        if (data.code === 'already_checked_in') setResult({ success: true, info: true, message: t('admin.checkin.err.alreadyIn', { name: name ?? '', time: data.lesson_time ?? '' }) })
+        else setResult({ success: false, message: key && (name || data.code === 'not_found') ? t(key, { name: name ?? '' }) : data.code === 'db' ? t('admin.checkin.err.failed') : data.error || t('admin.checkin.err.failed') })
       } else {
         const times = (data.lesson_times || []).join(', ')
         const vars = { name: data.student_name ?? '', n: data.checked_in_count ?? '', times }
@@ -159,7 +170,15 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     setConfirmVia('manual')
     setLoading('')
     setQuery('')
+    scanNext()
   }
+  // After a scan, the camera opens again for the next swimmer (J111).
+  function scanNext() {
+    if (!resumeAfter.current) return
+    resumeAfter.current = false
+    window.setTimeout(() => { if (mountedRef.current) startCamera() }, 1200)
+  }
+  function cancelConfirm() { setConfirmStudent(null); setConfirmVia('manual'); scanNext() }
 
   async function qrDetectorAvailable(): Promise<boolean> {
     const BD = (window as any).BarcodeDetector
@@ -175,7 +194,8 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
 
   async function startCamera() {
     setCameraError(false)
-    if (!(await qrDetectorAvailable())) { setScanUnsupported(true); return }
+    if (!navigator.mediaDevices?.getUserMedia) { setScanUnsupported(true); return }
+    nativeQr.current = await qrDetectorAvailable()
     setScanUnsupported(false)
     setScanning(true)
     try {
@@ -218,17 +238,34 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.drawImage(video, 0, 0)
-      if ('BarcodeDetector' in window) {
-        try {
+      let raw: string | null = null
+      try {
+        if (nativeQr.current) {
           const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
           const barcodes = await detector.detect(canvas)
-          if (barcodes.length > 0) {
-            const raw = barcodes[0].rawValue
-            stopCamera()
-            await processQR(raw)
-          }
-        } catch (e) {}
+          if (barcodes.length > 0) raw = barcodes[0].rawValue
+        } else {
+          // Scaled to 640 wide first, so an older iPad keeps up.
+          const k = Math.min(1, 640 / canvas.width)
+          const w = Math.round(canvas.width * k), h = Math.round(canvas.height * k)
+          if (k < 1) { canvas.width = w; canvas.height = h; ctx.drawImage(video, 0, 0, w, h) }
+          const jsQR = (await import('jsqr')).default
+          const code = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' })
+          if (code) raw = code.data
+        }
+      } catch { /* not this frame */ }
+      if (!raw) return
+      // Not one of our codes: said, and the camera stays on (J111).
+      if (!decodeQRPayload(raw)) {
+        const b = lastBad.current
+        if (b && b.raw === raw && Date.now() - b.at < 2000) return
+        lastBad.current = { raw, at: Date.now() }
+        setResult({ success: false, message: t('admin.checkin.err.invalidQr') })
+        return
       }
+      stopCamera()
+      resumeAfter.current = true
+      await processQR(raw)
     }, 500)
   }
 
@@ -254,8 +291,16 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
     // straight to the server, which names them or refuses.
     const known = students.find(s => s.id === studentId)
     if (known) { setConfirmVia('qr_code'); setConfirmStudent(known); setScanLoading(false); return }
-    await doCheckin(studentId, 'qr_code')
+    // Not on this list (added today, or an old card): asked of the server
+    // first, and confirmed the same way (J88).
+    const r = await fetch('/api/admin/attendance/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: studentId, preview: true }) }).catch(() => null)
+    const d = r ? await r.json().catch(() => null) : null
     setScanLoading(false)
+    if (!r?.ok || !d?.student) { setResult({ success: false, message: t(r?.status === 404 ? 'admin.checkin.err.notFound' : 'admin.checkin.err.failed', { name: '' }) }); scanNext(); return }
+    if (d.student.is_active === false) { setResult({ success: false, message: t('admin.checkin.err.inactive', { name: d.student.full_name }) }); scanNext(); return }
+    previewName.current = d.student.full_name
+    setConfirmVia('qr_code'); setConfirmStudent(d.student)
   }
 
   const confirmParent = confirmStudent ? (Array.isArray(confirmStudent.parents) ? confirmStudent.parents[0] : confirmStudent.parents) : null
@@ -328,7 +373,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
         </div>
 
         {result && (
-          <div className={'rounded-xl px-4 py-3 text-sm font-medium text-center mb-8 ' + (result.success ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30')}>
+          <div className={'rounded-xl px-4 py-3 text-sm font-medium text-center mb-8 ' + (result.info ? 'bg-white/10 text-white/80 border border-white/20' : result.success ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30')}>
             {result.message}
           </div>
         )}
@@ -376,7 +421,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
       </div>
 
       {confirmStudent && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { setConfirmStudent(null); setConfirmVia('manual') }}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={cancelConfirm}>
           <div className="bg-[#1a2744] rounded-2xl w-full max-w-sm shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-[#c9a84c]/20 flex items-center justify-center mx-auto mb-4">
@@ -391,7 +436,7 @@ export default function AdminCheckinClient({ students }: { students: Student[] }
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setConfirmStudent(null); setConfirmVia('manual') }} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
+              <button onClick={cancelConfirm} className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 hover:text-white transition-colors text-sm">{t('common.cancel')}</button>
               <button onClick={() => checkin(confirmStudent)} className="flex-1 py-2.5 rounded-xl bg-[#c9a84c] text-[#0d1529] font-bold hover:bg-[#d4b86a] transition-colors text-sm">{t('admin.checkin.confirmTitle')}</button>
             </div>
           </div>

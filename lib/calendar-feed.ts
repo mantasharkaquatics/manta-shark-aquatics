@@ -59,16 +59,29 @@ export async function feedToken(svc: SupabaseClient, parentId: string): Promise<
  *  「iPhone 行事曆」 is per device). deviceId: a random id the browser keeps
  *  (localStorage); table calendar_feed_devices,
  *  docs/migration-calendar-marks.sql. */
-export async function deviceFeedToken(svc: SupabaseClient, parentId: string, deviceId: string): Promise<{ token: string; fetchedAt: string | null }> {
+/* Each phone's link records whose it is (14-role test 2, J05), so a family
+   member's links end when they are removed (lib/guardians.ts removeGuardian)
+   and the feed refuses one whose owner is no longer in the family. Before
+   docs/migration-calendar-owner.sql the column is not there: written and
+   read without it, as before. */
+export async function deviceFeedToken(svc: SupabaseClient, parentId: string, deviceId: string, authUserId?: string): Promise<{ token: string; fetchedAt: string | null }> {
+  let owned = !!authUserId
   const read = async () => {
-    const { data } = await svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId).maybeSingle()
+    let q = svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId)
+    if (owned) q = q.eq('auth_user_id', authUserId!)
+    let { data, error } = await q.maybeSingle()
+    if (error && owned) {
+      owned = false
+      ;({ data, error } = await svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId).maybeSingle())
+    }
     const row = data as { token: string; fetched_at: string | null } | null
     return row ? { token: row.token, fetchedAt: row.fetched_at } : null
   }
   const have = await read()
   if (have) return have
   const token = randomBytes(24).toString('base64url')
-  const { error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token })
+  let { error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token, ...(owned ? { auth_user_id: authUserId } : {}) })
+  if (error && owned) ({ error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token }))
   if (error) {
     const again = await read()
     if (again) return again
@@ -133,6 +146,19 @@ export async function familyEvents(svc: SupabaseClient, parentId: string) {
 
 /** The feed itself: a phone's own link, or the family's older one. null: no
  *  such token. */
+/** Is the person a phone's link was made for still the family (the main
+ *  account, or a family member not removed)? True for links made before
+ *  owners were recorded, or before the column exists. */
+export async function ownerStillIn(svc: SupabaseClient, parentId: string, token: string): Promise<boolean> {
+  const { data, error } = await svc.from('calendar_feed_devices').select('auth_user_id').eq('token', token).maybeSingle()
+  const uid = !error ? (data as { auth_user_id?: string | null } | null)?.auth_user_id : null
+  if (!uid) return true
+  const { data: p } = await svc.from('parents').select('id').eq('id', parentId).eq('auth_user_id', uid).maybeSingle()
+  if (p) return true
+  const { data: g } = await svc.from('parent_guardians').select('id').eq('parent_id', parentId).eq('auth_user_id', uid).is('removed_at', null).maybeSingle()
+  return !!g
+}
+
 export async function feedIcs(svc: SupabaseClient, token: string): Promise<string | null> {
   let table: 'calendar_feed_devices' | 'calendar_feeds' = 'calendar_feed_devices'
   let { data } = await svc.from('calendar_feed_devices').select('parent_id, fetched_at').eq('token', token).maybeSingle()
@@ -143,6 +169,8 @@ export async function feedIcs(svc: SupabaseClient, token: string): Promise<strin
   const feed = data as Pick<FeedRow, 'parent_id' | 'fetched_at'> | null
   if (!feed) return null
   const parentId = feed.parent_id
+  // A phone's link whose owner has left the family: nothing more (J05).
+  if (table === 'calendar_feed_devices' && !(await ownerStillIn(svc, parentId, token))) return null
   const { events, name } = await familyEvents(svc, parentId)
   // Remember that a calendar reads it, at most once an hour.
   if (!feed.fetched_at || Date.now() - new Date(feed.fetched_at).getTime() > 3_600_000) {

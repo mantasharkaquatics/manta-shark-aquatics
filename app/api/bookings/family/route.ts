@@ -2,11 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { refundBookingPoints } from '@/lib/bookings/refund'
-import { sendBookingConfirmation } from '@/lib/bookings/confirm-mail'
-import { createBooking } from '@/lib/bookings/create-booking'
 import { sendEmail } from '@/lib/email'
 import { FIXED_CLASS_MIN_LESSONS } from '@/lib/booking-time'
 import { POST as recurringPOST } from '../recurring/route'
+import { releaseVoucher } from '@/lib/vouchers'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,9 +68,12 @@ export async function POST(req: NextRequest) {
     if (bookingIds.length) {
       const { data: rows } = await svc.from('bookings')
         .update({ status: 'cancelled', cancellation_reason: 'family_not_booked', cancelled_by: 'parent', cancelled_at: new Date().toISOString() })
-        .in('id', bookingIds).eq('status', 'confirmed').select('id, points_charged, points_refunded')
-      for (const row of (rows || []) as any[])
+        .in('id', bookingIds).eq('status', 'confirmed').select('id, points_charged, points_refunded, voucher_id')
+      for (const row of (rows || []) as any[]) {
         await refundBookingPoints(svc, { booking: row, parentId: parent.id, reason: 'booking_failed', actor: 'parent', note: 'Family booking: another swimmer could not be booked' })
+        // A make-up voucher it used goes back to the family.
+        if (row.voucher_id) await releaseVoucher(svc, row.voucher_id)
+      }
     }
     if (fixedIds.length) {
       // The cancelled lessons stay on record; the class they belonged to goes.
@@ -85,16 +87,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error, code, which: i, ...extra }, { status: 409 })
   }
 
+  /* One lesson each, through the same route that books one child one
+     lesson, so a child's matching make-up voucher pays for theirs (14-role
+     test 2, J02: createBooking here charged points instead), unless the
+     family chose to pay with points. */
   if (mode === 'single') {
+    const mails: any[] = []
     for (let i = 0; i < lessons.length; i++) {
       const l = lessons[i]
-      const r = await createBooking(ctx, { course_type_id: ct.id, coach_id: l.coach_id, session_date: l.dates[0], start_time: l.time, student_id: l.student_id, quiet: true })
-        .catch(err => { console.error('[family] booking threw', err); return null })
+      const inner = new NextRequest(new URL('/api/bookings/recurring', req.url), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'commit', course_slug: slug, student_id: l.student_id, coach_id: l.coach_id, quiet: true,
+          use_vouchers: body?.use_vouchers !== false,
+          slots: [{ date: l.dates[0], start_time: l.time, coach_id: l.coach_id }],
+        }),
+      })
+      const r = await recurringPOST(inner).catch(err => { console.error('[family] booking threw', err); return null })
       const d: any = r ? await r.json().catch(() => ({})) : {}
-      if (!r?.ok || !d.booking_id) return fail(i, d.error || 'Booking failed. Please try again.', d.code)
-      bookingIds.push(d.booking_id)
+      if (Array.isArray(d.booking_ids)) bookingIds.push(...d.booking_ids)
+      if (!r?.ok || !d.ok) return fail(i, d.error || 'Booking failed. Please try again.', d.code, d.needed ? { needed: d.needed, available: d.available } : {})
+      if (d.booked !== 1) return fail(i, 'FAMILY_WEEK_GONE', 'week_gone', { skipped: d.skipped || [] })
+      if (d.mail) mails.push(d.mail)
     }
-    for (const id of bookingIds) await sendBookingConfirmation(svc, parent.id, id)
+    for (const m of mails) { try { await sendEmail(m) } catch (e) { console.error('[family] confirmation email failed:', e instanceof Error ? e.message : e) } }
     return NextResponse.json({ ok: true, booking_ids: bookingIds })
   }
 

@@ -1216,6 +1216,54 @@ the contained problems were fixed the same day. What to keep doing:
     yet" / "has open times"; the app's top bar comes before <main>; the
     hidden website nav is no landmark in the app; each tab sets the page
     title.
+- **The second 14-role run (owner, 2026-11-06)**: 28 testers (two per role),
+  118 findings, 108 fixed directly ("直接修"), 7 asked one by one. What to
+  keep doing:
+  - **A view-only member never downloads what only coaches and the desk
+    see**: pages ask for the columns they show (PARENT_COLS / STUDENT_COLS,
+    never select('*') on students or parents), and
+    docs/migration-family-columns.sql takes medical, support, address and
+    emergency-contact columns away from the browser roles (the server routes
+    read them with the service key, /api/parent/safety refuses a viewer). A
+    new column on those tables is not readable from the browser until granted.
+  - **The role is remembered for the tab** (lib/my-parent.ts knownFamilyRole,
+    sessionStorage msa_family_role; lib/use-viewer.ts `useFamilyRole()`:
+    undefined = not known yet). Nothing only a paying member may do -- top
+    up, renew, move, pay, the 預約 tab -- is drawn while it is undefined.
+    `clearAccountData()` (lib/local-account-data.ts) runs on every sign-out
+    and clears it with the chat draft, the QR pictures and the calendar code.
+  - **One lesson sheet**: in the app every lesson still to come opens the
+    same sheet (`openLesson`), from the list, the week, the month and the
+    home line; past lessons and the website keep the lesson detail. The
+    home line says 已報到 until the lesson ends.
+  - **Not known is not "no" and not "failed"**: a schedule that did not load
+    keeps what it showed and says so (`bookingsErr`); 我的's plans, the
+    account's safety answers, the assessment check on the booking page and
+    the QR with no connection all say so too. A booking write that times
+    out or meets a server error says "check your schedule first" with 看課表
+    (booking.err.unsureCheck / timeoutUnsure): it may have gone through.
+  - **Keyboard**: every control shows a 2px blue ring (globals.css :where
+    rule; inline outline:none is overridden); a month of days is one Tab
+    stop moved with the arrows (`useRovingDays`); each booking step's
+    heading takes focus (h2[data-step-h]); times are read with 上午/下午
+    (`TimeLabel`); a dialog's focus goes back to whoever opened it, or to
+    the opener of the sheet it came from (lib/use-dialog-focus OPENERS).
+  - **Words**: one of a thing reads as one (translate() uses key+'One' when
+    n is 1); names are joined with joinList (", and" in English, 、 in
+    Chinese); Simplified Chinese counts lessons with 堂; a voucher is
+    "usable until {date} (that day included)"; the left button of every
+    decision is 不要 (common.no) unless it says more.
+  - **People leave cleanly**: removing a family member deletes their phones'
+    calendar links and the Google calendar we made for them
+    (docs/migration-calendar-owner.sql adds the owner column); chat
+    messages record which family member wrote them
+    (docs/migration-chat-author.sql), the app shows another member's
+    messages on the left with their name, the desk sees "view-only".
+  - The desk's camera scans with jsQR where the browser has no
+    BarcodeDetector (iPad, iPhone), keeps scanning after a code that is not
+    ours, opens again after each check-in, confirms a swimmer not on its
+    list after asking the server (`preview: true`), and says "already
+    checked in" calmly.
 - **app/(public)/error.tsx** is the translated, branded page for a page
   that fails to draw.
 - **Numbers of points always carry separators** (booking page `nf()`).

@@ -11,14 +11,16 @@ import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
 import { isWithin24Hours } from '@/lib/booking-time'
 import { allRows, allRowsIn } from '@/lib/db-paging'
+import LoadFailed from '@/components/LoadFailed'
 import { priceLesson, REFERRAL_POINTS, ASSESSMENT_CREDIT_DAYS } from '@/lib/points'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { bandColorOf, bandRange } from '@/lib/zone-colors'
 import { useLocale, useT } from '@/lib/i18n/provider'
-import { tDb, dateTag, getT, isLocale, matchLocaleTags, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
+import { tDb, dateTag, joinList, getT, isLocale, matchLocaleTags, LOCALE_COOKIE, type Locale } from '@/lib/i18n'
 import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
 import { MascotEmpty } from '@/components/MascotHelper'
@@ -207,6 +209,10 @@ ${REPORT_SHEET_CSS}
    for all of it the middle scrolls rather than cutting anything off. */
 html.msa-app:has(.msa-root[data-view="home"]) { overscroll-behavior-y: none }
 html.msa-app .msa-root[data-view="home"] { height: calc(100dvh - var(--app-tab-h)); min-height: 0 !important; display: flex; flex-direction: column; overflow: hidden }
+/* With the phone's largest text on a small phone the swimmer has shrunk as
+   far as it goes and a notice can still push the next lesson under the tabs:
+   then the page scrolls rather than hide it (14-role test 2, J52). */
+html.msa-app[data-text-size] .msa-root[data-view="home"] { overflow-y: auto }
 html.msa-app [data-view="home"] .msa-hello-in { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; padding: 12px 20px 0 }
 html.msa-app [data-view="home"] .msa-hello h1 { font-size: 21px; line-height: 1.25; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 /* The greeting stays one line (the date wraps under it instead), so large text
@@ -238,6 +244,7 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
   min-height: 54px; padding: 6px 3px; border: 0; border-radius: 12px; background: rgba(255,255,255,0.12); color: #fff; font-family: inherit;
   font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; cursor: pointer }
 .msa-mcard-tiles button.wide { flex-grow: 1.35 }
+.msa-mcard-tiles button.wide.pending { background: #f09800; color: #12254a }
 .msa-mcard-first p { margin: 10px 2px 8px; font-size: 13px; line-height: 1.45; color: #c9d6ec }
 .msa-mcard-first button { width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: #f09800; color: #12254a; font: inherit; font-size: 15.5px; font-weight: 900; cursor: pointer }
 .msa-mcard-first button:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
@@ -250,16 +257,29 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 /* The family's next lesson, one line under the cards; amber with 報到 on the day. */
 .msa-nextline { margin-top: 10px; background: #fff; border: 1px solid #d3deec; border-radius: 16px }
 .msa-nextline.hot { background: #fff8ec; border: 2px solid #f09800 }
-.msa-nextline-row { display: flex; align-items: center; gap: 8px; padding-right: 10px }
-.msa-nextline-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 4px 11px 14px; border: 0; background: none;
+.msa-nextline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 10px }
+.msa-nextline.done { background: #f1faf5; border: 1px solid #b7e0cc }
+.msa-nextline.done .msa-nextline-main .ic, .msa-nextline.done .msa-nextline-main small { color: #1f7a57 }
+/* 13em of its own text before 報到 drops to a line of its own: with the
+   phone's large text the time stays whole (J52). */
+.msa-nextline-main { flex: 1 1 13em; font-size: 15px; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 4px 11px 14px; border: 0; background: none;
   font-family: inherit; text-align: left; color: #12254a; cursor: pointer }
 .msa-nextline-main .ic { font-size: 18px; flex: none }
 .msa-nextline-main .tx { flex: 1; min-width: 0 }
-.msa-nextline-main b { display: block; font-size: 15px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums }
+/* With the phone's large text the home still fits one screen (J52): the
+   second line goes, the name and the time take two lines if they must, and
+   報到 stays beside them. */
+html[data-text-size] .msa-nextline-row { flex-wrap: nowrap }
+html[data-text-size] .msa-nextline-main { flex: 1 1 0 }
+html[data-text-size] .msa-nextline-main small { display: none }
+html[data-text-size] .msa-nextline-in { padding: 0 12px; margin: 0 }
+/* The time is never cut (J52): with large text it moves to its own line. */
+.msa-nextline-main b { display: block; font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums }
+.msa-nextline-main b .nw { white-space: nowrap }
 .msa-nextline-main small { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 700; color: #56647d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .msa-nextline.hot .msa-nextline-main small { color: #8a5300 }
 .msa-nextline-main .go { flex: none; font-size: 20px; font-weight: 900; color: #9aa7bd }
-.msa-nextline-in { flex: none; min-height: 40px; padding: 0 18px; border: 0; border-radius: 999px; background: #f09800; color: #12254a;
+.msa-nextline-in { flex: none; margin: 8px 0 8px auto; min-height: 40px; padding: 0 18px; border: 0; border-radius: 999px; background: #f09800; color: #12254a;
   font-family: inherit; font-size: 15px; font-weight: 900; cursor: pointer }
 .msa-nextline-in:disabled { opacity: .7; cursor: progress }
 .msa-nextline-msg { padding: 0 14px 10px; font-size: 12.5px; line-height: 1.5; color: #8a5300 }
@@ -375,7 +395,7 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 .msa-lesson-tap:active { background: #f6f9fd !important }
 .msa-lesson-tap:not(.waiting) .msa-lesson-actions { display: none !important }
 .msa-lesson-tap:has(.msa-lesson-side > .msa-lesson-actions) { grid-template-columns: minmax(0, 1fr) !important }
-.msa-lesson-chev { position: absolute; top: 0; bottom: 0; right: 0; width: 40px; border: 0; background: transparent; color: #9aa6ba;
+.msa-lesson-chev { position: absolute; top: 0; bottom: 0; right: 0; width: 40px; border: 0; background: transparent; color: #6b778c;
   font-size: 24px; line-height: 1; cursor: pointer; padding: 0 }
 .msa-lesson-chev:focus-visible { outline: 3px solid #f7b733; outline-offset: -3px; border-radius: 14px }
 .msa-lsheet-wrap { position: fixed; inset: 0; z-index: 950; background: rgba(14,29,59,0.45); display: flex; align-items: flex-end;
@@ -386,7 +406,7 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 @keyframes msa-lsheet-in { from { transform: translateY(40px); opacity: .4 } }
 @media (prefers-reduced-motion: reduce) { .msa-lsheet { animation: none } }
 .msa-lsheet-grab { width: 40px; height: 5px; border-radius: 9px; background: #d5deea; margin: 0 auto 14px }
-.msa-lsheet-h { font-size: 13.5px; font-weight: 800; color: #56647d }
+.msa-lsheet-h { font-size: 17px; font-weight: 700; color: #12254a }
 .msa-lsheet-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; touch-action: none }
 .msa-lsheet .msa-lesson { display: flex !important; flex-direction: column; align-items: stretch; gap: 10px; border: 0 !important; padding: 0 !important; background: transparent !important }
 .msa-lsheet .msa-lesson-meta { font-size: 15px; line-height: 1.6 }
@@ -478,6 +498,13 @@ const GOLD = BRAND.blue
 const AMBER = BRAND.amber
 
 
+/* The columns the page reads, never '*' (14-role test 2, J01): a family
+   member's phone must not receive health notes, lesson needs, the address,
+   the emergency contact or the desk's notes. Those columns are not even
+   readable with a family's login any more (docs/migration-family-columns.sql);
+   /api/parent/safety hands them to the main and full accounts. */
+const PARENT_COLS = 'id, auth_user_id, first_name, last_name, email, phone, preferred_language, newsletter_subscribed, referral_code, registered_at'
+const STUDENT_COLS = 'id, parent_id, full_name, date_of_birth, gender, current_level, current_stage, is_active, sort_order, trial_used_at, added_by_parent, is_account_holder, reports_seen_at, avatar_look, created_at'
 interface Parent { id: string; first_name: string; last_name: string; email: string; phone?: string | null }
 interface Student { id: string; full_name: string; date_of_birth: string; current_level: number | null; current_stage: number | null; gender: string | null; avatar_look?: unknown; trial_used_at: string | null
   /** When the family last opened this swimmer's lesson records (docs/migration-reports-seen.sql); null = never. */
@@ -1139,6 +1166,11 @@ function TeamCard({ memberships, viewer = false }: { viewer?: boolean; membershi
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a' }}>{m.student_name}</div>
               <div style={{ fontSize: '11px', color: '#56647d' }}>{m.team_tier_id ? tDb(locale, 'team_tiers', m.team_tier_id, m.tier_name) : m.tier_name}{viewer ? '' : ' · '}{viewer ? '' : m.is_prepaid ? t('team.prepaid') : m.monthly_price_cents ? t('dash.team.perMonth', { price: '$' + (m.monthly_price_cents / 100).toLocaleString() }) : ''}</div>
+              {/* When the next month is charged: the latest paid invoice's end
+                  (14-role test 2, J20). Not once a cancel is set. */}
+              {!viewer && !m.is_prepaid && !m.cancels_at && m.status === 'active' && m.invoices?.[0]?.period_end && (
+                <div style={{ fontSize: '11px', color: '#56647d' }}>{t('team.nextCharge', { date: fmtDate(new Date(m.invoices[0].period_end), intlOf(locale), { month: 'short', day: 'numeric' }) })}</div>
+              )}
               <div style={{ fontSize: '11px', color: '#56647d' }}>{t('team.unlimited')}</div>
               {(m.weekly_slots || []).length > 0 && (
                 <div style={{ marginTop: '8px' }}>
@@ -1385,6 +1417,8 @@ export default function DashboardPage() {
   // Good news after a cancellation (a voucher added or given back) -- not an
   // error, so not the "something went wrong" notice.
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  // The voucher just made, so the notice can book the make-up (J45).
+  const [doneVoucher, setDoneVoucher] = useState<string | null>(null)
   // Server errors arrive in English. A known one becomes its translation; the
   // fallback key covers an empty body. Unknown text still shows, on purpose.
   const errText = (raw: string | null | undefined, fallbackKey: string) => {
@@ -1394,13 +1428,11 @@ export default function DashboardPage() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; courseName: string; courseTypeId?: string; date: string; time: string; type?: 'cancel' | 'reject'; isLate?: boolean; points?: number | null; kind?: string; studentName?: string; voucher?: string; voucherBy?: string; voucherFrom?: string; fixed?: boolean; src?: Booking; changed?: boolean } | null>(null)
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; actionLabel?: string; onAction?: () => void; closeLabel?: string; eyebrow?: string } | null>(null)
   const [qrStudent, setQrStudent] = useState<Student | null>(null)
-  // Today's swimmers' check-in codes, drawn ahead so 報到 opens at once.
+  // Every swimmer's check-in code, drawn ahead (once, while online) so 報到
+  // opens at once and still opens with no connection at the pool (J72).
   useEffect(() => {
-    const tdy = getTodayLA()
-    const ids = upcomingBookings.filter(b => b.session_date === tdy && b.status === 'confirmed' && !b.checked_in)
-      .flatMap(b => (b._group || [b]).map(x => x.student_id)).filter((x): x is string => !!x)
-    if (ids.length) warmQr([...new Set(ids)])
-  }, [upcomingBookings])
+    if (students.length) warmQr(students.map(s => s.id))
+  }, [students])
   // The "cancel this unpaid assessment?" confirm, by booking id.
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState<string | null>(null)
 
@@ -1453,6 +1485,7 @@ export default function DashboardPage() {
           // Cancel button goes now, not at the next refresh (found 2026-10-07).
           fetchAll({ progress: false })
         } else {
+          if (j.code === 'already_checked_in') { setHereMsg(null); fetchAll({ progress: false }); return }
           const key = j.code === 'too_far' ? 'dash.here.tooFar' : j.code === 'weak_gps' ? 'dash.here.weak'
             : j.code === 'not_open' || j.code === 'no_lesson_today' ? 'dash.here.closed' : 'dash.here.error'
           // At the other pool: say which one the lesson is at (pool names stay as-is).
@@ -1899,12 +1932,22 @@ export default function DashboardPage() {
      a page that looks as it did before (50-role test, 2026-11-05). */
   const trialReturn = useRef<string | null>(typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('trial') : null)
   const [trialMsg, setTrialMsg] = useState<string | null>(null)
+  // Payment not finished: the held time can still be paid for from here
+  // (14-role test 2, J33).
+  const [trialUnpaid, setTrialUnpaid] = useState<Booking | null>(null)
+  const [bookingsErr, setBookingsErr] = useState(false)
+  const [trialPayErr, setTrialPayErr] = useState('')
   useEffect(() => {
     const how = trialReturn.current
     if (!how || loading) return
     trialReturn.current = null
     try { const u = new URL(window.location.href); u.searchParams.delete('trial'); window.history.replaceState(null, '', u.toString()) } catch {}
-    if (how !== 'success') { setTrialMsg(t('dash.trial.cancelled')); return }
+    if (how !== 'success') {
+      const held = upcomingBookings.find(x => x.is_trial && x.status === 'pending_payment' && x.pending_expires_at && new Date(x.pending_expires_at).getTime() > Date.now())
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (held) setTrialUnpaid(held); else setTrialMsg(t('dash.trial.released'))
+      return
+    }
     const b = upcomingBookings.find(x => x.is_trial)
     setTrialMsg(b ? t('dash.trial.paid', {
       name: b.student_name || '',
@@ -1913,6 +1956,15 @@ export default function DashboardPage() {
     }) : t('dash.trial.paidPlain'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, upcomingBookings])
+  /** Opens Stripe for an assessment held for payment; the error to show if it cannot. */
+  async function payPending(id: string): Promise<string> {
+    try {
+      const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link', booking_id: id }) })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.url) { window.location.assign(j.url); return '' }
+      return errText(j.error, 'dash.pend.linkFailed')
+    } catch { return t('dash.pend.network') }
+  }
   /* Once a minute: the check-in window and the 24-hour cancel line are read
      from the clock at render and rely on this to move on time. The countdowns
      tick by themselves (Countdown); the whole page used to re-render every
@@ -2077,7 +2129,7 @@ export default function DashboardPage() {
 
     const [familyId, role] = await Promise.all([myParentId(supabase, user.id), myFamilyRole(supabase)])
     const { data: parentData } = familyId
-      ? await supabase.from('parents').select('*').eq('id', familyId).single()
+      ? await supabase.from('parents').select(PARENT_COLS).eq('id', familyId).single()
       : { data: null }
     if (!parentData) {
       const { data: admin } = await supabase
@@ -2110,7 +2162,7 @@ export default function DashboardPage() {
 
     /* The swimmers first, on their own: the progress reads hang off them and
        start as soon as they arrive, beside the bookings rather than after. */
-    const studsP = Promise.resolve(supabase.from('students').select('*').eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'))
+    const studsP = Promise.resolve(supabase.from('students').select(STUDENT_COLS).eq('parent_id', parentData.id).eq('is_active', true).order('sort_order'))
     const histPromise: Promise<{ data: any[] | null }> | null = withProgress
       ? studsP.then(async ({ data }): Promise<{ data: any[] | null }> => {
           const ids = (data || []).map((s: Student) => s.id)
@@ -2152,7 +2204,7 @@ export default function DashboardPage() {
        lesson, with its cancel and reschedule buttons (found 2026-10-05). The
        id tiebreak makes the order unique, which paging needs; created_at
        first keeps the booking order the cards below were written for. */
-    const [{ data: studs }, { data: rawBookings }, { data: pendingRaw }] = await Promise.all([
+    const [{ data: studs }, { data: rawBookings, error: bookErr }, { data: pendingRaw }] = await Promise.all([
       studsP,
       allRows(() => supabase.from('bookings')
         .select('id, status, student_id, points_charged, is_trial, class_session_id, partner_booking_id, pending_action, pending_new_session_id, pending_expires_at, lesson_group_id, fixed_class_id, voucher_id')
@@ -2191,22 +2243,22 @@ export default function DashboardPage() {
     // Chunked: the whole history's session ids in one .in() is past what the
     // API takes, and a failed read here left sessionMap empty -- which hides
     // every lesson, past and upcoming (found 2026-10-05).
-    const [{ data: sessionsData }, { data: studentsData }, { data: newSessionsData }, { data: pSessions }, { data: pStudents }] = await Promise.all([
+    const [{ data: sessionsData, error: sessErr }, { data: studentsData }, { data: newSessionsData, error: newSessErr }, { data: pSessions }, { data: pStudents }] = await Promise.all([
       sessionIds.length > 0
         ? allRowsIn(sessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, location_id, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
       studentIds.length > 0
         ? allRowsIn(studentIds, chunk => supabase.from('students').select('id, full_name').in('id', chunk).order('id'))
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
       newSessionIds.length > 0
         ? allRowsIn(newSessionIds, chunk => supabase.from('class_sessions').select('id, session_date, start_time, end_time, level_min, level_max, location_id, course_types(id, name, slug), coaches(first_name)').in('id', chunk).order('id'))
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
       pendingSessionIds.length > 0
         ? supabase.from('class_sessions').select('id, session_date, start_time, end_time, location_id, course_types(id, name, slug), coaches(first_name)').in('id', pendingSessionIds)
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
       pendingStudentIds.length > 0
         ? supabase.from('students').select('id, full_name').in('id', pendingStudentIds)
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
     ])
 
     const sessionMap: Record<string, any> = {}
@@ -2428,12 +2480,16 @@ export default function DashboardPage() {
       const live = b._group.filter(m => m.status !== 'cancelled')
       return live.length > 0 && live.every(m => m.checked_in)
     }
-    if (latest()) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: cardIn(b) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
+    /* A failed read is not an empty schedule (14-role test 2, J12): the
+       lessons already shown stay, and the schedule says it could not load. */
+    const readFailed = !!(bookErr || sessErr || newSessErr)
+    if (latest()) setBookingsErr(readFailed)
+    if (latest() && !readFailed) setUpcomingBookings(allUpcoming.map(b => ({ ...b, checked_in: cardIn(b) })).sort((a, b) => a.session_date.localeCompare(b.session_date) || (a.start_time || '').localeCompare(b.start_time || '')))
 
     const allPastWithCheckin = allPast.map(b => ({ ...b, checked_in: checkedInSet.has(b.id) }))
     // No display cap: the history list already paginates at 10 per page, and the
     // Month view reads this same array — capping it made older months lose lessons.
-    if (latest()) setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
+    if (latest() && !readFailed) setPastBookings(allPastWithCheckin.sort((a, b) => b.session_date.localeCompare(a.session_date) || (b.start_time || '').localeCompare(a.start_time || '')))
     if (!withProgress || !histPromise || !levelSkillsPromise) return
     // The language this progress map's notes and "Swim Assessment" label are
     // in, read now (not from this run's render closure). notesLang records it
@@ -2713,6 +2769,7 @@ export default function DashboardPage() {
       } else if (!res.ok) {
         setNotice(errText(j.error, 'dash.cancelFailed'))
       } else if (j.outcome === 'voucher' && j.voucher_expires) {
+        setDoneVoucher(typeof j.voucher_id === 'string' && !viewer ? j.voucher_id : null)
         setDoneMsg(j.voucher_from
           ? t('dash.cancelDone.voucherWindow', { from: shortDate(laterOf(j.voucher_from, getTodayLA())), to: shortDate(j.voucher_expires) })
           : t('dash.cancelDone.voucher', { date: shortDate(j.voucher_expires) }))
@@ -2911,7 +2968,7 @@ export default function DashboardPage() {
      one (50-role test, 2026-11-05: the coach and pool were missing, and the
      dialogs' own 傳訊息給我們 carried nothing). */
   const aboutOf = (b: Booking) => {
-    const names = (b._group ? b._group.map(m => m.student_name) : [b.student_name]).filter(Boolean).join('、')
+    const names = joinList(locale, (b._group ? b._group.map(m => m.student_name) : [b.student_name]).filter(Boolean) as string[])
     const course = b.is_trial ? t('common.assessment') : (b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name)
     const when = fmtDate(new Date(b.session_date + 'T12:00:00Z'), dateTag(locale), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
     const pool = pools.show ? pools.list.find(l => l.id === b.location_id)?.name : null
@@ -2925,6 +2982,466 @@ export default function DashboardPage() {
       actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(b),
     })
   }
+
+  /* The lesson card and the lesson sheet, at the top level so the week,
+     the month and the home card open the same sheet as the list
+     (14-role test 2, J09). */
+  const tappable = (b: Booking) => inApp && b.status !== 'in_cart'
+  const tapProps = (b: Booking, inSheet: boolean) => {
+    const waiting = b.pending_action === 'reschedule' || b.pending_action === 'reschedule_initiator'
+    if (inSheet || !tappable(b)) return { className: 'msa-lesson' }
+    return {
+      className: 'msa-lesson msa-lesson-tap' + (waiting ? ' waiting' : ''),
+      onClick: (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('button, a, input, select, [role="dialog"]')) setLessonSheet(b.id) },
+    }
+  }
+  // One lesson card. In the app a tap on it opens the lesson sheet
+  // (owner, 2026-11-04, 問題 3 選項 A); the sheet draws the same card.
+  const renderLesson = (booking: Booking, inSheet = false) => {
+  const daysUntil = getDaysUntil(booking.session_date)
+  const isToday = daysUntil === 0
+  const isTomorrow = daysUntil === 1
+  const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
+  return (
+    <div key={booking.id} {...tapProps(booking, inSheet)} style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
+      {!inSheet && tappable(booking) && <button type="button" className="msa-lesson-chev tap-auto" aria-label={t('dash.lsheet.open', { name: booking.student_name || '' })} onClick={() => setLessonSheet(booking.id)}>›</button>}
+      <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
+        <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
+          {fmtDate(new Date(booking.session_date + 'T00:00:00'), intlOf(locale), { month: 'short' })}
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: 900, color: isToday ? NAVY : '#16294a', lineHeight: 1 }}>
+          {new Date(booking.session_date + 'T00:00:00').getDate()}
+        </div>
+      </div>
+        <div className="msa-lesson-head">
+          <span className="msa-lesson-meta">
+            <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
+            {!booking._group && <> · {formatTime(booking.start_time)} – {formatTime(booking.end_time)}</>}
+            {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
+            {!booking._group && <PoolLink id={booking.location_id} prefix=" · " />}
+            {(() => { const bc = bandColorOf(booking.level_min, booking.level_max); return bc && booking.level_min != null && booking.level_max != null ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${bc}22`, color: bc, border: `1px solid ${bc}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.lesson.levelBadge', { r: bandRange(booking.level_min, booking.level_max) })}</span> : null })()}
+          </span>
+          {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
+          {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
+          {booking._group && <span className="msa-lesson-status-inline msa-lesson-pill">
+            {(() => {
+              if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
+              if (booking.session_date !== getTodayLA()) return null
+              const [sh, sm] = booking.start_time.split(':').map(Number)
+              const [eh, em] = booking.end_time.split(':').map(Number)
+              const nowMin = getNowMinutesLA()
+              if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
+              if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: '#56647d', whiteSpace: 'nowrap' }}>{t('dash.up.checkinSoon')}</span>
+              return null
+            })()}
+            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.status.' + booking.status)}</span>
+          </span>}
+          {!booking._group && (
+            <span className="msa-lesson-pill" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
+              {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : isInviteToMe(booking) ? t('dash.up.awaitingYou') : t('dash.status.' + booking.status)}
+            </span>
+          )}
+        </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {!booking._group && booking.student_name && (
+          <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}<LessonTag b={booking} /></div>
+        )}
+        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700 }}>
+              <span style={{ color: '#56647d', textDecoration: 'line-through' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
+              {booking.student_name ? <span style={{ color: '#9aa6ba', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
+            </div>
+            <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
+            <div style={{ fontSize: '13px', fontWeight: 700 }}>
+              <span style={{ color: GOLD }}>{t('dash.up.coach', { name: booking.new_coach_name })}</span>
+              {booking.student_name ? <span style={{ color: '#1d6fa5' }}> · ({booking.student_name})</span> : ''}
+            </div>
+          </div>
+        ) : booking._group ? (
+          <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {booking._group.map((m, mi) => {
+              const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
+              // A sibling 1-on-2 is one lesson for both children:
+              // its late cancel spends both children's grace.
+              const pair = m.course_slug === '1on2'
+                ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled') : [m]
+              const ck = cancelKindOf(m, late, pair.map(x => x.student_id || ''))
+              // Named in the modal and in the "grace used" note: both
+              // children, or the one whose grace is already gone.
+              const pairNames = pair.map(x => x.student_name).filter(Boolean).join(', ')
+              const spentName = pair.filter(x => graceUsed.has(x.student_id || '')).map(x => x.student_name).filter(Boolean).join(', ') || m.student_name
+              const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
+              // Checked in: the lesson is happening, nothing to cancel
+              // (as on the single card). A sibling 1-on-2 is one
+              // lesson, so either child checked in counts.
+              const ckIn = pair.some(x => x.checked_in) || !!m.checked_in
+              // A fixed-class lesson or a make-up is not moved: leave
+              // turns it into a voucher instead.
+              const noMove = !!(m.fixed_class_id || m.voucher_id)
+              const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
+              // Two siblings in a 1-on-2 are one lesson: cancelling
+              // takes both seats and refunds both. This card groups
+              // by session, so the pair's points are the group's --
+              // quoting one seat's 47 for a 94-point refund would
+              // have undersold every cancellation.
+              // An hour is two halves charged alike: the refund is both
+              // (the modal used to quote one half -- found 2026-10-03).
+              const halves = booking._hour ? 2 : 1
+              const refundPts = (m.course_slug === '1on2'
+                ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled')
+                    .reduce((a, x) => a + (x.points_charged ?? 0), 0)
+                : (m.points_charged ?? 0)) * halves
+              return (
+                <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} />{m.checked_in && <span role="img" aria-label={t('dash.up.checkedIn')} title={t('dash.up.checkedIn')} style={{ marginLeft: '6px', fontSize: '13px', color: '#1f7a57' }}>&#10003;</span>}</div>
+                    <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
+                      {formatTime(m.start_time)} – {formatTime(m.end_time)} · <span style={{ whiteSpace: 'nowrap' }}>{t('dash.up.coach', { name: m.coach_name })}</span><PoolLink id={m.location_id} prefix=" · " />
+                    </div>
+                  </div>
+                  {(m.course_slug === '1on2' && mi > 0) ? null : (
+                    <div className="msa-lesson-actions">
+                      {!noMove && <button
+                        onClick={() => {
+                          /* Greyed, but it says why (2026-11-04: a tap on it did nothing). */
+                          if (rDis) {
+                            if (reschedulingId === m.id) return
+                            setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(m), closeLabel: t('common.close') })
+                            return
+                          }
+                          setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', studentName: m.student_name, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
+                        }}
+                        aria-disabled={rDis}
+                        style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                        {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
+                      </button>}
+                      {ckIn ? null : lessonStarted(m) && !isOwnInvite(m) ? (
+                        <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '10px', fontWeight: 600 }}>
+                          {t('dash.up.inProgress')}
+                        </div>
+                      ) : isOwnInvite(m) ? (
+                        <button
+                          onClick={() => askWithdraw(m)}
+                          disabled={cancellingId === m.id}
+                          style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                          {cancellingId === m.id ? '...' : t('dash.up.withdraw')}
+                        </button>
+                      ) : cEnabled ? (
+                        <button
+                          onClick={() => openCancel({ ...m, student_name: pairNames || m.student_name }, late, ck, refundPts)}
+                          style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                          {cancellingId === m.id ? '...' : cancelLabel(m, late)}
+                        </button>
+                      ) : late ? (
+                        <button
+                          onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }), undefined, m)}
+                          title={lateLockHelp({ ...m, student_name: spentName })}
+                          style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                          {t('dash.up.cancelLocked')}
+                        </button>
+                      ) : (
+                        <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#9aa6ba', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          null
+        )}
+        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date, intlOf(locale))}</span>
+              <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
+              <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} – {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}{!samePool(booking.new_location_id, booking.location_id) && <PoolLink id={booking.new_location_id} prefix=" · " style={{ color: GOLD, fontWeight: 700 }} />}</span>
+            </div>
+            {booking.pending_expires_at && (
+              <Countdown until={booking.pending_expires_at}>{ms => (
+                <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}><Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+              )}</Countdown>
+            )}
+          </div>
+        ) : (
+          <div>
+            {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (
+              <Countdown until={booking.pending_expires_at}>{ms => (
+                <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}><Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+              )}</Countdown>
+            )}
+          {booking.status === 'pending_partner' && booking.pending_expires_at && (
+              <Countdown until={booking.pending_expires_at}>{ms => (
+                <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}><Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('dash.up.partnerCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
+              )}</Countdown>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="msa-lesson-side" style={{ display: booking._group ? 'none' : 'flex' }}>
+        <div className="msa-lesson-status">
+        {(() => {
+          if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
+          if (booking.session_date !== getTodayLA()) return null
+          const [sh, sm] = booking.start_time.split(':').map(Number)
+          const [eh, em] = booking.end_time.split(':').map(Number)
+          const nowMin = getNowMinutesLA()
+          if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) {
+            /* Check-in open: the button itself, not a label saying
+               it is open (owner, 2026-11-01: check-in sits with the
+               lesson). It shows the swimmer's QR for the desk. */
+            const kid = students.find(s => s.id === booking.student_id)
+            if (kid && booking.status === 'confirmed') return (
+              <button type="button" className="tap-auto" onClick={() => setQrStudent(kid)}
+                style={{ fontSize: '13px', fontWeight: 900, color: NAVY, background: AMBER, border: 'none', borderRadius: '999px', padding: '7px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {t('dash.checkIn')}
+              </button>
+            )
+            return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
+          }
+          return null
+        })()}
+        </div>
+        {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
+          <div className="msa-lesson-actions">
+            {booking.pending_action === 'reschedule' && <>
+            <button
+              onClick={async () => {
+                setReschedulingId(booking.id)
+                const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
+                const json = await res.json()
+                // A lost original lesson names the points returned (F81).
+                if (!res.ok) { const r = errorKeyFor(json); setNotice(r ? t(r.key, r.vars) : errText(json.error, 'dash.resAction.failed')) }
+                await fetchAll({ progress: false })
+                setReschedulingId(null)
+              }}
+              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #b7e0cc', background: 'transparent', color: '#1f7a57', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+              {t('dash.up.acceptReschedule')}
+            </button>
+            <button
+              onClick={async () => {
+                setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: t('dash.resAction.declineTitle'), message: t('dash.resAction.keepsTime') })
+              }}
+              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+              {t('dash.up.decline')}
+            </button>
+            </>}
+            {booking.pending_action === 'reschedule_initiator' && (
+              <button
+                onClick={async () => {
+                  setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: t('dash.resAction.cancelTitle'), message: t('dash.resAction.keepsTime') })
+                }}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                {t('dash.up.cancelReschedule')}
+              </button>
+            )}
+          </div>
+        ) : booking.status === 'pending_payment' && booking.is_trial && !trialSynced.has(booking.id) ? (
+          <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: '#56647d', fontSize: '11px', fontWeight: 600, alignSelf: 'flex-start' }}>
+            ⏳ {t('dash.pend.checking')}
+          </div>
+        ) : booking.status === 'pending_payment' && !viewer ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
+                <Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('dash.pend.awaiting')}
+                {booking.pending_expires_at && (
+                  <Countdown until={booking.pending_expires_at}>{ms => ms <= 0 ? null : (
+                    <span style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: ms < 5 * 60000 ? '#c0392b' : undefined }}>· {t('dash.pend.left', { time: mmss(ms) })}</span>
+                  )}</Countdown>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  setPendingPayBusy(booking.id); setPendingPayMsg('')
+                  try {
+                    const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link', booking_id: booking.id }) })
+                    const j = await res.json().catch(() => ({}))
+                    if (res.ok && j.url) { window.location.href = j.url; return }
+                    setPendingPayMsg(errText(j.error, 'dash.pend.linkFailed'))
+                  } catch { setPendingPayMsg(t('dash.pend.network')) }
+                  setPendingPayBusy(null)
+                }}
+                disabled={pendingPayBusy === booking.id}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: AMBER, color: NAVY, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                {pendingPayBusy === booking.id ? '...' : t('dash.pend.payNow')}
+              </button>
+              <button
+                onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
+                disabled={pendingPayBusy === booking.id}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                {t('common.cancel')}
+              </button>
+            </div>
+            {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
+            {pendingCancelConfirm === booking.id && (
+              <div className="msa-dlg-back" onClick={() => { if (pendingPayBusy !== booking.id) setPendingCancelConfirm(null) }}>
+                <div ref={pendCancelBox} className="msa-dlg" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-pend-title">
+                  <div id="dash-pend-title" style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
+                  <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '20px' }}>
+                    {t('dash.pend.cancelBody')}
+                  </div>
+                  <div className="msa-dlg-acts">
+                    <button
+                      onClick={() => setPendingCancelConfirm(null)}
+                      disabled={pendingPayBusy === booking.id}
+                      className="msa-dlg-no">
+                      {t('dash.pend.keep')}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setPendingPayBusy(booking.id); setPendingPayMsg('')
+                        try {
+                          const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
+                          const j = await res.json().catch(() => ({}))
+                          if (res.ok) { window.location.reload(); return }
+                          setPendingPayMsg(errText(j.error, 'dash.pend.cancelFailed'))
+                        } catch { setPendingPayMsg(t('dash.pend.network')) }
+                        setPendingPayBusy(null); setPendingCancelConfirm(null)
+                      }}
+                      disabled={pendingPayBusy === booking.id}
+                      className="msa-dlg-yes danger">
+                      {pendingPayBusy === booking.id ? t('dash.pend.cancelling') : t('dash.cancelModal.yesCancel')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : booking.status === 'in_cart' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
+              <Icon name="cart" /> {t('dash.cart.held')}
+            </div>
+          </div>
+        ) : booking._group ? null : (
+          <div className="msa-lesson-actions">
+            {/* An assessment cannot be moved online (the booking page
+                treats the move as a regular lesson, and the swimmer has no
+                level yet), so its row offers one "message us" button below.
+                A checked-in lesson is happening: nothing to move. */}
+            {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && !lessonStarted(booking) && (
+            <button
+              onClick={() => {
+                /* Greyed, but it says why (as on the grouped rows). */
+                if (isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner') {
+                  setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(booking), closeLabel: t('common.close') })
+                  return
+                }
+                setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', studentName: booking.student_name, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
+              }}
+              disabled={reschedulingId === booking.id}
+              aria-disabled={isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
+              style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '#9aa6ba' : GOLD, fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
+              {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
+            </button>
+            )}
+            {(() => {
+              // Checked in means the lesson is happening: there is
+              // nothing left to cancel.
+              if (booking.checked_in) return null
+              // A Swim Assessment is paid by card, not out of the
+              // wallet, so there are no points to hand back, and it
+              // cannot be moved online either. The parent tells us and
+              // the front desk handles both. The API refuses both too.
+              if (booking.is_trial) return (
+                <button
+                  title={t('dash.up.trialContactHelp')}
+                  onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'), booking)}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  {t('dash.up.trialContact')}
+                </button>
+              )
+              // Invited by another family: answered above.
+              if (isInviteToMe(booking)) return (
+                <button onClick={toInvites}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #d6cbf2', background: 'transparent', color: '#6d4fc2', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  {t('dash.up.answerInvite')}
+                </button>
+              )
+              // An invitation not yet accepted is withdrawn, not
+              // cancelled: free, and never the 'pair' lock, which is
+              // for a 1-on-2 both families have confirmed.
+              if (isOwnInvite(booking)) return (
+                <button
+                  onClick={() => askWithdraw(booking)}
+                  disabled={cancellingId === booking.id}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  {cancellingId === booking.id ? '...' : t('dash.up.withdraw')}
+                </button>
+              )
+              if (lessonStarted(booking)) return (
+                <div className="msa-inprog" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '11px', fontWeight: 600 }}>
+                  {t('dash.up.inProgress')}
+                </div>
+              )
+              const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
+              const ck = cancelKindOf(booking, late)
+              const enabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== booking.id && booking.status !== 'pending_partner'
+              return enabled ? (
+                <button
+                  onClick={() => openCancel(booking, late, ck, (booking.points_charged ?? 0) * (booking._hour ? 2 : 1))}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  {cancellingId === booking.id ? '...' : cancelLabel(booking, late)}
+                </button>
+              ) : late ? (
+                <button
+                  onClick={() => openChatOr(lateLockHelp(booking), undefined, booking)}
+                  title={lateLockHelp(booking)}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  {t('dash.up.cancelLocked')}
+                </button>
+              ) : (
+                <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#9aa6ba', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
+                  {t('dash.up.cancel')}
+                </div>
+              )
+            })()}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+  }
+  const sheetB = lessonSheet ? upcomingBookings.find(b => b.id === lessonSheet) : undefined
+  /** In the app a lesson still to come opens the lesson sheet, wherever it
+      is tapped; a past one (and the website) opens the detail. */
+  const openLesson = (b: Booking) => {
+    if (inApp && b.status !== 'in_cart' && upcomingBookings.some(x => x.id === b.id)) setLessonSheet(b.id)
+    else setLessonDetail(b)
+  }
+  const lessonSheetEl = inApp && sheetB && typeof document !== 'undefined' ? createPortal(
+    <div className={'msa-lsheet-wrap' + (viewer ? ' msa-viewer' : '')} onClick={e => { if (e.target === e.currentTarget) setLessonSheet(null) }}>
+      <div className="msa-lsheet" role="dialog" aria-modal="true" aria-labelledby="msa-lsheet-h" ref={lessonSheetRef} tabIndex={-1}
+        onKeyDown={e => { if (e.key === 'Escape') setLessonSheet(null) }}
+        onClickCapture={e => {
+          // An action starts its own dialog or page: the sheet gives way to it.
+          if ((e.target as HTMLElement).closest('.msa-lesson button')) window.setTimeout(() => setLessonSheet(null), 0)
+        }}>
+        <div className="msa-lsheet-grab" aria-hidden="true" />
+        {/* The date, and the round ✕ every sheet has (決定 9: the
+            關閉 at the bottom is gone). */}
+        <div className="msa-lsheet-top">
+          <div id="msa-lsheet-h" className="msa-lsheet-h">
+            {fmtDate(new Date(sheetB.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
+            {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
+          </div>
+          <button type="button" className="msa-sheet-x tap-auto" onClick={() => setLessonSheet(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
+        </div>
+        {renderLesson(sheetB, true)}
+        <div className="msa-lsheet-more">
+          <button type="button" className="tap-auto" onClick={() => {
+            /* The chat opens knowing which lesson (owner, 2026-11-04):
+               it asks "this lesson?" above the box and heads the
+               message with it, so the desk sees which one. */
+            setLessonSheet(null)
+            chatAbout(sheetB)
+          }}>{t('dash.up.messageUs')}</button>
+        </div>
+      </div>
+    </div>, document.body) : null
 
   return (
     <PoolsCtx.Provider value={pools}>
@@ -2956,7 +3473,7 @@ export default function DashboardPage() {
         <div className="msa-sheet-back" onClick={() => { setPointsOpen(false); setReferralFocus(false) }}>
           <div ref={pointsBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('points.card.title')}>
             <div className="msa-sheet-head">
-              <b>{t('points.card.title')}</b>
+              <h2>{t('points.card.title')}</h2>
               <button className="msa-sheet-x" onClick={() => { setPointsOpen(false); setReferralFocus(false) }} aria-label={t('common.close')}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -2974,7 +3491,7 @@ export default function DashboardPage() {
         <div className="msa-sheet-back" onClick={() => setTeamSheet(null)}>
           <div ref={teamBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('team.title')}>
             <div className="msa-sheet-head">
-              <b>{t('team.title')}</b>
+              <h2>{t('team.title')}</h2>
               <button className="msa-sheet-x" onClick={() => setTeamSheet(null)} aria-label={t('common.close')}>✕</button>
             </div>
             <TeamCard viewer={viewer} memberships={teamMemberships.filter((m: any) => m.student_id === teamSheet)} />
@@ -3013,7 +3530,7 @@ export default function DashboardPage() {
         <div className="msa-sheet-back" onClick={closeSheet}>
           <div ref={voucherBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('voucher.sheetTitle')} style={{ background: '#fff', maxWidth: '440px' }}>
             <div className="msa-sheet-head" style={{ background: '#fff', marginBottom: '6px' }}>
-              <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</h2>
+              <h2>{t('voucher.sheetTitle')}{voucherKey && shown[0] ? ' · ' + shown[0].studentNames.join(' & ') : ''}</h2>
               <button type="button" className="msa-sheet-x tap-auto" onClick={closeSheet} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
             </div>
             <p style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, margin: '0 0 16px' }}>{t('voucher.sheetHint')}</p>
@@ -3110,7 +3627,7 @@ export default function DashboardPage() {
               <p style={{ fontSize: '13px', color: '#1f6b45', background: '#e7f6ec', borderRadius: '10px', padding: '10px 12px', lineHeight: 1.6, margin: '-12px 0 20px' }}>
                 {t('dash.cancelModal.sick')}{' '}
                 <button type="button" className="tap-auto" style={{ border: 0, background: 'none', padding: 0, font: 'inherit', fontWeight: 800, color: '#2050a0', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => { const tg = cancelTarget; setCancelTarget(null); openChat('', { about: [tg.studentName, tg.date + ' ' + tg.time, tg.courseTypeId ? tDb(locale, 'course_types', tg.courseTypeId, tg.courseName) : tg.courseName].filter(Boolean).join(' · ') }) }}>
+                  onClick={() => { const tg = cancelTarget; setCancelTarget(null); if (tg.src) { chatAbout(tg.src); return } openChat('', { about: [tg.studentName, tg.date + ' ' + tg.time, tg.courseTypeId ? tDb(locale, 'course_types', tg.courseTypeId, tg.courseName) : tg.courseName].filter(Boolean).join(' · ') }) }}>
                   {t('dash.up.messageUs')} ›
                 </button>
               </p>
@@ -3264,7 +3781,7 @@ export default function DashboardPage() {
                             : fmtDate(new Date(next.session_date + 'T12:00:00'), intlOf(locale), { weekday: 'short', month: 'numeric', day: 'numeric' })) : ''
                           return (
                             <div className="msa-mcard-next">
-                              <button type="button" className="tap-auto" onClick={() => setLessonDetail(next)}>
+                              <button type="button" className="tap-auto" onClick={() => openLesson(next)}>
                                 <span className="ic" aria-hidden="true"><Icon name="calendar" /></span>
                                 <span className="tx"><span className="k">{t('dash.next.lesson')}</span>
                                   <span className="v">{when} · {formatTime(next.start_time)}{next.coach_name ? ` · ${t('dash.up.coach', { name: next.coach_name })}` : ''}</span></span>
@@ -3444,8 +3961,25 @@ export default function DashboardPage() {
                           <i aria-hidden="true"><Icon name="medal" /></i><span>{t('assess.report.button')}</span>
                         </button>
                       )}
-                      {trialB && (
-                        <button type="button" className="tap-auto wide" onClick={() => router.push('/dashboard/schedule')}>
+                      {/* Booked: opens the lesson right here (J42). Held for
+                          payment: says so, with the time left, and pays (J04). */}
+                      {trialB && trialB.status === 'pending_payment' ? (
+                        !trialSynced.has(trialB.id) ? (
+                          <button type="button" className="tap-auto wide" disabled><i aria-hidden="true"><Icon name="clock" /></i><span>{t('dash.pend.checking')}</span></button>
+                        ) : (
+                          <button type="button" className="tap-auto wide pending" disabled={pendingPayBusy === trialB.id}
+                            onClick={async () => {
+                              if (viewer) { router.push('/dashboard/schedule'); return }
+                              setPendingPayBusy(trialB.id); const e = await payPending(trialB.id); setPendingPayBusy(null); if (e) setNotice(e)
+                            }}>
+                            <i aria-hidden="true"><Icon name="clock" /></i>
+                            <span>{t('dash.pend.awaiting')}{trialB.pending_expires_at && (
+                              <Countdown until={trialB.pending_expires_at}>{ms => ms <= 0 ? null : <> · {t('dash.pend.left', { time: mmss(ms) })}</>}</Countdown>
+                            )}{!viewer && <> · {t('dash.trial.payNow')} ›</>}</span>
+                          </button>
+                        )
+                      ) : trialB && (
+                        <button type="button" className="tap-auto wide" onClick={() => openLesson(trialB)}>
                           <i aria-hidden="true"><Icon name="calendar" /></i>
                           <span>{t('dash.trial.bookedLine', { when: fmtDate(new Date(trialB.session_date + 'T12:00:00Z'), intlOf(locale), { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) + ' ' + formatTime(trialB.start_time) })}</span>
                         </button>
@@ -3455,10 +3989,11 @@ export default function DashboardPage() {
                   {/* A new swimmer with nothing booked yet: the one thing to do
                       next, said and in amber (owner, 2026-11-05, 決定 3 選項 A).
                       The deck counts this line, so the picture gives way. */}
-                  {!hasLevel && !hasPast && !booked && !viewer && (
+                  {!hasLevel && !hasPast && !booked && (
                     <div className="msa-mcard-first">
-                      <p>{t('dash.firstStep')}</p>
-                      <button type="button" className="tap-auto" onClick={() => router.push('/booking?student=' + student.id)}>{t('assess.cta.button')} →</button>
+                      {/* A view-only member reads the step and who books it (J97). */}
+                      <p>{viewer ? t('dash.firstStepViewer', { name: mainName }) : t('dash.firstStep')}</p>
+                      {!viewer && <button type="button" className="tap-auto" onClick={() => router.push('/booking?student=' + student.id)}>{t('assess.cta.button')} →</button>}
                     </div>
                   )}
                   {hasLevel && report && creditLive(report) && (
@@ -3542,6 +4077,25 @@ export default function DashboardPage() {
             const today = getTodayLA(), nowMin = getNowMinutesLA()
             const mins = (s: string) => { const [h, m] = String(s).slice(0, 5).split(':').map(Number); return h * 60 + m }
             const over = (b: Booking) => b.session_date < today || (b.session_date === today && mins(b.end_time) <= nowMin)
+            // Not read is not "no lessons" (J12): say so, with a retry.
+            if (bookingsErr) return <div className="msa-nextline"><LoadFailed compact onRetry={() => fetchAll({ progress: false })} /></div>
+            // Checked in today: the line says so until the lesson ends, then
+            // moves on to the next one (14-role test 2, J112).
+            const done = upcomingBookings.find(b => b.status === 'confirmed' && b.session_date === today && !over(b) && b.checked_in)
+            if (done) {
+              const dNames = [...new Set((done._group ? done._group.filter(m => m.status !== 'cancelled') : [done]).map(m => m.student_name).filter(Boolean))].join(' & ')
+              return (
+                <div className="msa-nextline done">
+                  <div className="msa-nextline-row">
+                    <button type="button" className="tap-auto msa-nextline-main" onClick={() => openLesson(done)}>
+                      <span className="ic" aria-hidden="true"><Icon name="check" /></span>
+                      <span className="tx"><b><span>{dNames} ·</span> <span className="nw">{t('dash.week.today')} {formatTime(done.start_time)}</span></b><small>{t('dash.here.done', { time: formatTime(done.start_time) })}</small></span>
+                      <span className="go" aria-hidden="true">›</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            }
             const next = upcomingBookings.find(b => b.status !== 'cancelled' && !over(b) && !b.checked_in)
             if (!next) return null
             const seats = next._group ? next._group.filter(m => m.status !== 'cancelled') : [next]
@@ -3560,9 +4114,9 @@ export default function DashboardPage() {
             return (
               <div className={'msa-nextline' + (hot ? ' hot' : '')}>
                 <div className="msa-nextline-row">
-                  <button type="button" className="tap-auto msa-nextline-main" onClick={() => setLessonDetail(next)}>
+                  <button type="button" className="tap-auto msa-nextline-main" onClick={() => openLesson(next)}>
                     <span className="ic" aria-hidden="true"><Icon name={hot ? 'pin' : 'calendar'} /></span>
-                    <span className="tx"><b>{names} · {when} {formatTime(next.start_time)}</b><small>{sub}</small></span>
+                    <span className="tx"><b><span>{names} ·</span> <span className="nw">{when} {formatTime(next.start_time)}</span></b><small>{sub}</small></span>
                     {!hot && <span className="go" aria-hidden="true">›</span>}
                   </button>
                   {hot && who && (
@@ -3646,7 +4200,7 @@ export default function DashboardPage() {
                         </div>
                         <Countdown until={b.pending_expires_at}>{ms => (
                           <div style={{ fontSize: '11px', color: ms < 4 * 60000 ? '#c0392b' : '#56647d' }}>
-                            ⏱ {t('dash.invite.countdown', { time: ms <= 0 ? t('dash.invite.expired') : mmss(ms) })}
+                            <Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('dash.invite.countdown', { time: ms <= 0 ? t('dash.invite.expired') : mmss(ms) })}
                           </div>
                         )}</Countdown>
                         {/* What accepting means if either family cancels (owner, 2026-10-07). */}
@@ -3682,8 +4236,22 @@ export default function DashboardPage() {
 
         {/* Reschedule Action Modal */}
       <NoticeModal title={t('common.noticeTitle')} message={notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
-      <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => setDoneMsg(null)} />
-      <NoticeModal title={t('dash.trial.title')} message={trialMsg} closeLabel={t('common.close')} onClose={() => setTrialMsg(null)} />
+      <NoticeModal title={t('dash.cancelDone.title')} message={doneMsg} closeLabel={t('common.close')} onClose={() => { setDoneMsg(null); setDoneVoucher(null) }}
+        action={doneVoucher ? { label: t('dash.cancelDone.bookMakeup'), onClick: () => router.push('/booking?voucher=' + doneVoucher) } : undefined} />
+      <NoticeModal title={t('dash.trial.title')} message={trialMsg} onClose={() => setTrialMsg(null)}
+        action={view === 'home' || appHome ? { label: t('dash.trial.toSchedule'), onClick: () => router.push('/dashboard/schedule') } : undefined} />
+      {trialUnpaid && (
+        <ConfirmDialog id="dash-trial-unpaid" eyebrow={t('dash.trial.title')} title={t('dash.trial.unpaidTitle')}
+          noLabel={t('dash.trial.notNow')} yesLabel={t('dash.trial.payNow')} busy={pendingPayBusy === trialUnpaid.id}
+          onNo={() => { setTrialUnpaid(null); setTrialPayErr('') }}
+          onYes={async () => { setPendingPayBusy(trialUnpaid.id); const e = await payPending(trialUnpaid.id); setPendingPayBusy(null); setTrialPayErr(e) }}>
+          {t('dash.trial.unpaidBody', { name: trialUnpaid.student_name || '' })}
+          {trialUnpaid.pending_expires_at && (
+            <Countdown until={trialUnpaid.pending_expires_at}>{ms => <b style={{ display: 'block', marginTop: 6, color: ms < 5 * 60000 ? '#c0392b' : '#16294a' }}>{t('dash.pend.left', { time: mmss(ms) })}</b>}</Countdown>
+          )}
+          {trialPayErr && <span role="alert" style={{ display: 'block', marginTop: 6, color: '#c0392b' }}>{trialPayErr}</span>}
+        </ConfirmDialog>
+      )}
       {rescheduleActionModal && (
         <div className="msa-dlg-back" onClick={() => setRescheduleActionModal(null)}>
           <div ref={resActionBox} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-resaction-title" className="msa-dlg">
@@ -3725,7 +4293,7 @@ export default function DashboardPage() {
           {/* All the family's lessons into its calendar, kept up to date
               (owner, 2026-11-02; components/AddToCalendar). */}
           {upcomingBookings.length > 0 && <AddToCalendar />}
-          {lessonView === 'month' ? (() => {
+          {bookingsErr ? <LoadFailed onRetry={() => fetchAll({ progress: false })} /> : lessonView === 'month' ? (() => {
             const todayDs = getTodayLA()
             const mm2 = String(lvMonth + 1).padStart(2, '0')
             const monthPrefix = `${lvYear}-${mm2}`
@@ -3803,7 +4371,7 @@ export default function DashboardPage() {
                             2026-10-15). The whole 76px cell already opens the day. */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayBookings.slice(0, MAX_PER_DAY).map((b, j) => (
-                            <button key={b.id + j} className="tap-auto" onClick={e => { e.stopPropagation(); setLessonDetail(b) }}
+                            <button key={b.id + j} className="tap-auto" onClick={e => { e.stopPropagation(); openLesson(b) }}
                               aria-label={t(b.checked_in ? 'dash.month.lessonAriaIn' : 'dash.month.lessonAria', { time: t12(b.start_time), date: dayLong, name: b.student_name || '' })}
                               style={{ padding: '3px 2px', borderRadius: '5px', cursor: 'pointer', width: '100%', minWidth: 0, textAlign: 'center', overflow: 'hidden',
                               border: `1px solid ${isPast ? '#e3ebf6' : GOLD + '55'}`,
@@ -3850,14 +4418,14 @@ export default function DashboardPage() {
                       <div ref={dayBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-day-title"
                         style={{ background: '#fff', maxWidth: '440px' }}>
                         <div className="msa-sheet-head" style={{ background: '#fff', marginBottom: '2px' }}>
-                          <h2 id="dash-day-title" style={{ fontFamily: FONT_DISPLAY, fontSize: '19px', fontWeight: 700, color: '#16294a' }}>{dateStr}</h2>
+                          <h2 id="dash-day-title">{dateStr}</h2>
                           <button type="button" className="msa-sheet-x tap-auto" onClick={() => setDaySheet(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
                         </div>
                         <div style={{ fontSize: '12px', color: '#56647d', marginBottom: '14px' }}>
                           {t(rows.length === 1 ? 'dash.day.oneLesson' : 'dash.day.nLessons', { n: rows.length })}
                         </div>
                         {rows.map((b, j) => (
-                          <button key={b.id + j} onClick={() => { setDaySheet(null); setLessonDetail(b) }}
+                          <button key={b.id + j} onClick={() => { setDaySheet(null); openLesson(b) }}
                             style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', textAlign: 'left', cursor: 'pointer',
                               padding: '11px 12px', borderRadius: '12px', marginBottom: '8px',
                               background: '#f6f9fd', border: '1px solid #e3ebf6' }}>
@@ -3907,7 +4475,7 @@ export default function DashboardPage() {
                           const [hm, ap] = tH(b.start_time)
                           const names = b._group ? b._group.map(x => x.student_name).filter(Boolean).join(', ') : b.student_name
                           return (
-                            <button key={b.id + j} type="button" className="tap-auto msa-wles" onClick={() => setLessonDetail(b)}>
+                            <button key={b.id + j} type="button" className="tap-auto msa-wles" onClick={() => openLesson(b)}>
                               <span className="tm">{hm}<small>{ap}</small></span>
                               <span className="who" style={{ color: swimmerColor(b.student_name) }}>{names || '—'}</span>
                               <span className="what">{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name)}{b.coach_name ? ` · ${t('dash.up.coach', { name: b.coach_name })}` : ''}<PoolLink id={b.location_id} prefix=" · " plain /></span>
@@ -3955,457 +4523,7 @@ export default function DashboardPage() {
                 // minutes, and it used to sit folded under "show 2 more days"
                 // (found 2026-10-07).
                 const days = allDays.filter((d, i) => i < dayWindow || d.items.some(b => b.pending_action === 'reschedule'))
-                const tappable = (b: Booking) => inApp && b.status !== 'in_cart'
-                const tapProps = (b: Booking, inSheet: boolean) => {
-                  const waiting = b.pending_action === 'reschedule' || b.pending_action === 'reschedule_initiator'
-                  if (inSheet || !tappable(b)) return { className: 'msa-lesson' }
-                  return {
-                    className: 'msa-lesson msa-lesson-tap' + (waiting ? ' waiting' : ''),
-                    onClick: (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('button, a, input, select, [role="dialog"]')) setLessonSheet(b.id) },
-                  }
-                }
-                // One lesson card. In the app a tap on it opens the lesson sheet
-                // (owner, 2026-11-04, 問題 3 選項 A); the sheet draws the same card.
-                const renderLesson = (booking: Booking, inSheet = false) => {
-                const daysUntil = getDaysUntil(booking.session_date)
-                const isToday = daysUntil === 0
-                const isTomorrow = daysUntil === 1
-                const statusColor = (booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? GOLD : (STATUS_COLORS[booking.status] || GOLD)
-                return (
-                  <div key={booking.id} {...tapProps(booking, inSheet)} style={{ background: '#fff', border: `1px solid ${isToday ? GOLD + '40' : '#e3ebf6'}` }}>
-                    {!inSheet && tappable(booking) && <button type="button" className="msa-lesson-chev tap-auto" aria-label={t('dash.lsheet.open', { name: booking.student_name || '' })} onClick={() => setLessonSheet(booking.id)}>›</button>}
-                    <div className="msa-lesson-date" style={{ background: isToday ? AMBER : '#f6f9fd' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isToday ? NAVY : '#56647d' }}>
-                        {fmtDate(new Date(booking.session_date + 'T00:00:00'), intlOf(locale), { month: 'short' })}
-                      </div>
-                      <div style={{ fontSize: '20px', fontWeight: 900, color: isToday ? NAVY : '#16294a', lineHeight: 1 }}>
-                        {new Date(booking.session_date + 'T00:00:00').getDate()}
-                      </div>
-                    </div>
-                      <div className="msa-lesson-head">
-                        <span className="msa-lesson-meta">
-                          <b>{booking.is_trial ? t('common.assessment') : (booking.course_type_id ? tDb(locale, 'course_types', booking.course_type_id, booking.course_name) : booking.course_name)}</b>
-                          {!booking._group && <> · {formatTime(booking.start_time)} – {formatTime(booking.end_time)}</>}
-                          {!booking._group && booking.coach_name ? <> · {t('dash.up.coach', { name: booking.coach_name })}</> : null}
-                          {!booking._group && <PoolLink id={booking.location_id} prefix=" · " />}
-                          {(() => { const bc = bandColorOf(booking.level_min, booking.level_max); return bc && booking.level_min != null && booking.level_max != null ? <span style={{ fontSize: '10px', fontWeight: 700, marginLeft: '6px', background: `${bc}22`, color: bc, border: `1px solid ${bc}55`, borderRadius: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('dash.lesson.levelBadge', { r: bandRange(booking.level_min, booking.level_max) })}</span> : null })()}
-                        </span>
-                        {isToday && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: AMBER, color: NAVY, borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.today')}</span>}
-                        {isTomorrow && <span className="msa-lesson-daybadge" style={{ fontSize: '10px', fontWeight: 700, background: '#eef2f8', color: '#56647d', borderRadius: '10px', padding: '2px 8px' }}>{t('dash.up.tomorrow')}</span>}
-                        {booking._group && <span className="msa-lesson-status-inline msa-lesson-pill">
-                          {(() => {
-                            if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
-                            if (booking.session_date !== getTodayLA()) return null
-                            const [sh, sm] = booking.start_time.split(':').map(Number)
-                            const [eh, em] = booking.end_time.split(':').map(Number)
-                            const nowMin = getNowMinutesLA()
-                            if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
-                            if (nowMin < sh * 60 + sm - 30) return <span style={{ fontSize: '10px', color: '#56647d', whiteSpace: 'nowrap' }}>{t('dash.up.checkinSoon')}</span>
-                            return null
-                          })()}
-                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.status.' + booking.status)}</span>
-                        </span>}
-                        {!booking._group && (
-                          <span className="msa-lesson-pill" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}30`, borderRadius: '20px', padding: '3px 10px' }}>
-                            {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? t('dash.up.pendingReschedule') : isInviteToMe(booking) ? t('dash.up.awaitingYou') : t('dash.status.' + booking.status)}
-                          </span>
-                        )}
-                      </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {!booking._group && booking.student_name && (
-                        <div className="msa-lesson-name" style={{ color: swimmerColor(booking.student_name) }}>{booking.student_name}<LessonTag b={booking} /></div>
-                      )}
-                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_coach_name ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px', flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: '#56647d', textDecoration: 'line-through' }}>{t('dash.up.coach', { name: booking.coach_name })}</span>
-                            {booking.student_name ? <span style={{ color: '#9aa6ba', textDecoration: 'line-through' }}> · ({booking.student_name})</span> : ''}
-                          </div>
-                          <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
-                          <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                            <span style={{ color: GOLD }}>{t('dash.up.coach', { name: booking.new_coach_name })}</span>
-                            {booking.student_name ? <span style={{ color: '#1d6fa5' }}> · ({booking.student_name})</span> : ''}
-                          </div>
-                        </div>
-                      ) : booking._group ? (
-                        <div style={{ marginBottom: '2px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {booking._group.map((m, mi) => {
-                            const late = isWithin24Hours(m.session_date, m.start_time) || daysUntil < 1
-                            // A sibling 1-on-2 is one lesson for both children:
-                            // its late cancel spends both children's grace.
-                            const pair = m.course_slug === '1on2'
-                              ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled') : [m]
-                            const ck = cancelKindOf(m, late, pair.map(x => x.student_id || ''))
-                            // Named in the modal and in the "grace used" note: both
-                            // children, or the one whose grace is already gone.
-                            const pairNames = pair.map(x => x.student_name).filter(Boolean).join(', ')
-                            const spentName = pair.filter(x => graceUsed.has(x.student_id || '')).map(x => x.student_name).filter(Boolean).join(', ') || m.student_name
-                            const cEnabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== m.id && m.status !== 'pending_partner'
-                            // Checked in: the lesson is happening, nothing to cancel
-                            // (as on the single card). A sibling 1-on-2 is one
-                            // lesson, so either child checked in counts.
-                            const ckIn = pair.some(x => x.checked_in) || !!m.checked_in
-                            // A fixed-class lesson or a make-up is not moved: leave
-                            // turns it into a voucher instead.
-                            const noMove = !!(m.fixed_class_id || m.voucher_id)
-                            const rDis = reschedulingId === m.id || isWithin24Hours(m.session_date, m.start_time) || m.status === 'pending_partner'
-                            // Two siblings in a 1-on-2 are one lesson: cancelling
-                            // takes both seats and refunds both. This card groups
-                            // by session, so the pair's points are the group's --
-                            // quoting one seat's 47 for a 94-point refund would
-                            // have undersold every cancellation.
-                            // An hour is two halves charged alike: the refund is both
-                            // (the modal used to quote one half -- found 2026-10-03).
-                            const halves = booking._hour ? 2 : 1
-                            const refundPts = (m.course_slug === '1on2'
-                              ? (booking._group || []).filter(x => x.course_slug === '1on2' && x.status !== 'cancelled')
-                                  .reduce((a, x) => a + (x.points_charged ?? 0), 0)
-                              : (m.points_charged ?? 0)) * halves
-                            return (
-                              <div key={m.id} className="msa-lesson-row" style={{ paddingTop: mi > 0 ? '8px' : undefined, borderTop: mi > 0 && m.course_slug !== '1on2' ? '1px solid #e3ebf6' : 'none' }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: swimmerColor(m.student_name) }}>{m.student_name || '—'}<LessonTag b={m} />{m.checked_in && <span role="img" aria-label={t('dash.up.checkedIn')} title={t('dash.up.checkedIn')} style={{ marginLeft: '6px', fontSize: '13px', color: '#1f7a57' }}>&#10003;</span>}</div>
-                                  <div style={{ fontSize: '12px', color: '#56647d', marginTop: '1px' }}>
-                                    {formatTime(m.start_time)} – {formatTime(m.end_time)} · <span style={{ whiteSpace: 'nowrap' }}>{t('dash.up.coach', { name: m.coach_name })}</span><PoolLink id={m.location_id} prefix=" · " />
-                                  </div>
-                                </div>
-                                {(m.course_slug === '1on2' && mi > 0) ? null : (
-                                  <div className="msa-lesson-actions">
-                                    {!noMove && <button
-                                      onClick={() => {
-                                        /* Greyed, but it says why (2026-11-04: a tap on it did nothing). */
-                                        if (rDis) {
-                                          if (reschedulingId === m.id) return
-                                          setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(m.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(m), closeLabel: t('common.close') })
-                                          return
-                                        }
-                                        setRescheduleTarget({ id: m.id, slug: m.course_slug || '', studentId: m.student_id || '', studentName: m.student_name, courseName: m.course_name, courseTypeId: m.course_type_id, date: formatDate(m.session_date, intlOf(locale)), time: formatTime(m.start_time), partnerBookingId: m.partner_booking_id, groupId: m.lesson_group_id })
-                                      }}
-                                      aria-disabled={rDis}
-                                      style={{ padding: '4px 10px', borderRadius: '8px', border: rDis ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: rDis ? '#9aa6ba' : GOLD, fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                      {reschedulingId === m.id ? '...' : t('dash.up.reschedule')}
-                                    </button>}
-                                    {ckIn ? null : lessonStarted(m) && !isOwnInvite(m) ? (
-                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '10px', fontWeight: 600 }}>
-                                        {t('dash.up.inProgress')}
-                                      </div>
-                                    ) : isOwnInvite(m) ? (
-                                      <button
-                                        onClick={() => askWithdraw(m)}
-                                        disabled={cancellingId === m.id}
-                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {cancellingId === m.id ? '...' : t('dash.up.withdraw')}
-                                      </button>
-                                    ) : cEnabled ? (
-                                      <button
-                                        onClick={() => openCancel({ ...m, student_name: pairNames || m.student_name }, late, ck, refundPts)}
-                                        style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {cancellingId === m.id ? '...' : cancelLabel(m, late)}
-                                      </button>
-                                    ) : late ? (
-                                      <button
-                                        onClick={() => openChatOr(lateLockHelp({ ...m, student_name: spentName }), undefined, m)}
-                                        title={lateLockHelp({ ...m, student_name: spentName })}
-                                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
-                                        {t('dash.up.cancelLocked')}
-                                      </button>
-                                    ) : (
-                                      <div style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#9aa6ba', fontSize: '10px', fontWeight: 600, cursor: 'not-allowed' }}>{t('dash.up.cancel')}</div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        null
-                      )}
-                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.new_start_time ? (
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '12px', color: '#56647d', textDecoration: 'line-through' }}>{formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {formatDate(booking.session_date, intlOf(locale))}</span>
-                            <span style={{ color: '#56647d', fontSize: '14px' }}>→</span>
-                            <span style={{ fontSize: '12px', color: '#56647d' }}>{formatTime(booking.new_start_time)} – {formatTime(booking.new_end_time || '')} · {formatDate(booking.new_session_date || '', intlOf(locale))}{!samePool(booking.new_location_id, booking.location_id) && <PoolLink id={booking.new_location_id} prefix=" · " style={{ color: GOLD, fontWeight: 700 }} />}</span>
-                          </div>
-                          {booking.pending_expires_at && (
-                            <Countdown until={booking.pending_expires_at}>{ms => (
-                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
-                            )}</Countdown>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') && booking.pending_expires_at && (
-                            <Countdown until={booking.pending_expires_at}>{ms => (
-                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.rescheduleCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
-                            )}</Countdown>
-                          )}
-                        {booking.status === 'pending_partner' && booking.pending_expires_at && (
-                            <Countdown until={booking.pending_expires_at}>{ms => (
-                              <div style={{ fontSize: '11px', color: ms < 3 * 60000 ? '#c0392b' : GOLD, marginTop: '2px' }}>⏱ {t('dash.up.partnerCountdown', { time: ms <= 0 ? t('dash.up.expired') : mmss(ms) })}</div>
-                            )}</Countdown>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="msa-lesson-side" style={{ display: booking._group ? 'none' : 'flex' }}>
-                      <div className="msa-lesson-status">
-                      {(() => {
-                        if (booking.checked_in) return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#1f7a57', background: '#e6f4ee', border: '1px solid #b7e0cc', borderRadius: '20px', padding: '3px 10px' }}>&#10003; {t('dash.up.checkedIn')}</span>
-                        if (booking.session_date !== getTodayLA()) return null
-                        const [sh, sm] = booking.start_time.split(':').map(Number)
-                        const [eh, em] = booking.end_time.split(':').map(Number)
-                        const nowMin = getNowMinutesLA()
-                        if (nowMin >= sh * 60 + sm - 30 && nowMin < eh * 60 + em) {
-                          /* Check-in open: the button itself, not a label saying
-                             it is open (owner, 2026-11-01: check-in sits with the
-                             lesson). It shows the swimmer's QR for the desk. */
-                          const kid = students.find(s => s.id === booking.student_id)
-                          if (kid && booking.status === 'confirmed') return (
-                            <button type="button" className="tap-auto" onClick={() => setQrStudent(kid)}
-                              style={{ fontSize: '13px', fontWeight: 900, color: NAVY, background: AMBER, border: 'none', borderRadius: '999px', padding: '7px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              {t('dash.checkIn')}
-                            </button>
-                          )
-                          return <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}40`, borderRadius: '20px', padding: '3px 10px' }}>{t('dash.up.checkinOpen')}</span>
-                        }
-                        return null
-                      })()}
-                      </div>
-                      {(booking.pending_action === 'reschedule' || booking.pending_action === 'reschedule_initiator') ? (
-                        <div className="msa-lesson-actions">
-                          {booking.pending_action === 'reschedule' && <>
-                          <button
-                            onClick={async () => {
-                              setReschedulingId(booking.id)
-                              const res = await fetch('/api/bookings/confirm-reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id }) })
-                              const json = await res.json()
-                              // A lost original lesson names the points returned (F81).
-                              if (!res.ok) { const r = errorKeyFor(json); setNotice(r ? t(r.key, r.vars) : errText(json.error, 'dash.resAction.failed')) }
-                              await fetchAll({ progress: false })
-                              setReschedulingId(null)
-                            }}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #b7e0cc', background: 'transparent', color: '#1f7a57', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            {t('dash.up.acceptReschedule')}
-                          </button>
-                          <button
-                            onClick={async () => {
-                              setRescheduleActionModal({ bookingId: booking.id, type: 'reject', title: t('dash.resAction.declineTitle'), message: t('dash.resAction.keepsTime') })
-                            }}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                            {t('dash.up.decline')}
-                          </button>
-                          </>}
-                          {booking.pending_action === 'reschedule_initiator' && (
-                            <button
-                              onClick={async () => {
-                                setRescheduleActionModal({ bookingId: booking.id, type: 'cancel', title: t('dash.resAction.cancelTitle'), message: t('dash.resAction.keepsTime') })
-                              }}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              {t('dash.up.cancelReschedule')}
-                            </button>
-                          )}
-                        </div>
-                      ) : booking.status === 'pending_payment' && booking.is_trial && !trialSynced.has(booking.id) ? (
-                        <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: '#56647d', fontSize: '11px', fontWeight: 600, alignSelf: 'flex-start' }}>
-                          ⏳ {t('dash.pend.checking')}
-                        </div>
-                      ) : booking.status === 'pending_payment' && !viewer ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
-                              ⏱ {t('dash.pend.awaiting')}
-                              {booking.pending_expires_at && (
-                                <Countdown until={booking.pending_expires_at}>{ms => ms <= 0 ? null : (
-                                  <span style={{ marginLeft: '6px', fontVariantNumeric: 'tabular-nums', color: ms < 5 * 60000 ? '#c0392b' : undefined }}>· {t('dash.pend.left', { time: mmss(ms) })}</span>
-                                )}</Countdown>
-                              )}
-                            </div>
-                            <button
-                              onClick={async () => {
-                                setPendingPayBusy(booking.id); setPendingPayMsg('')
-                                try {
-                                  const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link', booking_id: booking.id }) })
-                                  const j = await res.json().catch(() => ({}))
-                                  if (res.ok && j.url) { window.location.href = j.url; return }
-                                  setPendingPayMsg(errText(j.error, 'dash.pend.linkFailed'))
-                                } catch { setPendingPayMsg(t('dash.pend.network')) }
-                                setPendingPayBusy(null)
-                              }}
-                              disabled={pendingPayBusy === booking.id}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: AMBER, color: NAVY, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
-                              {pendingPayBusy === booking.id ? '...' : t('dash.pend.payNow')}
-                            </button>
-                            <button
-                              onClick={() => { setPendingPayMsg(''); setPendingCancelConfirm(booking.id) }}
-                              disabled={pendingPayBusy === booking.id}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                              {t('common.cancel')}
-                            </button>
-                          </div>
-                          {pendingPayMsg && <div style={{ fontSize: '11px', color: '#c0392b' }}>{pendingPayMsg}</div>}
-                          {pendingCancelConfirm === booking.id && (
-                            <div className="msa-dlg-back" onClick={() => { if (pendingPayBusy !== booking.id) setPendingCancelConfirm(null) }}>
-                              <div ref={pendCancelBox} className="msa-dlg" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-pend-title">
-                                <div id="dash-pend-title" style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '8px' }}>{t('dash.pend.cancelTitle')}</div>
-                                <div style={{ fontSize: '13px', color: '#56647d', lineHeight: 1.6, marginBottom: '20px' }}>
-                                  {t('dash.pend.cancelBody')}
-                                </div>
-                                <div className="msa-dlg-acts">
-                                  <button
-                                    onClick={() => setPendingCancelConfirm(null)}
-                                    disabled={pendingPayBusy === booking.id}
-                                    className="msa-dlg-no">
-                                    {t('dash.pend.keep')}
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      setPendingPayBusy(booking.id); setPendingPayMsg('')
-                                      try {
-                                        const res = await fetch('/api/bookings/pending-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', booking_id: booking.id }) })
-                                        const j = await res.json().catch(() => ({}))
-                                        if (res.ok) { window.location.reload(); return }
-                                        setPendingPayMsg(errText(j.error, 'dash.pend.cancelFailed'))
-                                      } catch { setPendingPayMsg(t('dash.pend.network')) }
-                                      setPendingPayBusy(null); setPendingCancelConfirm(null)
-                                    }}
-                                    disabled={pendingPayBusy === booking.id}
-                                    className="msa-dlg-yes danger">
-                                    {pendingPayBusy === booking.id ? t('dash.pend.cancelling') : t('dash.cancelModal.yesCancel')}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : booking.status === 'in_cart' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #c9d8ee', background: '#eef4fc', color: GOLD, fontSize: '11px', fontWeight: 600 }}>
-                            <Icon name="cart" /> {t('dash.cart.held')}
-                          </div>
-                        </div>
-                      ) : booking._group ? null : (
-                        <div className="msa-lesson-actions">
-                          {/* An assessment cannot be moved online (the booking page
-                              treats the move as a regular lesson, and the swimmer has no
-                              level yet), so its row offers one "message us" button below.
-                              A checked-in lesson is happening: nothing to move. */}
-                          {!booking.is_trial && !booking.checked_in && !booking.fixed_class_id && !booking.voucher_id && !isInviteToMe(booking) && !lessonStarted(booking) && (
-                          <button
-                            onClick={() => {
-                              /* Greyed, but it says why (as on the grouped rows). */
-                              if (isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner') {
-                                setInfoModal({ eyebrow: t('dash.up.reschedule'), title: t('dash.up.reschedNoTitle'), message: t(booking.status === 'pending_partner' ? 'dash.up.reschedNoPartner' : 'dash.up.reschedNo24'), actionLabel: t('dash.up.messageUs'), onAction: () => chatAbout(booking), closeLabel: t('common.close') })
-                                return
-                              }
-                              setRescheduleTarget({ id: booking.id, slug: booking.course_slug || '', studentId: booking.student_id || '', studentName: booking.student_name, courseName: booking.course_name, courseTypeId: booking.course_type_id, date: formatDate(booking.session_date, intlOf(locale)), time: formatTime(booking.start_time), partnerBookingId: booking.partner_booking_id, groupId: booking.lesson_group_id })
-                            }}
-                            disabled={reschedulingId === booking.id}
-                            aria-disabled={isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner'}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '1px solid #e3ebf6' : '1px solid #c9d8ee', background: 'transparent', color: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? '#9aa6ba' : GOLD, fontSize: '11px', fontWeight: 600, cursor: reschedulingId === booking.id || isWithin24Hours(booking.session_date, booking.start_time) || booking.status === 'pending_partner' ? 'not-allowed' : 'pointer' }}>
-                            {reschedulingId === booking.id ? '...' : t('dash.up.reschedule')}
-                          </button>
-                          )}
-                          {(() => {
-                            // Checked in means the lesson is happening: there is
-                            // nothing left to cancel.
-                            if (booking.checked_in) return null
-                            // A Swim Assessment is paid by card, not out of the
-                            // wallet, so there are no points to hand back, and it
-                            // cannot be moved online either. The parent tells us and
-                            // the front desk handles both. The API refuses both too.
-                            if (booking.is_trial) return (
-                              <button
-                                title={t('dash.up.trialContactHelp')}
-                                onClick={() => openChatOr(t('dash.up.trialContactHelp'), t('common.assessment'), booking)}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {t('dash.up.trialContact')}
-                              </button>
-                            )
-                            // Invited by another family: answered above.
-                            if (isInviteToMe(booking)) return (
-                              <button onClick={toInvites}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #d6cbf2', background: 'transparent', color: '#6d4fc2', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {t('dash.up.answerInvite')}
-                              </button>
-                            )
-                            // An invitation not yet accepted is withdrawn, not
-                            // cancelled: free, and never the 'pair' lock, which is
-                            // for a 1-on-2 both families have confirmed.
-                            if (isOwnInvite(booking)) return (
-                              <button
-                                onClick={() => askWithdraw(booking)}
-                                disabled={cancellingId === booking.id}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f5c2bd', background: 'transparent', color: '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {cancellingId === booking.id ? '...' : t('dash.up.withdraw')}
-                              </button>
-                            )
-                            if (lessonStarted(booking)) return (
-                              <div className="msa-inprog" style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', color: '#56647d', fontSize: '11px', fontWeight: 600 }}>
-                                {t('dash.up.inProgress')}
-                              </div>
-                            )
-                            const late = isWithin24Hours(booking.session_date, booking.start_time) || daysUntil < 1
-                            const ck = cancelKindOf(booking, late)
-                            const enabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== booking.id && booking.status !== 'pending_partner'
-                            return enabled ? (
-                              <button
-                                onClick={() => openCancel(booking, late, ck, (booking.points_charged ?? 0) * (booking._hour ? 2 : 1))}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {cancellingId === booking.id ? '...' : cancelLabel(booking, late)}
-                              </button>
-                            ) : late ? (
-                              <button
-                                onClick={() => openChatOr(lateLockHelp(booking), undefined, booking)}
-                                title={lateLockHelp(booking)}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#56647d', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
-                                {t('dash.up.cancelLocked')}
-                              </button>
-                            ) : (
-                              <div style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#9aa6ba', fontSize: '11px', fontWeight: 600, cursor: 'not-allowed' }}>
-                                {t('dash.up.cancel')}
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-                }
-                const sheetB = lessonSheet ? upcomingBookings.find(b => b.id === lessonSheet) : undefined
-                const sheet = inApp && sheetB && typeof document !== 'undefined' ? createPortal(
-                  <div className={'msa-lsheet-wrap' + (viewer ? ' msa-viewer' : '')} onClick={e => { if (e.target === e.currentTarget) setLessonSheet(null) }}>
-                    <div className="msa-lsheet" role="dialog" aria-modal="true" aria-labelledby="msa-lsheet-h" ref={lessonSheetRef} tabIndex={-1}
-                      onKeyDown={e => { if (e.key === 'Escape') setLessonSheet(null) }}
-                      onClickCapture={e => {
-                        // An action starts its own dialog or page: the sheet gives way to it.
-                        if ((e.target as HTMLElement).closest('.msa-lesson button')) window.setTimeout(() => setLessonSheet(null), 0)
-                      }}>
-                      <div className="msa-lsheet-grab" aria-hidden="true" />
-                      {/* The date, and the round ✕ every sheet has (決定 9: the
-                          關閉 at the bottom is gone). */}
-                      <div className="msa-lsheet-top">
-                        <div id="msa-lsheet-h" className="msa-lsheet-h">
-                          {fmtDate(new Date(sheetB.session_date + 'T00:00:00'), intlOf(locale), { weekday: 'long', month: 'long', day: 'numeric' })}
-                          {getDaysUntil(sheetB.session_date) === 0 ? ` · ${t('dash.up.today')}` : getDaysUntil(sheetB.session_date) === 1 ? ` · ${t('dash.up.tomorrow')}` : ''}
-                        </div>
-                        <button type="button" className="msa-sheet-x tap-auto" onClick={() => setLessonSheet(null)} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
-                      </div>
-                      {renderLesson(sheetB, true)}
-                      <div className="msa-lsheet-more">
-                        <button type="button" className="tap-auto" onClick={() => {
-                          /* The chat opens knowing which lesson (owner, 2026-11-04):
-                             it asks "this lesson?" above the box and heads the
-                             message with it, so the desk sees which one. */
-                          setLessonSheet(null)
-                          chatAbout(sheetB)
-                        }}>{t('dash.up.messageUs')}</button>
-                      </div>
-                    </div>
-                  </div>, document.body) : null
-                return <>{sheet}{days.map(day => {
+                return <>{days.map(day => {
                   const du = getDaysUntil(day.date)
                   const dd = new Date(day.date + 'T00:00:00')
                   return (
@@ -4456,6 +4574,7 @@ export default function DashboardPage() {
           {/* The lesson detail: opened from the month and the week views, and
               from a card's next lesson -- outside the lesson list, which the
               app's 首頁 hides (owner, 2026-10-27). */}
+          {lessonSheetEl}
           {lessonDetail && (() => {
             const b = lessonDetail
             const past = !!(b.session_date && b.session_date < getTodayLA())
@@ -4480,7 +4599,7 @@ export default function DashboardPage() {
                 <div ref={detailBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="dash-detail-title" style={{ background: '#fff', maxWidth: '420px' }}>
                   <div className="msa-sheet-head" style={{ background: '#fff', alignItems: 'flex-start' }}>
                     <div style={{ minWidth: 0 }}>
-                      <h2 id="dash-detail-title" style={{ fontSize: '17px', fontWeight: 700, color: '#16294a' }}>{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</h2>
+                      <h2 id="dash-detail-title">{(b.course_type_id ? tDb(locale, 'course_types', b.course_type_id, b.course_name) : b.course_name) || t('dash.sheet.lesson')}</h2>
                       {b.level_min != null && b.level_max != null && (
                         <div style={{ fontSize: '12px', color: '#56647d', marginTop: '2px' }}>{t('dash.lesson.band', { r: bandRange(b.level_min, b.level_max) })}</div>
                       )}
@@ -4507,8 +4626,9 @@ export default function DashboardPage() {
                   {/* Late, ill, a question about this one: straight to the desk,
                       with the lesson (50-role test, 2026-11-05). */}
                   {b.status !== 'cancelled' && (
-                    <button onClick={() => { setLessonDetail(null); chatAbout(b) }}
-                      style={{ width: '100%', marginTop: '18px', padding: '12px', background: '#f09800', border: 0, borderRadius: '10px', color: '#12254a', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>{t('dash.up.messageUs')}</button>
+                    <div className="msa-lsheet-more">
+                      <button type="button" className="tap-auto" onClick={() => { setLessonDetail(null); chatAbout(b) }}>{t('dash.up.messageUs')}</button>
+                    </div>
                   )}
                 </div>
               </div>

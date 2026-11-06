@@ -1875,5 +1875,9 @@
   "admin.ann.err.expiry": "The end date has already passed.",
   "coach.safety.supportFlag": "Learning needs",
   "coach.safety.support": "Learning or sensory needs",
-  "admin.safety.support": "Learning or sensory needs"
+  "admin.safety.support": "Learning or sensory needs",
+  "admin.checkin.err.alreadyIn": "{name} is already checked in ({time} lesson).",
+  "admin.checkin.err.inactive": "{name}'s account is no longer active, so they cannot be checked in.",
+  "admin.messages.fromGuardian": "{name} (family member)",
+  "admin.messages.fromViewer": "{name} (view-only — check with the main account before changing lessons)"
 }

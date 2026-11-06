@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
+import Icon from '@/components/ui/Icon'
 import {
   GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type SwimmerLook,
 } from '@/lib/swimmer-look'
@@ -41,13 +42,17 @@ const CSS = `
    shrinks to fit (--sw-stage-h, worked out once on load and on resize, never
    while the cards move). */
 .sw-fit { position: relative; flex: 1 0 var(--sw-fit-min, 0px); min-height: 0 }
-.sw-deck { --gap: 12px; display: flex; align-items: flex-start; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
+.sw-deck { --gap: 12px; display: flex; align-items: stretch; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
   overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; -webkit-user-select: none; user-select: none }
 .sw-deck::-webkit-scrollbar { display: none }
 /* Room so the first and last card can come to the middle. */
 .sw-deck::before, .sw-deck::after { content: ''; flex: 0 0 calc((100% - var(--cw)) / 2 - var(--gap)) }
-.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always }
+.sw-slot { position: relative; flex: 0 0 var(--cw); width: var(--cw); scroll-snap-align: center; scroll-snap-stop: always; display: flex; flex-direction: column }
+/* Every card as tall as the tallest, its buttons along the foot, so no card
+   leaves an empty band under it (14-role test 2, J97, J100). */
+.sw-slot > .msa-mcard { flex: 1 }
+.sw-slot .msa-mcard > .sw-stage:last-child { margin-bottom: -12px }
 /* No curve or dimming driven by the scroll: on the iPhone those effects are
    worked out by the page's own thread, and any work there made the whole
    card jerk as it arrived (owner, 2026-10-30). The cards are a plain native
@@ -329,7 +334,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
   useEffect(() => () => window.clearTimeout(restTimer.current), [])
   const goTo = (i: number) => {
     const el = deckRef.current
-    if (el) el.scrollTo({ left: i * (cw + GAP), behavior: 'smooth' })
+    if (el) el.scrollTo({ left: i * (cw + GAP), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
   // A tap on a side card brings it to the middle.
   const onSlotClick = (i: number) => (e: React.MouseEvent) => {
@@ -362,8 +367,11 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
 
   /* ---------- dressing ---------- */
   const say = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(m => (m === msg ? null : m)), 1900) }
+  // Boy or girl is not chosen for a swimmer still in the cap: neither is lit
+  // until one is tapped (14-role test 2, J92: 男生 was, by default).
+  const [genderPicked, setGenderPicked] = useState(false)
   const openSheet = (it: DeckItem) => {
-    setDraft({ ...(it.look ?? NEUTRAL) }); setEditing(it.id); setTab('gender')
+    setDraft({ ...(it.look ?? NEUTRAL) }); setEditing(it.id); setTab('gender'); setGenderPicked(!!it.look)
     const el = deckRef.current
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
   }
@@ -375,7 +383,8 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     const d = draft
     setDraft(null); setEditing(null)
     // Closing a capped swimmer without changing anything leaves it unpicked (the red dot stays).
-    if (!it || !d || lookKey(d) === lookKey(it.look ?? NEUTRAL)) return
+    // A tap on the same 男生 as the cap's default still picks a look.
+    if (!it || !d || (lookKey(d) === lookKey(it.look ?? NEUTRAL) && (it.look || !genderPicked))) return
     // Shown as saved at once; put back if the server says no.
     const before = it.look
     onLook(it.id, d)
@@ -386,7 +395,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     else { onLook(it.id, before); say(t('swimmer.saveFailed')) }
   }
   useEffect(() => { closeRef.current = () => { closeSheet() } })
-  const set = <K extends keyof SwimmerLook>(k: K, v: SwimmerLook[K]) => setDraft(d => {
+  const set = <K extends keyof SwimmerLook>(k: K, v: SwimmerLook[K]) => { if (k === 'gender') setGenderPicked(true); setDraft(d => {
     if (!d) return d
     const n = { ...d, [k]: v }
     if (k === 'gender') {
@@ -395,13 +404,13 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
       if (v === 'boy' && n.hair !== 'short' && n.hair !== 'spiky') n.hair = 'short'
     }
     return n
-  })
+  }) }
   const opts = <K extends keyof SwimmerLook>(label: string, k: K, list: [SwimmerLook[K], string][]) => (
     <>
       <div className="sw-lab">{label}</div>
       <div className="sw-opts">
         {list.map(([v, txt]) => (
-          <button key={String(v)} type="button" className="tap-auto" aria-pressed={draft?.[k] === v} onClick={() => set(k, v)}>{txt}</button>
+          <button key={String(v)} type="button" className="tap-auto" aria-pressed={draft?.[k] === v && (k !== 'gender' || genderPicked)} onClick={() => set(k, v)}>{txt}</button>
         ))}
       </div>
     </>
@@ -447,13 +456,15 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
                   {ICON_DRESS}{t('swimmer.dress')}{!it.look && <span className="sw-dot" role="img" aria-label={t('swimmer.notPicked')} />}
                 </button>
               )}
-              {ready && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}>⟲ {t('swimmer.hintOne')}</span>}
+              {ready && <span className="sw-hint" style={{ opacity: hinted ? 0 : 1 }}><Icon name="rotate" style={{ verticalAlign: '-2px', marginRight: 3 }} />{t('swimmer.hintOne')}</span>}
               {renderOverlay && <div className="sw-over">{renderOverlay(it)}</div>}
             </div>
           )
           return (
             <div key={it.id} ref={el => { if (el) slotEls.current.set(it.id, el); else slotEls.current.delete(it.id) }} className="sw-slot"
-              role="group" aria-roledescription="slide" aria-label={it.name} onClickCapture={onSlotClick(i)}>
+              role="group" aria-roledescription="slide" aria-label={it.name} onClickCapture={onSlotClick(i)}
+              // A card reached by Tab comes to the middle (J76).
+              onFocusCapture={() => { if (i !== centerRef.current) goTo(i) }}>
               {renderCard(it, stage)}
             </div>
           )
@@ -463,9 +474,10 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
       {(n > 1 || after) && (
         <div className="sw-foot">
           {n > 1 && (
-            <div className="sw-dots" ref={dotsRef}>
+            // Another way to slide, for fingers; the cards themselves take Tab (J76).
+            <div className="sw-dots" ref={dotsRef} aria-hidden="true">
               {items.map((it, i) => (
-                <button key={it.id} type="button" aria-label={it.name} onClick={() => goTo(i)} />
+                <button key={it.id} type="button" tabIndex={-1} aria-label={it.name} onClick={() => goTo(i)} />
               ))}
             </div>
           )}

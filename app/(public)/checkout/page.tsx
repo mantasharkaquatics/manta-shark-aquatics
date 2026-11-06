@@ -139,6 +139,7 @@ function CheckoutContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId: 'team', studentId: selectedStudentId }),
+        signal: AbortSignal.timeout(20000),
       })
       data = await res.json().catch(() => ({}))
     } catch {

@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
   )
 
   let partnerStudents: any[] = []
+  const partnerNames: Record<string, string> = {}
   if (partnerParentIds.length > 0) {
     const { data: students } = await supabase
       .from('students')
@@ -43,11 +44,19 @@ export async function GET(req: NextRequest) {
       // as the second swimmer of a 1-on-2 and could be invited and booked.
       .eq('is_active', true)
     partnerStudents = students || []
+    // Which family each link is, as the join step names it: "Amy L."
+    // (14-role test 2, J59: a family with no swimmer yet was only "linked account").
+    const { data: ps } = await supabase.from('parents').select('id, first_name, last_name').in('id', partnerParentIds)
+    for (const p of (ps || []) as { id: string; first_name: string | null; last_name: string | null }[]) {
+      const n = [p.first_name, p.last_name ? p.last_name.trim().charAt(0) + '.' : ''].filter(Boolean).join(' ').trim()
+      if (n) partnerNames[p.id] = n
+    }
   }
 
   return NextResponse.json({
     partnerships: partnerships || [],
     partner_students: partnerStudents,
+    partner_names: partnerNames,
     my_parent_id: parent.id,
   })
 }

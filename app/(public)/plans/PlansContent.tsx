@@ -20,7 +20,7 @@ import BrandRoot from '@/components/brand/BrandRoot'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { useFamilyStatus } from '@/lib/use-family-status'
 import { myFamilyRole } from '@/lib/my-parent'
-import { useIsViewer } from '@/lib/use-viewer'
+import { useFamilyRole } from '@/lib/use-viewer'
 import ZellePay from '@/components/ZellePay'
 import { appLook } from '@/lib/native-app'
 
@@ -84,6 +84,8 @@ const css = `
     /* The still-to-assess card too (50-role test, 2026-11-05): one line on a short phone. */
     .p-app .p-toassess { padding: 8px 12px; margin-bottom: 8px; }
     .p-app .p-toassess span { display: none; }
+    /* With that card the page ran past a small phone (J100): the 60-minute note goes. */
+    .p-app:has(.p-toassess) .p-app-note { display: none; }
   }
   /* The assessment card sits over the hero's bottom edge: the first thing a
      new family needs, before any price. */
@@ -269,14 +271,10 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
 
   // A view-only family member pays for nothing: say so up front instead of
   // offering the buttons and refusing on tap (2026-11-04).
-  const [viewerRole, setViewerRole] = useState(false)
-  useEffect(() => {
-    if (signedIn !== true) return
-    let live = true
-    myFamilyRole(supabase).then(r => { if (live) setViewerRole(r === 'viewer') }).catch(() => {})
-    return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn])
+  // Not known yet: no buying form until it is (J08).
+  const fam = useFamilyRole()
+  const viewerRole = signedIn === true && fam === 'viewer'
+  const roleUnknown = signedIn === true && fam === undefined
 
   const chosen = topUpAmount(course, lessons)
   // Always true for the grid as it stands. Kept anyway: it is the guard that
@@ -310,6 +308,7 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ points: chosen }),
+        signal: AbortSignal.timeout(20000),
       })
       const data = await res.json()
       if (data.url) { window.location.href = data.url; return }
@@ -317,30 +316,37 @@ function TopUp({ signedIn, anyAssessed, app = false, locked = false }: { signedI
       else if (data.error === 'ASSESSMENT_PENDING') setAssessmentPending(true)
       else if (data.error === 'INVALID_AMOUNT') setError(t('points.buy.err.amount', { min: money(MIN_TOPUP_DOLLARS), max: money(MAX_TOPUP_DOLLARS) }))
       else setError(t('points.buy.err.generic'))
-    } catch {
-      setError(t('points.buy.err.generic'))
+    } catch (e) {
+      // Slow enough to give up: nothing was charged, so the button comes back (J70).
+      setError(t((e as Error)?.name === 'TimeoutError' ? 'points.buy.err.timeout' : 'points.buy.err.generic'))
     }
     setBusy(false)
   }
 
   // The prices stay readable for a viewer (the page is called 點數與價目), only
   // the buying goes (50-role test, 2026-11-05).
+  // The prices, for those who cannot buy here (yet).
+  const priceList = (
+    <ul className="p-fine" style={{ fontSize: 14, margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.8 }}>
+      <li>{t('appinfo.price.private', { a: BASE_POINTS['1on1'], b: BASE_POINTS['1on2'] })}</li>
+      <li>{t('viewer.priceGroup', { n: BASE_POINTS['1on4'] })}</li>
+      <li>{t('points.chip.oneDollar')}</li>
+    </ul>
+  )
+  if (roleUnknown) return <div className="p-card" aria-busy="true" style={{ minHeight: 160 }} />
   if (viewerRole) return (
     <div className="p-card">
       <p className="p-fine" style={{ fontSize: 14, marginTop: 0 }}>{t('viewer.cantPay')}</p>
-      <ul className="p-fine" style={{ fontSize: 14, margin: '10px 0 0', paddingLeft: 18, lineHeight: 1.8 }}>
-        <li>{t('appinfo.price.private', { a: BASE_POINTS['1on1'], b: BASE_POINTS['1on2'] })}</li>
-        <li>{t('viewer.priceGroup', { n: BASE_POINTS['1on4'] })}</li>
-        <li>{t('points.chip.oneDollar')}</li>
-      </ul>
+      {priceList}
     </div>
   )
 
   // No swimmer assessed yet: points could not be used, so no buying to start
   // with -- the box above says whose assessment to book (50-role test,
   // 2026-11-05: the buttons worked until the checkout refused).
+  // With the prices, so a new family sees what lessons cost (14-role test 2, J16).
   if (locked && owed === 0) return (
-    <div className="p-card"><p className="p-fine" style={{ fontSize: 14, margin: 0 }}>{t('points.buy.afterAssess')}</p></div>
+    <div className="p-card"><p className="p-fine" style={{ fontSize: 14, margin: 0 }}>{t('points.buy.afterAssess')}</p>{priceList}</div>
   )
 
   return (
@@ -498,14 +504,18 @@ export default function PlansContent() {
      your swimmer", Swim Team band, closing call -- was four and a half
      screens with no balance on it. Visitors keep the full page. */
   const compact = app || signedIn === true
-  const viewer = useIsViewer()
+  const famRole = useFamilyRole()
+  const viewer = famRole === 'viewer'
+  const pays = famRole === 'main' || famRole === 'full'
   // Written as 我的's member card writes it: the points bought, and the gift
   // apart (50-role test, 2026-11-05: 2,920 here, 2,880 there).
   const [balance, setBalance] = useState<{ bought: number; gift: number } | null>(null)
   const [balErr, setBalErr] = useState(false)
   const [balTry, setBalTry] = useState(0)
   useEffect(() => {
-    if (!compact || signedIn !== true || viewer) return
+    // Only once the role is known to be one with points (J84: a view-only
+    // member got "cannot read the points" for ever).
+    if (!compact || signedIn !== true || !pays) return
     fetch('/api/parent/wallet').then(r => (r.ok ? r.json() : null)).catch(() => null)
       .then(j => {
         if (!j || typeof j.balance !== 'number') { setBalErr(true); return }
@@ -513,15 +523,15 @@ export default function PlansContent() {
         setBalErr(false)
         setBalance({ bought: typeof j.balancePurchased === 'number' ? j.balancePurchased : j.balance - gift, gift })
       })
-  }, [compact, signedIn, viewer, balTry])
+  }, [compact, signedIn, pays, balTry])
   if (compact) return (
     <BrandRoot>
       <style>{css}</style>
       <div className={'p-app' + (app ? '' : ' p-web')}>
         <div className="p-app-head">
           <h1>{t('points.app.title')}</h1>
-          {balance == null && balErr && <button type="button" className="p-app-have tap-auto" style={{ border: 0, background: 'none', font: 'inherit', cursor: 'pointer', color: '#56647d' }} onClick={() => { setBalErr(false); setBalTry(n => n + 1) }}>{t('me.card.walletErr')}</button>}
-          {balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance.bought) })}{balance.gift > 0 && <> <span className="p-app-gift">{t('dash.pointsGift', { n: num(balance.gift) })}</span></>}</p>}
+          {pays && balance == null && balErr && <button type="button" className="p-app-have tap-auto" style={{ border: 0, background: 'none', font: 'inherit', cursor: 'pointer', color: '#56647d' }} onClick={() => { setBalErr(false); setBalTry(n => n + 1) }}>{t('me.card.walletErr')}</button>}
+          {pays && balance != null && <p className="p-app-have">{t('points.app.have', { n: num(balance.bought) })}{balance.gift > 0 && <> <span className="p-app-gift">{t('dash.pointsGift', { n: num(balance.gift) })}</span></>}</p>}
         </div>
         {/* Only the children still to be assessed, by name (the assessment is paid by card, not points). */}
         {toAssess.length > 0 && (

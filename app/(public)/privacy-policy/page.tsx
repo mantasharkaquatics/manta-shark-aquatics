@@ -198,6 +198,13 @@ export default function PrivacyPolicyPage() {
             browser remembers the booking you were putting together, for that browser tab only and for
             up to two hours, so you can pick up where you left off.
           </li>
+          {/* Draft for the lawyer (14-role test 2, J06). */}
+          <li>
+            <strong>On your phone, for your account.</strong> Your swimmers&apos; check-in QR codes are
+            kept on your device (in local storage) so they open quickly at the pool; a calendar
+            subscription keeps a code for your device; and a message you have started in the chat is
+            kept for that browser tab only. All of these are deleted from the device when you sign out.
+          </li>
           <li>
             <strong>Payments.</strong>{' '}Card payments are completed on Stripe&apos;s own secure pages.
             Stripe sets its own cookies there for fraud prevention, under Stripe&apos;s privacy policy.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getTodayLA } from '@/lib/date'
 import { isAdultOn, recordNewSwimmers } from '@/lib/account-holder'
-import { medicalToStore, supportToStore } from '@/lib/safety-info'
+import { medicalToStore, safetyTooLong, supportToStore } from '@/lib/safety-info'
 import { saveMedical } from '@/lib/safety-info-server'
 import { isGender } from '@/lib/swimmer-look'
 
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
   if (!isRealDate(dob) || dob < '1900-01-01') return NextResponse.json({ error: 'Missing or invalid date of birth', code: 'DOB' }, { status: 400 })
   if (dob > getTodayLA()) return NextResponse.json({ error: 'The date of birth is in the future', code: 'DOB_FUTURE' }, { status: 400 })
   // The safety question (owner, 2026-10-22): "none" or what it is.
+  if (safetyTooLong(body?.medical)) return NextResponse.json({ error: 'Too long', code: 'TOO_LONG' }, { status: 400 })
   const medical = medicalToStore(body?.medical)
   if (medical === undefined) return NextResponse.json({ error: 'Answer the medical question', code: 'MEDICAL' }, { status: 400 })
   // Boy or girl (owner, 2026-10-29): the app's 3D swimmer starts from it.

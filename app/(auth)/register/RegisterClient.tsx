@@ -5,6 +5,8 @@ import { MedicalQuestion, EmergencyContactFields, safetyErrorKey } from '@/compo
 import { contactProblem, medicalToStore, type EmergencyContact, type MedicalAnswer } from '@/lib/safety-info'
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
+import Icon from '@/components/ui/Icon'
+import DobSelect from '@/components/DobSelect'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,6 +20,7 @@ import { safeNext, withNext } from '@/lib/safe-next'
 import { REFERRAL_POINTS } from '@/lib/points'
 import { isAdultOn } from '@/lib/account-holder'
 import { passwordIssue, PASSWORD_ISSUE_KEY } from '@/lib/password-rules'
+import { APP_BACK_EVENT } from '@/lib/app-back'
 
 // A friend's link is remembered for 30 days (owner, 2026-09-29): families
 // often open it, look around, and come back later from the home page. Kept in
@@ -39,67 +42,6 @@ function forgetReferral() {
   try { localStorage.removeItem(REF_KEY) } catch {}
 }
 
-const DOB_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12']
-// Month names in the page's language (found 2026-10-05: they were English on
-// the Chinese pages). Intl gives "Jan" / "1月" from the same tag the rest of
-// the site uses for dates; UTC so no time zone can shift the 1st into the
-// previous month.
-function monthName(mm: string, tag: string): string {
-  return new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, Number(mm) - 1, 1)))
-}
-
-function DobSelect({ value, onChange, labelledBy }: { value: string; onChange: (v: string) => void; labelledBy?: string }) {
-  const t = useT()
-  const monthTag = dateTag(useLocale())
-  const [vy = '', vm = '', vd = ''] = (value || '').split('-')
-  const [y, setY] = useState(vy)
-  const [m, setM] = useState(vm)
-  const [d, setD] = useState(vd)
-  // A birthday cannot be in the future: this year only offers the months so
-  // far, and this month only the days so far (school's own time zone).
-  const [ty, tm, td] = getTodayLA().split('-')
-  const nowYear = Number(ty)
-  const years: number[] = []
-  for (let yr = nowYear; yr >= nowYear - 100; yr--) years.push(yr)
-  const months = y === ty ? DOB_MONTHS.filter(mm => mm <= tm) : DOB_MONTHS
-  const lastDay = (yy: string, mm: string) => {
-    const n = yy && mm ? new Date(Number(yy), Number(mm), 0).getDate() : 31
-    return yy === ty && mm === tm ? Math.min(n, Number(td)) : n
-  }
-  const daysInMonth = lastDay(y, m)
-  const days: string[] = []
-  for (let i = 1; i <= daysInMonth; i++) days.push(String(i).padStart(2, '0'))
-
-  const emit = (ny: string, nm: string, nd: string) => {
-    // Switching to this year can leave a month that has not happened yet.
-    if (ny === ty && nm && nm > tm) nm = ''
-    let fd = nd
-    if (ny && nm && nd) fd = String(Math.min(Number(nd), lastDay(ny, nm))).padStart(2, '0')
-    setY(ny); setM(nm); setD(fd)
-    onChange(ny && nm && fd ? `${ny}-${nm}-${fd}` : '')
-  }
-
-  const selCls = "bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-2 py-2.5 text-sm"
-  // One named group (found 2026-10-15): a screen reader heard only "Month",
-  // "Day", "Year" for every child, with no word that it was a birthday,
-  // whose, or that it was required.
-  return (
-    <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby={labelledBy}>
-      <select value={m} onChange={e => emit(y, e.target.value, d)} className={selCls} aria-label={t('register.dob.month')} aria-required="true">
-        <option value="">{t('register.dob.month')}</option>
-        {months.map(mm => <option key={mm} value={mm}>{monthName(mm, monthTag)}</option>)}
-      </select>
-      <select value={d} onChange={e => emit(y, m, e.target.value)} className={selCls} aria-label={t('register.dob.day')} aria-required="true">
-        <option value="">{t('register.dob.day')}</option>
-        {days.map(dd => <option key={dd} value={dd}>{Number(dd)}</option>)}
-      </select>
-      <select value={y} onChange={e => emit(e.target.value, m, d)} className={selCls} aria-label={t('register.dob.year')} aria-required="true">
-        <option value="">{t('register.dob.year')}</option>
-        {years.map(yr => <option key={yr} value={String(yr)}>{yr}</option>)}
-      </select>
-    </div>
-  )
-}
 
 
 const MAX_STUDENTS = 3
@@ -112,6 +54,12 @@ export default function RegisterClient() {
   const supabase = createClient()
   const router = useRouter()
   const [step, setStep] = useState(1)
+  const [badField, setBadField] = useState<string | null>(null)
+  // Android back on the second step goes to the first, keeping everything
+  // typed and verified, as 上一步 does (14-role test 2, J21: it left for the
+  // sign-in page and the form came back empty).
+  const stepNow = useRef(step)
+  useEffect(() => { stepNow.current = step }, [step])
   // Changing step swaps the whole form, so the button that was pressed is gone
   // and focus fell to the page. It goes to the "Step n" line instead, which a
   // screen reader then reads (found 2026-10-15). Not on the first render.
@@ -124,6 +72,14 @@ export default function RegisterClient() {
   }, [step])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => {
+    const on = (e: Event) => {
+      if (e.defaultPrevented || stepNow.current !== 2) return
+      e.preventDefault(); setStep(1); setError(''); setBadField(null); window.scrollTo(0, 0)
+    }
+    window.addEventListener(APP_BACK_EVENT, on)
+    return () => window.removeEventListener(APP_BACK_EVENT, on)
+  }, [])
 
   const tErr = (raw?: string | null, fallbackKey?: string): string => {
     const k = errorKey(raw)
@@ -468,22 +424,34 @@ export default function RegisterClient() {
     return false
   }
 
+  /* The first thing wrong, in the order the page shows it: said under the
+     button, marked on its field, and the field brought into view with focus
+     (14-role test 2, J37: one message at the foot, the field off screen). */
+  function fail(msg: string, fieldId: string) {
+    setError(msg); setBadField(fieldId)
+    const el = document.getElementById(fieldId)
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const f = el?.matches('input, select, textarea') ? el : el?.querySelector<HTMLElement>('input, select, textarea')
+    f?.focus({ preventScroll: true })
+  }
   async function handleSubmit() {
-    setUnfinishedLogin(false)
-    if (!termsAccepted || !waiverAccepted) { setError(t('register.err.acceptTerms')); return }
-    if (!students[0].fullName.trim()) { setError(t('register.err.studentName')); return }
+    setUnfinishedLogin(false); setBadField(null)
+    if (!students[0].fullName.trim()) return fail(t('register.err.studentName'), 'reg-student-0')
     // The birthday is required: the database will not store a swimmer without
     // one, and this page used to create the account and then lose the child in
     // silence when the birthday was left blank.
-    if (students.some(s => s.fullName.trim() && !s.dateOfBirth)) { setError(t('register.err.studentDob')); return }
-    if (students.some(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())) { setError(t('register.err.dobFuture')); return }
+    const noDob = students.findIndex(s => s.fullName.trim() && !s.dateOfBirth)
+    if (noDob >= 0) return fail(t('register.err.studentDob'), `reg-dobbox-${noDob}`)
+    const future = students.findIndex(s => s.dateOfBirth && s.dateOfBirth > getTodayLA())
+    if (future >= 0) return fail(t('register.err.dobFuture'), `reg-dobbox-${future}`)
     // Safety information (owner, 2026-10-22): every swimmer answers the
     // medical question, and the family names an emergency contact who is not
     // the parent's own number. The server checks the same.
-    const unanswered = students.find(s => s.fullName.trim() && medicalToStore(s.medical) === undefined)
-    if (unanswered) { setError(t('safety.err.medicalFor', { name: unanswered.fullName.trim() })); return }
+    const unanswered = students.findIndex(s => s.fullName.trim() && medicalToStore(s.medical) === undefined)
+    if (unanswered >= 0) return fail(t('safety.err.medicalFor', { name: students[unanswered].fullName.trim() }), `reg-medbox-${unanswered}`)
     const contactErr = contactProblem(emergency, phone)
-    if (contactErr) { setError(t(safetyErrorKey(contactErr))); return }
+    if (contactErr) return fail(t(safetyErrorKey(contactErr)), contactErr === 'name' ? 'reg-emergency-name' : contactErr === 'relation' ? 'reg-emergency-rel' : 'reg-emergency-phone')
+    if (!termsAccepted || !waiverAccepted) return fail(t('register.err.acceptTerms'), 'reg-terms')
     setLoading(true); setError('')
     // The login first, from the browser, so the session cookies are set
     // exactly as before. Once it exists the page is in "finish" mode: a retry
@@ -589,7 +557,7 @@ export default function RegisterClient() {
             {referral?.valid ? (
               <div className="rounded-xl border border-[#9fd8b8] bg-[#effaf3] px-4 py-3.5">
                 <p className="font-bold text-[15px] text-[#14683f]">
-                  <span aria-hidden="true" className="mr-1.5">{'\u{1F381}'}</span>{!referral.referrer ? t('register.ref.found') : t('register.ref.invitedBy', { name: referral.referrer })}
+                  <span aria-hidden="true" className="mr-1.5"><Icon name="gift" style={{ verticalAlign: '-2px' }} /></span>{!referral.referrer ? t('register.ref.found') : t('register.ref.invitedBy', { name: referral.referrer })}
                 </p>
                 {referralCode && (
                   <p className="text-[13px] text-[#2f5a44] mt-1.5">
@@ -788,22 +756,26 @@ export default function RegisterClient() {
                 <div>
                   <label htmlFor="reg-password" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.password')} <span className="text-red-600">*</span></label>
                   <PasswordField id="reg-password" value={password} onChange={setPassword} autoComplete="new-password"
+                    describedBy="reg-pw-hint" invalid={!!password && pwShown}
                     className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password && pwShown ? ' !border-red-500' : '')} />
+                  {/* Under its own box (14-role test 2, J40): the rule before
+                      typing, why a password is refused, a tick when it is fine. */}
+                  <p id="reg-pw-hint" aria-live="polite" className={`text-xs mt-1.5 ${password && pwShown ? 'text-red-600' : password && !pwIssue ? 'text-green-700' : 'text-[#56647d]'}`}>
+                    {password && pwIssue && pwIssue !== 'short' ? t(PASSWORD_ISSUE_KEY[pwIssue]) : password && !pwIssue ? '✓ ' + t('register.passwordOk') : t('register.passwordHint')}
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="reg-password2" className="block text-sm font-medium text-[#16294a] mb-1">{t('register.passwordConfirm')} <span className="text-red-600">*</span></label>
                   <PasswordField id="reg-password2" value={password2} onChange={setPassword2} autoComplete="new-password"
+                    describedBy="reg-pw2-hint" invalid={!!password2 && password2 !== password}
                     className={"w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" + (password2 && password2 !== password ? ' !border-red-500' : '')} />
+                  <p id="reg-pw2-hint" aria-live="polite" className="text-xs mt-1.5">
+                    {password2 && (password2 === password
+                      ? <span className="text-green-700">✓ {t('register.passwordMatch')}</span>
+                      : <span className="text-red-600">{t('register.err.passwordMismatch')}</span>)}
+                  </p>
                 </div>
               </div>
-              {/* The hint turns red while too short; once 8 are typed, a too-simple
-                  one says why (決定 6), and a good one gets a tick. */}
-              <p className={`text-xs mt-1.5 ${password && pwShown ? 'text-red-600' : password && !pwIssue ? 'text-green-700' : 'text-[#56647d]'}`}>
-                {password && pwIssue && pwIssue !== 'short' ? t(PASSWORD_ISSUE_KEY[pwIssue]) : password && !pwIssue ? '✓ ' + t('register.passwordOk') : t('register.passwordHint')}
-              </p>
-              {password2 && (password2 === password
-                ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
-                : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
             </div>}
             {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
             <button
@@ -829,11 +801,11 @@ export default function RegisterClient() {
                 <p id={`reg-student-h-${i}`} className="text-sm font-semibold text-[#16294a] mb-3">{t('register.student', { n: i + 1 })} {i === 0 && <span className="text-red-600" aria-hidden="true">*</span>}</p>
                 <div className="space-y-3">
                   <div>
-                    <label htmlFor={`reg-student-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.fullName')}</label>
+                    <label htmlFor={`reg-student-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.fullName')} {i === 0 && <span className="text-red-600" aria-hidden="true">*</span>}</label>
                     <input id={`reg-student-${i}`} value={s.fullName} onChange={e => updateStudent(i, 'fullName', e.target.value)}
                       className="w-full bg-white border border-[#d5e0ef] text-[#16294a] placeholder-gray-400 focus:outline-none focus:border-[#2050a0] focus:ring-2 focus:ring-[#2050a0]/15 rounded-lg px-3 py-2.5 text-base" />
                   </div>
-                  <div>
+                  <div id={`reg-dobbox-${i}`} style={badField === `reg-dobbox-${i}` ? { outline: '2px solid #c0392b', outlineOffset: 4, borderRadius: 8 } : undefined}>
                     <p id={`reg-dob-${i}`} className="block text-sm text-[#56647d] mb-1">{t('register.dob')} <span className="text-red-600" aria-hidden="true">*</span></p>
                     <DobSelect value={s.dateOfBirth} onChange={v => updateStudent(i, 'dateOfBirth', v)} labelledBy={`reg-dob-${i}`} />
                   </div>
@@ -845,8 +817,10 @@ export default function RegisterClient() {
                       <span className="text-sm text-[#16294a]">{t('register.isMe')}</span>
                     </label>
                   )}
-                  <MedicalQuestion id={`reg-med-${i}`} name={s.fullName.trim()} value={s.medical}
-                    onChange={v => setStudents(students.map((x, j) => (j === i ? { ...x, medical: v } : x)))} />
+                  <div id={`reg-medbox-${i}`} style={{ scrollMarginTop: 80 }}>
+                    <MedicalQuestion id={`reg-med-${i}`} name={s.fullName.trim()} value={s.medical} invalid={badField === `reg-medbox-${i}`}
+                      onChange={v => { setStudents(students.map((x, j) => (j === i ? { ...x, medical: v } : x))); if (badField === `reg-medbox-${i}`) setBadField(null) }} />
+                  </div>
                 </div>
               </div>
             ))}
@@ -858,7 +832,7 @@ export default function RegisterClient() {
             <div className="border border-[#d5e0ef] rounded-xl p-4">
               <EmergencyContactFields id="reg-emergency" value={emergency} onChange={setEmergency} />
             </div>
-            <div className="space-y-3 pt-2">
+            <div id="reg-terms" className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                   className="mt-0.5 h-5 w-5 shrink-0 rounded border-[#d5e0ef] bg-white accent-[#2050a0]" />

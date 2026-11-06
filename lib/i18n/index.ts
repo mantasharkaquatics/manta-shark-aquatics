@@ -78,7 +78,10 @@ export function translate(
   key: string,
   vars?: Record<string, string | number>
 ): string {
-  const hit = DICTS[locale]?.[key] ?? DICTS[DEFAULT_LOCALE]?.[key];
+  // One of a thing (14-role test 2, J54: "1 Lessons Booked!"): with n = 1 a
+  // key's ...One form, where the language has one, is used instead.
+  const one = vars && String(vars.n) === '1' ? DICTS[locale]?.[key + 'One'] : undefined;
+  const hit = one ?? DICTS[locale]?.[key] ?? DICTS[DEFAULT_LOCALE]?.[key];
   if (hit === undefined) {
     if (process.env.NODE_ENV !== 'production') {
       console.warn('[i18n] missing key: ' + key);
@@ -113,4 +116,13 @@ export function dateTag(locale: Locale, en = 'en-US'): string {
   if (locale === 'zh-Hant') return 'zh-TW';
   if (locale === 'zh-Hans') return 'zh-CN';
   return en;
+}
+
+/** A list of names in the reader's language: "CC and NN", "CC, NN, and Mia"
+ *  in English, "CC、NN" in Chinese (14-role test 2, J55: English read
+ *  "CC、NN" and "CC ＋ NN"). */
+export function joinList(locale: string, items: string[]): string {
+  const xs = items.filter(Boolean)
+  if (!String(locale).startsWith('en')) return xs.join('、')
+  try { return new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(xs) } catch { return xs.join(', ') }
 }

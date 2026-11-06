@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireAdmin, requireParent } from '@/lib/api-auth'
+import { insertParentMessage } from '@/lib/chat-author'
 import { alertDeskChat } from '@/lib/chat-desk-alert'
 import { getT } from '@/lib/i18n/all'
 import { toLocale } from '@/lib/i18n'
@@ -72,9 +73,7 @@ export async function POST(req: NextRequest) {
       if (!messages.length) return NextResponse.json({ error: 'failed' }, { status: 500 })
       break
     }
-    const { data: message, error } = await svc.from('chat_messages')
-      .insert({ thread_id: thread.id, sender_type: 'parent', body: '📷', metadata: { photo: path } })
-      .select('*').single()
+    const { data: message, error } = await insertParentMessage(svc, { thread_id: thread.id, sender_type: 'parent', body: '📷', metadata: { photo: path } }, auth.guardianId)
     if (error || !message) {
       console.error('[chat/photo] message', error?.message)
       await svc.storage.from(BUCKET).remove([path])

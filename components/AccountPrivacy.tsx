@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { fmtDate } from '@/lib/fmt-date'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 /* The bottom of My Account (owner, 2026-10-22, tier 3): saved cards, the
    photo/video consent switch, and asking the school to delete the account.
@@ -112,25 +113,22 @@ export default function AccountPrivacy() {
                 {t('account.delete.withdraw')}
               </button>
             </>
-          ) : !confirmDelete ? (
+          ) : (
             <>
               <p className="ac-note" style={{ marginTop: 4 }}>{t('account.delete.desc')}</p>
               <button type="button" className="ac-btn line" style={{ width: 'auto', padding: '8px 16px', marginTop: 4, color: '#b4321f' }} onClick={() => setConfirmDelete(true)}>
                 {t('account.delete.ask')}
               </button>
             </>
-          ) : (
-            <div className="ac-item" style={{ display: 'block', marginTop: 8 }}>
-              <p style={{ margin: '0 0 12px', fontSize: 14, color: '#16294a', lineHeight: 1.6 }}>{t('account.delete.confirm')}</p>
-              <div className="ac-pair">
-                <button type="button" className="ac-btn line" disabled={busy === 'delete'} onClick={() => setConfirmDelete(false)}>{t('common.cancel')}</button>
-                <button type="button" className="ac-btn gold" disabled={busy === 'delete'} onClick={() => deletion(true)}>
-                  {busy === 'delete' ? t('account.delete.sending') : t('account.delete.send')}
-                </button>
-              </div>
-            </div>
           )}
         </section>
+      )}
+      {/* A decision, centred (決定 9; 14-role test 2, J35): 先不要 left, the
+          red request right. */}
+      {confirmDelete && acct && !acct.deletionRequestedAt && (
+        <ConfirmDialog id="acct-del" title={t('account.delete.ask')} noLabel={t('account.delete.keep')}
+          yesLabel={busy === 'delete' ? t('account.delete.sending') : t('account.delete.send')} danger busy={busy === 'delete'}
+          onNo={() => setConfirmDelete(false)} onYes={() => deletion(true)}>{t('account.delete.confirm')}</ConfirmDialog>
       )}
 
       {err && <div className="ac-err" role="alert">{err}</div>}

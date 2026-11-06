@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n/provider'
-import { dateTag, tDb } from '@/lib/i18n'
+import { dateTag, tDb, joinList } from '@/lib/i18n'
 import { errorKey } from '@/lib/i18n/errors'
 import { priceLesson, BASE_POINTS, OFF_PEAK_ENABLED, OFF_PEAK_DISCOUNT } from '@/lib/points'
 import { singleMaxDate, FIXED_CLASS_MIN_LESSONS, SINGLE_BOOKING_DAYS } from '@/lib/booking-time'
@@ -11,9 +11,12 @@ import { getTodayLA, SLOT_STEP_MINUTES } from '@/lib/date'
 import { BRAND } from '@/lib/brand'
 import { openChat } from '@/lib/chat-open'
 import { APP_BACK_EVENT } from '@/lib/app-back'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, MonthCalendar, hh12 } from './parts'
+import { appLook } from '@/lib/native-app'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, MonthCalendar, TimeLabel } from './parts'
 import { fmtDate } from '@/lib/fmt-date'
 import Icon from '@/components/ui/Icon'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import Sheet from '@/components/ui/Sheet'
 
 /* Several of the family's swimmers booked together (owner, 2026-11-03),
    opened when two or more children are ticked on the booking page's first
@@ -61,6 +64,20 @@ const later = (t: string, steps: number) => toHm(toMin(t) + SLOT_STEP_MINUTES * 
 const addDays = (ds: string, n: number) => { const d = new Date(ds + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const dowOf = (ds: string) => new Date(ds + 'T12:00:00Z').getUTCDay()
 const t12 = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}` }
+
+/* Leaving 預約 for another tab keeps a several-children booking in progress
+   (14-role test 2, J22), as the one-child flow does (saveResume): saved when
+   the page goes, read once when it comes back within two hours. */
+export const FAM_RESUME_KEY = 'msa.booking.family.resume'
+type FamSnap = { v: 1; at: number; kidIds: string[]; location: string | null; slug: Slug; way: Way | null; arr: Arr; day: string | number | null
+  opt: Opt | null; plan: Plan | null; ticked: string[]; weeks: number }
+export function peekFamilyResume(): FamSnap | null {
+  try {
+    const r = JSON.parse(window.sessionStorage.getItem(FAM_RESUME_KEY) || 'null') as FamSnap | null
+    return r && r.v === 1 && Date.now() - r.at < 2 * 3600_000 ? r : null
+  } catch { return null }
+}
+const dropFamilyResume = () => { try { window.sessionStorage.removeItem(FAM_RESUME_KEY) } catch {} }
 const scrollTo = (el: HTMLElement | null) => { if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
 function perms<T>(a: T[]): T[][] { return a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p])) }
 
@@ -86,26 +103,46 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   const dateLoc = dateTag(locale as never)
   const today = getTodayLA()
   const n = kids.length
-  const [slug, setSlug] = useState<Slug | null>(null)
-  const [way, setWay] = useState<Way | null>(null)
-  const [arr, setArr] = useState<Arr>('same')
+  // A booking left for another tab comes back as it was (J22). A snapshot
+  // for another pool waits: the page remounts this once its pool settles.
+  const [snap] = useState<FamSnap | null>(() => {
+    if (typeof window === 'undefined') return null
+    const r = peekFamilyResume()
+    if (!r || r.location !== location) return null
+    dropFamilyResume()
+    return r.kidIds.join() === kids.map(k => k.id).join() && courses.some(c => c.slug === r.slug) ? r : null
+  })
+  const [slug, setSlug] = useState<Slug | null>(snap?.slug ?? null)
+  const [way, setWay] = useState<Way | null>(snap?.way ?? null)
+  const [arr, setArr] = useState<Arr>(snap?.arr ?? 'same')
   const [open1, setOpen1] = useState<Days[] | null>(null)
   const [openG, setOpenG] = useState<GDays[] | null>(null)
   const [coachNames, setCoachNames] = useState<Record<string, string>>({})
-  const [day, setDay] = useState<string | number | null>(null) // a date (once) or a weekday (every week)
-  const [opt, setOpt] = useState<Opt | null>(null)
-  const [plan, setPlan] = useState<Plan | null>(null)
+  const [day, setDay] = useState<string | number | null>(snap?.day ?? null) // a date (once) or a weekday (every week)
+  const [opt, setOpt] = useState<Opt | null>(snap?.opt ?? null)
+  const [plan, setPlan] = useState<Plan | null>(snap?.plan ?? null)
   const [swap, setSwap] = useState<string | null>(null) // the child whose coach list is open
-  const [weeks, setWeeks] = useState(26)
+  const [weeks, setWeeks] = useState(snap?.weeks || 26)
   const [refresh, setRefresh] = useState(0)
   const [cands, setCands] = useState<Cand[][] | null>(null)
-  const [ticked, setTicked] = useState<Set<string>>(new Set())
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set(snap?.ticked || []))
+  const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   // What was booked, kept for the done card (50-role test, 2026-11-05: it said
   // only "all booked").
   const [booked, setBooked] = useState<{ rows: string[]; when: string; total: number; left: number } | null>(null)
+  /* The family's make-up vouchers: a single lesson booked for several
+     children takes each child's matching one first, as booking one child
+     does (14-role test 2, J02: it charged points instead). Never for every
+     week -- a fixed class is the term being paid for. */
+  const [vouchers, setVouchers] = useState<{ id: string; studentId: string; student2Id: string | null; expiresOn: string; usableFrom?: string | null; courseSlug: string; minutes: number }[]>([])
+  const [useV, setUseV] = useState(true)
+  useEffect(() => {
+    fetch('/api/parent/vouchers').then(r => (r.ok ? r.json() : null)).then(d => setVouchers(d?.vouchers || [])).catch(() => {})
+  }, [])
+  const [lockSheet, setLockSheet] = useState<string | null>(null)
   const locQ = location ? `&location=${encodeURIComponent(location)}` : ''
   const course = courses.find(c => c.slug === slug) || null
   const kidName = (id: string) => kids.find(k => k.id === id)?.full_name || ''
@@ -145,6 +182,16 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, locQ])
   const loading = !!slug && (slug === '1on1' ? !open1 : !openG)
+
+  const keep = useRef<() => void>(() => {})
+  useEffect(() => {
+    keep.current = () => {
+      if (done || !slug || !appLook()) return
+      const snap: FamSnap = { v: 1, at: Date.now(), kidIds: kids.map(k => k.id), location, slug, way, arr, day, opt, plan, ticked: [...ticked], weeks }
+      try { window.sessionStorage.setItem(FAM_RESUME_KEY, JSON.stringify(snap)) } catch {}
+    }
+  })
+  useEffect(() => () => keep.current(), [])
 
   /** Every way the children can be placed at this date and time. */
   function plansAt(ds: string, time: string, coach?: string): Plan[] {
@@ -210,6 +257,8 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   useEffect(() => {
     back.current = () => {
       if (done) return false
+      if (asking) { setAsking(false); return true }
+      if (lockSheet) { setLockSheet(null); return true }
       if (opt) { reset('opt'); return true }
       if (day != null) { setDay(null); reset('day'); return true }
       if (way) { setWay(null); reset('way'); return true }
@@ -252,7 +301,8 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     }).filter(r => !r.soon)
   }, [cands, slug, n])
   // The first ten open weeks ticked, once per time chosen.
-  const tickedFor = useRef('')
+  // A restored booking keeps the weeks it had ticked.
+  const tickedFor = useRef(snap?.opt && snap.ticked.length ? `${snap.opt.key}|${JSON.stringify(snap.plan)}` : '')
   useEffect(() => {
     const k = `${opt?.key}|${JSON.stringify(plan)}`
     if (!weekRows.length || tickedFor.current === k) return
@@ -261,18 +311,19 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
   }, [weekRows, opt?.key, plan])
 
   const priceOf = (ds: string, time: string) => { try { return priceLesson({ courseSlug: slug || '1on1', minutes: 30, sessionDate: ds, startTime: time, seats: 1 }).charged } catch { return 0 } }
+  // Which children a voucher pays for (one lesson each), earliest to expire first.
+  const mins = course?.duration_minutes ?? 30
+  const canCover = (p: { kid: string }) => !!opt && vouchers.some(v => v.courseSlug === slug && v.minutes === mins && !v.student2Id
+    && v.studentId === p.kid && opt.ds <= v.expiresOn && (!v.usableFrom || opt.ds >= v.usableFrom))
+  const vCount = way === 'single' && plan ? plan.filter(canCover).length : 0
+  const covered = new Set(vCount > 0 && useV && plan ? plan.filter(canCover).map(p => p.kid) : [])
   const total = !plan || !opt ? 0 : way === 'weekly'
     ? weekRows.filter(r => ticked.has(r.date)).reduce((s, r) => s + r.points, 0)
-    : plan.reduce((s, p) => s + priceOf(opt.ds, p.time), 0)
+    : plan.reduce((s, p) => s + (covered.has(p.kid) ? 0 : priceOf(opt.ds, p.time)), 0)
   const enough = way !== 'weekly' || ticked.size >= FIXED_CLASS_MIN_LESSONS
 
   // Asked once before booking (2026-11-04: one tap took 1,300 points with no
   // last look -- the one-child flow has its own confirm page).
-  const [asking, setAsking] = useState(false)
-  // The question opens where the button was: brought fully into view, above
-  // the app's tabs (50-role test, 2026-11-05: on a small phone they covered it).
-  const askRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (asking) requestAnimationFrame(() => askRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })) }, [asking])
   async function confirm() {
     setAsking(false)
     if (!plan || !opt || !slug || !way) return
@@ -280,10 +331,14 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     const dts = way === 'weekly' ? [...ticked].sort() : [opt.ds]
     const r = await fetch('/api/bookings/family', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: way, course_slug: slug, lessons: plan.map(p => ({ student_id: p.kid, coach_id: p.coach, time: p.time, dates: dts })) }),
+      body: JSON.stringify({ mode: way, course_slug: slug, use_vouchers: way === 'single' && useV, lessons: plan.map(p => ({ student_id: p.kid, coach_id: p.coach, time: p.time, dates: dts })) }),
+      // The route may run 60 seconds (J70).
+      signal: AbortSignal.timeout(65000),
     }).catch(() => null)
-    const d = r ? await r.json().catch(() => ({})) : {}
+    const d = r ? await r.json().catch(() => null) : null
     setBusy(false)
+    // No answer, or a server failure, cannot say what was booked (J69).
+    if (!r || r.status >= 500 || !d) { setErr(t('booking.err.unsureCheck')); setRefresh(x => x + 1); return }
     if (r?.ok) {
       const when = way === 'weekly'
         ? t('fam.done.weekly', { weekday: wkName(dowOf(dts[0])), n: dts.length, from: mdOf(dts[0]), to: mdOf(dts[dts.length - 1]) })
@@ -291,7 +346,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
       setBooked({ rows: plan.map(p => `${kidName(p.kid)} · ${p.time ? t12(p.time) : ''}${coachName(p.coach) ? ' · ' + t('dash.up.coach', { name: coachName(p.coach) }) : ''}`), when, total, left: Math.max(0, balance - total) })
       setDone(true); window.scrollTo(0, 0); return
     }
-    const who = typeof d.which === 'number' && plan[d.which] ? `${kidName(plan[d.which].kid)}：` : ''
+    const who = typeof d.which === 'number' && plan[d.which] ? t('fam.err.who', { name: kidName(plan[d.which].kid) }) : ''
     const k = d.code === 'week_gone' ? 'fam.err.weekGone' : d.error === 'NOT_ENOUGH_POINTS' ? null : errorKey(d.error)
     setErr(who + (d.error === 'NOT_ENOUGH_POINTS' ? t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() }) : k ? t(k) : t('fam.err.generic')))
     // What was there may be gone now: read it again.
@@ -330,7 +385,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
           bar, answered lines, titles and cards (./parts). */}
       <StepBar steps={['who', 'course', 'way', 'time']} at={!slug ? 1 : !way ? 2 : 3} />
       <div style={{ marginBottom: 20 }}>
-        <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.swimmers')} value={kids.map(k => k.full_name).join(' ＋ ')} onChange={onExit} />
+        <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.swimmers')} value={joinList(locale, kids.map(k => k.full_name))} onChange={onExit} />
         {slug && <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.course')} value={tDb(locale as never, 'course_types', course!.id, course!.name)} onChange={() => { setSlug(null); reset('slug') }} />}
         {slug && way && <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.way')} value={t(weekly ? 'booking.way.fixed' : 'booking.way.single')} onChange={() => { setWay(null); reset('way') }} />}
       </div>
@@ -354,7 +409,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
                         {c.duration_minutes != null && c.max_students != null && (
                           <div style={{ fontSize: 13, color: '#56647d' }}>{t(c.max_students > 1 ? 'booking.courseMeta' : 'booking.courseMetaOne', { n: c.duration_minutes, max: c.max_students })}</div>
                         )}
-                        <div style={{ fontSize: 13, color: '#56647d', marginTop: 2 }}>{t(c.slug === '1on1' ? 'fam.c1on1Hint' : c.slug === '1on2' ? 'fam.c1on2Hint' : 'fam.c1on4Hint', { n })}</div>
+                        <div style={{ fontSize: 13, color: '#56647d', marginTop: 2 }}>{t(c.slug === '1on1' ? 'fam.c1on1Hint' : c.slug === '1on2' ? 'fam.c1on2Hint' : n === 2 ? 'fam.c1on4Hint2' : 'fam.c1on4Hint', { n })}</div>
                       </div>
                     </div>
                     {BASE_POINTS[c.slug] != null && (
@@ -447,6 +502,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
             // The same month calendar as one child's (決定 8 選項 A): only the
             // days every ticked child can have are open.
             <MonthCalendar days={singleDays} open={d => (countFor.get(d) || 0) > 0} selected={typeof day === 'string' ? day : null}
+              lockedFrom={addDays(lastSingle, 1)} onLocked={setLockSheet}
               onPick={d => { setDay(d); reset('day') }} dateTagName={dateLoc} legend={t('booking.lock.legend', { n: SINGLE_BOOKING_DAYS })} />
           )}
           {loading && <p style={{ color: '#56647d', textAlign: 'center' }}>{t('booking.loading')}</p>}
@@ -471,7 +527,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
 
           {day != null && !loading && (
             <div ref={timesRef} style={{ marginTop: 18, scrollMarginTop: 90 }}>
-              <p style={{ ...head, marginBottom: 4 }}>{t('fam.timesFor', { when: typeof day === 'number' ? wkName(day) : dayLabel(day), n })}</p>
+              <p style={{ ...head, marginBottom: 4 }}>{t(n === 2 ? 'fam.timesFor2' : 'fam.timesFor', { when: typeof day === 'number' ? wkName(day) : dayLabel(day), n })}</p>
               {mainStart && <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: NAVY }}>{t('booking.fixed.fromDate', { date: mdOf(mainStart) })}</p>}
               {list.length === 0 ? (
                 <p style={{ margin: 0, padding: 18, textAlign: 'center', fontSize: 14, color: '#56647d', background: '#fff', borderRadius: 12, border: '1px dashed #e3ebf6' }}>{t('fam.noTimes')}</p>
@@ -483,7 +539,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
                       <button key={o.key} type="button" onClick={() => pickOpt(o)} aria-pressed={on}
                         style={{ minHeight: 48, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
                           border: `2px solid ${on ? GOLD : '#e3ebf6'}`, background: on ? `${GOLD}20` : '#fff', color: on ? GOLD : '#16294a', fontVariantNumeric: 'tabular-nums' }}>
-                        <span style={{ display: 'block', fontSize: 16, fontWeight: 700 }}>{hh12(o.time)}</span>
+                        <span style={{ display: 'block', fontSize: 16, fontWeight: 700 }}><TimeLabel tm={o.time} /></span>
                         {o.coachName && <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#56647d' }}>{t('dash.up.coach', { name: o.coachName })}</span>}
                         {weekly && o.ds !== mainStart && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#56647d', marginTop: 2 }}>{t('booking.fixed.startsOn', { date: mdOf(o.ds) })}</span>}
                       </button>
@@ -590,37 +646,59 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
             <p style={{ margin: '0 0 4px', fontSize: 13.5, color: '#56647d' }}>
               {weekly ? t('fam.sumWeekly', { weekday: wkName(dowOf(opt.ds)), n: ticked.size }) : dayLabel(opt.ds)}
             </p>
+            {vCount > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', fontSize: 14, color: '#16294a', cursor: 'pointer' }}>
+                <input type="checkbox" checked={useV} onChange={e => setUseV(e.target.checked)} style={{ width: 18, height: 18, accentColor: GOLD }} />
+                {t('booking.voucherAuto.use', { n: vCount })}
+              </label>
+            )}
+            {covered.size > 0 && plan && (
+              <p style={{ margin: '0 0 6px', fontSize: 13.5, color: '#1f7a57', fontWeight: 700 }}>{t('fam.voucherLine', { names: joinList(locale, plan.filter(p => covered.has(p.kid)).map(p => kidName(p.kid))) })}</p>
+            )}
             <p style={{ margin: '0 0 12px', fontWeight: 800, fontSize: 17, color: NAVY }}>{t('fam.total', { n: total.toLocaleString() })}</p>
-            {!enough ? (
-              <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('fam.tooFew', { n: FIXED_CLASS_MIN_LESSONS })}</p>
-            ) : total > balance ? (
+            {enough && total > balance ? (
               <p style={{ color: '#c0392b', margin: 0, fontSize: 14 }}>{t('booking.short.body', { have: balance.toLocaleString(), need: total.toLocaleString() })} <Link href="/plans#buy" style={{ color: '#1f5fbf', fontWeight: 700 }}>{t('booking.short.cta')}</Link></p>
             ) : (
-              asking ? (
-                <div ref={askRef} role="alertdialog" aria-label={t('fam.ask.title')} style={{ background: '#f6f9fd', border: '1px solid #c9d8ee', borderRadius: 12, padding: 14, scrollMarginBottom: 'calc(var(--app-tab-h, 0px) + 16px)' }}>
-                  <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 16, color: NAVY }}>{t('fam.ask.title')}</p>
-                  <p style={{ margin: '0 0 12px', fontSize: 14, color: '#56647d', lineHeight: 1.55 }}>
-                    {plan.map(p => kidName(p.kid)).join('、')} · {t('fam.ask.body', { n: (weekly ? ticked.size : 1) * plan.length, points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}
-                  </p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={() => setAsking(false)}
-                      style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #d5deeb', background: '#fff', color: '#56647d', fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}>{t('fam.ask.back')}</button>
-                    <button type="button" onClick={confirm} disabled={busy}
-                      style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}>{t('fam.ask.yes')}</button>
-                  </div>
-                </div>
-              ) : (
-              <button type="button" onClick={() => setAsking(true)} disabled={busy || (weekly && !cands)}
-                style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: AMBER, color: NAVY, fontWeight: 800, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
-                {busy ? t('fam.booking') : t('fam.confirm', { n })}
+              // Too few weeks: the button stays, greyed, and says how many
+              // more (14-role test 2, J44: it turned into a red line).
+              <button type="button" onClick={() => setAsking(true)} disabled={busy || !enough || (weekly && !cands)}
+                style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', fontWeight: 800, fontSize: 16, fontFamily: 'inherit',
+                  background: enough ? AMBER : '#e3ebf6', color: enough ? NAVY : '#56647d', cursor: enough ? 'pointer' : 'not-allowed', opacity: busy ? 0.6 : 1 }}>
+                {busy ? t('fam.booking') : !enough ? t('booking.recur.needMore', { n: FIXED_CLASS_MIN_LESSONS, m: FIXED_CLASS_MIN_LESSONS - ticked.size }) : t('fam.confirm', { n })}
               </button>
-              )
+            )}
+            {/* The last look is a centred decision (決定 9; 14-role test 2, J30):
+                who, course, when, the points and the cancel rule. */}
+            {asking && plan && (
+              <ConfirmDialog id="fam-ask" title={t('fam.ask.title')} yesLabel={t('fam.ask.yes')} busy={busy}
+                onNo={() => setAsking(false)} onYes={confirm}>
+                <span style={{ display: 'block', fontWeight: 800, color: '#16294a' }}>{joinList(locale, plan.map(p => kidName(p.kid)))}</span>
+                <span style={{ display: 'block', color: '#16294a' }}>{course ? tDb(locale as never, 'course_types', course.id, course.name) : ''} · {weekly ? t('fam.sumWeekly', { weekday: wkName(dowOf(opt.ds)), n: ticked.size }) : dayLabel(opt.ds)} · {t12(opt.time)}</span>
+                <span style={{ display: 'block', margin: '8px 0' }}>{t('fam.ask.body', { n: (weekly ? ticked.size : 1) * plan.length, points: total.toLocaleString(), left: Math.max(0, balance - total).toLocaleString() })}</span>
+                <span style={{ display: 'block', fontSize: 12.5 }}>{weekly ? t('booking.policy.fixed') + ' ' + t('booking.policy.fixedEnd') : t('booking.policy.single')}{covered.size > 0 ? ' ' + t('booking.policy.makeUp') : ''}</span>
+              </ConfirmDialog>
             )}
             {err && <p role="alert" style={{ color: '#c0392b', margin: '10px 0 0', fontSize: 14 }}>{err}</p>}
             <p style={{ fontSize: 12.5, color: '#56647d', margin: '10px 0 0', lineHeight: 1.5 }}>{t('fam.allOrNothing')}</p>
           </div>
         </section>
       )}
+      {/* A day past the 14-day window, tapped: when it opens, as booking one
+          child says (14-role test 2, J31). */}
+      {lockSheet && (() => {
+        const opens = addDays(lockSheet, -SINGLE_BOOKING_DAYS)
+        return (
+          <Sheet title={t('booking.lock.title', { date: mdOf(lockSheet) })} onClose={() => setLockSheet(null)}>
+            <p style={{ margin: '0 0 18px', fontSize: 14.5, color: '#3c4b66', lineHeight: 1.65 }}>
+              {t('booking.lock.body', { n: SINGLE_BOOKING_DAYS, date: mdOf(lockSheet), opens: mdOf(opens) })}
+            </p>
+            <button type="button" onClick={() => { setLockSheet(null); setWay('weekly'); reset('way') }}
+              style={{ width: '100%', minHeight: 48, borderRadius: 12, border: 'none', background: AMBER, color: NAVY, fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t('booking.lock.toFixed')}
+            </button>
+          </Sheet>
+        )
+      })()}
     </div>
   )
 }

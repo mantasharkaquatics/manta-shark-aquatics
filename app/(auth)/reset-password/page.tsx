@@ -32,14 +32,13 @@ function ResetForm() {
   const [done, setDone] = useState(false)
   // The account's address, once the link is verified: a password equal to it is refused.
   const [email, setEmail] = useState('')
+  const pwIssue = passwordIssue(password, email || null)
 
   async function save() {
     setError('')
     if (!password || !password2) { setError(t('reset.err.empty')); return }
-    if (password !== password2) { setError(t('register.err.passwordMismatch')); return }
-    // The same rule as sign-up (決定 6); it used to wait for Supabase's answer.
-    const early = passwordIssue(password)
-    if (early) { setError(t(PASSWORD_ISSUE_KEY[early])); return }
+    // Said under the boxes already: the button only does not go on.
+    if (pwIssue || password !== password2) return
     setSaving(true)
     let who = email
     if (!verified) {
@@ -117,14 +116,21 @@ function ResetForm() {
           <div className="space-y-4">
             <div>
               <label htmlFor="reset-password" className="block text-sm font-medium text-[#16294a] mb-1.5">{t('reset.newPassword')}</label>
-              <PasswordField id="reset-password" value={password} onChange={setPassword} autoComplete="new-password" className={field} />
+              <PasswordField id="reset-password" value={password} onChange={setPassword} autoComplete="new-password"
+                describedBy="reset-pw-hint" invalid={!!password && !!pwIssue}
+                className={field + (password && pwIssue ? ' !border-red-500' : '')} />
+              {/* The rule before saving, and why a password is refused as it is
+                  typed (14-role test 2, J39), as on sign-up. */}
+              <p id="reset-pw-hint" aria-live="polite" className={`text-xs mt-1.5 ${password && pwIssue ? 'text-red-600' : password ? 'text-green-700' : 'text-[#56647d]'}`}>
+                {password && pwIssue && pwIssue !== 'short' ? t(PASSWORD_ISSUE_KEY[pwIssue]) : password && !pwIssue ? '✓ ' + t('register.passwordOk') : t('register.passwordHint')}
+              </p>
             </div>
             <div>
               <label htmlFor="reset-password2" className="block text-sm font-medium text-[#16294a] mb-1.5">{t('register.passwordConfirm')}</label>
               <PasswordField id="reset-password2" value={password2} onChange={setPassword2} onEnter={save} autoComplete="new-password"
                 className={field + (password2 && password2 !== password ? ' !border-red-500' : '')} />
               {password2 && (password2 === password
-                ? <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>
+                ? (!pwIssue && <p className="text-green-700 text-xs mt-1.5">✓ {t('register.passwordMatch')}</p>)
                 : <p className="text-red-600 text-xs mt-1.5">{t('register.err.passwordMismatch')}</p>)}
             </div>
             {/* role="alert": read out when it appears; focus stays on the button (found 2026-10-15). */}

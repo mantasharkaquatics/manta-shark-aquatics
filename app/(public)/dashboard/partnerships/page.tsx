@@ -47,6 +47,8 @@ export default function PartnershipsPage() {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [joinSuccess, setJoinSuccess] = useState(false)
   const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [partnerNames, setPartnerNames] = useState<Record<string, string>>({})
+  const [revokeName, setRevokeName] = useState('')
   const [revokeConfirm, setRevokeConfirm] = useState(false)
   // Busy flags and the unlink error (found 2026-10-05): Join and Unlink could
   // be pressed again while the request was out, and a failed unlink closed the
@@ -62,6 +64,7 @@ export default function PartnershipsPage() {
       const data = await res.json()
       setPartnerships(data.partnerships || [])
       setPartnerStudents(data.partner_students || [])
+      setPartnerNames(data.partner_names || {})
       setParentId(data.my_parent_id || null)
     }
     setLoading(false)
@@ -182,11 +185,11 @@ export default function PartnershipsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <div className="ac-icon" aria-hidden="true"><Icon name="link" /></div>
                         <div>
-                          <b>{t('link.linkedAccount')}</b>
+                          <b>{partnerNames[getPartnerParentId(p)] ? t('link.familyOf', { name: partnerNames[getPartnerParentId(p)] }) : t('link.linkedAccount')}</b>
                           <small>{students.length > 0 ? t('link.students', { names: students.map(s => s.full_name).join(', ') }) : t('link.noStudents')}</small>
                         </div>
                       </div>
-                      <button type="button" className="ac-btn danger" onClick={() => { setRevokeId(p.id); setRevokeConfirm(true) }}>
+                      <button type="button" className="ac-btn danger" onClick={() => { setRevokeId(p.id); setRevokeName(partnerNames[getPartnerParentId(p)] || ''); setRevokeConfirm(true) }}>
                         {t('link.unlink')}
                       </button>
                     </div>
@@ -209,6 +212,8 @@ export default function PartnershipsPage() {
           <section className="ac-card">
             <p className="ac-label">{t('link.myCode')}</p>
             <p className="ac-desc">{t('link.myCodeDesc')}</p>
+            {/* What the other family will see, said before the code is sent (J58). */}
+            <p className="ac-note" style={{ marginTop: -4 }}>{t('link.myCodeWarn')}</p>
             {myInviteCode ? (
               <div className="ac-row ac-codeRow" style={{ gap: 10 }}>
                 <div className="ac-code">{myInviteCode}</div>
@@ -272,7 +277,7 @@ export default function PartnershipsPage() {
         <div className="ac-back-drop" onClick={closeRevoke}>
           <div ref={revokeBox} className="ac-modal" role="dialog" aria-modal="true" aria-labelledby="link-unlink-title" onClick={e => e.stopPropagation()}>
             <div className="eyebrow">{t('link.unlinkEyebrow')}</div>
-            <h2 id="link-unlink-title">{t('link.unlinkTitle')}</h2>
+            <h2 id="link-unlink-title">{revokeName ? t('link.unlinkTitleNamed', { name: revokeName }) : t('link.unlinkTitle')}</h2>
             <p>{t('link.unlinkDesc')}</p>
             {revokeError && <div className="ac-err" role="alert">{revokeError}</div>}
             <div className="ac-pair">

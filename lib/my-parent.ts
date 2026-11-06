@@ -17,9 +17,45 @@ export async function myParentId(supabase: any, userId: string): Promise<string 
    either way (familyOf in lib/api-auth.ts). Before
    docs/migration-guardian-roles.sql runs the RPC does not exist and nobody is
    a viewer. */
+export type FamilyRole = 'main' | 'full' | 'viewer' | null
+
+/* The role, remembered for the tab (14-role test 2, J08: every page asked
+   again and, until it knew, drew the main account's buttons -- top up,
+   renew, pay -- for a view-only member). undefined: not known yet; null:
+   signed out or no family. Cleared on sign-out (lib/local-account-data). */
+const ROLE_KEY = 'msa_family_role'
+let roleMem: { uid: string; role: FamilyRole } | null = null
+const roleSubs = new Set<() => void>()
+function roleStored() {
+  if (roleMem || typeof window === 'undefined') return roleMem
+  try { const v = JSON.parse(window.sessionStorage.getItem(ROLE_KEY) || 'null'); if (v && typeof v.uid === 'string') roleMem = v } catch {}
+  return roleMem
+}
+export function knownFamilyRole(): FamilyRole | undefined { const m = roleStored(); return m ? m.role : undefined }
+export function subscribeFamilyRole(cb: () => void) { roleSubs.add(cb); return () => { roleSubs.delete(cb) } }
+function keepRole(uid: string, role: FamilyRole) {
+  const was = roleStored()
+  roleMem = { uid, role }
+  try { if (uid) window.sessionStorage.setItem(ROLE_KEY, JSON.stringify(roleMem)); else window.sessionStorage.removeItem(ROLE_KEY) } catch {}
+  if (!was || was.uid !== uid || was.role !== role) roleSubs.forEach(f => f())
+}
+export function forgetFamilyRole() {
+  roleMem = null
+  try { window.sessionStorage.removeItem(ROLE_KEY) } catch {}
+  roleSubs.forEach(f => f())
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function myFamilyRole(supabase: any): Promise<'main' | 'full' | 'viewer' | null> {
+export async function myFamilyRole(supabase: any): Promise<FamilyRole> {
+  // Whose role: a cache from another account is never used (it is dropped here).
+  const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }))
+  const uid: string = session?.user?.id || ''
+  const known = roleStored()
+  if (known && known.uid !== uid) forgetFamilyRole()
+  if (!uid) { keepRole('', null); return null }
   const { data, error } = await supabase.rpc('my_family_role')
   if (error) return null
-  return data === 'main' || data === 'full' || data === 'viewer' ? data : null
+  const role: FamilyRole = data === 'main' || data === 'full' || data === 'viewer' ? data : null
+  keepRole(uid, role)
+  return role
 }

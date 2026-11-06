@@ -17,7 +17,8 @@ export async function GET() {
   const { data } = await auth.svc.from('push_settings').select('*')
     .eq('auth_user_id', auth.user.id).maybeSingle()
   const row = (data || {}) as Record<string, boolean | undefined>
-  return NextResponse.json(Object.fromEntries(KEYS.map(k => [k, k === 'news' ? row[k] === true : row[k] !== false])))
+  // The role too: what a family member gets differs from the main account (J85).
+  return NextResponse.json({ ...Object.fromEntries(KEYS.map(k => [k, k === 'news' ? row[k] === true : row[k] !== false])), role: auth.role ?? null })
 }
 
 export async function POST(req: NextRequest) {

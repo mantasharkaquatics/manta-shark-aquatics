@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
-import { tDb, dateTag } from '@/lib/i18n'
+import { tDb, dateTag, joinList } from '@/lib/i18n'
 import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import NoticeModal from '@/components/NoticeModal'
 import SettleArrearsButton from '@/components/SettleArrearsButton'
@@ -25,8 +25,8 @@ import { TRIAL_PRICE_CENTS, TRIAL_HOLD_MINUTES } from '@/lib/plans'
 import { assignVoucherKeys } from '@/lib/vouchers'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { DEFAULT_LOCATION_ID, locationLine } from '@/lib/locations'
-import FamilyBooking from './FamilyBooking'
-import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, hh12 } from './parts'
+import FamilyBooking, { peekFamilyResume } from './FamilyBooking'
+import { SectionTitle, DoneRow, SelectCard, StepBar, COURSE_COLORS, CourseIcon, AmPmColumns, hh12, TimeLabel, useRovingDays } from './parts'
 import Sheet from '@/components/ui/Sheet'
 import Icon from '@/components/ui/Icon'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
@@ -204,15 +204,17 @@ export default function BookingPage() {
   // Dates were printed with a hard-coded 'en-US', so the Chinese page read
   // "Thursday, Sep 24 的可預約時段".
   const dateLoc = locale === 'en' ? 'en-US' : locale
+  // A server's own words are shown only in English, the language they are
+  // in; otherwise the plain fallback (14-role test 2, J69).
   const tErr = (raw: string | null | undefined, fallbackKey: string): string => {
     const k = errorKey(raw)
-    return k ? t(k) : (raw || t(fallbackKey))
+    return k ? t(k) : (raw && locale === 'en' ? raw : t(fallbackKey))
   }
   // A whole error answer: a lost original lesson names its points, a class
   // that filled names its date, in the batch notice's date format (F81).
   const tErrOf = (j: Parameters<typeof errorKeyFor>[0], fallbackKey: string): string => {
     const r = errorKeyFor(j, d => fmtDate(new Date(d + 'T12:00:00Z'), dateTag(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }))
-    return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t(fallbackKey))
+    return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error && locale === 'en' ? j.error : t(fallbackKey))
   }
   const router = useRouter()
   const supabase = createClient()
@@ -220,6 +222,8 @@ export default function BookingPage() {
   // followed by setSubmitting(false) + return, so nothing relied on alert()
   // blocking the thread.
   const [notice, setNotice] = useState<string | null>(null)
+  // The notice is "we cannot tell whether it went through": it offers the schedule (J69, J70).
+  const [noticeCheck, setNoticeCheck] = useState(false)
 
   const [step, setStep] = useState(0)
   // Several swimmers booked together (owner, 2026-11-03): the children
@@ -331,6 +335,11 @@ export default function BookingPage() {
   // flashed "Swim Assessment completed" for every swimmer while it loaded
   // (found 2026-10-07).
   const [trialReason, setTrialReason] = useState<string | null>(null)
+  // The answer did not arrive: said so, with a retry (14-role test 2, J15).
+  const [trialErr, setTrialErr] = useState(false)
+  // Each unassessed child's assessment, for the first step's list: booked
+  // reads booked there, not 先預約評估 (14-role test 2, J43).
+  const [assessFor, setAssessFor] = useState<Record<string, { reason?: string; booked?: { date: string; start: string } | null }>>({})
   // The assessment already booked (reason 'booked'): when and with whom.
   const [trialBooked, setTrialBooked] = useState<{ date: string; start: string; coach: string | null } | null>(null)
   // When an unpaid assessment hold ends (reason 'awaiting_payment').
@@ -440,12 +449,13 @@ export default function BookingPage() {
     setTrialHasCredit(false)
     setTrialReason(null)
     setTrialHoldEnds(null)
+    setTrialErr(false)
     if (!selectedStudent) return
     // An assessment is only ever offered to a swimmer with no level yet, so a
     // swimmer who has one needs no round trip (it took about two seconds).
     if (selectedStudent.current_level != null) { if (lockedRef.current) setStep(1); return }
-    fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`)
-      .then(r => r.ok ? r.json() : { eligible: false })
+    fetch(`/api/bookings/trial-eligibility?student_id=${selectedStudent.id}`, { signal: AbortSignal.timeout(15000) })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
       .then(j => {
         setTrialEligible(!!j.eligible)
         setTrialHasCredit(!!j.hasCredit)
@@ -460,8 +470,23 @@ export default function BookingPage() {
           setStep(1)
         }
       })
-      .catch(() => { setTrialEligible(false); setTrialHasCredit(false); if (lockedRef.current) setStep(1) })
+      .catch(() => { setTrialEligible(false); setTrialHasCredit(false); setTrialErr(true); if (lockedRef.current) setStep(1) })
   }, [selectedStudent, trialRefresh])
+
+  useEffect(() => {
+    const ids = students.filter(s => s.current_level == null).map(s => s.id)
+    if (step !== 0 || ids.length === 0) return
+    let live = true
+    Promise.all(ids.map(id => fetch(`/api/bookings/trial-eligibility?student_id=${id}`, { signal: AbortSignal.timeout(15000) })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null).then(j => [id, j] as const)))
+      .then(rows => {
+        if (!live) return
+        const out: Record<string, { reason?: string; booked?: { date: string; start: string } | null }> = {}
+        for (const [id, j] of rows) if (j) out[id] = { reason: typeof j.reason === 'string' ? j.reason : undefined, booked: j.booked && typeof j.booked.date === 'string' ? j.booked : null }
+        setAssessFor(out)
+      })
+    return () => { live = false }
+  }, [step, students])
 
   // The school's today, as a local-midnight date (see localDs).
   const today = new Date(getTodayLA() + 'T00:00:00')
@@ -475,6 +500,7 @@ export default function BookingPage() {
   const [calSlide, setCalSlide] = useState<'l' | 'r' | null>(null)
   const calCardRef = useRef<HTMLDivElement | null>(null)
   const shiftMonthRef = useRef<(d: 1 | -1) => void>(() => {})
+  const [calDaysRef, calDaysKeys] = useRovingDays(d => shiftMonthRef.current(d))
   const calTouchRef = useRef<{ x: number; y: number } | null>(null)
   // A trackpad swipe arrives as a stream of wheel events with deltaX. Add them
   // up, turn the page once the swipe is clearly sideways and long enough, then
@@ -807,10 +833,19 @@ export default function BookingPage() {
         if (sw) { setSelectedStudent(sw as any); setStep(1) }
       }
 
-      // Back from topping up: put the booking that was in progress back.
+      // Back from topping up, or from another tab: put the booking that was
+      // in progress back -- several children (FamilyBooking keeps its own) or one.
       if (!vId && !params.get('student') && !slotLink) {
-        const r = takeResume()
-        if (r) restoreResume(r, studs || [], cts || [], coachs || [])
+        const fam = peekFamilyResume()
+        const ids = new Set((studs || []).map((x: { id: string }) => x.id))
+        if (fam && fam.kidIds.every(id => ids.has(id))) {
+          dropResume()
+          if (fam.location) setLocation(fam.location)
+          setFamTicked(fam.kidIds); setSiblingMode(true)
+        } else {
+          const r = takeResume()
+          if (r) restoreResume(r, studs || [], cts || [], coachs || [])
+        }
       }
 
       setLoading(false)
@@ -839,7 +874,9 @@ export default function BookingPage() {
   }, [success, countdown])
 
   useEffect(() => {
-    if (!selectedDate || !selectedCoach || !selectedCourse || location === undefined) return
+    // No coach yet still runs: loadTimeSlots stops the date tap's spinner
+    // (14-role test 2, J14: it turned for ever once the open times failed).
+    if (!selectedDate || !selectedCourse || location === undefined) return
     loadTimeSlots()
   }, [selectedDate, selectedCoach, selectedCourse, location])
 
@@ -1176,10 +1213,23 @@ export default function BookingPage() {
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }
   const lastStep = useRef(step)
+  const confirmRef = useRef<HTMLDivElement>(null)
+  const dateHeadRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const was = lastStep.current
     lastStep.current = step
-    if (was === 1 && step === 3) { const id = requestAnimationFrame(() => scrollTo(doneRef.current)); return () => cancelAnimationFrame(id) }
+    if (was === step) return
+    const id = requestAnimationFrame(() => {
+      if (was === 1 && step === 3) scrollTo(doneRef.current)
+      // The summary from its top: with large text the shorter step left the
+      // page scrolled to its foot (14-role test 2, J17).
+      else if (step === 4) scrollTo(confirmRef.current)
+      // The pressed button went with the old step: focus goes to the new
+      // step's heading, which a screen reader then reads (J74).
+      const hs = document.querySelectorAll<HTMLElement>('h2[data-step-h]')
+      hs[hs.length - 1]?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(id)
   }, [step])
   // A time tapped: on to the end of the page -- the coach, the lessons
   // chosen and 繼續 (owner, 2026-11-01).
@@ -1194,7 +1244,8 @@ export default function BookingPage() {
   useEffect(() => {
     if (!toTimes.current || !selectedDate) return
     toTimes.current = false
-    const id = requestAnimationFrame(() => scrollTo(timesRef.current))
+    // Focus follows to the times, so the next Tab is a time (J78).
+    const id = requestAnimationFrame(() => { scrollTo(timesRef.current); document.getElementById('bk-times-h')?.focus({ preventScroll: true }) })
     return () => cancelAnimationFrame(id)
   }, [selectedDate])
 
@@ -1778,7 +1829,13 @@ export default function BookingPage() {
     setWay(w); setLockSheet(null)
     setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
     if (w === 'fixed') setFixedDow(null)
-    requestAnimationFrame(() => scrollTo(doneRef.current))
+    // One lesson: to the date's heading, so the whole calendar shows (J51).
+    requestAnimationFrame(() => {
+      scrollTo(w === 'single' ? dateHeadRef.current : doneRef.current)
+      // The new part's heading takes focus, as a new step's does (J74).
+      const hs = document.querySelectorAll<HTMLElement>('h2[data-step-h]')
+      hs[hs.length - 1]?.focus({ preventScroll: true })
+    })
   }
   /* A coach is always chosen on these paths -- no 不限教練 (owner, 2026-11-02:
      "if this family's assessment was with Mitch, choose Mitch for them; they
@@ -2021,6 +2078,7 @@ export default function BookingPage() {
   // planMinutes, not 30: a 60-minute basket's vouchers are 60-minute ones, and
   // with 30 none of them fitted so the total ignored them (found 2026-10-05).
   const basketTotal = dueOf(basket, planMinutes)
+  const basketVoucherN = voucherCover(basket, planMinutes).size
   // The basket by date|time, whichever coach: "is something already booked at
   // this date and time" is a coach-free question (one swimmer, one place).
   const basketByTime = new Map<string, PlanSlot>()
@@ -2249,9 +2307,19 @@ export default function BookingPage() {
      over). Not after the booking is made, and only once a course is chosen. */
   const keepOnLeave = useRef<() => void>(() => {})
   useEffect(() => {
-    keepOnLeave.current = () => { if (!success && step >= 2 && selectedCourse && appLook()) saveResume() }
+    // Not on the way to Stripe: that page is left on purpose.
+    keepOnLeave.current = () => { if (!success && !toStripeRef.current && step >= 2 && selectedCourse && appLook()) saveResume() }
   })
   useEffect(() => () => keepOnLeave.current(), [])
+  // A reload, or the phone closing the app in the background, never
+  // unmounts: kept on the way out too (14-role test 2, J101).
+  useEffect(() => {
+    const hide = () => { if (document.visibilityState === 'hidden') keepOnLeave.current() }
+    const leave = () => keepOnLeave.current()
+    window.addEventListener('pagehide', leave)
+    document.addEventListener('visibilitychange', hide)
+    return () => { window.removeEventListener('pagehide', leave); document.removeEventListener('visibilitychange', hide) }
+  }, [])
 
   /** Puts a saved booking back (see takeResume). Only what still exists comes
    *  back: a swimmer, course or coach no longer on the account is dropped,
@@ -2339,9 +2407,16 @@ export default function BookingPage() {
     // to look (found 2026-10-03).
     if (!selectedStudent || recurPlan.length === 0) return
     setSubmitting(true)
+    // A server failure or no answer cannot say whether the lessons were
+    // booked: look at the schedule first (14-role test 2, J69, J70).
+    const unsure = (key: string) => {
+      setNotice(t(key)); setNoticeCheck(true); setSubmitting(false)
+      reloadWallet(); setSlotsRefresh(n => n + 1)
+    }
     try {
       const res = await fetch('/api/bookings/recurring', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({
           action: 'commit', student_id: selectedStudent.id, coach_id: recurPlan[0]?.coachId || selectedCoach?.id,
           student2_id: siblingPair ? selectedStudent2!.id : null,
@@ -2351,7 +2426,8 @@ export default function BookingPage() {
           use_vouchers: !makeUp && payWithVouchers,
         }),
       })
-      const j = await res.json().catch(() => ({}))
+      const j = await res.json().catch(() => null)
+      if (res.status >= 500 || !j) { unsure('booking.err.unsureCheck'); return }
       // Too few weeks of a fixed class left because some were taken between
       // choosing and confirming. The reply names them: drop them from the
       // basket, read the calendar again and say which weeks, then go back to
@@ -2369,7 +2445,7 @@ export default function BookingPage() {
         setNotice(t('booking.recur.err.fixedTaken', { dates: dates.join(', '), need, n: Math.max(1, need - have) }))
         setStep(3); setSubmitting(false); return
       }
-      if (!res.ok) { setNotice(tErrOf(j, 'booking.recur.err.commit')); setSubmitting(false); return }
+      if (!res.ok) { setNotice(tErrOf(j, planMany ? 'booking.recur.err.commit' : 'booking.err.bookingFailed')); setSubmitting(false); return }
       // Every time was taken between choosing and confirming: nothing was
       // booked, charged or spent. This used to land on a ✅ "0 lessons
       // booked!" card listing the dates (found 2026-10-03).
@@ -2395,7 +2471,7 @@ export default function BookingPage() {
       setSlotsRefresh(n => n + 1)
       reloadWallet()
       setSuccess(true)
-    } catch { setNotice(t('cart.err.network')); setSubmitting(false) }
+    } catch (e) { unsure((e as Error)?.name === 'TimeoutError' ? 'booking.err.timeoutUnsure' : 'booking.err.unsureCheck') }
   }
 
   /* Step 3 -> step 4. With the weekly panel open and dates ticked, the summary
@@ -2425,7 +2501,7 @@ export default function BookingPage() {
     try {
       await confirmBooking()
     } catch {
-      setNotice(t('booking.err.networkCheck'))
+      setNotice(t('booking.err.networkCheck')); setNoticeCheck(true)
       setSubmitting(false)
       reloadWallet()
     }
@@ -2688,6 +2764,9 @@ export default function BookingPage() {
     // Several children: FamilyBooking steps back through its own steps.
     if (siblingMode) return false
     if (step === 4) { setStep(3); setRecurPlan([]); return true }
+    // Came in from a child's card straight to a paid assessment's times: the
+    // course step was never seen, so back is home (14-role test 2, J104).
+    if (step === 3 && lockedStudent && isTrial && trialHasCredit) return false
     if (step === 3) {
       // The every-week panel closes first, then the time, then the weekday;
       // only then back to 要怎麼上 (50-role test, 2026-11-05).
@@ -2696,7 +2775,8 @@ export default function BookingPage() {
       if (wayFlow && way) { resetWay(); return true }
       setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map()); return true
     }
-    if (step > 0 && students.length > 1) { changeStudent(); return true }
+    // A child chosen on the home card skipped 幫誰; back does not show it (J104).
+    if (step > 0 && students.length > 1 && !lockedStudent) { changeStudent(); return true }
     return false
   }
   useEffect(() => {
@@ -2941,7 +3021,7 @@ export default function BookingPage() {
         {step > 0 && step < 4 && selectedStudent && (
           <div ref={doneRef} style={{ marginBottom: '20px' }}>
             <DoneRow label={t('booking.sum.swimmer')} changeLabel={t('booking.change')}
-              value={selectedStudent.full_name + (step > 1 && selectedCourse?.slug === '1on2' && pair2 ? ` ＋ ${pair2.full_name}` : '')}
+              value={step > 1 && selectedCourse?.slug === '1on2' && pair2 ? joinList(locale, [selectedStudent.full_name, pair2.full_name]) : selectedStudent.full_name}
               onChange={isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent} />
             {step > 1 && selectedCourse && (
               <DoneRow label={t('booking.sum.course')} changeLabel={t('booking.change')}
@@ -2983,6 +3063,11 @@ export default function BookingPage() {
           </div>
         )}
 
+        {/* Read out once a day's times arrive (J74). */}
+        <div aria-live="polite" className="sr-only">
+          {step === 3 && selectedDate && !slotsLoading && !slotsError && !groupFlow && !fixedPath
+            ? (shownTimeSlots.length > 0 ? t('booking.a11y.timesN', { n: shownTimeSlots.length }) : t('booking.noSlots')) : ''}
+        </div>
         {step === 0 && !siblingMode && (() => {
           // Two or more children who can book lessons: each card can be
           // ticked, and two or more ticked book together (owner, 2026-11-03,
@@ -3016,7 +3101,12 @@ export default function BookingPage() {
                     </div>
                     {can && !on && <span aria-hidden="true" style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #c5d3e6', flexShrink: 0 }} />}
                     {/* A swimmer still to be assessed is booked alone: say where a tap goes (50-role test). */}
-                    {multi && s.current_level == null && <span style={{ flexShrink: 0, fontSize: '13px', fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('booking.toAssess')} ›</span>}
+                    {multi && s.current_level == null && (() => {
+                      const a = assessFor[s.id]
+                      if (a?.reason === 'booked' && a.booked) return <span style={{ flexShrink: 0, fontSize: '12.5px', fontWeight: 700, color: '#1f7a57', textAlign: 'right' }}>{t('dash.trial.bookedLine', { when: fmtDate(new Date(a.booked.date + 'T12:00:00Z'), dateLoc, { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }) + ' ' + formatTime(a.booked.start) })}</span>
+                      if (a?.reason === 'awaiting_payment') return <span style={{ flexShrink: 0, fontSize: '13px', fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('dash.pend.awaiting')} ›</span>
+                      return <span style={{ flexShrink: 0, fontSize: '13px', fontWeight: 800, color: GOLD, whiteSpace: 'nowrap' }}>{t('booking.toAssess')} ›</span>
+                    })()}
                   </div>
                 </SelectCard>
                 )
@@ -3056,6 +3146,7 @@ export default function BookingPage() {
             {/* One notice per reason (owner, 2026-10-07): booked and waiting,
                 cancelled by the school and owed, or done. Nothing before
                 trial-eligibility answers. */}
+            {needsAssessment && trialErr && <LoadFailed onRetry={() => setTrialRefresh(x => x + 1)} />}
             {needsAssessment && trialReason && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', fontSize: '14px', color: GOLD, lineHeight: 1.5 }}>
                 {trialReason === 'prepaid'
@@ -3089,7 +3180,7 @@ export default function BookingPage() {
                 <SelectCard selected={isTrial} onClick={() => { const ct = courseTypes.find(c => c.slug === '1on1'); if (ct) { requestAdvance(); setSelectedCourse(ct); setIsTrial(true) } }} color={GOLD}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <span style={{ fontSize: '28px' }}>⭐</span>
+                      <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 44, height: 44, borderRadius: '50%', background: GOLD + '1f', color: GOLD, fontSize: 22, flex: 'none' }}><Icon name="medal" /></span>
                       <div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#16294a', marginBottom: '2px' }}>{t('common.assessment')}</div>
                         <div style={{ fontSize: '13px', color: '#56647d' }}>{t('booking.assessmentMeta')}</div>
@@ -3351,7 +3442,7 @@ export default function BookingPage() {
 
         {step === 3 && !askWay && (
           <div>
-            {!groupFlow && !fixedPath && <SectionTitle title={t('booking.s4.title')} />}
+            {!groupFlow && !fixedPath && <div ref={dateHeadRef}><SectionTitle title={t('booking.s4.title')} /></div>}
             {/* The coaches' open times did not load: say so before any date
                 is tapped (50-role test, 2026-11-05). */}
             {privateFlow && openingsErr && !slotsLoading && (
@@ -3429,7 +3520,9 @@ export default function BookingPage() {
                   <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: '#56647d', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
                 ))}
               </div>
-              <div key={`${calYear}-${calMonth}`} className="msa-cal-anim" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', animation: calSlide ? `${calSlide === 'l' ? 'msaCalL' : 'msaCalR'} .28s ease` : undefined }}>
+              <div key={`${calYear}-${calMonth}`} ref={calDaysRef} onKeyDown={calDaysKeys} role="group"
+                aria-label={voucherRange ? undefined : t('booking.calMonth', { month: t('date.month.' + (calMonth + 1)), year: calYear })}
+                className="msa-cal-anim" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', animation: calSlide ? `${calSlide === 'l' ? 'msaCalL' : 'msaCalR'} .28s ease` : undefined }}>
                 {/* In the current month the weeks already gone are left out: the
                     grid starts on the Sunday of this week, as the group calendar does. */}
                 {calCells.map((date, j) => {
@@ -3450,7 +3543,7 @@ export default function BookingPage() {
                   // One lesson at a time, a date past the window is not open
                   // yet (BK15): drawn as closed, and a tap says when it opens.
                   const locked = singlePath && dsC > singleMax && isDateAvailable(date)
-                  const available = !locked && isDateAvailable(date) && (openHere == null || openHere.length > 0 || elsewhere.length > 0)
+                  const available = !locked && !(privateFlow && openingsErr) && isDateAvailable(date) && (openHere == null || openHere.length > 0 || elsewhere.length > 0)
                     && !(makeUp && dotsHere != null && dotsHere.length === 0 && elsewhere.length === 0)
                   const isSelected = selectedDate?.toDateString() === date.toDateString()
                   const isTodayDate = date.toDateString() === today.toDateString()
@@ -3491,7 +3584,7 @@ export default function BookingPage() {
                         padding: '10px 4px', minHeight: '48px', borderRadius: '10px',
                         border: hasPick ? `2px solid ${GOLD}` : hasGhost ? `2px dashed ${GOLD}99` : '2px solid transparent',
                         background: isSelected ? NAVY : hasPick ? `${GOLD}20` : 'transparent',
-                        color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#7b879c' : available ? NAVY : locked ? '#7b879c' : '#b7c2d4',
+                        color: isSelected ? '#fff' : hasPick ? GOLD : elsewhere.length > 0 ? '#5f6b80' : available ? NAVY : locked ? '#5f6b80' : '#b7c2d4',
                         fontSize: '16px', fontWeight: isSelected || hasPick ? 700 : 500,
                         cursor: available || locked ? 'pointer' : 'not-allowed',
                         outline: isTodayDate && !isSelected && !hasPick && !hasGhost ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px',
@@ -3522,7 +3615,7 @@ export default function BookingPage() {
             {!groupFlow && !fixedPath && selectedDate && (voucherRange || (selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth)) && (
               <div ref={timesRef}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#56647d' }}>
+                  <div id="bk-times-h" tabIndex={-1} style={{ fontSize: '14px', fontWeight: 600, color: '#56647d', outline: 'none' }}>
                     {t('booking.availableTimes', { date: fmtDate(selectedDate, dateLoc, { weekday: 'long', month: 'short', day: 'numeric' }) })}
                   </div>
                   {/* The Swim Assessment is 30 minutes, full stop. It rides on the
@@ -3606,7 +3699,7 @@ export default function BookingPage() {
                             const usable = affordable && !h.is_current
                             const w24 = isWithin24Hours(localDs(selectedDate), h.start_time)
                             return (
-                              <button key={h.start_time} disabled={!usable}
+                              <button key={h.start_time} type="button" disabled={!usable} aria-pressed={sel}
                                 onClick={() => {
                                   // With a fixed class already in the basket, an
                                   // hour tapped here is one more lesson IN the
@@ -3632,7 +3725,7 @@ export default function BookingPage() {
                                 )}
                                 {/* Start time only, as the 30-minute grid shows it.
                                     The end time is in the summary once one is picked. */}
-                                {hh12(h.start_time)}
+                                <TimeLabel tm={h.start_time} />
                                 {!isReschedule && !makeUp && h.points != null && (
                                   <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', fontVariantNumeric: 'tabular-nums', color: usable ? GOLD : '#9aa6ba' }}>
                                     {t('points.unit', { n: nf(h.points) })}
@@ -3815,7 +3908,7 @@ export default function BookingPage() {
                           const w24 = isWithin24Hours(ds0, tm)
                           const chosenCoach = inBasket ? hit0!.coachId : null
                           return (
-                            <button key={tm} disabled={!affordable0}
+                            <button key={tm} type="button" disabled={!affordable0} aria-pressed={on}
                               onClick={() => {
                                 const cid = chosenCoach
                                   || spreadPick(ds0, ids)
@@ -3830,7 +3923,7 @@ export default function BookingPage() {
                                 color: on ? GOLD : affordable0 ? '#16294a' : '#9aa6ba',
                                 fontSize: '15px', fontWeight: 700, cursor: affordable0 ? 'pointer' : 'not-allowed', fontVariantNumeric: 'tabular-nums',
                               }}>
-                              {inBasket ? '✓ ' : ''}{hh12(tm)}
+                              {inBasket ? <span aria-hidden="true">✓ </span> : ''}<TimeLabel tm={tm} />
                               {pr && <PriceTag price={pr} dim={!affordable0} onlyOff />}
                               {pr?.offPeak && (
                                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: '#56647d', marginTop: '3px' }}>{t('booking.offPeak')}</div>
@@ -3875,8 +3968,8 @@ export default function BookingPage() {
                   )
                 })()) : shownTimeSlots.length === 0 ? (
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '8px', textAlign: 'center', border: '1px dashed #e3ebf6' }}>
-                    {slotsLoading ? <MascotLoading text={t('booking.loading')} />
-                      : (slotsError || (privateFlow && openingsErr)) ? <LoadFailed onRetry={() => { setSlotsError(false); if (openingsErr) setSlotsRefresh(x => x + 1); else loadTimeSlots() }} />
+                    {(slotsError || (privateFlow && openingsErr)) ? <LoadFailed onRetry={() => { setSlotsError(false); if (openingsErr) setSlotsRefresh(x => x + 1); else loadTimeSlots() }} />
+                      : slotsLoading ? <MascotLoading text={t('booking.loading')} />
                       : <MascotEmpty small text={t('booking.noSlots')} />}
                   </div>
                 ) : (
@@ -3913,7 +4006,7 @@ export default function BookingPage() {
                             </button>
                       ) : null
                       const cell = (
-                        <button key={slot.time}
+                        <button key={slot.time} type="button" aria-pressed={on}
                         onClick={() => {
                           if (!slot.available || !selectedDate || !selectedCoach) return
                           if (batchFlow && !affordable0) return
@@ -3930,7 +4023,7 @@ export default function BookingPage() {
                           textAlign: 'center', fontVariantNumeric: 'tabular-nums',
                         }}
                       >
-                        {inBasket ? '✓ ' : ''}{hh12(slot.time)}
+                        {inBasket ? <span aria-hidden="true">✓ </span> : ''}<TimeLabel tm={slot.time} />
                         {(() => {
                           if (isReschedule || isTrial || !selectedDate) return null
                           const pr = priceAt(localDs(selectedDate), slot.time, 30)
@@ -4398,7 +4491,7 @@ export default function BookingPage() {
                                 const can = mine || otherTotal + chosenTotal + addCost <= balance
                                 return (
                                   <div key={cid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '8px', background: '#fff', border: '1px solid #e3dcf6', borderRadius: '9px', padding: '8px 10px' }}>
-                                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#16294a', minWidth: 0 }}>{ds.map(mdOf).join('、')}</span>
+                                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#16294a', minWidth: 0 }}>{joinList(locale, ds.map(mdOf))}</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13.5px', fontWeight: 800, color: '#16294a' }}>
                                         <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: coachColor(cid) }} />{coachName(cid)}
@@ -4501,7 +4594,9 @@ export default function BookingPage() {
             {/* Nor while the panel is open: its own 就選這 N 堂 / 取消 decide,
                 and a 繼續 under it booked the class chosen before (owner,
                 2026-11-02: "what happens if I tap 5:25 now?"). */}
-            {!(fixedPath && (recurSel.size === 0 || recurOpen)) && (
+            {/* One lesson at a time, nothing chosen: no bar either, so the
+                calendar fits a small phone with large text (14-role test 2, J51). */}
+            {!(fixedPath && (recurSel.size === 0 || recurOpen)) && !(singlePath && !canContinue) && (
             <div className="msa-book-bar" style={{
               position: 'sticky', bottom: 0, zIndex: 5, marginTop: '24px',
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
@@ -4512,7 +4607,10 @@ export default function BookingPage() {
               {fixedFlow && recurSel.size > 0 && (
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: GOLD }}>
-                    {makeUp ? t('booking.makeUp.basket', { n: recurSel.size }) : t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
+                    {/* Lessons a voucher pays for are said, not only "0 pts" (J99). */}
+                    {makeUp ? t('booking.makeUp.basket', { n: recurSel.size })
+                      : basketVoucherN > 0 ? t('booking.recur.basketVoucher', { n: recurSel.size, points: basketTotal, v: basketVoucherN })
+                      : t('booking.recur.basket', { n: recurSel.size, points: basketTotal })}
                   </span>
                   {!makeUp && (
                     <span style={{ fontSize: '13px', color: '#56647d', fontVariantNumeric: 'tabular-nums' }}>
@@ -4526,7 +4624,11 @@ export default function BookingPage() {
                   // A reschedule or a make-up has no course step to go back to (the
                   // course is fixed -- a make-up is booked as the voucher's own kind
                   // of lesson), so its way out is back to the family's page.
-                  if (isReschedule || makeUp) { window.location.href = '/dashboard'; return }
+                  // Back where they came from, as Android's back does (J64).
+                  if (isReschedule || makeUp) {
+                    if (window.history.length > 1) { window.history.back(); return }
+                    router.push(isReschedule ? '/dashboard/schedule' : '/dashboard/me'); return
+                  }
                   // Back to "how", which is the step before this one (BK15).
                   if (wayFlow && way) { resetWay(); return }
                   setStep(1); setSelectedDate(null); setSelectedSlot(null); setRecurOpen(false); setRecurPlan([]); setRecurSel(new Map())
@@ -4534,7 +4636,7 @@ export default function BookingPage() {
                   flex: 1, padding: '14px', background: '#fff',
                   color: '#16294a', border: '1px solid #d3deec',
                   borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-                }}>{isReschedule || makeUp ? t('booking.cancelBack') : t('booking.back')}</button>
+                }}>{isReschedule ? t('booking.cancelMove') : t('booking.back')}</button>
                 <button
                   onClick={goToConfirm}
                   disabled={!canContinue}
@@ -4558,7 +4660,7 @@ export default function BookingPage() {
           // Where the lesson is, once there is more than one pool to be at.
           const locNow = showLoc ? locList.find(l => l.id === location) : undefined
           return (
-          <div>
+          <div ref={confirmRef}>
             <SectionTitle title={t('booking.s5.title')} gap={14} />
             <style>{`.bk-dates summary::-webkit-details-marker { display: none }
 .bk-dates .bk-dates-less, .bk-dates[open] .bk-dates-more { display: none }
@@ -4583,7 +4685,7 @@ export default function BookingPage() {
                 const course = isTrial ? t('common.assessment') : (selectedCourse ? tDb(locale, 'course_types', selectedCourse.id, selectedCourse.name) : '')
                 const minutes = planOne ? planMinutes : many ? (groupFlow ? (selectedCourse?.duration_minutes ?? 0) : planMinutes) : (selectedHour ? 60 : selectedCourse?.duration_minutes ?? 0)
                 const coach = planOne ? (planOne.coachName || selectedCoach?.first_name)
-                  : many ? (planSplit.lines.length > 0 ? null : planCoaches.length > 0 ? planCoaches.join(locale === 'en' ? ', ' : '、') : selectedCoach?.first_name)
+                  : many ? (planSplit.lines.length > 0 ? null : planCoaches.length > 0 ? joinList(locale, planCoaches) : selectedCoach?.first_name)
                   : selectedHour?.relay ? `${selectedHour.coach1_name} → ${selectedHour.coach2_name}` : selectedCoach?.first_name
                 const sub = [course, t('booking.lenMin', { n: minutes }), coach ? t('dash.up.coach', { name: coach }) : null, locNow ? locationLine(locNow) : null].filter(Boolean).join(' · ')
                 const when: string[] = planOne
@@ -4748,7 +4850,7 @@ export default function BookingPage() {
                 said before the family goes there (owner, 2026-10-08). */}
             {isTrial && !trialHasCredit && (
               <div style={{ background: `${GOLD}1f`, border: `1px solid ${GOLD}66`, borderRadius: '10px', padding: '12px 16px', marginBottom: '12px', fontSize: '13px', color: '#16294a', lineHeight: 1.6 }}>
-                ⏱ {t('booking.assessHold', { n: TRIAL_HOLD_MINUTES })}
+                <Icon name="clock" style={{ verticalAlign: '-2px', marginRight: 4 }} />{t('booking.assessHold', { n: TRIAL_HOLD_MINUTES })}
               </div>
             )}
             <div style={{ padding: '0 4px', marginBottom: '14px' }}>
@@ -4776,8 +4878,8 @@ export default function BookingPage() {
               paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
               background: PAGE_TINT, borderTop: '1px solid #d6e0ee',
             }}>
-              <button onClick={() => { setStep(3); setRecurPlan([]) }} style={{
-                flex: 1, padding: '14px', background: '#fff',
+              <button onClick={() => { setStep(3); setRecurPlan([]) }} disabled={submitting} style={{
+                flex: 1, padding: '14px', background: '#fff', opacity: submitting ? 0.5 : 1,
                 color: '#16294a', border: '1px solid #d3deec',
                 borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               }}>{t('booking.back')}</button>
@@ -4799,7 +4901,8 @@ export default function BookingPage() {
           )
         })()}
       </div>
-      <NoticeModal title={t('common.noticeTitle')} message={notice && notice.startsWith('err.') ? t(notice) : notice} closeLabel={t('common.close')} onClose={() => setNotice(null)} />
+      <NoticeModal title={t('common.noticeTitle')} message={notice && notice.startsWith('err.') ? t(notice) : notice} closeLabel={t('common.close')} onClose={() => { setNotice(null); setNoticeCheck(false) }}
+        action={noticeCheck ? { label: t('dash.trial.toSchedule'), onClick: () => router.push('/dashboard/schedule') } : undefined} />
     </div>
   )
 }

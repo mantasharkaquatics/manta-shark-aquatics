@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
   // forwarding, and old links still point at it -- the Chinese ones too.
   // /programs came a month later and has no prices. Temporary (307) so the
   // target can still change without browsers having remembered this one.
+  // A family's own data is never kept by a browser or a cache between
+  // (14-role test 2, J115: the safety answers had no Cache-Control).
+  async headers() {
+    return [
+      { source: '/api/parent/:path*', headers: [{ key: 'Cache-Control', value: 'private, no-store' }] },
+    ];
+  },
   async redirects() {
     return [
       { source: '/services', destination: '/plans', permanent: false },

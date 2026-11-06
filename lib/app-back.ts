@@ -47,10 +47,17 @@ const gone = (el: HTMLElement) => !el.isConnected || !shown(el)
 async function closeOverlay(o: { dialog: HTMLElement; backdrop: HTMLElement }) {
   // Esc first: the sheets and dialogs that take a keyboard close on it.
   const esc = () => new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true })
-  o.dialog.dispatchEvent(esc())
+  // A dialog that took the Esc (prevented it) has answered this press: a
+  // second Esc or a tap would go on to close what it chose to keep, as the
+  // suggestion box's confirm step (14-role test 2, J23).
+  if (!o.dialog.dispatchEvent(esc())) { await wait(80); return }
   document.dispatchEvent(esc())
   await wait(80)
   if (gone(o.dialog)) return
+  // Esc opened a question of its own ("discard your changes?"): that is the
+  // answer to this press -- nothing more is tapped (14-role test 2, J03).
+  const now = topOverlay()
+  if (now && now.dialog !== o.dialog) return
   // Then a tap on the dimmed area around it, as a finger would close it.
   o.backdrop.click()
   await wait(80)
@@ -74,6 +81,9 @@ async function closeOverlay(o: { dialog: HTMLElement; backdrop: HTMLElement }) {
 }
 
 export async function handleAppBack(o: { canGoBack: boolean; goHome: () => void; minimize: () => void }) {
+  // The language menu open: back closes it, nothing more (14-role test 2,
+  // J79). AppShell closes it on Esc and puts focus back on its button.
+  if (document.querySelector('.msa-ab-menu')) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return }
   const top = topOverlay()
   if (top) { await closeOverlay(top); return }
   const ev = new CustomEvent(APP_BACK_EVENT, { cancelable: true })

@@ -64,11 +64,22 @@ export async function sendGuardianInvite(svc: any, appOrigin: string, g: { email
 
 /** Ends a guardian's access: the row is kept for the record, the login goes.
  *  If the login cannot be deleted it is banned instead, which also ends it. */
-export async function removeGuardian(svc: any, row: { id: string; auth_user_id: string | null }): Promise<boolean> {
+export async function removeGuardian(svc: any, row: { id: string; auth_user_id: string | null }, parentId?: string): Promise<boolean> {
   const { error } = await svc.from('parent_guardians')
     .update({ removed_at: new Date().toISOString(), auth_user_id: null }).eq('id', row.id).is('removed_at', null)
   if (error) return false
   if (row.auth_user_id) {
+    // Removed is the end of their access, the calendars included (14-role
+    // test 2, J05): their phones' subscription links stop, and the Google
+    // calendar we made in their account is deleted and our access given back.
+    await svc.from('calendar_feed_devices').delete().eq('auth_user_id', row.auth_user_id).then(() => {}, () => {})
+    if (parentId) {
+      const { data: links } = await svc.from('google_calendar_links').select('id').eq('parent_id', parentId).eq('auth_user_id', row.auth_user_id)
+      if ((links || []).length) {
+        const { disconnect } = await import('./google-calendar')
+        for (const l of (links || []) as { id: string }[]) await disconnect(svc, parentId, row.auth_user_id, l.id).catch(() => {})
+      }
+    }
     const del = await svc.auth.admin.deleteUser(row.auth_user_id)
     if (del.error) {
       console.error('[guardian] login not deleted, banning', del.error)

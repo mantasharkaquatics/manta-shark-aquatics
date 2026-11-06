@@ -6,6 +6,7 @@ import { handleAppBack } from '@/lib/app-back'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/lib/i18n/provider'
 import { APP_CLASS, TEXT_SIZE_FN, applyPhoneTextSize, appPlatform, appPlugin, pushPlugin, rememberToken, rememberedToken, type NativeListenable } from '@/lib/native-app'
+import { clearAccountData } from '@/lib/local-account-data'
 
 /* Push notifications inside the phone app (owner, 2026-10-27; lib/push.ts).
    Renders nothing, and does nothing in a browser.
@@ -151,7 +152,7 @@ export default function AppBridge() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
       if (event === 'SIGNED_IN') sync(true)
-      if (event === 'SIGNED_OUT') forget()
+      if (event === 'SIGNED_OUT') { forget(); clearAccountData() }
     })
     removers.push(() => subscription.unsubscribe())
 

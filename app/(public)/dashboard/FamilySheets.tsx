@@ -14,6 +14,7 @@ import SettleArrearsButton from '@/components/SettleArrearsButton'
 import { fmtDate } from '@/lib/fmt-date'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import Icon from '@/components/ui/Icon'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
@@ -26,78 +27,73 @@ const INTL_LOCALE: Record<string, string> = { en: 'en-US', 'zh-Hant': 'zh-TW', '
 const intlOf = (locale: string) => INTL_LOCALE[locale] || 'en-US'
 
 /** The suggestion box: one optional message to the managers, any time. */
+const SUGGEST_DRAFT = 'msa_suggest_draft'
 export function SuggestionSheet({ onClose }: { onClose: () => void }) {
   const t = useT()
-  const [text, setText] = useState('')
+  // What was typed survives any way of closing, as the chat's draft does
+  // (14-role test 2, J23): it is there again when the sheet opens.
+  const [text, setText] = useState(() => { try { return window.sessionStorage.getItem(SUGGEST_DRAFT) || '' } catch { return '' } })
   const [state, setState] = useState<'idle' | 'confirm' | 'sending' | 'done' | 'error' | 'many'>('idle')
-  // Focus in and back out; Esc is handled below (50-role test, 2026-11-05).
-  const suggestBox = useDialogFocus(true)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+    try {
+      if (text.trim() && state !== 'done') window.sessionStorage.setItem(SUGGEST_DRAFT, text)
+      else window.sessionStorage.removeItem(SUGGEST_DRAFT)
+    } catch {}
+  }, [text, state])
+  // Focus in and back out; Esc closes (the draft is kept). While the
+  // confirm is up, Esc and back belong to it.
+  const stateNow = useRef(state)
+  useEffect(() => { stateNow.current = state })
+  const suggestBox = useDialogFocus(true, () => { if (stateNow.current !== 'confirm') onClose() })
+  const area = useRef<HTMLTextAreaElement>(null)
+  // After the hook has noted where focus came from, so it goes back there (J26).
+  useEffect(() => { area.current?.focus() }, [])
   async function send() {
     if (!text.trim()) return
     setState('sending')
     const r = await fetch('/api/parent/suggestions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text }),
+      signal: AbortSignal.timeout(20000),
     }).catch(() => null)
     setState(r && r.ok ? 'done' : r && r.status === 429 ? 'many' : 'error')
   }
   /* A tap on the dim area closes only an empty sheet (found 2026-10-15). On a
-     phone that tap is how people put the keyboard away, and it threw the draft
-     away with no warning. ✕, Close and Escape still close it on purpose. */
+     phone that tap is how people put the keyboard away. */
   const keep = !!text.trim() && state !== 'done'
-  return (
+  return (<>
     <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
       <div ref={suggestBox} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('suggest.link')}>
         <div className="msa-sheet-head">
-          <b>{t('suggest.link')}</b>
+          <h2>{t('suggest.link')}</h2>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
         </div>
         {state === 'done' ? (
-          <div style={{ textAlign: 'center', padding: '18px 0 8px' }}>
-            <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1f7a57' }}>{t('suggest.thanks')}</p>
-            <button onClick={onClose} style={{ marginTop: '16px', border: 0, borderRadius: '10px', padding: '11px 26px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {t('common.close')}
-            </button>
-          </div>
+          // Said, and closed by ✕, a pull, a tap outside or back (決定 9, J34).
+          <p role="status" style={{ textAlign: 'center', margin: 0, padding: '18px 0 14px', fontSize: '15px', fontWeight: 800, color: '#1f7a57' }}>
+            <Icon name="check" /> {t('suggest.thanks')}
+          </p>
         ) : (<>
           <p style={{ margin: '0 0 10px', fontSize: '13.5px', color: '#56647d', lineHeight: 1.6 }}>{t('suggest.intro')}</p>
-          <textarea value={text} onChange={e => setText(e.target.value.slice(0, 2000))} rows={6} autoFocus
+          <textarea ref={area} value={text} onChange={e => setText(e.target.value.slice(0, 2000))} rows={6}
             placeholder={t('suggest.placeholder')} aria-label={t('suggest.title')}
             style={{ width: '100%', borderRadius: '12px', border: '1px solid #d5deeb', padding: '12px', fontSize: '16px', fontFamily: 'inherit', color: '#16294a', resize: 'vertical', boxSizing: 'border-box', background: '#fff' }} />
-          {state === 'error' && <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.error')}</p>}
-          {state === 'many' && <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.tooMany')}</p>}
-          {/* Asked once more before it goes (owner, 2026-11-04: a tap by
-              mistake sent it). */}
-          {state === 'confirm' ? (
-            <div role="alertdialog" aria-label={t('suggest.confirm')} style={{ marginTop: '12px', background: '#fff', border: '1px solid #e3ebf6', borderRadius: '12px', padding: '14px' }}>
-              <p style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 800, color: '#12254a' }}>{t('suggest.confirm')}</p>
-              <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#56647d', lineHeight: 1.5 }}>{t('suggest.confirmBody')}</p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="button" onClick={() => setState('idle')}
-                  style={{ flex: 1, border: '1px solid #d5deeb', borderRadius: '10px', padding: '11px', background: '#fff', color: '#56647d', fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {t('suggest.back')}
-                </button>
-                <button type="button" onClick={send}
-                  style={{ flex: 1, border: 0, borderRadius: '10px', padding: '11px', background: AMBER, color: NAVY, fontWeight: 800, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {t('suggest.send')}
-                </button>
-              </div>
-            </div>
-          ) : (
+          {state === 'error' && <p role="alert" style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.error')}</p>}
+          {state === 'many' && <p role="alert" style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#c0563f' }}>{t('suggest.tooMany')}</p>}
           <button onClick={() => setState('confirm')} disabled={!text.trim() || state === 'sending'}
             style={{ marginTop: '12px', width: '100%', border: 0, borderRadius: '12px', padding: '13px', background: text.trim() ? AMBER : '#e3ebf6', color: text.trim() ? NAVY : '#8592a8', fontWeight: 800, fontSize: '15px', cursor: text.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
             {state === 'sending' ? t('suggest.sending') : t('suggest.send')}
           </button>
-          )}
           <p style={{ margin: '10px 0 0', textAlign: 'center', fontSize: '11.5px', color: '#667690' }}>{t('suggest.note')}</p>
         </>)}
       </div>
     </div>
-  )
+    {/* Asked once more before it goes (owner, 2026-11-04: a tap by mistake
+        sent it), as a centred decision (決定 9, J34). */}
+    {state === 'confirm' && (
+      <ConfirmDialog id="suggest-ok" title={t('suggest.confirm')} noLabel={t('suggest.back')} yesLabel={t('suggest.send')}
+        onNo={() => setState('idle')} onYes={send}>{t('suggest.confirmBody')}</ConfirmDialog>
+    )}
+  </>)
 }
 
 export type WalletSummary = {
@@ -268,10 +264,14 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
     if ((m = n.match(/^Programme rate for (.+?): \d+ × /))) return t('points.note.programmeRate', { name: m[1] })
     return n
   }
-  const lessonText = (l: NonNullable<LedgerRow['lesson']>) => {
-    const d = fmtDate(new Date(l.date + 'T12:00:00'), locale === 'en' ? 'en-US' : locale, { month: 'numeric', day: 'numeric' })
-    const when = l.count > 1 ? t('points.lesson.many', { date: d, n: l.count }) : (l.time ? `${d} ${formatTime(l.time)}` : d)
-    return l.student ? `${l.student} ${when}` : when
+  // The lesson's date in the line's own format, and left out when it is the
+  // day of the line itself (14-role test 2, J47: two formats, said twice).
+  const lessonText = (l: NonNullable<LedgerRow['lesson']>, at?: string) => {
+    const d = fmtDate(new Date(l.date + 'T12:00:00Z'), intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    const sameDay = !!at && new Date(at).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) === l.date
+    const when = l.count > 1 ? t('points.lesson.many', { date: d, n: l.count })
+      : l.time ? (sameDay ? formatTime(l.time) : `${d} ${formatTime(l.time)}`) : (sameDay ? '' : d)
+    return [l.student, when].filter(Boolean).join(' · ')
   }
   const reasonLabel = (r: string) => {
     const key = 'points.reason.' + r
@@ -400,7 +400,7 @@ export function PointsCard({ w, onBuy, zelle, historyFirst = false }: { w: Walle
                       {/* The school's day, as on the receipt (found 2026-10-15: an
                           evening top-up read as the next day outside Pacific time). */}
                       {fmtDate(new Date(row.at), intlOf(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })}
-                      {row.lesson ? ' · ' + lessonText(row.lesson) : ''}
+                      {row.lesson && lessonText(row.lesson, row.at) ? ' · ' + lessonText(row.lesson, row.at) : ''}
                       {row.note && noteText(row.note) ? ' · ' + noteText(row.note) : ''}
                     </div>
                     {/* The receipt for the money, on the line that spent it. */}
@@ -499,7 +499,7 @@ export function ReferralCard({ focus }: { focus: boolean }) {
       {data.mine && (
         <div style={{ background: '#effaf3', border: '1px solid #9fd8b8', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
           <div style={{ fontSize: '14px', fontWeight: 800, color: '#14683f' }}>
-            <span aria-hidden="true" style={{ marginRight: '6px' }}>{'\u{1F381}'}</span>{data.mine.status === 'awarded' ? t('ref.mine.awardedTitle', { n: data.points }) : t('ref.mine.pendingTitle')}
+            <span aria-hidden="true" style={{ marginRight: '6px' }}><Icon name="gift" style={{ verticalAlign: '-2px' }} /></span>{data.mine.status === 'awarded' ? t('ref.mine.awardedTitle', { n: data.points }) : t('ref.mine.pendingTitle')}
           </div>
           <div style={{ fontSize: '12.5px', color: '#2f5a44', lineHeight: 1.6, marginTop: '4px' }}>
             {data.mine.status === 'awarded'

@@ -16,7 +16,13 @@ export default async function AdminMembersPage() {
   // at 1,000 rows without saying so, and families past that point would have
   // been missing from this page (2026-10-05). Ordered by name, then id, so
   // the pages never overlap.
-  const parents = await allRowsOrLog('admin/members', () => supabase
+  // Read with the service role: a family's login cannot read the address
+  // columns any more (docs/migration-family-columns.sql), and an admin's
+  // login is the same database role. Only after checking this is an admin.
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: me } = user ? await supabase.from('admins').select('id').eq('auth_user_id', user.id).maybeSingle() : { data: null }
+  if (!me) return null
+  const parents = await allRowsOrLog('admin/members', () => serviceClient()
     .from('parents')
     .select(`
       id, first_name, last_name, email, phone,

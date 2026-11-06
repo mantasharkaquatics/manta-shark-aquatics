@@ -10,6 +10,7 @@ import { BRAND } from '@/lib/brand'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import ClosureBanner from '@/components/ClosureBanner'
 import { APP_SET_LOCALE_EVENT, appLook } from '@/lib/native-app'
+import { clearAccountData } from '@/lib/local-account-data'
 
 /* The Rivian-style bar the owner picked (2026-09-26): a white bar floating a few
    pixels inside the window, the name set as a wordmark instead of the round logo,
@@ -341,6 +342,7 @@ export default function Navbar() {
     // This device only (found 2026-10-08): the default scope is 'global', so
     // one parent signing out on the home computer signed the other parent out
     // of the same family account on their phone too.
+    clearAccountData()
     await supabase.auth.signOut({ scope: 'local' })
     setIsLoggedIn(false)
     setFirstName('')

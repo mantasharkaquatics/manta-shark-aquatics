@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     const e = email.trim()
     if (!e || !looksLikeEmail(e)) { setError(t('forgot.err.email')); return }
     const fix = emailTypoFix(e.toLowerCase())
-    if (fix) { setError(t('register.err.emailTypo', { email: fix })); return }
+    if (fix) { setError(t('forgot.err.emailTypo', { email: fix })); return }
     setSending(true)
     setError('')
     try {

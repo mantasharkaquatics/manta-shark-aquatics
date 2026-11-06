@@ -13,6 +13,9 @@ import { MedicalQuestion, SafetyEditor } from '@/components/SafetyFields'
 import ContactChange from '@/components/ContactChange'
 import GuardianSection from '@/components/GuardianSection'
 import AccountPrivacy from '@/components/AccountPrivacy'
+import LoadFailed from '@/components/LoadFailed'
+import DobSelect from '@/components/DobSelect'
+import Sheet from '@/components/ui/Sheet'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { fmtDate } from '@/lib/fmt-date'
@@ -48,6 +51,10 @@ export default function AccountPage() {
   type Safety = { contact: { name: string; relation: string; phone: string } | null; students: { id: string; full_name: string; medical_notes: string | null; support_notes?: string | null; answered: boolean }[]; missing: boolean }
   const [safety, setSafety] = useState<Safety | null>(null)
   const [safetyOpen, setSafetyOpen] = useState(false)
+  // Not read is not "nothing" (14-role test 2, J71): said, with a retry.
+  const [safetyErr, setSafetyErr] = useState(false)
+  // One swimmer's health and learning notes in full (J62: the chips cut them off).
+  const [kidSheet, setKidSheet] = useState<string | null>(null)
   // Changing their own email or phone (owner, 2026-10-22).
   const [contactEdit, setContactEdit] = useState<'email' | 'phone' | null>(null)
   const [contactSaved, setContactSaved] = useState<string | null>(null)
@@ -57,7 +64,7 @@ export default function AccountPage() {
   // A view-only family member (owner, 2026-10-23) sees the account and
   // changes nothing on it.
   const [viewOnly, setViewOnly] = useState(false)
-  const loadSafety = () => fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSafety(d) }).catch(() => {})
+  const loadSafety = () => { setSafetyErr(false); return fetch('/api/parent/safety', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null).then(d => { if (d) setSafety(d); else setSafetyErr(true) }) }
   const [confirmingAdd, setConfirmingAdd] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -83,7 +90,7 @@ export default function AccountPage() {
     setViewOnly(role === 'viewer')
     if (role !== 'viewer') loadSafety()
     const { data: parentData } = familyId
-      ? await supabase.from('parents').select('*').eq('id', familyId).single()
+      ? await supabase.from('parents').select('id, auth_user_id, first_name, last_name, email, phone, registered_at, newsletter_subscribed, preferred_language').eq('id', familyId).single()
       : { data: null }
     if (!parentData) {
       const { data: admin } = await supabase
@@ -159,6 +166,7 @@ export default function AccountPage() {
         : j.code === 'DOB_FUTURE' ? t('register.err.dobFuture')
         : j.code === 'DOB' ? t('register.err.studentDob')
         : j.code === 'MEDICAL' ? t('safety.err.medical')
+        : j.code === 'TOO_LONG' ? t('safety.err.tooLong')
         // A name the server will not take (the field stops at 120 characters,
         // so this is rare) or its own failure: English text with no key
         // (found 2026-10-15).
@@ -222,6 +230,7 @@ export default function AccountPage() {
                 // The family's emergency contact (owner, 2026-10-22: it lives
                 // with the family's details; the health answers sit with each
                 // swimmer below). Both edit in the same safety dialog.
+                ...(safetyErr && !safety && !viewOnly ? [{ label: t('safety.contact.title'), wide: true, missing: true, value: t('load.failed') }] : []),
                 ...(safety ? [{
                   label: t('safety.contact.title'), edit: 'safety' as const, wide: true, missing: !safety.contact,
                   value: safety.contact ? `${safety.contact.name}${safety.contact.relation ? (zh ? `（${safety.contact.relation}）` : ` (${safety.contact.relation})`) : ''} · ${formatPhone(safety.contact.phone)}` : t('safety.notAnswered'),
@@ -284,6 +293,7 @@ export default function AccountPage() {
               )}
             </div>
             {safety?.missing && <div className="ac-err" style={{ marginTop: 10 }}>{t('safety.banner.body')}</div>}
+            {safetyErr && !safety && !viewOnly && <LoadFailed compact onRetry={loadSafety} />}
             {students.length > 0 && (
               <div className="ac-stack" style={{ gap: 6, marginTop: 10 }}>
                 {students.map(s => {
@@ -300,15 +310,16 @@ export default function AccountPage() {
                         {s.is_account_holder && !viewOnly && !(showAddForm && newMe) && <span className="ac-tag">{t('account.isYou')}</span>}
                       </div>
                       {h && (
-                        <span className="hls">
-                          <span className={'hl' + (!h.answered ? ' bad' : h.medical_notes ? ' note' : '')} title={h.medical_notes || undefined}>
+                        // A tap shows them in full (J62).
+                        <button type="button" className="hls tap-auto" onClick={() => setKidSheet(s.id)} aria-label={t('account.kidNotes', { name: s.full_name })}>
+                          <span className={'hl' + (!h.answered ? ' bad' : h.medical_notes ? ' note' : '')}>
                             {t('account.healthLabel')}{t('account.healthSep')}{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('account.healthNone')}
                           </span>
                           {/* Learning / sensory needs: their own chip, not 健康 (決定 7). */}
                           {h.support_notes && (
-                            <span className="hl sup" title={h.support_notes}>{t('account.supportLabel')}{t('account.healthSep')}{h.support_notes}</span>
+                            <span className="hl sup">{t('account.supportLabel')}{t('account.healthSep')}{h.support_notes}</span>
                           )}
-                        </span>
+                        </button>
                       )}
                     </div>
                   )
@@ -329,15 +340,14 @@ export default function AccountPage() {
             ) : (
               <div className="ac-item" style={{ display: 'block' }}>
                 <div style={{ marginBottom: 12 }}>
-                  <label className="ac-flabel" htmlFor="ac-name">{t('register.fullName')}</label>
+                  <label className="ac-flabel" htmlFor="ac-name">{t('register.fullName')} <span style={{ color: '#c0392b' }} aria-hidden="true">*</span></label>
                   <input id="ac-name" className="ac-input" type="text" value={newName} maxLength={120}
                     onChange={e => setNewName(e.target.value)} placeholder={t('account.namePlaceholder')} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <label className="ac-flabel" htmlFor="ac-dob">{t('account.dob')} <span style={{ color: '#c0392b' }}>*</span></label>
-                  <input id="ac-dob" className="ac-input" type="date" value={newDob}
-                    max={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
-                    onChange={e => { setNewDob(e.target.value); if (!isAdultOn(e.target.value, todayLA())) setNewMe(false) }} />
+                  <p className="ac-flabel" id="ac-dob-l" style={{ margin: 0 }}>{t('account.dob')} <span style={{ color: '#c0392b' }} aria-hidden="true">*</span></p>
+                  {/* The same three selects as sign-up, in the page's language (J108). */}
+                  <DobSelect value={newDob} labelledBy="ac-dob-l" onChange={v => { setNewDob(v); if (!isAdultOn(v, todayLA())) setNewMe(false) }} />
                 </div>
                 {/* Only for an adult: a child cannot be the account holder. */}
                 {isAdultOn(newDob, todayLA()) && (
@@ -370,6 +380,21 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {kidSheet && (() => {
+        const k = students.find(x => x.id === kidSheet), h = safety?.students.find(x => x.id === kidSheet)
+        if (!k || !h) return null
+        return (
+          <Sheet title={k.full_name} onClose={() => setKidSheet(null)}>
+            <p className="ac-k" style={{ marginTop: 0 }}>{t('account.healthLabel')}</p>
+            <p className="ac-v" style={{ marginTop: 2, whiteSpace: 'pre-wrap' }}>{!h.answered ? t('safety.notAnswered') : h.medical_notes || t('account.healthNone')}</p>
+            <p className="ac-k" style={{ marginTop: 14 }}>{t('account.supportLabel')}</p>
+            <p className="ac-v" style={{ marginTop: 2, whiteSpace: 'pre-wrap' }}>{h.support_notes || '—'}</p>
+            {!viewOnly && (
+              <button type="button" className="ac-btn line" style={{ marginTop: 16 }} onClick={() => { setKidSheet(null); setSafetyOpen(true) }}>{t('account.healthEdit')}</button>
+            )}
+          </Sheet>
+        )
+      })()}
       {safetyOpen && <SafetyEditor parentPhone={parent?.phone} onClose={() => setSafetyOpen(false)} onSaved={() => loadSafety()} />}
 
       {confirmingAdd && (

@@ -22,6 +22,7 @@ export default function SettleArrearsButton({ owed, style, className }: { owed: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settleArrears: true }),
+        signal: AbortSignal.timeout(20000),
       })
       const j = await res.json().catch(() => ({}))
       if (j.url) { window.location.href = j.url; return }

@@ -28,7 +28,7 @@ export function passwordProblem(password: string, email?: string | null): string
   if (password.length > 200) return 'Password is too long.'
   const issue = passwordIssue(password, email)
   if (issue === 'short') return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters.'
-  if (issue === 'simple') return 'That password is too easy to guess. Please avoid one repeated character, runs like 12345678, and common passwords.'
+  if (issue === 'simple') return 'That password is too easy to guess. Please avoid repeating one character (aaaaaaaa), runs like 12345678, dates and common passwords.'
   if (issue === 'email') return 'Please choose a password that is not your email address.'
   return null
 }

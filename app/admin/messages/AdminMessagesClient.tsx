@@ -27,6 +27,7 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
   const t = useT()
   const locale = useLocale()
   const supabase = createClient()
+  const [familyWho, setFamilyWho] = useState<Record<string, { name: string; viewer: boolean }>>({})
   const [threads, setThreads] = useState<any[]>([])
   const [selectedThread, setSelectedThread] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
@@ -195,6 +196,16 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
       .limit(HISTORY_LIMIT)
     if (selectedThreadRef.current?.id !== threadId) return
     setMessages((data || []).reverse())
+    // Which family member wrote, and whether they may only look (14-role
+    // test 2, J07): a view-only member asking to move a lesson needs the
+    // main account's yes first.
+    const pid = selectedThreadRef.current?.parent_id
+    if (pid) supabase.from('parent_guardians').select('id, first_name, role').eq('parent_id', pid)
+      .then(({ data: gs }: { data: { id: string; first_name: string | null; role: string | null }[] | null }) => {
+        const m: Record<string, { name: string; viewer: boolean }> = {}
+        for (const g of gs || []) m[g.id] = { name: g.first_name || '', viewer: g.role === 'viewer' }
+        setFamilyWho(m)
+      })
     setHasOlder((data || []).length === HISTORY_LIMIT)
   }
 
@@ -467,6 +478,11 @@ export default function AdminMessagesClient({ adminName, adminNames = {} }: { ad
                     }}>
                       {msg.sender_type === 'ai' && (
                         <div style={{ fontSize: '10px', fontWeight: 700, color: GOLD, marginBottom: '4px', letterSpacing: '0.5px' }}>{t('chat.fromAi')}</div>
+                      )}
+                      {msg.sender_type === 'parent' && msg.sender_guardian_id && familyWho[msg.sender_guardian_id] && (
+                        <div style={{ fontSize: '10px', fontWeight: 700, marginBottom: '4px', color: familyWho[msg.sender_guardian_id].viewer ? '#f5a524' : 'rgba(255,255,255,0.6)' }}>
+                          {t(familyWho[msg.sender_guardian_id].viewer ? 'admin.messages.fromViewer' : 'admin.messages.fromGuardian', { name: familyWho[msg.sender_guardian_id].name })}
+                        </div>
                       )}
                       {msg.sender_type === 'admin' && msg.sender_admin_id && staffNames[msg.sender_admin_id] && (
                         <div style={{ fontSize: '10px', fontWeight: 700, color: NAVY, opacity: 0.7, marginBottom: '4px', letterSpacing: '0.5px' }}>{staffNames[msg.sender_admin_id]}</div>

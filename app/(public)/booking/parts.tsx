@@ -5,7 +5,7 @@
    問題 6 選項 A): the step bar, the answered-step lines, the section titles,
    the choice cards and the course colours and icons. */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import { fmtDate } from '@/lib/fmt-date'
 import Icon from '@/components/ui/Icon'
@@ -39,7 +39,9 @@ export function SectionTitle({ eyebrow, title, gap = 24 }: { eyebrow?: string; t
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: AMBER, display: 'inline-block' }} />
         {eyebrow}
       </div>}
-      <h2 style={{
+      {/* Focused when its step opens (booking page, J74). */}
+      <h2 data-step-h="" tabIndex={-1} style={{
+        outline: 'none',
         fontFamily: FONT_DISPLAY,
         fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 900,
         color: '#16294a', margin: 0,
@@ -141,6 +143,12 @@ export const hh12 = (tm: string) => {
   const [h, m] = String(tm).slice(0, 5).split(':').map(Number)
   return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+/** hh12 with 上午 / 下午 said to a screen reader, which hears "03:35"
+    otherwise (14-role test 2, J73). The column already shows it. */
+export function TimeLabel({ tm }: { tm: string }) {
+  const t = useT()
+  return <><span className="sr-only">{t(String(tm).slice(0, 5) < '12:00' ? 'booking.fixed.am' : 'booking.fixed.pm')} </span>{hh12(tm)}</>
+}
 
 /* Every list of times in booking is two columns, morning left and afternoon
    right, each time as 09:10 / 02:00 (owner, 2026-11-02 for every week;
@@ -177,12 +185,61 @@ export function AmPmColumns<T>({ items, time, render, count = true }: {
    used to get a sideways row of date chips instead. `days` are the dates
    that may be offered (YYYY-MM-DD, in order); `open` says which have a time.
    The first month starts on the Sunday of the first day's week. */
-export function MonthCalendar({ days, open, selected, onPick, dateTagName, legend }: {
+/* A month of days is one Tab stop (14-role test 2, J78: each day was its
+   own, and choosing a time took 30-40 presses). The stop is the chosen day,
+   else the first day that can be booked, else the first one. Arrows move a
+   day or a week, Home and End to the week's ends, Page Up and Page Down a
+   month. Days that cannot be booked are passed over; a day not open yet is
+   not (a tap on it says when it opens). Kept on the DOM, so the buttons
+   themselves carry no tabIndex. */
+export function useRovingDays(onMonth?: (dir: -1 | 1) => void) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const g = ref.current
+    if (!g) return
+    const days = [...g.querySelectorAll<HTMLButtonElement>('button')]
+    if (days.some(b => b.tabIndex === 0 && b === document.activeElement)) return
+    const stop = days.find(b => b.getAttribute('aria-pressed') === 'true') || days.find(b => !b.hasAttribute('aria-disabled')) || days[0]
+    for (const b of days) b.tabIndex = b === stop ? 0 : -1
+  })
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const g = ref.current
+    const from = (e.target as HTMLElement).closest('button')
+    if (!g || !from || from.parentElement !== g) return
+    const cells = [...g.children] as HTMLElement[]
+    const i = cells.indexOf(from)
+    const ok = (el?: HTMLElement) => !!el && el.tagName === 'BUTTON' && !el.hasAttribute('aria-disabled')
+    let to: HTMLElement | undefined
+    const walk = (step: number) => { for (let k = i + step; k >= 0 && k < cells.length; k += step) if (ok(cells[k])) return cells[k] }
+    switch (e.key) {
+      case 'ArrowRight': to = walk(1); break
+      case 'ArrowLeft': to = walk(-1); break
+      case 'ArrowDown': to = walk(7); break
+      case 'ArrowUp': to = walk(-7); break
+      case 'Home': { const s0 = i - (i % 7); to = cells.slice(s0, i).find(ok); break }
+      case 'End': { const e0 = i - (i % 7) + 6; to = [...cells.slice(i + 1, e0 + 1)].reverse().find(ok); break }
+      case 'PageUp': case 'PageDown': if (onMonth) { e.preventDefault(); onMonth(e.key === 'PageUp' ? -1 : 1) } return
+      default: return
+    }
+    e.preventDefault()
+    if (!to) return
+    for (const c of cells) if (c.tagName === 'BUTTON') (c as HTMLButtonElement).tabIndex = c === to ? 0 : -1
+    to.focus()
+  }
+  return [ref, onKeyDown] as const
+}
+
+export function MonthCalendar({ days, open, selected, onPick, dateTagName, legend, lockedFrom, onLocked }: {
   days: string[]; open: (ds: string) => boolean; selected: string | null; onPick: (ds: string) => void; dateTagName: string | string[] | undefined; legend?: string
+  /** From this date on a day is "not open yet": drawn closed, a tap calls onLocked (as booking one child). */
+  lockedFrom?: string; onLocked?: (ds: string) => void
 }) {
   const t = useT()
   const months = [...new Set(days.map(d => d.slice(0, 7)))]
+  // The month the locked days start in can be paged to, so they can be tapped.
+  if (lockedFrom && onLocked && !months.includes(lockedFrom.slice(0, 7))) months.push(lockedFrom.slice(0, 7))
   const [mi, setMi] = useState(() => Math.max(0, selected ? months.indexOf(selected.slice(0, 7)) : 0))
+  const [rovingRef, rovingKeys] = useRovingDays(dir => setMi(v => Math.max(0, Math.min(months.length - 1, v + dir))))
   const ym = months[Math.min(mi, months.length - 1)]
   if (!ym) return null
   const [y, m] = ym.split('-').map(Number)
@@ -214,21 +271,23 @@ export function MonthCalendar({ days, open, selected, onPick, dateTagName, legen
           <div key={d} style={{ textAlign: 'center', fontSize: '13px', fontWeight: 600, color: '#56647d', padding: '4px 0' }}>{t('date.weekdayShort.' + d)}</div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
+      <div ref={rovingRef} onKeyDown={rovingKeys} role="group" aria-label={t('booking.calMonth', { month: t('date.month.' + m), year: y })}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
         {cells.map((ds, j) => {
           if (!ds) return <div key={'e' + j} />
           const ok = inSet.has(ds) && open(ds)
+          const locked = !ok && !!lockedFrom && !!onLocked && ds >= lockedFrom
           const on = selected === ds
           const isToday = ds === todayDs
           const dt = new Date(Number(ds.slice(0, 4)), Number(ds.slice(5, 7)) - 1, Number(ds.slice(8, 10)))
           return (
-            <button key={ds} type="button" className="kb-focus" aria-pressed={on} aria-disabled={!ok || undefined}
+            <button key={ds} type="button" className="kb-focus" aria-pressed={on} aria-disabled={(!ok && !locked) || undefined}
               aria-current={isToday ? 'date' : undefined}
-              aria-label={fmtDate(dt, dateTagName, { weekday: 'long', month: 'long', day: 'numeric' }) + (ok ? t('booking.aria.hasTimes') : '')}
-              onClick={() => { if (ok && !on) onPick(ds) }}
+              aria-label={fmtDate(dt, dateTagName, { weekday: 'long', month: 'long', day: 'numeric' }) + (ok ? t('booking.aria.hasTimes') : locked ? t('booking.aria.notOpen') : '')}
+              onClick={() => { if (locked) { onLocked!(ds); return } if (ok && !on) onPick(ds) }}
               style={{ padding: '10px 4px', minHeight: '48px', borderRadius: '10px', border: '2px solid transparent', fontFamily: 'inherit',
-                background: on ? BRAND.navy : 'transparent', color: on ? '#fff' : ok ? BRAND.navy : '#b7c2d4',
-                fontSize: '16px', fontWeight: on ? 700 : ok ? 600 : 500, cursor: ok ? 'pointer' : 'not-allowed',
+                background: on ? BRAND.navy : 'transparent', color: on ? '#fff' : ok ? BRAND.navy : locked ? '#5f6b80' : '#b7c2d4',
+                fontSize: '16px', fontWeight: on ? 700 : ok ? 600 : 500, cursor: ok || locked ? 'pointer' : 'not-allowed',
                 outline: isToday && !on ? `1.5px solid ${GOLD}` : 'none', outlineOffset: '-1.5px' }}>
               {Number(ds.slice(8, 10))}
               {ok && !on && <span aria-hidden="true" style={{ display: 'block', width: '4px', height: '4px', borderRadius: '50%', background: AMBER, margin: '2px auto 0' }} />}

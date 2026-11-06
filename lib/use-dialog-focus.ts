@@ -21,6 +21,8 @@ import { useEffect, useRef } from 'react'
    are left to that dialog. */
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+const OPENERS = new WeakMap<HTMLElement, HTMLElement>()
+
 export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(open: boolean, onEscape?: () => void) {
   const box = useRef<T | null>(null)
   const esc = useRef(onEscape)
@@ -29,6 +31,12 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(open: boo
     if (!open) return
     const el = box.current
     const back = document.activeElement as HTMLElement | null
+    // Opened from inside another dialog that is about to close (a sheet's
+    // 取消 opens the confirm): that dialog's own opener is where focus goes
+    // if this one's is gone by then (14-role test 2, J27).
+    const parentBox = back?.closest?.('[role="dialog"]') as HTMLElement | null
+    const fallback = parentBox ? OPENERS.get(parentBox) || null : null
+    if (el && back) OPENERS.set(el, back)
     el?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (!el || e.defaultPrevented) return
@@ -50,7 +58,12 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(open: boo
     el?.addEventListener('keydown', onKey)
     return () => {
       el?.removeEventListener('keydown', onKey)
-      if (back && back !== document.body && back.isConnected) back.focus()
+      // Only when focus is still in this dialog, or nowhere: a dialog that
+      // closes a beat after another opened must not pull focus out of it.
+      const now = document.activeElement
+      if (now && now !== document.body && el && !el.contains(now)) return
+      const to = back && back !== document.body && back.isConnected ? back : fallback && fallback.isConnected ? fallback : null
+      to?.focus()
     }
   }, [open])
   return box

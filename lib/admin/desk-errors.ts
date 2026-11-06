@@ -10,6 +10,8 @@ export const CHECKIN_ERROR_KEYS: Record<string, string> = {
   not_found: 'admin.checkin.err.notFound',
   no_lesson_today: 'admin.checkin.err.noLessonToday',
   not_open: 'admin.checkin.err.notOpen',
+  already_checked_in: 'admin.checkin.err.alreadyIn',
+  inactive: 'admin.checkin.err.inactive',
   team_wrong_session: 'admin.checkin.err.teamWrongSession',
   team_not_open: 'admin.checkin.err.teamNotOpen',
 }

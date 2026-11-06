@@ -18,7 +18,7 @@ export type CheckInMethod = 'qr' | 'manual' | 'self'
 
 export type CheckInResult =
   | { ok: true; student_id: string; student_name: string; current_level: number | null; checked_in_count: number; lesson_times: string[] }
-  | { ok: false; status: number; code: 'not_found' | 'no_lesson_today' | 'not_open' | 'team_wrong_session' | 'team_not_open' | 'db'; error: string }
+  | { ok: false; status: number; code: 'not_found' | 'inactive' | 'no_lesson_today' | 'not_open' | 'already_checked_in' | 'team_wrong_session' | 'team_not_open' | 'db'; error: string; lesson_time?: string }
 
 function toMinutes(t: string): number {
   const parts = t.split(':').map(Number)
@@ -167,11 +167,13 @@ async function teamCheckIn(svc: SupabaseClient, student: { id: string; full_name
 export async function checkInStudent(svc: SupabaseClient, studentId: string, method: CheckInMethod): Promise<CheckInResult> {
   const { data: student } = await svc
     .from('students')
-    .select('id, full_name, current_level')
+    .select('id, full_name, current_level, is_active')
     .eq('id', studentId)
     .single()
 
   if (!student) return { ok: false, status: 404, code: 'not_found', error: 'Student not found' }
+  // A swimmer taken off the account (an old card): not checked in (J88).
+  if (student.is_active === false) return { ok: false, status: 403, code: 'inactive', error: student.full_name + "'s account is no longer active" }
 
   const todayStr = getTodayLA()
   const nowMin = getNowMinutesLA()
@@ -194,6 +196,13 @@ export async function checkInStudent(svc: SupabaseClient, studentId: string, met
     // 2026-10-07). With no lesson open, try the practice.
     const team = await teamCheckIn(svc, student, method, todayStr, nowMin)
     if (team?.ok) return team
+    // Scanned again while the lesson is on: already in, not "nothing open"
+    // (14-role test 2, J11: the desk read it as no booking).
+    const inNow = todays.find(b => attended.has(b.id) && nowMin >= toMinutes(b.cs.start_time) - 30 && nowMin < toMinutes(b.cs.end_time))
+    if (inNow) {
+      const at = formatTime12h(String(inNow.cs.start_time))
+      return { ok: false, status: 409, code: 'already_checked_in', error: student.full_name + ' is already checked in for the ' + at + ' lesson', lesson_time: at }
+    }
     return {
       ok: false, status: 400, code: 'not_open',
       error: student.full_name + ' has no lesson open for check-in right now. Check-in opens 30 minutes before class and closes when the class ends.',

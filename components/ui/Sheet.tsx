@@ -25,7 +25,8 @@ export default function Sheet({ title, label, onClose, children, className, head
       <div ref={box} className={'msa-sheet' + (className ? ' ' + className : '')} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={label || (typeof title === 'string' ? title : undefined)}>
         <div className="msa-sheet-head">
-          <b>{title}</b>
+          {/* A heading, so a screen reader can find it (14-role test 2, J103). */}
+          <h2>{title}</h2>
           {headExtra}
           <button type="button" className="msa-sheet-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
         </div>

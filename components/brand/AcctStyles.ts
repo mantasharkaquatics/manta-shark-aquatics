@@ -36,10 +36,15 @@ export const ACCT_CSS = `
 .ac-kid .nm small { font-size: 12.5px; }
 .ac-kid .nm .ac-tag { margin: 0; }
 .ac-kid .hl { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-align: right; font-size: 12px; font-weight: 700;
-  border-radius: 999px; padding: 3px 9px; background: #e8f5ef; color: #1f7a57; }
+  border-radius: 999px; padding: 0 9px; border-block: 3px solid transparent; line-height: 1.35; background: #e8f5ef; color: #1f7a57; text-wrap: balance; }
 .ac-kid .hl.bad { background: #fdecea; color: #b4321f; }
 .ac-kid .hl.note { background: #fff6e5; color: #8a5300; }
-.ac-kid .hls { flex: none; max-width: 55%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ac-kid .hls { flex: none; max-width: 55%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+/* The padding sits in a transparent border, so the cut falls at the second
+   line's foot, with nothing of a third showing (J62). Large text: the chips
+   go under the name, full width. */
+html[data-text-size] .ac-kid { flex-wrap: wrap; }
+html[data-text-size] .ac-kid .hls { max-width: 100%; flex: 1 0 100%; align-items: flex-start; }
 .ac-kid .hls .hl { max-width: 100%; }
 .ac-kid .hl.sup { background: #ece8fb; color: #4b3a9a; }
 /* Inside the app (owner, 2026-11-04): the account pages start right under

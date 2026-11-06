@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useT } from '@/lib/i18n/provider'
 import { appPlatform, calendarAddPlugin } from '@/lib/native-app'
+import Icon from '@/components/ui/Icon'
 
 /* 把課表加進行事曆 at the top of the schedule (owner, 2026-11-02: all the
    family's lessons at once, kept up to date, never twice, a cancelled lesson
@@ -169,14 +170,14 @@ export default function AddToCalendar() {
         fontSize: '14px', fontWeight: 700, color: feed?.synced ? '#1d6b45' : '#2050a0' }}>
       {feed?.synced ? <span aria-hidden="true" style={{ width: '18px', textAlign: 'center' }}>✓</span> : <CalIcon size={18} />}
       <span style={{ minWidth: 0, flex: 1 }}>{feed?.synced ? t('dash.sync.on') : t('dash.sync.title')}</span>
-      <span aria-hidden="true" style={{ color: '#9aa6ba', fontSize: '18px', lineHeight: 1 }}>›</span>
+      <span aria-hidden="true" style={{ color: '#6b778c', fontSize: '18px', lineHeight: 1 }}>›</span>
     </button>
   )
 
   return (
     <div className="msa-cal-sync" style={{ position: 'relative', background: '#f4f8fd', border: '1px solid #dbe6f4', borderRadius: '14px', padding: '14px', marginBottom: '16px' }}>
       <button type="button" className="tap-auto" aria-label={t('common.close')} onClick={() => setFull(false)}
-        style={{ position: 'absolute', top: '6px', right: '6px', width: '32px', height: '32px', border: 'none', background: 'none', color: '#8a96aa',
+        style={{ position: 'absolute', top: '0', right: '0', width: '44px', height: '44px', border: 'none', background: 'none', color: '#6b778c',
           fontSize: '17px', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>✕</button>
       <>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px', paddingRight: '24px' }}>
@@ -207,14 +208,14 @@ export default function AddToCalendar() {
             )}
             {where.apple === 'native' && (
               <button type="button" disabled={!feed} onClick={subscribeApple} style={{ ...btn, ...(feed?.appleSynced ? on : {}) }}>
-                <AppleCal />{t('dash.sync.iphone')}{feed?.appleSynced && tick}
+                <Icon name="calendar" style={{ fontSize: 18 }} />{t('dash.sync.iphone')}{feed?.appleSynced && tick}
                 {feed?.appleSynced && <span className="sr-only">{t('dash.sync.done')}</span>}
               </button>
             )}
             {where.apple === 'link' && (
               <a href={feed?.webcal || undefined} aria-disabled={!feed || undefined} onClick={e => { if (!feed) e.preventDefault() }}
                 style={{ ...btn, ...(feed?.appleSynced ? on : {}) }}>
-                <AppleCal />{where.label === 'iphone' ? t('dash.sync.iphone') : t('dash.sync.apple')}{feed?.appleSynced && tick}
+                <Icon name="calendar" style={{ fontSize: 18 }} />{where.label === 'iphone' ? t('dash.sync.iphone') : t('dash.sync.apple')}{feed?.appleSynced && tick}
                 {feed?.appleSynced && <span className="sr-only">{t('dash.sync.done')}</span>}
               </a>
             )}
@@ -286,10 +287,4 @@ function GoogleG() {
   )
 }
 
-function AppleCal() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d93825" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <rect x="3" y="4" width="18" height="18" rx="3" /><path d="M16 2v4M8 2v4M3 10h18" />
-    </svg>
-  )
-}
+

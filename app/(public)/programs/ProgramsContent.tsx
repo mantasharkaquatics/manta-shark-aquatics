@@ -8,7 +8,7 @@ import ProgramCards from './ProgramCards'
 import AppInfoPage, { useAppLook } from '@/components/brand/AppInfoPage'
 import { BASE_POINTS } from '@/lib/points'
 import { openChatToTeam } from '@/lib/chat-open'
-import { useIsViewer } from '@/lib/use-viewer'
+import { useFamilyRole } from '@/lib/use-viewer'
 
 /* The Programs overview. It used to hold all four programmes in sections; each
    now has its own page with its own open times (owner, 2026-09-28), so this
@@ -38,7 +38,9 @@ function ProgramsApp() {
   const t = useT()
   // A view-only family member books and joins nothing: no button that would
   // only bounce them back (50-role test, 2026-11-05). Talking to a teacher stays.
-  const viewer = useIsViewer()
+  // A view-only member books nothing; until the role is known no link shows (J08).
+  const fam = useFamilyRole()
+  const viewer = fam === 'viewer'
   const cards = [
     { key: 'private', price: t('appinfo.price.private', { a: BASE_POINTS['1on1'], b: BASE_POINTS['1on2'] }), href: '/booking', btn: t('nav.bookShort') },
     { key: 'group', price: t('appinfo.price.group', { n: BASE_POINTS['1on4'] }), href: '/booking', btn: t('nav.bookShort') },
@@ -56,7 +58,7 @@ function ProgramsApp() {
               <h2>{t(`nav.prog.${c.key}`)}</h2>
               {'team' in c && c.team
                 ? <button type="button" className="ai-btn ghost" onClick={() => openChatToTeam(t('adapt.chatSeed'))}>{c.btn}</button>
-                : viewer ? null : <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>}
+                : viewer || fam === undefined ? null : <Link href={c.href} className={'ai-btn' + (c.ghost ? ' ghost' : '')}>{c.btn}</Link>}
             </div>
             <p className="ai-price">{c.price}</p>
             <p className="d">{t(`programs.${c.key}.sub`)}</p>

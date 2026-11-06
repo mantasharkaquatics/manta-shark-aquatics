@@ -5,7 +5,8 @@
    我的 it used to send the family to 首頁 first, and closing left them there). */
 
 import { useEffect, useRef, useState } from 'react'
-import { useT } from '@/lib/i18n/provider'
+import { useLocale, useT } from '@/lib/i18n/provider'
+import { joinList } from '@/lib/i18n'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { appLook } from '@/lib/native-app'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
@@ -48,6 +49,7 @@ function cachedQr(studentId: string): string {
    2026-11-05). */
 export default function QRModal({ student, onClose, lesson, others = [] }: { student: { id: string; full_name: string }; onClose: () => void; lesson?: string | null; others?: string[] }) {
   const t = useT()
+  const locale = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // The code never changes for a swimmer, so its picture is kept on the
   // phone after the first time and shown at once (owner, 2026-11-05,
@@ -56,16 +58,23 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
   const qrDataUrl = made.id === student.id && made.url ? made.url : cachedQr(student.id)
   const box = useDialogFocus(true, onClose)
 
+  // Without a connection the drawing code could not load and "Loading…"
+  // stayed for good (14-role test 2, J72): said so, and tried again once
+  // the phone is back online.
+  const [failedFor, setFailedFor] = useState<string | null>(null)
+  const [tries, setTries] = useState(0)
   useEffect(() => {
     if (cachedQr(student.id)) return
     const payload = makeQRPayload(student.id)
     let live = true
     import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(payload, QR_OPTS)).then(url => {
       try { localStorage.setItem(QR_KEY + student.id, url) } catch {}
-      if (live) setMade({ id: student.id, url })
-    }).catch(() => {})
-    return () => { live = false }
-  }, [student.id])
+      if (live) { setMade({ id: student.id, url }); setFailedFor(null) }
+    }).catch(() => { if (live) setFailedFor(student.id) })
+    const again = () => setTries(n => n + 1)
+    window.addEventListener('online', again)
+    return () => { live = false; window.removeEventListener('online', again) }
+  }, [student.id, tries])
 
   const handleDownload = () => {
     if (!qrDataUrl) return
@@ -81,10 +90,8 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
       <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')} style={{ background: '#fff', textAlign: 'center' }}>
         <div className="msa-sheet-head" style={{ background: '#fff' }}>
-          <span style={{ textAlign: 'left', minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: GOLD, marginBottom: '2px' }}>{t('dash.qr.eyebrow')}</span>
-            <b style={{ fontFamily: FONT_DISPLAY, fontSize: '20px', fontWeight: 900, color: '#16294a' }}>{student.full_name}</b>
-          </span>
+          {/* The sheets' one title style, no eyebrow (14-role test 2, J67). */}
+          <b style={{ textAlign: 'left', minWidth: 0 }}>{t('dash.qr.titleFor', { name: student.full_name })}</b>
           <button type="button" className="msa-sheet-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
         </div>
         {lesson && <div style={{ fontSize: '14px', fontWeight: 700, color: '#16294a', margin: '-4px 0 14px' }}>{t('dash.qr.today', { lesson })}</div>}
@@ -98,16 +105,17 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
           {qrDataUrl ? (
             <img src={qrDataUrl} alt={t('dash.qrAlt')} style={{ display: 'block', width: '200px', height: '200px' }} />
           ) : (
-            <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-              {t('common.loading')}
+            <div role={failedFor === student.id ? 'alert' : undefined} style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: failedFor === student.id ? '#8a5300' : '#999', fontSize: failedFor === student.id ? '14px' : undefined, lineHeight: 1.5, textAlign: 'center' }}>
+              {failedFor === student.id ? t('dash.qr.offline') : t('common.loading')}
             </div>
           )}
         </div>
 
         {/* Instructions */}
         <p style={{ fontSize: '12px', color: '#56647d', margin: '0 0 20px', lineHeight: 1.6 }}>
-          {t('dash.qr.help')} {t('dash.qr.window')}
-          {others.length > 0 && <><br /><b style={{ color: '#9a5b00' }}>{t('dash.qr.others', { names: others.join('、') })}</b></>}
+          {/* No lesson today: the code is still theirs, said so (14-role test 2, J66). */}
+          {lesson ? <>{t('dash.qr.help')}{t('dash.qr.window')}</> : t('dash.qr.noLesson', { name: student.full_name })}
+          {others.length > 0 && <><br /><b style={{ color: '#9a5b00' }}>{t(others.length > 1 ? 'dash.qr.othersMany' : 'dash.qr.others', { names: joinList(locale, others) })}</b></>}
         </p>
 
         {/* Download button. Not in the app: the iPhone web view cannot save

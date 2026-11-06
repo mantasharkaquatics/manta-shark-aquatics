@@ -231,7 +231,7 @@ export default function ChatPage() {
                     <div className="ib-n">
                       <span className="ico" aria-hidden="true"><Icon name={ICON[n.kind] || 'bell'} /></span>
                       <div style={{ minWidth: 0 }}>
-                        <h2>{n.title}</h2>
+                        <h2>{String(n.title || "").replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, "")}</h2>
                         {n.body && <p>{n.body}</p>}
                         <small>{when(n.created_at)}</small>
                       </div>

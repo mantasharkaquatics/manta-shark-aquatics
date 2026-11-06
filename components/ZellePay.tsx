@@ -38,8 +38,10 @@ const CSS = `
 .zp-s1-phone { display: none; }
 .zp-label { font-size: 11px; letter-spacing: .06em; color: ${BRAND.mute}; margin: 0 0 2px; }
 .zp-name { font-size: 15px; font-weight: 800; color: ${BRAND.navy}; margin: 0; line-height: 1.3; }
-.zp-email { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid #eef2f8; }
-.zp-email span { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 600; color: ${BRAND.navy};  line-height: 1.45; overflow-wrap: anywhere; }
+.zp-email { grid-column: 1 / -1; display: flex; flex-wrap: wrap; row-gap: 8px; align-items: center; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid #eef2f8; }
+/* Breaks only after the @ (its <wbr>); 複製 drops below if need be (J95). */
+.zp-email span { flex: 1 1 min-content; min-width: 0; font-size: 13.5px; font-weight: 600; color: ${BRAND.navy};  line-height: 1.45; overflow-wrap: normal; word-break: keep-all; }
+@media (max-width: 340px) { .zp-email span { overflow-wrap: anywhere } }
 .zp-copy { flex: none; font: inherit; font-size: 12px; font-weight: 700; color: ${BRAND.blue}; background: #eef3fb; border: 1px solid #cfdcef; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .zp-copy[data-done="1"] { color: #1f7a57; background: #e6f4ee; border-color: #b7e0cc; }
 .zp-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }

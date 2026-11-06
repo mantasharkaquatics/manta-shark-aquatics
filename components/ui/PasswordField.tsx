@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n/provider'
 // typed. The eye sits inside the field rather than beside it: a separate
 // control would need its own row and its own label.
 export default function PasswordField({
-  value, onChange, onEnter, autoComplete, className, placeholder, id,
+  value, onChange, onEnter, autoComplete, className, placeholder, id, describedBy, invalid,
 }: {
   value: string
   onChange: (v: string) => void
@@ -17,6 +17,9 @@ export default function PasswordField({
   className: string
   placeholder?: string
   id?: string
+  /** The hint under the box, read with it. */
+  describedBy?: string
+  invalid?: boolean
 }) {
   const t = useT()
   const [shown, setShown] = useState(false)
@@ -30,6 +33,8 @@ export default function PasswordField({
         onKeyDown={e => { if (e.key === 'Enter' && onEnter) onEnter() }}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        aria-describedby={describedBy}
+        aria-invalid={invalid || undefined}
         className={className}
         // Room for the button, so a long password never runs under the eye.
         // Inline rather than a pr-* class: the caller's className already sets

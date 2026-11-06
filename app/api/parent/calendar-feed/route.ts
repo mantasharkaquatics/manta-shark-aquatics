@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   try {
     const googleOn = googleCalendarOn()
     const [{ token, fetchedAt }, links] = await Promise.all([
-      device ? deviceFeedToken(ctx.svc, ctx.parent.id, device) : feedToken(ctx.svc, ctx.parent.id),
+      device ? deviceFeedToken(ctx.svc, ctx.parent.id, device, ctx.user.id) : feedToken(ctx.svc, ctx.parent.id),
       googleOn
         ? ctx.svc.from('google_calendar_links').select('id, google_email').eq('auth_user_id', ctx.user.id).eq('parent_id', ctx.parent.id)
           .order('created_at').then(r => (r.data || []) as { id: string; google_email: string | null }[])

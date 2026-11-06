@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
-import { contactProblem, medicalToStore, supportToStore } from '@/lib/safety-info'
+import { contactProblem, medicalToStore, safetyTooLong, supportToStore } from '@/lib/safety-info'
 import { readSafety, saveContact, saveMedical } from '@/lib/safety-info-server'
 
 export const runtime = 'nodejs'
@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
     const own = new Set((mine || []).map((s: { id: string }) => s.id))
     for (const s of body.students) {
       if (!s || typeof s.id !== 'string' || !own.has(s.id)) return NextResponse.json({ error: 'Unknown swimmer', code: 'STUDENT' }, { status: 400 })
+      // A wrong kind of value is refused, never taken as "clear it" (J113).
+      if (s.notes !== undefined && s.notes !== null && typeof s.notes !== 'string') return NextResponse.json({ error: 'Invalid medical answer', code: 'MEDICAL', id: s.id }, { status: 400 })
+      if (s.support !== undefined && s.support !== null && typeof s.support !== 'string') return NextResponse.json({ error: 'Invalid learning needs', code: 'SUPPORT', id: s.id }, { status: 400 })
+      const long = safetyTooLong(s)
+      if (long) return NextResponse.json({ error: 'Too long', code: 'TOO_LONG', field: long, id: s.id }, { status: 400 })
       const stored = medicalToStore(s)
       if (stored === undefined) return NextResponse.json({ error: 'Answer the medical question for every swimmer', code: 'MEDICAL', id: s.id }, { status: 400 })
       answers.push({ id: s.id, notes: stored, support: supportToStore(s) })

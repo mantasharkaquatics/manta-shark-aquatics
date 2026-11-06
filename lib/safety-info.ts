@@ -38,6 +38,14 @@ export function phoneDigits(raw: string): string {
 
 /** The swimmer's answer as stored: null for "none", the text otherwise.
  *  undefined when the answer is not usable (neither box, or "has" with no text). */
+/** Which answer is past its limit, if any (14-role test 2, J114: the extra
+    was cut off without a word). */
+export function safetyTooLong(a: { notes?: unknown; support?: unknown } | null | undefined): 'notes' | 'support' | null {
+  if (!a) return null
+  if (typeof a.notes === 'string' && a.notes.trim().length > MEDICAL_MAX) return 'notes'
+  if (typeof a.support === 'string' && a.support.trim().length > SUPPORT_MAX) return 'support'
+  return null
+}
 export function medicalToStore(a: Partial<MedicalAnswer> | null | undefined): string | null | undefined {
   if (!a) return undefined
   if (a.none === true) return null
@@ -57,9 +65,11 @@ export type ContactProblem = 'name' | 'relation' | 'phone' | 'same_as_parent'
 
 /** Why an emergency contact cannot be saved, or null when it can. */
 export function contactProblem(c: Partial<EmergencyContact> | null | undefined, parentPhone?: string | null): ContactProblem | null {
-  const name = String(c?.name || '').trim()
-  const relation = String(c?.relation || '').trim()
-  const phone = phoneDigits(String(c?.phone || ''))
+  // Only strings count: anything else is a missing answer, not a crash (J113).
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  const name = str(c?.name).trim()
+  const relation = str(c?.relation).trim()
+  const phone = phoneDigits(str(c?.phone))
   if (!name || name.length > CONTACT_NAME_MAX) return 'name'
   if (!relation || relation.length > RELATION_MAX) return 'relation'
   if (phone.length !== 10) return 'phone'

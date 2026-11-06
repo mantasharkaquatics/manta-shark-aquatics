@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
   const input = await readJson(req)
   if (!input || typeof input.action !== 'string') return badRequest()
 
+  // Who in the family is who, for the chat to tell its own messages from
+  // another family member's (14-role test 2, J07). me: null for the main account.
+  if (input.action === 'family') {
+    const { data: gs } = await svc.from('parent_guardians').select('id, first_name').eq('parent_id', parent.id)
+    const names: Record<string, string> = {}
+    for (const g of (gs || []) as { id: string; first_name: string | null }[]) if (g.first_name) names[g.id] = g.first_name
+    return NextResponse.json({ me: auth.guardianId ?? null, main: parent.first_name || '', names })
+  }
+
   if (input.action === 'open') {
     const found = await oldestThread(svc, parent.id)
     if (found.error) return NextResponse.json({ error: 'failed' }, { status: 500 })

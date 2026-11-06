@@ -12,7 +12,15 @@ export default function SheetSwipe() {
     let start: { y: number; sheet: HTMLElement } | null = null
     const down = (e: TouchEvent) => {
       const t = e.target instanceof Element ? e.target : null
-      const head = t?.closest('.msa-sheet-head, .msa-lsheet-top, .msa-lsheet-grab, .sw-top, .sw-grab')
+      let head = t?.closest('.msa-sheet-head, .msa-lsheet-top, .msa-lsheet-grab, .sw-top, .sw-grab') as HTMLElement | null | undefined
+      // The bare top of a sheet -- its padding, the gap by the grab bar --
+      // pulls too, above its title row and only while scrolled to the top
+      // (14-role test 2, J80: only the 5px bar and the title did).
+      if (!head && t?.matches('.sw-sheet, .msa-lsheet')) {
+        const bare = t as HTMLElement
+        const topEl = bare.querySelector('.sw-top, .msa-lsheet-top')
+        if (topEl && e.touches[0].clientY < topEl.getBoundingClientRect().bottom && bare.scrollTop === 0) head = bare
+      }
       if (!head || t?.closest('button, a, input, textarea, select')) return
       const sheet = head.closest('.msa-sheet, .msa-lsheet, .sw-sheet') as HTMLElement | null
       if (!sheet || window.innerWidth > 640) return

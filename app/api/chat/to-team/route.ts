@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
+import { insertParentMessage } from '@/lib/chat-author'
 import { readJson, badRequest } from '@/lib/http'
 import { translate, isLocale } from '@/lib/i18n/all'
 import { alertDeskChat } from '@/lib/chat-desk-alert'
@@ -29,9 +30,7 @@ export async function POST(req: NextRequest) {
   const { data: thread } = await svc.from('chat_threads').select('id, parent_id, escalation_summary').eq('id', input.thread_id).maybeSingle()
   if (!thread || thread.parent_id !== parent.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data: msg, error } = await svc.from('chat_messages')
-    .insert({ thread_id: thread.id, sender_type: 'parent', body })
-    .select('*').single()
+  const { data: msg, error } = await insertParentMessage(svc, { thread_id: thread.id, sender_type: 'parent', body }, auth.guardianId)
   if (error || !msg) {
     console.error('[chat/to-team]', error)
     return NextResponse.json({ error: 'failed' }, { status: 500 })
