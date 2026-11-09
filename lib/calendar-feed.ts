@@ -64,27 +64,49 @@ export async function feedToken(svc: SupabaseClient, parentId: string): Promise<
    and the feed refuses one whose owner is no longer in the family. Before
    docs/migration-calendar-owner.sql the column is not there: written and
    read without it, as before. */
+/* One row per family and device (unique parent_id, device_id). Rows made
+   before the owner column have no owner: the first family member to ask
+   from that device takes it (an error mail, 2026-11-08: looking only for
+   rows with one's own owner missed them, and the insert then met the
+   unique key). Another member signed in on the same browser gets a row
+   of their own under `<device>~<their id>`. */
+type DevRow = { token: string; fetched_at: string | null; auth_user_id?: string | null }
 export async function deviceFeedToken(svc: SupabaseClient, parentId: string, deviceId: string, authUserId?: string): Promise<{ token: string; fetchedAt: string | null }> {
-  let owned = !!authUserId
-  const read = async () => {
-    let q = svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId)
-    if (owned) q = q.eq('auth_user_id', authUserId!)
-    let { data, error } = await q.maybeSingle()
-    if (error && owned) {
-      owned = false
-      ;({ data, error } = await svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', deviceId).maybeSingle())
+  let owners = !!authUserId // false once the column is known to be missing
+  const read = async (dev: string): Promise<DevRow | null> => {
+    if (owners) {
+      const { data, error } = await svc.from('calendar_feed_devices').select('token, fetched_at, auth_user_id').eq('parent_id', parentId).eq('device_id', dev).maybeSingle()
+      if (!error) return data as DevRow | null
+      owners = false
     }
-    const row = data as { token: string; fetched_at: string | null } | null
-    return row ? { token: row.token, fetchedAt: row.fetched_at } : null
+    const { data, error } = await svc.from('calendar_feed_devices').select('token, fetched_at').eq('parent_id', parentId).eq('device_id', dev).maybeSingle()
+    if (error) throw new Error('calendar_feed_devices read failed: ' + error.message)
+    return data as DevRow | null
   }
-  const have = await read()
-  if (have) return have
+  const out = (r: DevRow) => ({ token: r.token, fetchedAt: r.fetched_at })
+  // A row this person may use: theirs, or one with no owner (claimed now).
+  const mine = async (r: DevRow): Promise<boolean> => {
+    if (!owners || r.auth_user_id === authUserId) return true
+    if (r.auth_user_id) return false
+    await svc.from('calendar_feed_devices').update({ auth_user_id: authUserId }).eq('token', r.token).is('auth_user_id', null)
+    return true
+  }
+  const find = async (dev: string) => {
+    const r = await read(dev)
+    if (!r) return null
+    return (await mine(r)) ? out(r) : 'other' as const
+  }
+  let dev = deviceId
+  let have = await find(dev)
+  if (have === 'other') { dev = `${deviceId}~${authUserId}`; have = await find(dev) }
+  if (have && have !== 'other') return have
   const token = randomBytes(24).toString('base64url')
-  let { error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token, ...(owned ? { auth_user_id: authUserId } : {}) })
-  if (error && owned) ({ error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: deviceId, token }))
+  let { error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: dev, token, ...(owners ? { auth_user_id: authUserId } : {}) })
+  if (error && owners) ({ error } = await svc.from('calendar_feed_devices').insert({ parent_id: parentId, device_id: dev, token }))
   if (error) {
-    const again = await read()
-    if (again) return again
+    // Two requests at once: the other one's row.
+    const again = await find(dev)
+    if (again && again !== 'other') return again
     throw new Error('calendar_feed_devices insert failed: ' + error.message)
   }
   return { token, fetchedAt: null }
