@@ -50,9 +50,16 @@ const PAGE_CSS = `
 .fc-chip.on { border: 2px solid #f09800; background: #fff4e0; color: #8a5300; }
 .fc-chip:disabled { cursor: not-allowed; color: #a7b2c4; background: #f6f9fd; border-color: #e3ebf6; }
 .fc-chip.off { cursor: default; color: #6b778c; background: #f1f3f7; border-color: #e3ebf6; }
-.fc-lessons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.fc-lesson { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 7px; background: #eef4fc; color: #16294a; }
-.fc-lesson em { font-style: normal; font-weight: 700; color: #b06a00; margin-left: 4px; }
+/* The dates: one row a month, five equal cells, 11/10 (owner, 2026-11-09,
+   選項 A -- as the booking page's fixed-class calendar). What a date adds
+   (24 小時內, another coach, the pool) is a small second line. */
+.fc-lessons { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.fc-month { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.fc-lesson { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 8px 2px;
+  font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; border-radius: 8px; background: #eef4fc; color: #16294a; }
+.fc-lesson small, .fc-lesson em { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; margin-top: 2px; }
+.fc-lesson small { font-weight: 600; }
+.fc-lesson em { font-style: normal; font-weight: 800; color: #b06a00; white-space: normal; word-break: keep-all; text-align: center; }  /* never cut: 24 / 小時內 on a narrow phone */
 /* A week with another coach than the class's own (owner, 2026-11-02). */
 .fc-lesson.sub { background: #7b61c4; color: #fff; }
 .fc-lesson.sub em { color: #fff; }
@@ -113,6 +120,7 @@ export default function FixedClassPage() {
   const tErr = (raw?: string | null, fb = 'cart.err.network') => { const k = errorKey(raw); return k ? t(k) : (raw || t(fb)) }
   const day = (d: string, o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', weekday: 'short' }) =>
     fmtDate(new Date(d + 'T12:00:00Z'), loc, { ...o, timeZone: 'UTC' })
+  const mmdd = (d: string) => d.slice(5, 7) + '/' + d.slice(8, 10)
   // A whole error answer: a lost original lesson names its points, a full
   // class its date (lib/i18n/errors errorKeyFor, F81).
   const tErrOf = (j: Parameters<typeof errorKeyFor>[0]) => { const r = errorKeyFor(j, d => day(d)); return r ? t(r.key, r.vars) : (typeof j?.error === 'string' && j.error ? j.error : t('cart.err.network')) }
@@ -191,7 +199,14 @@ export default function FixedClassPage() {
   // One pool for every lesson left (the usual case) is said once, under the
   // title; lessons split across pools say theirs on each date instead.
   const subOf = (l: { coachId?: string }) => !!fc && !!l.coachId && l.coachId !== fc.coachId
-  const poolIds = fc ? [...new Set((fc.lessons.length ? fc.lessons.map(l => l.locationId) : [fc.locationId]).map(x => x || DEFAULT_LOCATION_ID))] : []
+  // The dates, one row a month.
+  const lessonMonths: FC['lessons'][] = []
+  for (const l of fc?.lessons ?? []) {
+    const last = lessonMonths[lessonMonths.length - 1]
+    if (last && last[0].date.slice(0, 7) === l.date.slice(0, 7)) last.push(l)
+    else lessonMonths.push([l])
+  }
+  const poolIds = fc ?[...new Set((fc.lessons.length ? fc.lessons.map(l => l.locationId) : [fc.locationId]).map(x => x || DEFAULT_LOCATION_ID))] : []
   const onePool = pools && poolIds.length === 1 ? poolOf(poolIds[0]) : null
   const perLessonPool = !!pools && poolIds.length > 1
 
@@ -571,17 +586,28 @@ export default function FixedClassPage() {
                 {fc.last && <div><div className="ac-k">{t('fixedPage.last')}</div><div className="ac-v">{day(fc.last)}</div></div>}
               </div>
               <div className="fc-lessons">
-                {fc.lessons.map(l => !viewer && l.within24h && l.bookingId ? (
-                  <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} onClick={() => { setMsg(null); setIn24({ date: l.date, start: l.start }) }}>
-                    {day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}<em>{t('fixedPage.in24h')}</em>
-                  </button>
-                ) : viewer || l.within24h || !l.bookingId ? (
-                  <span key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'}>{day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}{l.within24h && <em>{t('fixedPage.in24h')}</em>}</span>
-                ) : (
-                  <button key={l.date} className={subOf(l) ? 'fc-lesson sub' : 'fc-lesson'} title={t('fixedPage.leave.tap')}
-                    onClick={() => { setMsg(null); setLeaveFor({ date: l.date, start: l.start, bookingId: l.bookingId! }) }}>
-                    {day(l.date, { month: 'short', day: 'numeric' })}{subOf(l) ? ' · ' + l.coachName : ''}{perLessonPool && poolOf(l.locationId) ? ' · ' + poolOf(l.locationId)!.name : ''}
-                  </button>
+                {lessonMonths.map(m => (
+                  <div key={m[0].date.slice(0, 7)} className="fc-month">
+                    {m.map(l => {
+                      const cls = subOf(l) ? 'fc-lesson sub' : 'fc-lesson'
+                      const pool = perLessonPool && poolOf(l.locationId) ? poolOf(l.locationId)!.name : ''
+                      const inner = <>
+                        <span>{mmdd(l.date)}</span>
+                        {subOf(l) && <small>{l.coachName}</small>}
+                        {pool && <small>{pool}</small>}
+                        {l.within24h && <em>{t('fixedPage.in24h')}</em>}
+                      </>
+                      const label = [day(l.date), subOf(l) ? l.coachName : '', pool, l.within24h ? t('fixedPage.in24h') : ''].filter(Boolean).join(' · ')
+                      return !viewer && l.within24h && l.bookingId ? (
+                        <button key={l.date} type="button" className={cls} aria-label={label} onClick={() => { setMsg(null); setIn24({ date: l.date, start: l.start }) }}>{inner}</button>
+                      ) : viewer || l.within24h || !l.bookingId ? (
+                        <span key={l.date} className={cls} aria-label={label} role="text">{inner}</span>
+                      ) : (
+                        <button key={l.date} type="button" className={cls} aria-label={label} title={t('fixedPage.leave.tap')}
+                          onClick={() => { setMsg(null); setLeaveFor({ date: l.date, start: l.start, bookingId: l.bookingId! }) }}>{inner}</button>
+                      )
+                    })}
+                  </div>
                 ))}
               </div>
               <p className="ac-desc" style={{ margin: '10px 0 0' }}>{t(fam === 'viewer' ? 'fixedPage.viewerNote' : 'fixedPage.leave.hint')}</p>

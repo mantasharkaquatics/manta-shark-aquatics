@@ -18,16 +18,15 @@ import QRModal, { warmQr } from '../CheckinQr'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { useFamilyRole } from '@/lib/use-viewer'
 import Sheet from '@/components/ui/Sheet'
-import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Icon from '@/components/ui/Icon'
 import LoadFailed from '@/components/LoadFailed'
-import { clearAccountData } from '@/lib/local-account-data'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
    booking with another family, referring a friend, the suggestion box -- and
    the school's own pages (programs, prices, policies), which the app has no
-   website bar for. Signing out is here too; the language is the top bar's
+   website bar for. Signing out is at the foot of 帳號與孩子 (owner,
+   2026-11-09); the language is the top bar's
    button, not a section here (owner, 2026-11-02). In a browser the
    page works as well; nothing links to it there.
    Owner, 2026-11-01 (version 2): the family's money is all here -- the points
@@ -92,16 +91,13 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-pl .go { margin-top: auto; padding-top: 6px; font-size: 12.5px; font-weight: 800; color: ${BRAND.blue}; }
 .mx-pl .go.renew { color: #a36100; }
 .mx-pl a.empty { width: auto; flex: 1; align-items: center; justify-content: center; text-align: center; min-height: 92px; }
-/* Four small buttons, then signing out. */
+/* Four small buttons. */
 .mx-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .mx-mini button { border: 0; font-family: inherit; cursor: pointer; text-align: left; }
 .mx-mini a, .mx-mini button { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 800;
   color: ${BRAND.ink}; text-decoration: none; min-width: 0; }
 /* Two lines rather than cut off (50-role test, 2026-11-05). */
 .mx-mini a span, .mx-mini button span { min-width: 0; overflow-wrap: normal; word-break: keep-all; hyphens: manual; line-height: 1.25; }
-.mx-out { align-self: center; margin-top: 12px; padding: 8px 18px; border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 700;
-  color: ${BRAND.mute}; cursor: pointer; }
-.mx-out:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; border-radius: 8px; }
 /* Whose QR, when there is more than one swimmer. */
 /* 我的's choice of swimmer is a sheet (決定 9): its rows. */
 .mx-pick-list button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 12px;
@@ -118,7 +114,6 @@ html[lang="en"] .mx-pl small { font-size: 11.5px; }
   .mx-sec { margin: 8px 2px 6px; }
   .mx-pl a, .mx-pl .mx-plc { padding: 9px 11px; } .mx-pl .who { display: none; } .mx-pl b { margin-top: 4px; }
   .mx-mini { margin-top: 6px; gap: 6px; } .mx-mini a, .mx-mini button { padding: 9px 12px; }
-  .mx-out { margin-top: 2px; padding: 6px 18px; }
 }
 `
 
@@ -165,8 +160,8 @@ export default function MePage() {
   const [pickQr, setPickQr] = useState(false)
   /* The sheets 我的 opens over itself (owner, 2026-11-04: over 首頁 the tab
      changed under them): the statement alone, refer-a-friend alone, the
-     suggestion box, and the sign-out question. */
-  const [sheet, setSheet] = useState<null | 'points' | 'refer' | 'suggest' | 'out'>(null)
+     suggestion box. */
+  const [sheet, setSheet] = useState<null | 'points' | 'refer' | 'suggest'>(null)
   // Focus into each sheet, kept there, and back to its button on close (50-role test, 2026-11-05).
   const sheetBox = useDialogFocus(sheet === 'points' || sheet === 'refer', () => setSheet(null))
   const [plans, setPlans] = useState<{ fixed: Fixed[]; vouchers: Voucher[]; team: Team[]; at: number } | null>(null)
@@ -228,14 +223,6 @@ export default function MePage() {
   const roleNow = role ?? cachedRole
   const viewer = roleNow === 'viewer'
   const pays = roleNow === 'main' || roleNow === 'full'
-
-  async function signOut() {
-    // This phone only, as the site bar does. What the phone kept for this
-    // family goes too (J06).
-    clearAccountData()
-    await supabase.auth.signOut({ scope: 'local' })
-    router.replace('/login')
-  }
 
   /* 我的方案: one card per fixed class, one per child's make-up vouchers, one
      per swim-team place -- each going where it is used. */
@@ -407,8 +394,8 @@ export default function MePage() {
           <button type="button" className="tap-auto" onClick={() => setSheet('suggest')}><span aria-hidden="true" className="ic"><Icon name="mail" /></span><span>{t('suggest.link')}</span></button>
         </nav>
 
-        {/* Asked first (owner, 2026-11-04: too easy to tap by mistake). */}
-        <button type="button" className="mx-out tap-auto" onClick={() => setSheet('out')}>{t('nav.signOut')}</button>
+        {/* 登出 lives at the foot of 帳號與孩子 (owner, 2026-11-09, 選項 A:
+            here it was too easy to see and tap). */}
       </div>
 
       {sheet === 'points' && wallet && (
@@ -435,10 +422,6 @@ export default function MePage() {
       )}
       {sheet === 'suggest' && <SuggestionSheet onClose={() => setSheet(null)} />}
       {/* A decision: kind ② (決定 9), the way out left, 登出 right. */}
-      {sheet === 'out' && (
-        <ConfirmDialog id="me-out" title={t('me.out.ask')} yesLabel={t('nav.signOut')} danger
-          onNo={() => setSheet(null)} onYes={signOut}>{t('me.out.body')}</ConfirmDialog>
-      )}
       {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} lesson={lessonOf(qrKid.id)}
         others={kids.filter(k => k.id !== qrKid.id && lessonOf(k.id)).map(k => k.full_name)} />}
       {/* Whose code: a choice to look at, kind ① (決定 9). */}

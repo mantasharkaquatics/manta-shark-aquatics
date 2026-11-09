@@ -49,6 +49,11 @@ html[data-text-size] .ac-kid .hls { max-width: 100%; flex: 1 0 100%; align-items
 .ac-kid .hl.sup { background: #ece8fb; color: #4b3a9a; }
 /* Inside the app (owner, 2026-11-04): the account pages start right under
    the top bar, with a smaller heading, and do not bounce. */
+/* 登出, at the foot of 帳號與孩子 in the app only (owner, 2026-11-09: on
+   我的 it was too easy to see); the website bar has its own. */
+.ac-out { display: none; }
+html.msa-app .ac-out { display: block; margin: 18px auto 4px; padding: 10px 18px; border: 0; background: none; font: inherit;
+  font-size: 13px; font-weight: 600; color: #8a96aa; cursor: pointer; }
 html.msa-app .ac-wrap { padding: 10px 16px 16px; }
 html.msa-app .ac-head { margin-bottom: 12px; }
 html.msa-app .ac-h1 { font-size: 24px; margin: 4px 0 2px; }

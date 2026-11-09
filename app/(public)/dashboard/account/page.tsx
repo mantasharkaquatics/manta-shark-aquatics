@@ -16,6 +16,8 @@ import AccountPrivacy from '@/components/AccountPrivacy'
 import LoadFailed from '@/components/LoadFailed'
 import DobSelect from '@/components/DobSelect'
 import Sheet from '@/components/ui/Sheet'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { clearAccountData } from '@/lib/local-account-data'
 import { formatPhone, medicalToStore, type MedicalAnswer } from '@/lib/safety-info'
 import { myParentId, myFamilyRole } from '@/lib/my-parent'
 import { fmtDate } from '@/lib/fmt-date'
@@ -34,6 +36,14 @@ export default function AccountPage() {
   const locale = useLocale()
   const supabase = createClient()
   const router = useRouter()
+  const [askOut, setAskOut] = useState(false)
+  async function signOut() {
+    // This phone only, as the site bar does; what the phone kept for this
+    // family goes too (J06).
+    clearAccountData()
+    await supabase.auth.signOut({ scope: 'local' })
+    router.replace('/login')
+  }
   const [parent, setParent] = useState<Parent | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -378,7 +388,13 @@ export default function AccountPage() {
           {!viewOnly && <AccountPrivacy />}
 
         </div>
+        {/* Signing out moved here from 我的 (owner, 2026-11-09, 選項 A). */}
+        <button type="button" className="ac-out tap-auto" onClick={() => setAskOut(true)}>{t('nav.signOut')}</button>
       </div>
+      {askOut && (
+        <ConfirmDialog id="ac-out" title={t('me.out.ask')} yesLabel={t('nav.signOut')} danger
+          onNo={() => setAskOut(false)} onYes={signOut}>{t('me.out.body')}</ConfirmDialog>
+      )}
 
       {kidSheet && (() => {
         const k = students.find(x => x.id === kidSheet), h = safety?.students.find(x => x.id === kidSheet)

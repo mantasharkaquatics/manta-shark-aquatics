@@ -517,7 +517,9 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   progress bar from total/left, make-up vouchers, swim team), or one
   "no plans yet / book" card. Four small buttons: 帳號與孩子, 通知設定
   (/dashboard/me/notifications, app only -- the push switches moved there),
-  關於學校 (/dashboard/me/school, the six school pages), 意見箱 (called 寫給我們 until 2026-11-06, run-2 J10: it read like the desk; the sheet now points leave and lesson changes to 訊息); then 登出.
+  關於學校 (/dashboard/me/school, the six school pages), 意見箱 (called 寫給我們 until 2026-11-06, run-2 J10: it read like the desk; the sheet now points leave and lesson changes to 訊息). No 登出 on 我的
+  (owner, 2026-11-09, 選項 A: too easy to see): it is small grey text at the
+  foot of 帳號與孩子, in the app only (`.ac-out`; the website bar has its own).
   A view-only member sees no points and no shortcuts. Under 720px of
   height everything tightens and the plan cards drop the child's name.
   **Its sheets open over 我的 itself** (owner, 2026-11-04: from /dashboard
@@ -527,7 +529,7 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   live in app/(public)/dashboard/FamilySheets.tsx, shared with the dashboard,
   whose ?points= sheet (from emails) still shows points, referral and team
   together. The suggestion box asks 確定要送出嗎？ before sending, and 登出
-  (now small grey text) asks 要登出嗎？ first -- both too easy to tap by
+  (small grey text, now on 帳號與孩子) asks 要登出嗎？ first -- both too easy to tap by
   mistake. Still linked into the dashboard: ?team= and ?qr=. No language
   section on 我的: the top bar's language button is the one place to switch
   (owner, 2026-11-02).
@@ -892,6 +894,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   shortened, so the screen is not so long"): the panel's totals are one line,
   the hints are a few words, the coach hint is gone on these two paths, and
   the every-week basket box has no heading row (the bar says the count).
+- **The fixed-class page lists its dates the same way** (owner, 2026-11-09,
+  選項 A): one row a month, five equal cells, 11/10; 24 小時內, another
+  coach and the pool are a small second line in the cell.
 - **The dates of a fixed class are a calendar, one row a month** (owner,
   2026-11-02, version A of three): each cell is the date as 11/03 -- two
   digits each, so they line up like 02:00, and no month column beside the
@@ -1192,7 +1197,7 @@ the contained problems were fixed the same day. What to keep doing:
     and ends above the tabs (a tab tapped leaves it). The styles live in
     app/globals.css. The check-in QR, the lesson detail, the vouchers, a
     day of the month view and the booking page's "not open yet" are sheets;
-    我的's 登出 is a ConfirmDialog; its 'whose QR' is a Sheet.
+    登出 (帳號與孩子) is a ConfirmDialog; 我的's 'whose QR' is a Sheet.
   - **Line icons, not emoji (owner, 2026-11-05, 決定 10 選項 A)**: every
     icon in the parent pages and the app is `components/ui/Icon` (the tab
     bar's drawing: 24-unit box, 1.9 stroke, round ends, currentColor; no
