@@ -105,7 +105,7 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 /* Whose QR, when there is more than one swimmer. */
 /* 我的's choice of swimmer is a sheet (決定 9): its rows. */
 .mx-pick-list button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; margin-bottom: 8px; border-radius: 12px;
-  background: #f4f7fb; border: 0; font: inherit; font-size: 15.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
+  background: #fff; border: 1px solid #d6e0ee; box-shadow: 0 1px 2px rgba(14,29,59,0.06); font: inherit; font-size: 15.5px; font-weight: 800; color: ${BRAND.ink}; text-decoration: none; cursor: pointer; }
 /* English runs longer: a little tighter, so 我的 still fits one screen (J53). */
 html[lang="en"] .mx-mini a, html[lang="en"] .mx-mini button { font-size: 13px; }
 html[lang="en"] .mx-pl small { font-size: 11.5px; }

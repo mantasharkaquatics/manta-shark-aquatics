@@ -105,7 +105,7 @@ const css = `
   .msa-tb [aria-current="page"] { color: ${BRAND.navy}; background: #e6edf8; }
   .msa-tb a:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: -2px; }
   .msa-tb .ic { position: relative; display: block; width: 24px; height: 24px; }
-  .msa-tb .bd.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: -2px; right: -4px; border: 2px solid #fff; box-sizing: content-box; }
+  .msa-tb .bd.dot { min-width: 10px; min-height: 0; width: 10px; height: 10px; padding: 0; top: -2px; right: -4px; border: 2px solid #fff; box-sizing: content-box; }
   .msa-tb .bd { position: absolute; top: -4px; right: -9px; min-width: 16px; min-height: 16px; padding: 0 4px; border-radius: 999px; box-sizing: border-box;
     background: #d13438; color: #fff; font-size: 10px; line-height: 1.6; text-align: center; font-style: normal; }
 `
