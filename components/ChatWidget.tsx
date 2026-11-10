@@ -550,30 +550,30 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
   const listRef = useRef<HTMLDivElement>(null)
-  /* A firm pull down on the conversation puts the keyboard away (owner,
-     2026-11-10, 選項 A, "like Instagram": closing on any 12px drag, either
-     way, was too touchy). Only a finger moving DOWN (back to older
-     messages), and only a flick (0.6px/ms over the last move, after 24px)
-     or a long pull (90px). Up, or a slow small drag, leaves it. Touch only,
-     so new messages scrolling the list never close it. */
-  const drag = useRef<{ y0: number; y: number; t: number } | null>(null)
+  /* The keyboard stays up while the conversation is scrolled; a tap on it
+     puts the keyboard away (owner, 2026-11-10: "as in Messenger", after a
+     firm pull down -- like Instagram -- still felt wrong). A tap = the
+     finger lifted within 10px and 350ms of where it landed, not on a
+     button or link (a photo is a button; those do their own thing). On the iPhone a tap
+     on plain text never takes the focus from the box by itself. */
+  const tap = useRef<{ x: number; y: number; t: number } | null>(null)
   const feedTouch = {
     onTouchStart: (e: React.TouchEvent) => {
-      const y = e.touches[0]?.clientY
-      drag.current = y == null ? null : { y0: y, y, t: e.timeStamp }
+      const p = e.touches[0]
+      tap.current = p && e.touches.length === 1 ? { x: p.clientX, y: p.clientY, t: e.timeStamp } : null
     },
     onTouchMove: (e: React.TouchEvent) => {
-      const d = drag.current, y = e.touches[0]?.clientY
-      if (!d || y == null) return
-      const down = y - d.y0, dt = e.timeStamp - d.t
-      const speed = dt > 0 ? (y - d.y) / dt : 0
-      d.y = y; d.t = e.timeStamp
-      if (down < 24 || (down < 90 && speed < 0.6)) return
-      drag.current = null
+      const s = tap.current, p = e.touches[0]
+      if (s && p && Math.hypot(p.clientX - s.x, p.clientY - s.y) > 10) tap.current = null
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      const s = tap.current
+      tap.current = null
+      if (!s || e.timeStamp - s.t > 350) return
+      if ((e.target as Element | null)?.closest?.('button, a, input, textarea, select, [role="button"]')) return
       const box = inputRef.current
       if (box && document.activeElement === box) box.blur()
     },
-    onTouchEnd: () => { drag.current = null },
   }
   /* The conversation first appears already at its newest message (owner,
      2026-10-28: the whole history used to fly past on opening). Until the

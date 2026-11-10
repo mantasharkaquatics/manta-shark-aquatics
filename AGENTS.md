@@ -1221,11 +1221,11 @@ the contained problems were fixed the same day. What to keep doing:
     use `CourseIcon` (booking/parts.tsx; 1-on-4 is a group of children, not
     a family). New icon: add its shape to Icon.tsx, never an emoji in a
     page. Emails, push texts and the celebration keep theirs.
-  - **A firm pull down on the conversation puts the keyboard away** (owner,
-    2026-11-10, 選項 A, "like Instagram"; any 12px drag was too touchy):
-    `feedTouch` blurs the box only when the finger moves DOWN and either
-    flicks (0.6px/ms, after 24px) or pulls 90px. Up or a slow small drag
-    leaves it. Touch only -- a list scrolled by new messages never does.
+  - **Scrolling the conversation leaves the keyboard up; a tap on it puts
+    the keyboard away** (owner, 2026-11-10: "as in Messenger", after a
+    drag-to-close and then a firm-pull-down version, like Instagram, both
+    felt wrong). `feedTouch`: a tap is a finger lifted within 10px and
+    350ms, not on a button or link. Do not bring drag-to-close back.
   - **The send button never takes the focus** (owner, 2026-11-10): its
     mousedown is prevented, so on the iPhone the keyboard stays up and the
     first tap sends (before, it closed the keyboard, the row slid down and
