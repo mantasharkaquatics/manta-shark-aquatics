@@ -346,6 +346,12 @@ html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0
   --app-bar-h: 72px; --app-tab-h: calc(74px + var(--app-tab-gap)); --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
+/* The keyboard is up (html.msa-kb, set by the iOS app, SceneDelegate.swift;
+   owner, 2026-11-10): the web view now ends at the keyboard, so the tabs
+   would ride on it -- they go, and nothing keeps room for them or for the
+   home-indicator band, which the keyboard covers. */
+html.msa-app.msa-kb { --app-sab: 0px; --app-tab-h: 0px; --app-tab-now: 0px; }
+html.msa-app.msa-kb .msa-tb { display: none !important; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }

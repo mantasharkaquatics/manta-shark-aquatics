@@ -39,6 +39,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 /// loadView is final), hence a container rather than a constraint.
 class SafeAreaContainer: UIViewController {
     private let child: UIViewController
+    /// The web view's bottom edge: the screen's bottom, or the keyboard's top.
+    private var bottomPin: NSLayoutConstraint?
 
     init(child: UIViewController) {
         self.child = child
@@ -57,13 +59,68 @@ class SafeAreaContainer: UIViewController {
             child.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             child.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             child.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            // Down to the very bottom: the page runs under the home indicator,
-            // its own colour behind the floating tabs (owner, 2026-10-28: the
-            // white band below the tabs had to go). The page keeps its tabs
-            // above the indicator with env(safe-area-inset-bottom).
-            child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        // Down to the very bottom: the page runs under the home indicator,
+        // its own colour behind the floating tabs (owner, 2026-10-28: the
+        // white band below the tabs had to go). The page keeps its tabs
+        // above the indicator with env(safe-area-inset-bottom). With the
+        // keyboard up, down to the keyboard (keyboardWillMove).
+        let pin = child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        pin.isActive = true
+        bottomPin = pin
         child.didMove(toParent: self)
+        watchKeyboard()
+    }
+
+    // MARK: The keyboard (owner, 2026-11-10: the chat felt jerky)
+    //
+    // WKWebView's own answer to the keyboard is to push the whole page up
+    // under the status bar: the header went off screen, a drag sometimes
+    // moved that pushed-up page instead of the messages, and it all sprang
+    // back when the keyboard went. Instead the web view now ends at the
+    // keyboard's top, moving with the keyboard's own timing, so the page
+    // is simply shorter: header in place, the input row on the keyboard,
+    // only the messages scroll -- as in Messages or Instagram. The page is
+    // told with html.msa-kb (it hides the tabs then). The Capacitor
+    // Keyboard plugin's "native" resize was read and not used: it resizes
+    // 0.2s after the keyboard has finished and measures from the window,
+    // which in this container would leave the bottom of the page under it.
+
+    private var webView: WKWebView? { (child as? CAPBridgeViewController)?.webView }
+
+    private func watchKeyboard() {
+        let nc = NotificationCenter.default
+        // Stop the web view pushing the page up by itself (what the
+        // Capacitor Keyboard plugin does too).
+        if let web = webView {
+            for name in [UIResponder.keyboardWillShowNotification, UIResponder.keyboardWillHideNotification,
+                         UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardDidChangeFrameNotification] {
+                nc.removeObserver(web, name: name, object: nil)
+            }
+            web.scrollView.contentInset = .zero
+        }
+        nc.addObserver(self, selector: #selector(keyboardWillMove(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        nc.addObserver(self, selector: #selector(keyboardWillMove(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+
+    @objc private func keyboardWillMove(_ note: Notification) {
+        guard let info = note.userInfo, let pin = bottomPin,
+              let end = (info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
+        let screen: UICoordinateSpace = view.window?.screen.coordinateSpace ?? UIScreen.main.coordinateSpace
+        let kb = view.convert(end, from: screen)
+        // A floating, undocked or hardware keyboard covers nothing.
+        let covered = note.name == UIResponder.keyboardWillHideNotification ? 0 : max(0, view.bounds.maxY - kb.minY)
+        let up = covered > 0
+        webView?.evaluateJavaScript("document.documentElement.classList.toggle('msa-kb', \(up))", completionHandler: nil)
+        guard abs(pin.constant + covered) > 0.5 else { return }
+        pin.constant = -covered
+        let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
+        let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt) ?? 7
+        UIView.animate(withDuration: duration, delay: 0,
+                       options: [UIView.AnimationOptions(rawValue: curve << 16), .beginFromCurrentState]) {
+            self.view.layoutIfNeeded()
+        }
+        webView?.scrollView.contentInset = .zero
     }
 
     /// The home-indicator band, told to the page as --msa-sab as well, so the

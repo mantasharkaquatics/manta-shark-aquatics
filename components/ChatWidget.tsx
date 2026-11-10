@@ -612,6 +612,22 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     placedAtRef.current = 0
   }, [open])
 
+  // The list keeps its bottom where it was when it gets shorter -- the iOS
+  // app now shortens the page to the keyboard's top (SceneDelegate.swift,
+  // 2026-11-10), and without this the newest messages went under the box.
+  useEffect(() => {
+    const el = listRef.current
+    if (!open || !el || typeof ResizeObserver === 'undefined') return
+    let h = el.clientHeight
+    const ro = new ResizeObserver(() => {
+      const shrunk = h - el.clientHeight
+      h = el.clientHeight
+      if (shrunk > 0) el.scrollTop += shrunk
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [open])
+
   useEffect(() => {
     if (open && visible) setUnread(0)
   }, [open, visible])

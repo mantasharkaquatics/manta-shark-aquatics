@@ -566,6 +566,18 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   half once scrolled; a web view inside the safe area left a white band
   under the tabs. The app is always in light mode (Info.plist
   UIUserInterfaceStyle), so the status bar text stays dark on that white.
+- **The keyboard shortens the page, never pushes it** (owner, 2026-11-10:
+  the chat felt jerky). WKWebView's own reaction -- sliding the whole page
+  up under the status bar -- is switched off in SafeAreaContainer
+  (SceneDelegate.swift removes the web view's keyboard observers, as the
+  Capacitor Keyboard plugin does); the web view's bottom moves to the
+  keyboard's top with the keyboard's own timing, and the page gets
+  html.msa-kb: no tabs, --app-tab-h / --app-sab 0 (globals.css). AppBridge
+  brings a field the shorter page hides into sight; the chat list keeps its
+  bottom when it gets shorter (ChatWidget ResizeObserver). The Keyboard
+  plugin's own "native" resize was not used: it resizes 0.2s after the
+  keyboard and measures from the window, wrong in this container. Builds
+  before this keep the old pushing.
 
 # Lessons in the family's calendar: a subscription (owner, 2026-11-02)
 

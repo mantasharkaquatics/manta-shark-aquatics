@@ -43,6 +43,9 @@ npx cap open ios      # Xcode
 npx cap open android  # Android Studio
 ```
 
+A change to a Swift file in ios/App/App (SceneDelegate.swift, the plugins)
+needs no sync: open Xcode, pick the phone and press Run.
+
 iOS: push is already set in the project (App/App.entitlements with
 aps-environment, Background Modes -> remote-notification in Info.plist, the
 team 86478NTHW4, GoogleService-Info.plist in the app's resources -- the file

@@ -60,6 +60,23 @@ export default function AppBridge() {
     }
   }, [router])
 
+  // The iOS app shortens the page to the keyboard's top (html.msa-kb,
+  // SceneDelegate.swift, 2026-11-10) instead of pushing it up, so the box
+  // being typed in is brought into sight here if the shorter page hides it.
+  useEffect(() => {
+    if (appPlatform() !== 'ios') return
+    const html = document.documentElement
+    const show = () => {
+      if (!html.classList.contains('msa-kb')) return
+      const el = document.activeElement as HTMLElement | null
+      if (!el || !el.matches('input, textarea, select, [contenteditable="true"]')) return
+      const r = el.getBoundingClientRect()
+      if (r.bottom > window.innerHeight - 8 || r.top < 0) el.scrollIntoView({ block: 'center' })
+    }
+    window.addEventListener('resize', show)
+    return () => window.removeEventListener('resize', show)
+  }, [])
+
   // The phone's text size may have been changed while the app was away (lib/native-app.ts).
   useEffect(() => {
     if (!appPlatform()) return
