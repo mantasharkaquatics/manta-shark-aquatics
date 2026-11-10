@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n/provider'
 import { BRAND } from '@/lib/brand'
+import { reportClientError, isStaleCode, reloadForStaleCode } from '@/lib/report-client-error'
 
 /* When a page fails to draw, the family sees the school's own page in its
    language (2026-11-04: Next's English "This page couldn't load" showed on
@@ -11,7 +12,11 @@ import { BRAND } from '@/lib/brand'
    is the alert (lib/error-report.ts, ClientErrorReporter). */
 export default function PublicError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const t = useT()
-  useEffect(() => { console.error('[page error]', error?.message || error) }, [error])
+  useEffect(() => {
+    console.error('[page error]', error?.message || error)
+    reportClientError(error, 'page')
+    if (isStaleCode(error)) reloadForStaleCode()
+  }, [error])
   return (
     <div style={{ minHeight: '60dvh', display: 'grid', placeItems: 'center', padding: '120px 20px 60px', background: '#e9eff7' }}>
       <div role="alert" style={{ maxWidth: 420, width: '100%', background: '#fff', border: `1px solid ${BRAND.line}`, borderRadius: 18, padding: '28px 24px', textAlign: 'center' }}>

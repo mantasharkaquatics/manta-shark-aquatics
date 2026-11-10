@@ -1,12 +1,14 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react'
+import { Component, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react'
 import { usePathname } from 'next/navigation'
 import { appLook } from '@/lib/native-app'
 import { createClient } from '@/lib/supabase/client'
 import { useFamilyRole } from '@/lib/use-viewer'
 import { TabPanelContext, TAB_PATHS, tabOfPath, type TabKey } from '@/lib/tab-panel'
+import { reportClientError, isStaleCode, reloadForStaleCode } from '@/lib/report-client-error'
+import LoadFailed from '@/components/LoadFailed'
 
 /* The app's five tabs side by side (owner, 2026-11-10, 選項 A): "swiping
    left on 首頁 should slowly show 預約, bit by bit, very smooth, no flicker,
@@ -90,14 +92,15 @@ function Pager({ here }: { here: TabKey | null }) {
   const box = useRef<HTMLDivElement>(null)
   const [cur, setCur] = useState<TabKey>(here ?? 'home')
   const curRef = useRef(cur)
-  useEffect(() => { curRef.current = cur }, [cur])
+  // Kept in step before the other layout effects below read them.
+  useLayoutEffect(() => { curRef.current = cur }, [cur])
   const [mounted, setMounted] = useState<Set<TabKey>>(() => new Set(here ? [here] : []))
   const [gen, setGen] = useState<Partial<Record<TabKey, number>>>({})
   const mountedRef = useRef(mounted)
-  useEffect(() => { mountedRef.current = mounted }, [mounted])
+  useLayoutEffect(() => { mountedRef.current = mounted }, [mounted])
   const self = useRef<TabKey | null>(null)
   const tabsRef = useRef(tabs)
-  useEffect(() => { tabsRef.current = tabs })
+  useLayoutEffect(() => { tabsRef.current = tabs })
 
   const mount = useCallback((k: TabKey) => setMounted(m => (m.has(k) ? m : new Set([...m, k]))), [])
   const jump = useCallback((k: TabKey) => {
@@ -105,7 +108,8 @@ function Pager({ here }: { here: TabKey | null }) {
     const i = tabsRef.current.indexOf(k)
     if (!el || i < 0) return
     const left = i * el.clientWidth
-    if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({ left, behavior: 'instant' as ScrollBehavior })
+    // Plain scrollLeft: older iPhones refuse scrollTo's behavior 'instant'.
+    if (Math.abs(el.scrollLeft - left) > 1) el.scrollLeft = left
   }, [])
 
   // The pager owns the screen while it is shown: the window does not scroll.
@@ -210,7 +214,9 @@ function Pager({ here }: { here: TabKey | null }) {
       setCur(k)
       self.current = k
       const path = TAB_PATHS[k]
-      if (location.pathname !== path) window.history.replaceState(null, '', path)
+      // Safari throws past a hundred history writes in a short time; a
+      // missed address is better than a broken page.
+      if (location.pathname !== path) try { window.history.replaceState(null, '', path) } catch { /* rate-limited */ }
     }
     const onScroll = () => {
       // Anything coming into view is drawn now, if the background has not
@@ -238,7 +244,9 @@ function Pager({ here }: { here: TabKey | null }) {
             <div className="tp-scroll">
               {mounted.has(k) && (
                 <TabPanelContext.Provider value={{ tab: k, active: on && !!here }}>
-                  <Suspense fallback={null}><Page key={gen[k] || 0} /></Suspense>
+                  <PanelGuard tab={k} onRetry={() => setGen(g => ({ ...g, [k]: (g[k] || 0) + 1 }))}>
+                    <Suspense fallback={null}><Page key={gen[k] || 0} /></Suspense>
+                  </PanelGuard>
                 </TabPanelContext.Provider>
               )}
             </div>
@@ -247,4 +255,26 @@ function Pager({ here }: { here: TabKey | null }) {
       })}
     </div>
   )
+}
+
+/* One tab that fails to draw stays one tab: the others and the bars keep
+   working, the school is told, and 再試一次 draws it again. Code replaced by
+   a new deploy reloads the app by itself. */
+class PanelGuard extends Component<{ tab: TabKey; onRetry: () => void; children: React.ReactNode }, { err: unknown }> {
+  state = { err: null as unknown }
+  static getDerivedStateFromError(err: unknown) { return { err } }
+  componentDidCatch(err: unknown) {
+    reportClientError(err, 'tab:' + this.props.tab)
+    if (isStaleCode(err)) reloadForStaleCode()
+  }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ padding: '24px 16px' }}>
+          <LoadFailed onRetry={() => { this.setState({ err: null }); this.props.onRetry() }} />
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }

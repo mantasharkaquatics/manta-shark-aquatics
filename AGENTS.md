@@ -1341,7 +1341,14 @@ the contained problems were fixed the same day. What to keep doing:
     online" shows the lesson, the day the month's pass went (graceUsedOn)
     and that a missed lesson's points are not returned.
 - **app/(public)/error.tsx** is the translated, branded page for a page
-  that fails to draw.
+  that fails to draw. **app/global-error.tsx** catches what that cannot --
+  an error in a layout, such as the app's tab pager (owner, 2026-11-10: Next's
+  English "This page couldn't load" showed and nothing reached the school).
+  Both, and TabPager's per-tab PanelGuard (one tab fails, the rest work, with
+  再試一次), report through lib/report-client-error.ts: an error caught by a
+  React boundary never reaches window.onerror, so ClientErrorReporter alone
+  missed them. Code replaced by a new deploy (ChunkLoadError) reloads once a
+  minute at most.
 - **Numbers of points always carry separators** (booking page `nf()`).
 - **globals.css: write short-screen rules as `@media screen and
   (max-height: …)`.** A bare `@media (max-height: 720px)` block was dropped
