@@ -1106,6 +1106,9 @@ the contained problems were fixed the same day. What to keep doing:
     keeps `slotsError` / `openingsErr` apart from "no times", and its
     reads carry AbortSignal.timeout so 要怎麼上 never spins for ever; 我的
     and /plans say when the balance did not load (tap to try again).
+  - **課表 remembers 列表 / 週 / 月曆** (owner, 2026-11-10): the last one
+    picked stays, after another tab or the app is closed (localStorage
+    msa_lesson_view, per phone or browser; read after the first paint).
   - **Every 傳訊息給我們 about a lesson carries it**: `aboutOf(b)` on the
     dashboard (when, course, coach, the pool when more than one, who), used
     by the lesson sheet, the lesson detail, the "cannot cancel / move

@@ -1290,7 +1290,21 @@ export default function DashboardPage() {
   const [teamSheet, setTeamSheet] = useState<string | null>(null)
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([])
   const [pastBookings, setPastBookings] = useState<Booking[]>([])
-  const [lessonView, setLessonView] = useState<'list' | 'week' | 'month'>('list')
+  /* 列表 / 週 / 月曆 is remembered on this phone or browser (owner,
+     2026-11-10: leaving 課表 or closing the app went back to 列表). Read
+     after the first paint (the server cannot know it); the lessons arrive
+     later than that, so nothing is seen switching. */
+  const [lessonView, setLessonViewState] = useState<'list' | 'week' | 'month'>('list')
+  const setLessonView = (v: 'list' | 'week' | 'month') => {
+    setLessonViewState(v)
+    try { localStorage.setItem('msa_lesson_view', v) } catch {}
+  }
+  useEffect(() => {
+    let v: string | null = null
+    try { v = localStorage.getItem('msa_lesson_view') } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (v === 'week' || v === 'month') setLessonViewState(v)
+  }, [])
   const [lessonDetail, setLessonDetail] = useState<Booking | null>(null)
   const [daySheet, setDaySheet] = useState<string | null>(null)
   const firstName = (n?: string) => (n || '').split(',')[0].trim().split(' ')[0]
