@@ -1209,6 +1209,9 @@ the contained problems were fixed the same day. What to keep doing:
     use `CourseIcon` (booking/parts.tsx; 1-on-4 is a group of children, not
     a family). New icon: add its shape to Icon.tsx, never an emoji in a
     page. Emails, push texts and the celebration keep theirs.
+  - **Dragging the conversation puts the keyboard away** (owner, 2026-11-10,
+    "like Instagram"): a finger moving 12px on the messages blurs the box
+    (`feedTouch`). Touch only -- a list scrolled by new messages never does.
   - **The send button never takes the focus** (owner, 2026-11-10): its
     mousedown is prevented, so on the iPhone the keyboard stays up and the
     first tap sends (before, it closed the keyboard, the row slid down and

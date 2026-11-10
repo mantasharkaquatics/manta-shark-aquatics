@@ -550,6 +550,21 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
   const listRef = useRef<HTMLDivElement>(null)
+  /* Dragging the conversation puts the keyboard away (owner, 2026-11-10,
+     "like Instagram"): a finger moving 12px or more on the messages blurs
+     the box. Touch only, so a new message scrolling the list never does. */
+  const dragY = useRef<number | null>(null)
+  const feedTouch = {
+    onTouchStart: (e: React.TouchEvent) => { dragY.current = e.touches[0]?.clientY ?? null },
+    onTouchMove: (e: React.TouchEvent) => {
+      const y0 = dragY.current, y = e.touches[0]?.clientY
+      if (y0 == null || y == null || Math.abs(y - y0) < 12) return
+      dragY.current = null
+      const box = inputRef.current
+      if (box && document.activeElement === box) box.blur()
+    },
+    onTouchEnd: () => { dragY.current = null },
+  }
   /* The conversation first appears already at its newest message (owner,
      2026-10-28: the whole history used to fly past on opening). Until the
      list has been placed once, and for a moment after while the rest of it
@@ -923,7 +938,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         <style>{PAGE_CSS}</style>
         <div ref={liveRef} className="sr-only" aria-live="polite" aria-atomic="true" />
         <div className="pc-mode">{mode === 'human' || (toTeam && !guest) ? t('chat.subtitleHuman') : t('chat.subtitle')}</div>
-        <div className="pc-feed" ref={listRef}>
+        <div className="pc-feed" ref={listRef} {...feedTouch}>
           {items.length === 0 && historyReady && (
             <div className="pc-empty"><span aria-hidden="true" style={{ color: '#2050a0' }}><Icon name="chat" /></span>{t('chat.empty')}</div>
           )}
@@ -1157,7 +1172,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
           )}
 
           {/* Messages */}
-          <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div ref={listRef} {...feedTouch} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {messages.length === 0 && historyReady && (
               <div style={{ textAlign: 'center', color: '#56647d', fontSize: '14px', marginTop: '40px' }}>
                 <div style={{ fontSize: '32px', marginBottom: '8px', color: '#2050a0' }}><Icon name="chat" /></div>
