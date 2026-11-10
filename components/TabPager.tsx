@@ -240,7 +240,14 @@ function Pager({ here }: { here: TabKey | null }) {
         const Page = PAGES[k]
         const on = k === cur
         return (
-          <section key={k} className={'tp-panel' + (on ? ' on' : '')} data-tab={k} aria-hidden={!on} inert={!on}>
+          // No `inert` on the panels off screen (owner, 2026-11-10: 預約, loaded
+          // in the background, would not scroll up and down on the iPhone once
+          // it came on screen). iOS works out which part of the screen
+          // scrolls apart from the page, and did not take a panel back once
+          // its inert was removed; the finger went to the sideways pager.
+          // Off screen they cannot be touched anyway; aria-hidden keeps them
+          // from screen readers.
+          <section key={k} className={'tp-panel' + (on ? ' on' : '')} data-tab={k} aria-hidden={!on}>
             <div className="tp-scroll">
               {mounted.has(k) && (
                 <TabPanelContext.Provider value={{ tab: k, active: on && !!here }}>

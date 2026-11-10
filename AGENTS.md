@@ -570,6 +570,10 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
     the learning map or the chat is lifted over the app's bars (z 61, :has
     list in globals.css -- add a new overlay class there), and the pager does
     not move sideways while one is open or the keyboard is up.
+  - **No `inert` on off-screen panels** (owner, 2026-11-10: 預約, loaded in
+    the background, would not scroll up and down on the iPhone). iOS decides
+    which part of the screen scrolls outside the page and did not give a
+    panel its scrolling back when inert came off. aria-hidden only.
   - What already moves sideways keeps the finger: the swimmer deck and
     我的方案 (overscroll-behavior-x: contain), a single swimmer card
     (`.sw-deck.one`, touch-action: pan-y), the swimmer (`.sw-hold`).
