@@ -1039,7 +1039,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
               e.preventDefault()
               sendMessage()
             }} />
-          <button type="button" className="pc-send tap-auto" onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')}>
+          {/* mousedown kept from moving the focus (owner, 2026-11-10): on the
+              iPhone the first tap only closed the keyboard -- the box lost
+              focus, the row moved down under the finger and the tap missed --
+              and a second tap was needed. Now the keyboard stays open and the
+              first tap sends, as in Messages. */}
+          <button type="button" className="pc-send tap-auto" onMouseDown={e => e.preventDefault()} onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')}>
             <svg viewBox="0 0 24 24" width="23" height="23" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z" /></svg>
           </button>
         </div>
@@ -1316,7 +1321,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
                 outline: 'none', fontFamily: 'inherit',
               }}
             />
-            <button onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')} style={{
+            {/* The keyboard stays open: see .pc-send. */}
+            <button onMouseDown={e => e.preventDefault()} onClick={() => sendMessage()} disabled={!input.trim() || sending} aria-label={t('chat.send')} style={{
               background: input.trim() ? AMBER : '#eef2f8',
               border: 'none', borderRadius: '10px', width: '40px',
               cursor: input.trim() ? 'pointer' : 'not-allowed',

@@ -1209,6 +1209,11 @@ the contained problems were fixed the same day. What to keep doing:
     use `CourseIcon` (booking/parts.tsx; 1-on-4 is a group of children, not
     a family). New icon: add its shape to Icon.tsx, never an emoji in a
     page. Emails, push texts and the celebration keep theirs.
+  - **The send button never takes the focus** (owner, 2026-11-10): its
+    mousedown is prevented, so on the iPhone the keyboard stays up and the
+    first tap sends (before, it closed the keyboard, the row slid down and
+    the tap missed). Any button beside a text box that should act at once
+    needs the same.
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the
