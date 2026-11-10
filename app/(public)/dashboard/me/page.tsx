@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useTabPanel } from '@/lib/tab-panel'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -77,7 +78,7 @@ html.msa-app .ac-root:has(.mx) { background: #e9eff7; }
 .mx-sec { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; font-weight: 800; color: ${BRAND.navy}; margin: 16px 2px 8px; }
 .mx-sec small { font-size: 12px; font-weight: 700; color: ${BRAND.mute}; }
 /* 我的方案: a row that slides sideways, one small card per plan. */
-.mx-pl { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
+.mx-pl { display: flex; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
   margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .mx-pl::-webkit-scrollbar { display: none; }
 .mx-pl a, .mx-pl .mx-plc { flex: none; width: 168px; scroll-snap-align: start; background: #fff; border-radius: 16px; padding: 11px 12px; text-decoration: none;
@@ -175,6 +176,19 @@ export default function MePage() {
       setPlans({ fixed: f?.classes || [], vouchers: v?.vouchers || [], team: tm?.memberships || [], at: Date.now() })
     })
   }
+
+  /* In the app's pager this page stays loaded on other tabs, where points
+     and plans change (a booking, a top-up): read them again, quietly, when
+     it comes back on screen. */
+  const panel = useTabPanel()
+  const again = useRef<() => void>(() => {})
+  useEffect(() => { again.current = () => { if (wallet || walletErr) reloadWallet(); if (plans || plansErr) loadPlans() } })
+  const wasActive = useRef(panel?.active ?? true)
+  useEffect(() => {
+    const now = panel?.active ?? true
+    if (now && !wasActive.current) again.current()
+    wasActive.current = now
+  }, [panel?.active])
 
   useEffect(() => {
     let live = true

@@ -1,4 +1,5 @@
 'use client'
+import { pageScrollTo } from '@/lib/tab-panel'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -344,7 +345,7 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
         ? t('fam.done.weekly', { weekday: wkName(dowOf(dts[0])), n: dts.length, from: mdOf(dts[0]), to: mdOf(dts[dts.length - 1]) })
         : dayLabel(dts[0])
       setBooked({ rows: plan.map(p => `${kidName(p.kid)} · ${p.time ? t12(p.time) : ''}${coachName(p.coach) ? ' · ' + t('dash.up.coach', { name: coachName(p.coach) }) : ''}`), when, total, left: Math.max(0, balance - total) })
-      setDone(true); window.scrollTo(0, 0); return
+      setDone(true); pageScrollTo(0); return
     }
     const who = typeof d.which === 'number' && plan[d.which] ? t('fam.err.who', { name: kidName(plan[d.which].kid) }) : ''
     const k = d.code === 'week_gone' ? 'fam.err.weekGone' : d.error === 'NOT_ENOUGH_POINTS' ? null : errorKey(d.error)

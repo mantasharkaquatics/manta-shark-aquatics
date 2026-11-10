@@ -538,19 +538,36 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
   one line -- name and birthday, the health answer as a chip (red not
   answered, green none, amber with the notes).
-- **A sideways swipe moves between the five tabs** (owner, 2026-11-10,
-  選項 A; on 訊息 too, which then goes to 課表 / 我的 -- 通知／客服 stay taps).
-  AppShell listens on the document (passive): 60px across, 1.8x more across
-  than down, within 700ms, starting on a tab's own page. Never where the
-  page moves sideways itself -- `.sw-deck` and `.sw-hold` (the swimmer
-  cards and the swimmer, even with one card), 我的方案's `.mx-pl`, anything
-  scrolling sideways, a text box, `[data-no-tab-swipe]` -- nor with a sheet
-  or dialog open or a box focused. The new tab slides in with a view
-  transition (html.msa-swiping / msa-swipe-next|prev, globals.css; the two
-  bars keep their place); the wait for the new page uses timers, because
-  animation frames are held during the transition. On a computer with
-  software 3D a test swipe on 首頁 can take over 700ms and is refused --
-  test with synthetic TouchEvents there.
+- **The five tabs sit side by side and a swipe reveals the next one under
+  the finger** (owner, 2026-11-10, 選項 A: "slowly show 預約, bit by bit,
+  very smooth, no flicker" -- a swipe that loaded the next page afterwards,
+  even with a slide-in, was turned down). components/TabPager.tsx, wrapped
+  round the (public) layout's children: inside the app, on a tab's own
+  address, one sideways scroller (`.tp`, scroll-snap, moved by the phone
+  itself -- never by JavaScript) holds one panel per tab (`.tp-panel` >
+  `.tp-scroll`, each scrolling up and down on its own, with the top-bar
+  spacer as ::before). The tab on the address loads first; the others load
+  in the background, nearest first, once the address has no query. The
+  address follows the panel at rest (history.replaceState); a tab-bar tap,
+  link or router move to a tab jumps there, and one carrying a query or a
+  hash (/booking?student=…, #invites) loads that tab afresh, since pages
+  read those once at start. Other pages: the pager is hidden (kept, with
+  each panel's place) and the page shows as before; signing out drops it.
+  - **A page inside the pager**: `useTabPanel()` (lib/tab-panel.ts) says
+    which tab and whether it is on screen. The dashboard takes its view
+    from it, not the address. A page coming back on screen reads its data
+    again quietly (dashboard refreshRef, 我的 wallet/plans, 訊息 inbox); the
+    chat counts as seen / open only when on screen. Scroll the page with
+    pageScrollTo / pageOffsetTop / pageScrollHeight, never window.scrollTo
+    (the window does not scroll there: html.msa-pager).
+  - Each panel is its own containing block (translateZ): a page's fixed bars
+    and sheets stay in it and move with it. A panel with a sheet, dialog,
+    the learning map or the chat is lifted over the app's bars (z 61, :has
+    list in globals.css -- add a new overlay class there), and the pager does
+    not move sideways while one is open or the keyboard is up.
+  - What already moves sideways keeps the finger: the swimmer deck and
+    我的方案 (overscroll-behavior-x: contain), a single swimmer card
+    (`.sw-deck.one`, touch-action: pan-y), the swimmer (`.sw-hold`).
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone
@@ -1247,8 +1264,9 @@ the contained problems were fixed the same day. What to keep doing:
   - The chat box is a growing textarea (Enter sends, Shift+Enter a new
     line); a draft survives leaving the chat (sessionStorage
     msa_chat_draft); an AI reply that fails leaves a local note that the
-    desk has it. Leaving 預約 for another tab saves the booking in progress
-    (saveResume) and coming back restores it.
+    desk has it. In the app 預約 stays loaded on the other tabs (TabPager);
+    leaving it for another page saves the booking in progress (saveResume)
+    and coming back restores it.
   - Times on the dashboard and the booking page keep AM/PM with the time
     (no-break space; NOT in lib/date, whose times go into SMS); lesson
     lines break between words (word-break: keep-all). At large text the

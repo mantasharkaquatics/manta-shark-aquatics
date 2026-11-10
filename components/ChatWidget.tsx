@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useIsMobile } from '@/lib/use-is-mobile'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import Link from 'next/link'
+import { useTabPanel } from '@/lib/tab-panel'
 import { CHAT_OPEN_EVENT, CHAT_HANDBACK_EN, CHAT_HANDBACK_KEY, CHAT_HANDBACK_AUTO_KEY, ACCOUNT_CHANGED_EVENT, takePendingChatOpen, reportChatOpen, reportChatUnread } from '@/lib/chat-open'
 import { BRAND, FONT_BODY, FONT_DISPLAY } from '@/lib/brand'
 import { useRouter } from 'next/navigation'
@@ -194,6 +195,11 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     try { if (sessionStorage.getItem('msa_chat_open') === '1') { restoring.current = true; setOpen(true) } } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  /* Inside the app's pager (components/TabPager) the chat page stays loaded
+     while another tab is on screen: it is not being looked at, nor
+     open, then. */
+  const panel = useTabPanel()
+  const panelOn = panel ? panel.active : true
   useEffect(() => {
     if (!page) try { sessionStorage.setItem('msa_chat_open', open ? '1' : '0') } catch {}
     // Told to the page (lib/chat-open), so the dashboard holds its low-balance
@@ -201,8 +207,8 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
     // the first pass of a restore: the panel is about to open.
     if (!open && restoring.current) return
     restoring.current = false
-    reportChatOpen(open)
-  }, [open])
+    reportChatOpen(open && panelOn)
+  }, [open, panelOn, page])
   useEffect(() => () => reportChatOpen(false), [])
   const [threadId, setThreadId] = useState<string | null>(null)
   // Whose message is whose in a family with more than one person (J07):
@@ -258,14 +264,14 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   const visibleRef = useRef(true)
   useEffect(() => {
     const sync = () => {
-      const v = document.visibilityState === 'visible'
+      const v = document.visibilityState === 'visible' && panelOn
       visibleRef.current = v
       setVisible(v)
     }
     sync()
     document.addEventListener('visibilitychange', sync)
     return () => document.removeEventListener('visibilitychange', sync)
-  }, [])
+  }, [panelOn])
   const [awaitingAi, setAwaitingAi] = useState(false)
   /* Who answers this thread now: the AI, or the desk after it has taken over
      (chat_threads.mode, set by Admin > Messages). The header used to say "AI

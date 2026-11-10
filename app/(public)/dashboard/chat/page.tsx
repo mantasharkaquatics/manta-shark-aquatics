@@ -1,4 +1,5 @@
 'use client'
+import { useTabPanel } from '@/lib/tab-panel'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -125,6 +126,15 @@ export default function ChatPage() {
     }).catch(() => {})
   }, [])
   useEffect(() => { loadInbox() }, [loadInbox])
+  // Loaded in the background in the app's pager: read again when it comes
+  // on screen.
+  const panel = useTabPanel()
+  const wasActive = useRef(panel?.active ?? true)
+  useEffect(() => {
+    const now = panel?.active ?? true
+    if (now && !wasActive.current) loadInbox()
+    wasActive.current = now
+  }, [panel?.active, loadInbox])
 
   // Looking at 通知 marks both what it shows read on the server (the dot
   // goes next time): the announcements and the notices.
@@ -166,8 +176,10 @@ export default function ChatPage() {
   const when = (iso: string) => fmtDate(new Date(iso), dateTag(locale), { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })
     + ' ' + new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' })
 
+  // In the app's pager (components/TabPager) the tabs are not pages in the
+  // history: back is 首頁.
   const back = () => {
-    if (window.history.length > 1) router.back()
+    if (!panel && window.history.length > 1) router.back()
     else router.push('/dashboard')
   }
 

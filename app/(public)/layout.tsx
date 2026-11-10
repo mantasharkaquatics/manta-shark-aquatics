@@ -4,6 +4,7 @@ import ActivityPing from '@/components/ActivityPing'
 import GlobalChat from '@/components/GlobalChat'
 import AppShell from '@/components/AppShell'
 import SheetSwipe from '@/components/SheetSwipe'
+import TabHost from '@/components/TabPager'
 import { FONT_BODY } from '@/lib/brand'
 import BrandStyles from '@/components/brand/BrandStyles'
 import { footerLocations } from '@/lib/public-locations'
@@ -27,7 +28,8 @@ export default async function PublicLayout({ children }: { children: React.React
       <AppShell />
       <SheetSwipe />
       <main id="main-content" tabIndex={-1} style={{ display: 'flex', flexDirection: 'column' }}>
-        {children}
+        {/* Inside the app, the five tabs' pages side by side (components/TabPager). */}
+        <TabHost>{children}</TabHost>
       </main>
       {/* Not in the phone app (app/globals.css .msa-web-only). */}
       <div className="msa-web-only"><Footer locations={pools} /></div>

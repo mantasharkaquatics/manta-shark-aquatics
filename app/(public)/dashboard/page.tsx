@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, u
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
+import { useTabPanel } from '@/lib/tab-panel'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
@@ -1324,7 +1325,11 @@ export default function DashboardPage() {
      首頁 without the lesson list, /dashboard/schedule is 課表 with only it
      (the .msa-home / .msa-sched rules in app/globals.css). In a browser both
      show the whole page, as before. */
-  const view = usePathname() === '/dashboard/schedule' ? 'schedule' : 'home'
+  // Inside the app's pager (components/TabPager) each copy knows its own tab;
+  // the address there is whichever tab is on screen.
+  const panel = useTabPanel()
+  const pathView = usePathname() === '/dashboard/schedule' ? 'schedule' : 'home'
+  const view = panel ? (panel.tab === 'schedule' ? 'schedule' : 'home') : pathView
 
   /* Assessment reports come back in the page's language (the coach's note and
      the recommendation line are translated), so they reload with fetchAll and
@@ -2013,6 +2018,16 @@ export default function DashboardPage() {
      or on another day, and when the day turns while it is open; the lesson
      list alone when a lesson on it has ended. */
   const refreshRef = useRef<(full: boolean) => void>(() => {})
+  /* In the app's pager this page stays loaded while the family is on
+     another tab -- where they may have just booked or cancelled. Coming back
+     to it reads everything again, quietly (what it showed stays until the
+     answer is in). */
+  const wasActive = useRef(panel?.active ?? true)
+  useEffect(() => {
+    const now = panel?.active ?? true
+    if (now && !wasActive.current) refreshRef.current(true)
+    wasActive.current = now
+  }, [panel?.active])
   useEffect(() => {
     refreshRef.current = (full: boolean) => {
       fetchAll({ progress: full })

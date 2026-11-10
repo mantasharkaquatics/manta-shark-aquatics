@@ -1,4 +1,5 @@
 'use client'
+import { pageScrollTo, pageOffsetTop, pageScrollHeight } from '@/lib/tab-panel'
 
 import { openChat } from '@/lib/chat-open'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -857,7 +858,7 @@ export default function BookingPage() {
     if (!success) return
     // The confirm button sits low on a long page; the success card rendered
     // mid-screen under empty space, off the bottom of a phone.
-    window.scrollTo(0, 0)
+    pageScrollTo(0)
     setCountdown(30)
     const interval = setInterval(() => {
       setCountdown(prev => (prev <= 1 ? 0 : prev - 1))
@@ -1209,8 +1210,8 @@ export default function BookingPage() {
   const scrollTo = (el: HTMLElement | null) => {
     if (!el) return
     const inApp = document.documentElement.classList.contains('msa-app')
-    const top = el.getBoundingClientRect().top + window.scrollY - (inApp ? 8 : 92)
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    // The page's own scroller: the window, or this tab's panel in the app's pager.
+    pageScrollTo(pageOffsetTop(el) - (inApp ? 8 : 92), true, el)
   }
   const lastStep = useRef(step)
   const confirmRef = useRef<HTMLDivElement>(null)
@@ -1237,7 +1238,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (!toEnd.current || !selectedSlot) return
     toEnd.current = false
-    const id = requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }))
+    const id = requestAnimationFrame(() => pageScrollTo(pageScrollHeight(), true))
     return () => cancelAnimationFrame(id)
   }, [selectedSlot, selectedCoach])
   const toTimes = useRef(false)
@@ -2027,7 +2028,7 @@ export default function BookingPage() {
   function resetWay() {
     setWay(null); setFixedDow(null); setLockSheet(null)
     setSelectedDate(null); setSelectedSlot(null); setSelectedHour(null); setRecurOpen(false)
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+    requestAnimationFrame(() => pageScrollTo(0, true))
   }
 
   // ---- Make-up vouchers in an ordinary booking ---------------------------
@@ -3049,7 +3050,7 @@ export default function BookingPage() {
               </div>
             )}
             <FamilyBooking key={location ?? 'all'} kids={students.filter(s => famTicked.includes(s.id))} courses={courseTypes} location={location ?? null} balance={balance}
-              face={k => <SwimmerFace look={lookOf(students.find(s => s.id === k.id)!)} size={40} />} onExit={() => { setSiblingMode(false); window.scrollTo(0, 0) }}
+              face={k => <SwimmerFace look={lookOf(students.find(s => s.id === k.id)!)} size={40} />} onExit={() => { setSiblingMode(false); pageScrollTo(0) }}
               onPair={() => {
                 /* 1-on-2 for the two ticked children (owner, 2026-11-04, 問題 5 選項 A):
                    the page's own 1-on-2 flow, both swimmers already chosen. */
@@ -3058,7 +3059,7 @@ export default function BookingPage() {
                 if (!a || !b || !ct) return
                 setSiblingMode(false); setFamTicked([]); clearTime()
                 setSelectedStudent(a); setSelectedStudent2(b); setSelectedCourse(ct); setIsTrial(false)
-                setStep(1); requestAdvance(); window.scrollTo(0, 0)
+                setStep(1); requestAdvance(); pageScrollTo(0)
               }} />
           </div>
         )}
@@ -3117,7 +3118,7 @@ export default function BookingPage() {
             {multi && ticked.length > 0 && (
               <div className="msa-book-bar" style={{ position: 'sticky', bottom: 0, zIndex: 5, marginTop: '16px', paddingTop: '12px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', background: PAGE_TINT, borderTop: '1px solid #d6e0ee' }}>
                 <button type="button" className="kb-focus"
-                  onClick={() => { if (ticked.length === 1) { go1(ticked[0]); return } setSiblingMode(true); window.scrollTo(0, 0) }}
+                  onClick={() => { if (ticked.length === 1) { go1(ticked[0]); return } setSiblingMode(true); pageScrollTo(0) }}
                   style={{ width: '100%', minHeight: '52px', borderRadius: '14px', border: 'none', background: AMBER, color: NAVY, fontSize: '16px', fontWeight: 800, cursor: 'pointer' }}>
                   {ticked.length === 1 ? t('fam.go1') : t('fam.goN', { n: ticked.length })} →
                 </button>

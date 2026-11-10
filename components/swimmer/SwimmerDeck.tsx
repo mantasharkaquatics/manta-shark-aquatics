@@ -1,4 +1,5 @@
 'use client'
+import { pageScrollTo, pageOffsetTop } from '@/lib/tab-panel'
 
 /* The app's home cards as a curved deck, each with its 3D swimmer standing
    in a little pool on top (owner, 2026-10-29: 版本一 豆豆身, app home only, the
@@ -42,6 +43,7 @@ const CSS = `
    shrinks to fit (--sw-stage-h, worked out once on load and on resize, never
    while the cards move). */
 .sw-fit { position: relative; flex: 1 0 var(--sw-fit-min, 0px); min-height: 0 }
+.sw-deck.one { touch-action: pan-y; } /* one card: a sideways drag on it is not a tab swipe either (TabPager) */
 .sw-deck { --gap: 12px; display: flex; align-items: stretch; gap: var(--gap); margin: 0 -20px -30px; padding: 4px 0 30px;
   overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; -webkit-user-select: none; user-select: none }
@@ -373,7 +375,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
   const openSheet = (it: DeckItem) => {
     setDraft({ ...(it.look ?? NEUTRAL) }); setEditing(it.id); setTab('gender'); setGenderPicked(!!it.look)
     const el = deckRef.current
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' })
+    if (el) pageScrollTo(pageOffsetTop(el) - 76, true, el)
   }
   // Focus moves in, stays in, Esc closes, and goes back to 換造型 (50-role test).
   const closeRef = useRef<() => void>(() => {})
@@ -436,7 +438,7 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     <>
       <style>{CSS}</style>
       <div ref={fitRef} className="sw-fit">
-      <div ref={deckRef} className="sw-deck" style={{ '--cw': cw + 'px' } as React.CSSProperties} aria-roledescription="carousel"
+      <div ref={deckRef} className={'sw-deck' + (items.length < 2 ? ' one' : '')} style={{ '--cw': cw + 'px' } as React.CSSProperties} aria-roledescription="carousel"
         onScroll={onScroll}>
         {items.map((it, i) => {
           // Every card carries everything it can show, so arriving in the middle changes nothing React draws.
