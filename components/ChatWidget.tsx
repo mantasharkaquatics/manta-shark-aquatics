@@ -550,20 +550,30 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
   // Scroll the message list itself, never the page: scrollIntoView also moves
   // every scrolling ancestor, the window included.
   const listRef = useRef<HTMLDivElement>(null)
-  /* Dragging the conversation puts the keyboard away (owner, 2026-11-10,
-     "like Instagram"): a finger moving 12px or more on the messages blurs
-     the box. Touch only, so a new message scrolling the list never does. */
-  const dragY = useRef<number | null>(null)
+  /* A firm pull down on the conversation puts the keyboard away (owner,
+     2026-11-10, 選項 A, "like Instagram": closing on any 12px drag, either
+     way, was too touchy). Only a finger moving DOWN (back to older
+     messages), and only a flick (0.6px/ms over the last move, after 24px)
+     or a long pull (90px). Up, or a slow small drag, leaves it. Touch only,
+     so new messages scrolling the list never close it. */
+  const drag = useRef<{ y0: number; y: number; t: number } | null>(null)
   const feedTouch = {
-    onTouchStart: (e: React.TouchEvent) => { dragY.current = e.touches[0]?.clientY ?? null },
+    onTouchStart: (e: React.TouchEvent) => {
+      const y = e.touches[0]?.clientY
+      drag.current = y == null ? null : { y0: y, y, t: e.timeStamp }
+    },
     onTouchMove: (e: React.TouchEvent) => {
-      const y0 = dragY.current, y = e.touches[0]?.clientY
-      if (y0 == null || y == null || Math.abs(y - y0) < 12) return
-      dragY.current = null
+      const d = drag.current, y = e.touches[0]?.clientY
+      if (!d || y == null) return
+      const down = y - d.y0, dt = e.timeStamp - d.t
+      const speed = dt > 0 ? (y - d.y) / dt : 0
+      d.y = y; d.t = e.timeStamp
+      if (down < 24 || (down < 90 && speed < 0.6)) return
+      drag.current = null
       const box = inputRef.current
       if (box && document.activeElement === box) box.blur()
     },
-    onTouchEnd: () => { dragY.current = null },
+    onTouchEnd: () => { drag.current = null },
   }
   /* The conversation first appears already at its newest message (owner,
      2026-10-28: the whole history used to fly past on opening). Until the
