@@ -292,8 +292,13 @@ export default function AppShell() {
     if (app && titleKey) document.title = t('app.tab.' + titleKey) + ' · Manta Shark'
   }, [app, titleKey, t])
 
-  // The message screen fills the screen with its own header and tabs.
-  if (!app || pathname === '/dashboard/chat' || home) return null
+  /* The message screen fills the screen with its own header and tabs. The
+     bars stay where they are under it (owner, 2026-11-10, 選項 B: they
+     popped out when the family swiped away from 訊息): the 訊息 panel slides
+     over them like a card and, swiped away, shows them again under the
+     finger. Covered, they are left out for screen readers. */
+  if (!app || home) return null
+  const underChat = (pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/') === '/dashboard/chat'
 
   const isRoot = TAB_ROOTS.has(pathname)
   const chatCount = Math.max(unread, inbox.chat)
@@ -329,8 +334,8 @@ export default function AppShell() {
   return (
     <>
       <style>{css}</style>
-      <header className={'msa-ab' + (isRoot ? '' : ' sub')}>
-        {!isRoot && (
+      <header className={'msa-ab' + (isRoot || underChat ? '' : ' sub')} aria-hidden={underChat || undefined}>
+        {!isRoot && !underChat && (
           <button type="button" className="msa-ab-back" onClick={back} aria-label={t('app.back')}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
           </button>
@@ -358,7 +363,7 @@ export default function AppShell() {
         </div>
       </header>
       {signedIn && (
-        <nav className="msa-tb" aria-label={t('app.tabs')}>
+        <nav className="msa-tb" aria-label={t('app.tabs')} aria-hidden={underChat || undefined}>
           {tabs.map(tab => {
             const label = t('app.tab.' + tab.key)
             const current = onTab(tab.key) ? 'page' as const : undefined

@@ -710,7 +710,12 @@ button. docs/migration-app-inbox.sql.
 - **客服** is the family's chat itself -- ChatWidget with variant 'page'.
   Inside the app the floating widget never opens: openChat() and ?chat=1 go
   to this page, which takes the waiting request. GlobalChat mounts nothing on
-  this path, and AppShell steps aside (the page has its own header).
+  this path. The page has its own header and covers the app's two bars
+  (.ib, z 70, in a panel lifted over them); AppShell keeps drawing them
+  underneath, aria-hidden and with no back arrow (owner, 2026-11-10, 選項 B:
+  they popped out when a family swiped away from 訊息). So the 訊息 panel
+  slides over the bars like a card and, swiped away, uncovers them under
+  the finger. Do not make AppShell return nothing on this path again.
 - **通知**, top down: active pool closures, what the desk posts on Admin >
   公告 (lib/announcements.ts, pinned first, shown as typed), then push_log.
   "Also push" sends category 'news' (opens ?tab=notices; the old ?tab=news
