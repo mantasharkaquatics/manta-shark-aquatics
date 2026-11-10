@@ -538,6 +538,19 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
   one line -- name and birthday, the health answer as a chip (red not
   answered, green none, amber with the notes).
+- **A sideways swipe moves between the five tabs** (owner, 2026-11-10,
+  選項 A; on 訊息 too, which then goes to 課表 / 我的 -- 通知／客服 stay taps).
+  AppShell listens on the document (passive): 60px across, 1.8x more across
+  than down, within 700ms, starting on a tab's own page. Never where the
+  page moves sideways itself -- `.sw-deck` and `.sw-hold` (the swimmer
+  cards and the swimmer, even with one card), 我的方案's `.mx-pl`, anything
+  scrolling sideways, a text box, `[data-no-tab-swipe]` -- nor with a sheet
+  or dialog open or a box focused. The new tab slides in with a view
+  transition (html.msa-swiping / msa-swipe-next|prev, globals.css; the two
+  bars keep their place); the wait for the new page uses timers, because
+  animation frames are held during the transition. On a computer with
+  software 3D a test swipe on 首頁 can take over 700ms and is refused --
+  test with synthetic TouchEvents there.
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone

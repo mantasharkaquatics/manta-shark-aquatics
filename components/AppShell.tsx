@@ -285,6 +285,71 @@ export default function AppShell() {
     if (app && titleKey) document.title = t('app.tab.' + titleKey) + ' · Manta Shark'
   }, [app, titleKey, t])
 
+  /* A sideways swipe moves to the next or previous tab (owner, 2026-11-10,
+     選項 A, also on 訊息). Never where the page itself moves sideways: the
+     swimmer cards and the swimmer (whatever their number), 我的方案's row,
+     anything that scrolls sideways, a slider or a text box; never with a
+     sheet or dialog open or a box being typed in. A swipe = 60px across,
+     clearly more across than down, within 700ms. The new tab slides in
+     (a view transition where the phone has it; the two bars stay put). */
+  useEffect(() => {
+    if (!app || !signedIn) return
+    const bare = (pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/')
+    const list = ['/dashboard', ...(role === 'main' || role === 'full' ? ['/booking'] : []), '/dashboard/schedule', '/dashboard/chat', '/dashboard/me']
+    const at = list.indexOf(bare)
+    if (at < 0) return
+    const busy = () => {
+      const a = document.activeElement
+      if (a && a.matches('input, textarea, select, [contenteditable="true"]')) return true
+      return [...document.querySelectorAll('[aria-modal="true"], .msa-sheet-back, .msa-dlg-back')]
+        .some(el => el.getAttribute('aria-hidden') !== 'true' && el.getClientRects().length > 0)
+    }
+    const ownSideways = (target: EventTarget | null) => {
+      for (let el = target as Element | null; el && el !== document.body; el = el.parentElement) {
+        if (el.matches('.sw-deck, .sw-hold, .sw-sheet, .mx-pl, [data-no-tab-swipe], input, textarea, select, [contenteditable="true"]')) return true
+        const cs = getComputedStyle(el)
+        if (cs.touchAction === 'none') return true
+        if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true
+      }
+      return false
+    }
+    let start: { x: number; y: number; t: number } | null = null
+    const onStart = (e: TouchEvent) => {
+      const p = e.touches[0]
+      start = e.touches.length === 1 && p && !busy() && !ownSideways(e.target) ? { x: p.clientX, y: p.clientY, t: e.timeStamp } : null
+    }
+    const onEnd = (e: TouchEvent) => {
+      const s = start, p = e.changedTouches[0]
+      start = null
+      if (!s || !p || e.timeStamp - s.t > 700) return
+      const dx = p.clientX - s.x, dy = p.clientY - s.y
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return
+      const to = list[at + (dx < 0 ? 1 : -1)]
+      if (!to) return
+      const html = document.documentElement
+      const vt = (document as Document & { startViewTransition?: (cb: () => Promise<void>) => { finished: Promise<void> } }).startViewTransition
+      if (!vt || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { router.push(to); return }
+      const cls = dx < 0 ? 'msa-swipe-next' : 'msa-swipe-prev'
+      html.classList.add('msa-swiping', cls)
+      const from = location.pathname
+      const moved = vt.call(document, () => new Promise<void>(resolve => {
+        router.push(to)
+        const t0 = performance.now()
+        // Timers, not animation frames: frames are held while the
+        // transition waits for this promise.
+        const wait = () => {
+          if (location.pathname !== from || performance.now() - t0 > 800) setTimeout(resolve, 40)
+          else setTimeout(wait, 16)
+        }
+        wait()
+      }))
+      moved.finished.finally(() => html.classList.remove('msa-swiping', cls))
+    }
+    document.addEventListener('touchstart', onStart, { passive: true })
+    document.addEventListener('touchend', onEnd, { passive: true })
+    return () => { document.removeEventListener('touchstart', onStart); document.removeEventListener('touchend', onEnd) }
+  }, [app, signedIn, role, pathname, router])
+
   // The message screen fills the screen with its own header and tabs.
   if (!app || pathname === '/dashboard/chat' || home) return null
 

@@ -346,6 +346,21 @@ html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0
   --app-bar-h: 72px; --app-tab-h: calc(74px + var(--app-tab-gap)); --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
+/* Swiping between the app's tabs (components/AppShell, owner, 2026-11-10):
+   the page slides out one way and the next slides in, while the two bars
+   stay where they are. Only during the swipe's view transition. */
+html.msa-swiping .msa-tb { view-transition-name: msa-tabs; }
+html.msa-swiping .msa-ab { view-transition-name: msa-bar; }
+::view-transition-group(msa-tabs), ::view-transition-group(msa-bar) { animation: none; }
+html.msa-swipe-next::view-transition-old(root) { animation: msa-vt-out-l .28s cubic-bezier(.2,.8,.2,1) both; }
+html.msa-swipe-next::view-transition-new(root) { animation: msa-vt-in-r .28s cubic-bezier(.2,.8,.2,1) both; }
+html.msa-swipe-prev::view-transition-old(root) { animation: msa-vt-out-r .28s cubic-bezier(.2,.8,.2,1) both; }
+html.msa-swipe-prev::view-transition-new(root) { animation: msa-vt-in-l .28s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes msa-vt-out-l { to { transform: translateX(-30%); opacity: 0; } }
+@keyframes msa-vt-in-r { from { transform: translateX(30%); opacity: 0; } }
+@keyframes msa-vt-out-r { to { transform: translateX(30%); opacity: 0; } }
+@keyframes msa-vt-in-l { from { transform: translateX(-30%); opacity: 0; } }
+
 /* The keyboard is up (html.msa-kb, set by the iOS app, SceneDelegate.swift;
    owner, 2026-11-10): the web view now ends at the keyboard, so the tabs
    would ride on it -- they go, and nothing keeps room for them or for the
