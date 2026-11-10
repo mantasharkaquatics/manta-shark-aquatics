@@ -176,6 +176,31 @@ async function shrinkPhoto(file: File): Promise<Blob> {
    filling the screen: the school's notices as small cards in it by time, a
    photo button (up to 5, picked then sent) and buttons in the AI's replies. In the app the floating widget never opens; asking it to
    (openChat, ?chat=1) goes to that page instead. */
+/* The live feed of one conversation, shared by every widget that shows it
+   (see the comment where it is used). Supabase gives back the channel it
+   already has for a topic, and adding to one already subscribed throws. */
+type ChatFeedListener = { insert: (payload: { new: unknown }) => void; recall: (payload: unknown) => void }
+const chatFeeds = new Map<string, { sb: ReturnType<typeof createClient>; ch: ReturnType<ReturnType<typeof createClient>['channel']>; ls: Set<ChatFeedListener> }>()
+function listenChat(sb: ReturnType<typeof createClient>, threadId: string, l: ChatFeedListener): () => void {
+  let feed = chatFeeds.get(threadId)
+  if (!feed) {
+    const ls = new Set<ChatFeedListener>()
+    const ch = sb.channel(`chat:${threadId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
+        (payload) => { for (const x of ls) x.insert(payload as { new: unknown }) })
+      .on('broadcast', { event: 'recall' }, ({ payload }) => { for (const x of ls) x.recall(payload) })
+      .subscribe()
+    feed = { sb, ch, ls }
+    chatFeeds.set(threadId, feed)
+  }
+  const f = feed
+  f.ls.add(l)
+  return () => {
+    f.ls.delete(l)
+    if (f.ls.size === 0 && chatFeeds.get(threadId) === f) { chatFeeds.delete(threadId); f.sb.removeChannel(f.ch) }
+  }
+}
+
 export default function ChatWidget({ parentId, lift = 0, variant = 'float', events = [] }: {
   parentId: string | null; lift?: number; variant?: 'float' | 'page'; events?: ChatEvent[]
 }) {
@@ -498,9 +523,12 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
 
   useEffect(() => {
     if (!threadId) return
-    const channel = supabase
-      .channel(`chat:${threadId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` }, (payload) => {
+    // One channel per conversation shared by every widget on the page
+    // (listenChat below): in the app the 訊息 tab's chat and the hidden
+    // floating one are both mounted, and a second .on() on a channel
+    // already subscribed throws (2026-11-10: the 訊息 tab failed to draw).
+    return listenChat(supabase, threadId, {
+      insert: (payload) => {
         setMessages(prev => prev.some(m => m.id === (payload.new as any)?.id) ? prev : [...prev, payload.new])
         if ((payload.new as any)?.sender_type !== 'parent') {
           setAwaitingAi(false)
@@ -515,19 +543,18 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
         // (a teacher will answer, /api/chat/to-team) does not hand anything back.
         else if (from === 'system' && (payload.new as { metadata?: { key?: string } } | null)?.metadata?.key) setMode('ai')
         if (!(openRef.current && visibleRef.current) && (from === 'admin' || from === 'ai')) setUnread(u => u + 1)
-      })
+      },
       // The desk recalled a reply (owner, 2026-10-23; /api/admin/chat-recall):
       // it leaves the screen without a trace. Read back from the database the
       // row is already hidden from this family.
-      .on('broadcast', { event: 'recall' }, ({ payload }) => {
+      recall: (payload) => {
         const id = (payload as { id?: string } | null)?.id
         if (!id) return
         setMessages(prev => prev.filter(m => m.id !== id))
         // It may have been counted in the dot: count again.
         if (!(openRef.current && visibleRef.current)) recountUnread()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+      },
+    })
   }, [threadId])
 
   // Read with the panel open; the history itself is only fetched then.

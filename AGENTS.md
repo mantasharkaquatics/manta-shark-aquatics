@@ -324,7 +324,12 @@ Admin > Messages can recall a desk or AI reply up to 24 hours old
   the AI will see must add `.is('recalled_at', null)`** -- the guest chat, the
   AI's history and the unread-reply email already do.
 - An open family chat drops it on a `recall` broadcast on `chat:<thread id>`;
-  the guest chat drops it on its 15-second poll.
+  the guest chat drops it on its 15-second poll. That channel is shared by
+  every chat widget on the page (ChatWidget `listenChat`): in the app the
+  訊息 tab's chat and the hidden floating one are both mounted, and a second
+  `.on()` on a channel Supabase already subscribed throws (2026-11-10: the
+  訊息 tab failed to draw). Never call supabase.channel() for a topic another
+  component may hold.
 - A visitor's reply email is held 2 minutes by Resend (`sendEmailWithId` with
   `scheduledAt`, id kept in `chat_messages.email_id`); a recall in that time
   cancels it. After that the email is out and the desk is told so.
