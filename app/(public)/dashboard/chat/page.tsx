@@ -25,8 +25,8 @@ import Icon from '@/components/ui/Icon'
    (owner, 2026-10-28). ?tab=notices (or the old ?tab=news,
    which a pushed announcement opens) opens on 通知.
 
-   Fills the screen: the app's own top bar and tabs step aside on this page
-   (components/AppShell). */
+   On its own (outside the app's pager) it fills the screen with a navy
+   header; in the app it sits between the app's bars (css below). */
 
 type Tab = 'chat' | 'notices'
 type Announcement = { id: string; title: string; body: string; pinned: boolean; created_at: string }
@@ -69,6 +69,19 @@ const css = `
 .ib-ask .no { background: #fff; color: ${BRAND.navy}; border: 1px solid #d6e0ee; }
 .ib-n { display: flex; gap: 10px; align-items: flex-start; }
 .ib-n .ico { font-size: 20px; line-height: 1.3; color: #2050a0; }
+/* In the app (the tab pager) 訊息 is a tab like the others (owner,
+   2026-11-12, 版本 1 of five): the app's top bar and tabs stay, the page
+   sits between them, the navy header goes and 通知｜客服 is a light
+   segmented control under the top bar. The keyboard takes the tabs away
+   (html.msa-kb: --app-tab-h 0), so the box then sits on the keyboard. */
+.tp-panel .ib { top: var(--nav-space); bottom: var(--app-tab-h); z-index: 1; background: #e9eff7; }
+.tp-panel .ib-hd { display: none; }
+.tp-panel .ib-tabs { margin: 6px 12px 8px; padding: 3px; gap: 3px; border-radius: 11px; background: #dde6f2; }
+.tp-panel .ib-tabs button { padding: 8px 0; color: #56647d; }
+.tp-panel .ib-tabs button[aria-selected="true"] { background: #fff; color: ${BRAND.navy}; box-shadow: 0 1px 3px rgba(18,37,74,.14); }
+.tp-panel .ib-tabs button:focus-visible { outline-color: #2050a0; }
+.tp-panel .ib-body { border-top: 1px solid #dde6f2; }
+.tp-panel .pc-inp { padding-bottom: 11px; }
 `
 // Line icons by name (components/ui/Icon, 決定 10).
 const ICON: Record<string, string> = {

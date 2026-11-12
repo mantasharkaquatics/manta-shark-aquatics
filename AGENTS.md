@@ -710,11 +710,16 @@ button. docs/migration-app-inbox.sql.
 - **客服** is the family's chat itself -- ChatWidget with variant 'page'.
   Inside the app the floating widget never opens: openChat() and ?chat=1 go
   to this page, which takes the waiting request. GlobalChat mounts nothing on
-  this path, and AppShell draws no bars there (the page has its own
-  header). Keeping the bars under the 訊息 panel (owner, 2026-11-10, 選項 B)
-  failed on the iPhone: they were drawn over it and covered the box, so
-  nobody could type (2026-11-12). A panel's z-index does not lift it over
-  the bars there; the 訊息 layout is being redesigned.
+  this path. **In the app 訊息 is a tab like the others** (owner,
+  2026-11-12, 版本 1 of five mockups): the app's top bar and tabs stay, the
+  page sits between them (`.tp-panel .ib`: top --nav-space, bottom
+  --app-tab-h), the navy header goes and 通知｜客服 is a light segmented
+  control; the box sits on the tabs, and on the keyboard once it is up
+  (msa-kb takes the tabs away). Outside the pager the page keeps its navy
+  header and fills the screen. History: the bars used to step aside here,
+  which made them pop on a swipe; kept under the 訊息 panel instead
+  (選項 B, 11-10) the iPhone drew them OVER it and the box could not be
+  typed in -- a panel's z-index does not lift it over the bars there.
 - **通知**, top down: active pool closures, what the desk posts on Admin >
   公告 (lib/announcements.ts, pinned first, shown as typed), then push_log.
   "Also push" sends category 'news' (opens ?tab=notices; the old ?tab=news

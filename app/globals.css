@@ -366,9 +366,10 @@ html.msa-pager body { padding-bottom: 0; }
 /* The room under the top bar, as the website bar's spacer (.rn-space) leaves
    it before <main>: pages pull their own background up into it. */
 .tp-scroll::before { content: ''; flex: 0 0 var(--nav-space); }
-/* A panel with a sheet, a dialog, the learning map or the chat open is
-   lifted over the top bar and the tabs, as the page's own layers were. */
-.tp-panel:has(.msa-sheet-back, .msa-dlg-back, .mst-back, .msa-lsheet-wrap, .pc-view, .ib, .sw-scrim.on,
+/* A panel with a sheet, a dialog or the learning map open is lifted over
+   the top bar and the tabs, as the page's own layers were. (Not 訊息 itself:
+   it sits between the bars, owner 2026-11-12.) */
+.tp-panel:has(.msa-sheet-back, .msa-dlg-back, .mst-back, .msa-lsheet-wrap, .pc-view, .sw-scrim.on,
   [aria-modal="true"]:not([aria-hidden="true"])) { z-index: 61; }
 /* Nothing sideways with something open over the page, or while typing. */
 .tp:has(.msa-sheet-back, .msa-dlg-back, .mst-back, .msa-lsheet-wrap, .pc-view, .sw-scrim.on,

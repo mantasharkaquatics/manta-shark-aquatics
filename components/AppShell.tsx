@@ -32,7 +32,7 @@ import { BRAND, FONT_BODY } from '@/lib/brand'
 const noSubscribe = () => () => {}
 
 const SCROLL_KEY = 'msa_scroll:'
-const TAB_ROOTS = new Set(['/dashboard', '/booking', '/dashboard/schedule', '/dashboard/me'])
+const TAB_ROOTS = new Set(['/dashboard', '/booking', '/dashboard/schedule', '/dashboard/chat', '/dashboard/me'])
 
 /* What the round language button says: the language you are in now (as the
    website bar's, components/Navbar.tsx). */
@@ -292,12 +292,10 @@ export default function AppShell() {
     if (app && titleKey) document.title = t('app.tab.' + titleKey) + ' · Manta Shark'
   }, [app, titleKey, t])
 
-  /* The message screen fills the screen with its own header and tabs. For
-     now the bars go (2026-11-12): kept under the 訊息 panel (選項 B, 11-10)
-     they were drawn OVER it on the iPhone -- the tabs covered the box and
-     nobody could type. The 訊息 layout is being redesigned. */
-  const underChat = (pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/') === '/dashboard/chat'
-  if (!app || home || underChat) return null
+  /* 訊息 has both bars like every tab (owner, 2026-11-12, 版本 1 of five):
+     its page sits between them (chat/page.tsx, .tp-panel .ib), so a swipe
+     changes nothing about the bars. */
+  if (!app || home) return null
 
   const isRoot = TAB_ROOTS.has(pathname)
   const chatCount = Math.max(unread, inbox.chat)
