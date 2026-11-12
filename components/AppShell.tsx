@@ -292,13 +292,12 @@ export default function AppShell() {
     if (app && titleKey) document.title = t('app.tab.' + titleKey) + ' · Manta Shark'
   }, [app, titleKey, t])
 
-  /* The message screen fills the screen with its own header and tabs. The
-     bars stay where they are under it (owner, 2026-11-10, 選項 B: they
-     popped out when the family swiped away from 訊息): the 訊息 panel slides
-     over them like a card and, swiped away, shows them again under the
-     finger. Covered, they are left out for screen readers. */
-  if (!app || home) return null
+  /* The message screen fills the screen with its own header and tabs. For
+     now the bars go (2026-11-12): kept under the 訊息 panel (選項 B, 11-10)
+     they were drawn OVER it on the iPhone -- the tabs covered the box and
+     nobody could type. The 訊息 layout is being redesigned. */
   const underChat = (pathname.replace(/^\/zh-Han[ts](?=\/|$)/, '') || '/') === '/dashboard/chat'
+  if (!app || home || underChat) return null
 
   const isRoot = TAB_ROOTS.has(pathname)
   const chatCount = Math.max(unread, inbox.chat)
@@ -334,8 +333,8 @@ export default function AppShell() {
   return (
     <>
       <style>{css}</style>
-      <header className={'msa-ab' + (isRoot || underChat ? '' : ' sub')} aria-hidden={underChat || undefined}>
-        {!isRoot && !underChat && (
+      <header className={'msa-ab' + (isRoot ? '' : ' sub')}>
+        {!isRoot && (
           <button type="button" className="msa-ab-back" onClick={back} aria-label={t('app.back')}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
           </button>
@@ -363,7 +362,7 @@ export default function AppShell() {
         </div>
       </header>
       {signedIn && (
-        <nav className="msa-tb" aria-label={t('app.tabs')} aria-hidden={underChat || undefined}>
+        <nav className="msa-tb" aria-label={t('app.tabs')}>
           {tabs.map(tab => {
             const label = t('app.tab.' + tab.key)
             const current = onTab(tab.key) ? 'page' as const : undefined
