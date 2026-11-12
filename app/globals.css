@@ -357,10 +357,13 @@ html.msa-pager body { padding-bottom: 0; }
   scrollbar-width: none; }
 .tp[hidden] { display: none; }
 .tp::-webkit-scrollbar { display: none; }
-/* Its own containing block (translateZ): a page's fixed bars and sheets stay
-   in its panel and move with it. */
+/* Its own containing block (contain: layout): a page's fixed bars and sheets
+   stay in its panel and move with it. Not transform: translateZ(0), which it
+   was until 2026-11-12: on the iPhone a panel that was its own layer inside
+   the sideways scroller did not take the finger -- 預約 would not scroll up
+   and down and the first swimmer would not turn (owner, 2026-11-12). */
 .tp-panel { position: relative; flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start;
-  scroll-snap-stop: always; transform: translateZ(0); overflow: hidden; }
+  scroll-snap-stop: always; contain: layout; overflow: hidden; }
 .tp-scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none;
   display: flex; flex-direction: column; padding-bottom: var(--app-tab-h); background: #e9eff7; }
 /* The room under the top bar, as the website bar's spacer (.rn-space) leaves
@@ -381,6 +384,14 @@ html.msa-pager body { padding-bottom: 0; }
    home-indicator band, which the keyboard covers. */
 html.msa-app.msa-kb { --app-sab: 0px; --app-tab-h: 0px; --app-tab-now: 0px; }
 html.msa-app.msa-kb .msa-tb { display: none !important; }
+/* Typing in 訊息 (owner, 2026-11-12): the top bar slides away and 通知｜客服
+   folds, so the conversation runs from the top of the screen to the box on
+   the keyboard. Keyed on the box having the focus too, for app builds that
+   do not set msa-kb. */
+html.msa-app.msa-kb:has(.tp-panel.on .ib) .msa-ab,
+html.msa-app:has(.tp-panel.on .ib textarea:focus) .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
+html.msa-app.msa-kb .tp-panel.on .ib, html.msa-app .tp-panel.on .ib:has(textarea:focus) { top: 0; }
+html.msa-app.msa-kb .tp-panel.on .ib-tabs, html.msa-app .tp-panel.on .ib:has(textarea:focus) .ib-tabs { display: none; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }

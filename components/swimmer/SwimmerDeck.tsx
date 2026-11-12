@@ -228,6 +228,24 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     activate(Math.min(centerRef.current, items.length - 1))
   }, [engine, items, draft, editing, activate])
 
+  /* The grab boxes follow the live picture's size. The first card is made
+     live as soon as the 3D is ready, which can be before its picture has its
+     final height -- or, in the app's tab pager, while 首頁 is not laid out
+     yet (no size: no boxes). Its swimmer then could not be turned until the
+     cards were swiped (owner, 2026-11-12: "the first one does not turn, the
+     second does"). The engine resizes its view in its own observer; the
+     boxes are placed a frame later, from the resized camera. */
+  useEffect(() => {
+    if (!engine || engine === 'loading') return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => { const it = items[centerRef.current]; if (it) placeHolds(it.id, true) })
+    })
+    for (const el of liveEls.current.values()) ro.observe(el)
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [engine, items, placeHolds])
+
   // Dressing shows on the live swimmer straight away.
   useEffect(() => {
     if (!engine || engine === 'loading' || !draft || !editing) return

@@ -565,15 +565,20 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
     chat counts as seen / open only when on screen. Scroll the page with
     pageScrollTo / pageOffsetTop / pageScrollHeight, never window.scrollTo
     (the window does not scroll there: html.msa-pager).
-  - Each panel is its own containing block (translateZ): a page's fixed bars
+  - Each panel is its own containing block (contain: layout): a page's fixed bars
     and sheets stay in it and move with it. A panel with a sheet, dialog,
     the learning map or the chat is lifted over the app's bars (z 61, :has
     list in globals.css -- add a new overlay class there), and the pager does
     not move sideways while one is open or the keyboard is up.
-  - **No `inert` on off-screen panels** (owner, 2026-11-10: 預約, loaded in
-    the background, would not scroll up and down on the iPhone). iOS decides
-    which part of the screen scrolls outside the page and did not give a
-    panel its scrolling back when inert came off. aria-hidden only.
+  - **The iPhone and the panels** (owner, 2026-11-10/12: 預約 would not
+    scroll up and down, the first swimmer would not turn -- both fine in
+    Chrome). iOS decides outside the page what a finger scrolls or turns.
+    Taking `inert` off the panels did not cure it; the panels were then
+    made containing blocks with `contain: layout` instead of their own
+    layer (`transform: translateZ(0)`). public/_diag/pager-test.html is the
+    same structure with #a (translateZ), #b (contain) and #c (neither) to
+    try on a phone; delete it once this is settled. No inert, aria-hidden
+    only.
   - What already moves sideways keeps the finger: the swimmer deck and
     我的方案 (overscroll-behavior-x: contain), a single swimmer card
     (`.sw-deck.one`, touch-action: pan-y), the swimmer (`.sw-hold`).
@@ -715,7 +720,10 @@ button. docs/migration-app-inbox.sql.
   page sits between them (`.tp-panel .ib`: top --nav-space, bottom
   --app-tab-h), the navy header goes and 通知｜客服 is a light segmented
   control; the box sits on the tabs, and on the keyboard once it is up
-  (msa-kb takes the tabs away). Outside the pager the page keeps its navy
+  (msa-kb takes the tabs away). While typing there (msa-kb, or the box
+  focused) the top bar slides away and 通知｜客服 folds, so the conversation
+  runs from the top of the screen to the box (owner, 2026-11-12: "the top
+  bar should fold so the conversation is bigger"). Outside the pager the page keeps its navy
   header and fills the screen. History: the bars used to step aside here,
   which made them pop on a swipe; kept under the 訊息 panel instead
   (選項 B, 11-10) the iPhone drew them OVER it and the box could not be
