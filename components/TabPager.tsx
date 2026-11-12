@@ -197,6 +197,43 @@ function Pager({ here }: { here: TabKey | null }) {
     timer = setTimeout(next, 900)
     return () => { alive = false; clearTimeout(timer) }
   }, [mount, tabKey])
+  const curMounted = mounted.has(cur)
+  /* A panel coming on screen gets its up-and-down scroller made again (its
+     place kept). The iPhone decides outside the page what a finger scrolls,
+     and a panel drawn in the background, off screen, did not scroll there
+     once on screen (owner, 2026-11-10/12: 預約 would not move up or down). */
+  useEffect(() => {
+    const s = box.current?.querySelector<HTMLElement>(`.tp-panel[data-tab="${cur}"] .tp-scroll`)
+    if (!s) return
+    let finger = false
+    const remake = () => {
+      if (finger) return
+      const y = s.scrollTop
+      s.style.overflowY = 'hidden'
+      void s.offsetHeight
+      s.style.overflowY = ''
+      if (s.scrollTop !== y) s.scrollTop = y
+    }
+    const id = requestAnimationFrame(remake)
+    // And again once its page has grown (its data arrived), unless a finger
+    // is on it.
+    let t: ReturnType<typeof setTimeout> | undefined
+    const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(remake, 300) })
+    for (const c of s.children) ro.observe(c)
+    // Its page may not be drawn yet (it loads on its own): watch what arrives.
+    const mo = new MutationObserver(() => { for (const c of s.children) ro.observe(c) })
+    mo.observe(s, { childList: true })
+    const down = () => { finger = true }
+    const up = () => { finger = false }
+    s.addEventListener('touchstart', down, { passive: true })
+    s.addEventListener('touchend', up, { passive: true })
+    s.addEventListener('touchcancel', up, { passive: true })
+    return () => {
+      cancelAnimationFrame(id); clearTimeout(t); ro.disconnect(); mo.disconnect()
+      s.removeEventListener('touchstart', down); s.removeEventListener('touchend', up); s.removeEventListener('touchcancel', up)
+    }
+  }, [cur, curMounted])
+
   // The scroller came to rest on a panel: that tab is on screen.
   useEffect(() => {
     const el = box.current

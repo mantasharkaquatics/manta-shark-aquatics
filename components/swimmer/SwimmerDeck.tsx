@@ -61,7 +61,12 @@ const CSS = `
    row, which iOS moves entirely by itself. */
 .sw-slot:not([data-on]) .msa-mcard * { pointer-events: none }
 .sw-slot:not([data-on]) { cursor: pointer }
-.sw-hold { position: absolute; z-index: 2; display: none; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent }
+.sw-hold { position: absolute; z-index: 2; display: none; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent;
+  /* Painted, if invisibly: the iPhone learns where a finger turns rather than
+     scrolls from what is painted, and a box with nothing to paint was not
+     heard of there once the app's tabs sat side by side (owner, 2026-11-12:
+     the first swimmer moved the cards instead of turning). */
+  background: rgba(255,255,255,.004) }
 /* A shadow short enough to end inside the row's own bottom padding (the row clips what spills out). */
 .sw-slot .msa-mcard { padding: 12px 14px; min-height: 0; box-shadow: 0 10px 20px rgba(18,37,74,.22) }
 .sw-stage { position: relative; height: var(--sw-stage-h, 300px); margin: -12px -14px 12px; overflow: hidden; container-type: size;

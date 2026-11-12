@@ -575,10 +575,14 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
     Chrome). iOS decides outside the page what a finger scrolls or turns.
     Taking `inert` off the panels did not cure it; the panels were then
     made containing blocks with `contain: layout` instead of their own
-    layer (`transform: translateZ(0)`). public/_diag/pager-test.html is the
-    same structure with #a (translateZ), #b (contain) and #c (neither) to
-    try on a phone; delete it once this is settled. No inert, aria-hidden
-    only.
+    layer (`transform: translateZ(0)`) -- that did not cure it either. Now
+    the panel coming on screen (and again once its page has grown) gets its
+    scroller made again (overflow-y toggled, place kept), and the swimmer's
+    grab boxes are painted (an invisible background). Not confirmed on a
+    phone yet. public/_diag/pager-test.html has four small copies of the
+    structure (A as the app was, B with these cures, C as layers, D with
+    nothing arriving late), each showing whether it scrolled and turned;
+    delete it once this is settled. No inert, aria-hidden only.
   - What already moves sideways keeps the finger: the swimmer deck and
     我的方案 (overscroll-behavior-x: contain), a single swimmer card
     (`.sw-deck.one`, touch-action: pan-y), the swimmer (`.sw-hold`).
