@@ -45,6 +45,14 @@ const ORDER: TabKey[] = ['home', 'book', 'schedule', 'chat', 'me']
 
 const noSubscribe = () => () => {}
 
+/* Off (owner, 2026-11-12, 選項 A): on the iPhone, inside the side-by-side
+   tabs, 預約 would not scroll up and down and the first swimmer would not
+   turn -- three fixes made without an iPhone to try them on did not help.
+   The app is back to one page per tab, changed with the tab bar, as before
+   2026-11-10. Everything below stays, to switch on again once
+   public/_diag/pager-test.html has shown on a phone what the iPhone needs. */
+const PAGER_ON = false
+
 export default function TabHost({ children }: { children: React.ReactNode }) {
   const app = useSyncExternalStore(noSubscribe, appLook, () => false)
   const pathname = usePathname() || '/'
@@ -72,7 +80,7 @@ export default function TabHost({ children }: { children: React.ReactNode }) {
     })
     return () => subscription.unsubscribe()
   }, [app])
-  if (!app || (!here && !started) || signedOut) return <>{children}</>
+  if (!PAGER_ON || !app || (!here && !started) || signedOut) return <>{children}</>
   return (
     <>
       {here ? null : children}

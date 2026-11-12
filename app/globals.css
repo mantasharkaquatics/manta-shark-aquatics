@@ -388,10 +388,10 @@ html.msa-app.msa-kb .msa-tb { display: none !important; }
    folds, so the conversation runs from the top of the screen to the box on
    the keyboard. Keyed on the box having the focus too, for app builds that
    do not set msa-kb. */
-html.msa-app.msa-kb:has(.tp-panel.on .ib) .msa-ab,
-html.msa-app:has(.tp-panel.on .ib textarea:focus) .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
-html.msa-app.msa-kb .tp-panel.on .ib, html.msa-app .tp-panel.on .ib:has(textarea:focus) { top: 0; }
-html.msa-app.msa-kb .tp-panel.on .ib-tabs, html.msa-app .tp-panel.on .ib:has(textarea:focus) .ib-tabs { display: none; }
+html.msa-app.msa-kb:not(.msa-pager):has(.ib) .msa-ab, html.msa-app.msa-kb:has(.tp-panel.on .ib) .msa-ab,
+html.msa-app:has(.ib textarea:focus) .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
+html.msa-app.msa-kb:not(.msa-pager) .ib, html.msa-app.msa-kb .tp-panel.on .ib, html.msa-app .ib:has(textarea:focus) { padding-top: 0; }
+html.msa-app.msa-kb:not(.msa-pager) .ib-tabs, html.msa-app.msa-kb .tp-panel.on .ib-tabs, html.msa-app .ib:has(textarea:focus) .ib-tabs { display: none; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }

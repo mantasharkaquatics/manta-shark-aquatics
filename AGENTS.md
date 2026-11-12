@@ -543,6 +543,13 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
   one line -- name and birthday, the health answer as a chip (red not
   answered, green none, amber with the notes).
+- **Switched off (owner, 2026-11-12, 選項 A): `PAGER_ON = false` in
+  components/TabPager.tsx.** On the iPhone, inside the side-by-side tabs,
+  預約 would not scroll up and down and the first swimmer would not turn;
+  three fixes made without an iPhone did not help. The app is one page per
+  tab again, changed with the tab bar. What follows describes the pager as
+  built, to switch on again once public/_diag/pager-test.html has shown on
+  an iPhone what it needs.
 - **The five tabs sit side by side and a swipe reveals the next one under
   the finger** (owner, 2026-11-10, 選項 A: "slowly show 預約, bit by bit,
   very smooth, no flicker" -- a swipe that loaded the next page afterwards,
@@ -721,7 +728,7 @@ button. docs/migration-app-inbox.sql.
   to this page, which takes the waiting request. GlobalChat mounts nothing on
   this path. **In the app 訊息 is a tab like the others** (owner,
   2026-11-12, 版本 1 of five mockups): the app's top bar and tabs stay, the
-  page sits between them (`.tp-panel .ib`: top --nav-space, bottom
+  page sits between them (`html.msa-app .ib`: padding-top --nav-space, bottom
   --app-tab-h), the navy header goes and 通知｜客服 is a light segmented
   control; the box sits on the tabs, and on the keyboard once it is up
   (msa-kb takes the tabs away). While typing there (msa-kb, or the box
