@@ -543,6 +543,24 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
   one line -- name and birthday, the health answer as a chip (red not
   answered, green none, amber with the notes).
+- **Swiping between the tabs is native** (owner, 2026-11-13, "原生手勢＋
+  快照", after the in-page pager below failed on the iPhone). iOS follows
+  the finger outside the page (TabSwipe in mobile/ios/App/App/
+  SceneDelegate.swift, a UIPanGestureRecognizer on the web view that the
+  page's own scrolling waits on): the page slides away, the tab beside it
+  slides in as a picture taken the last time it was open at its top
+  (WKWebView.takeSnapshot), and once let go past a third (or flicked) the
+  page is told to go there (`swipe` event); the picture covers it until the
+  page says it is drawn (`ready`, at most 2 s) and fades. One web view, so
+  every plugin works on every tab. The page's side is
+  components/AppTabSwipe.tsx (mounted by AppShell): it sends, on every
+  change, the tab open, whether a swipe may start (a tab's own page, no
+  sheet or dialog -- the same list as the pager's -- no keyboard) and the
+  rectangles where it may not (anything scrolling sideways, found by a
+  scan; the swimmer's grab boxes; `[data-no-tab-swipe]`), and asks for a
+  picture when a tab has settled at its top. iPhone only: Android and
+  older iPhone builds have no swiping (tabSwipePlugin() is null). A tab
+  never opened slides in as the page colour.
 - **Switched off (owner, 2026-11-12, 選項 A): `PAGER_ON = false` in
   components/TabPager.tsx.** On the iPhone, inside the side-by-side tabs,
   預約 would not scroll up and down and the first swimmer would not turn;

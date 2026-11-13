@@ -10,6 +10,7 @@ import { appLook, coverViewport, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
 import { useFamilyRole } from '@/lib/use-viewer'
 import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
+import AppTabSwipe from '@/components/AppTabSwipe'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
 /* The phone app's own frame (owner, 2026-10-27): a top bar and five tabs --
@@ -359,6 +360,7 @@ export default function AppShell() {
           )}
         </div>
       </header>
+      {signedIn && <AppTabSwipe tabs={tabs.map(x => x.href)} />}
       {signedIn && (
         <nav className="msa-tb" aria-label={t('app.tabs')}>
           {tabs.map(tab => {

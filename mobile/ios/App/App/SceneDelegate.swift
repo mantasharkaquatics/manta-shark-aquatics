@@ -70,7 +70,11 @@ class SafeAreaContainer: UIViewController {
         bottomPin = pin
         child.didMove(toParent: self)
         watchKeyboard()
+        swipe = TabSwipe(host: view, page: child.view, webView: webView)
     }
+
+    /// Swiping between the five tabs (TabSwipe, below).
+    private var swipe: TabSwipe?
 
     // MARK: The keyboard (owner, 2026-11-10: the chat felt jerky)
     //
@@ -144,12 +148,14 @@ class SafeAreaContainer: UIViewController {
 }
 
 /// The Capacitor bridge, with the app's own plugins: the chat's
-/// photo-library picker (PhotoPicker.swift) and subscribing the iPhone
-/// calendar to the family's lessons (CalendarAdd.swift).
+/// photo-library picker (PhotoPicker.swift), subscribing the iPhone
+/// calendar to the family's lessons (CalendarAdd.swift) and swiping between
+/// the tabs (TabSwipePlugin, below).
 class AppViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(PhotoPickerPlugin())
         bridge?.registerPluginInstance(CalendarAddPlugin())
+        bridge?.registerPluginInstance(TabSwipePlugin())
     }
 
     /// The page lays itself out around the home indicator (viewport-fit=cover
@@ -158,5 +164,238 @@ class AppViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         webView?.scrollView.contentInsetAdjustmentBehavior = .never
+    }
+}
+
+// MARK: - Swiping between the tabs
+
+/// A sideways swipe moves to the next or previous tab (owner, 2026-11-13,
+/// after the five tabs side by side inside the page -- 2026-11-10 -- broke
+/// scrolling and the swimmer on the iPhone and were switched off).
+///
+/// iOS itself follows the finger here, outside the page: the page as it is
+/// slides away and the tab beside it slides in as the picture it showed the
+/// last time it was open at its top (taken by takeSnapshot when the page
+/// says so). Let go past a third of the screen, or with a flick, and the page
+/// is told to go to that tab; the picture stays over it until the page says
+/// it is drawn (or 2 seconds), then fades. Nothing is loaded while the
+/// finger is down, and the page itself scrolls and turns as it always did:
+/// the page tells this, all the time, whether a swipe may start at all (not
+/// on other pages, not with a sheet or the keyboard up) and where things
+/// that move sideways themselves are (the swimmer cards, 我的方案), where it
+/// may not start. A tab never opened yet slides in as the page colour.
+///
+/// The page's side: components/AppTabSwipe.tsx.
+final class TabSwipe: NSObject, UIGestureRecognizerDelegate {
+    static weak var shared: TabSwipe?
+    weak var plugin: TabSwipePlugin?
+
+    private weak var host: UIView?
+    private weak var page: UIView?
+    private weak var webView: WKWebView?
+
+    // What the page said last.
+    private var count = 0
+    private var current = -1
+    private var allowed = false
+    private var blocked: [CGRect] = []
+
+    private var shots: [Int: UIImage] = [:]
+    private var start: CGPoint = .zero
+    private var target = -1
+    private var peek: UIView?
+    private var cover: UIView?
+    private var coverTimer: Timer?
+    private var pan: UIPanGestureRecognizer!
+
+    /// The page's colour behind the tabs (#e9eff7), for a tab with no picture yet.
+    private let pageColour = UIColor(red: 0xe9 / 255.0, green: 0xef / 255.0, blue: 0xf7 / 255.0, alpha: 1)
+
+    init(host: UIView, page: UIView, webView: WKWebView?) {
+        self.host = host
+        self.page = page
+        self.webView = webView
+        super.init()
+        pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        page.addGestureRecognizer(pan)
+        TabSwipe.shared = self
+    }
+
+    func update(count: Int, current: Int, allowed: Bool, blocked: [CGRect]) {
+        self.count = count
+        self.current = current
+        self.allowed = allowed
+        self.blocked = blocked
+    }
+
+    /// The page is at its top on tab `index`: keep a picture of it.
+    func snap(_ index: Int) {
+        guard let web = webView, index == current, index >= 0, cover == nil, peek == nil else { return }
+        let config = WKSnapshotConfiguration()
+        config.afterScreenUpdates = false
+        web.takeSnapshot(with: config) { [weak self] image, _ in
+            guard let self = self, let image = image, self.current == index, self.peek == nil, self.cover == nil else { return }
+            self.shots[index] = image
+        }
+    }
+
+    /// The page has drawn the tab it was sent to: the picture goes.
+    func ready() {
+        coverTimer?.invalidate()
+        coverTimer = nil
+        guard let c = cover else { return }
+        cover = nil
+        UIView.animate(withDuration: 0.18, animations: { c.alpha = 0 }, completion: { _ in c.removeFromSuperview() })
+    }
+
+    // MARK: The finger
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if g === pan, let page = page { start = touch.location(in: page) }
+        return true
+    }
+
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard g === pan, let page = page, allowed, current >= 0, count > 1, cover == nil, peek == nil else { return false }
+        let t = pan.translation(in: page)
+        // Sideways, clearly: anything else is the page's own scrolling.
+        guard abs(t.x) > abs(t.y) * 1.4 else { return false }
+        if blocked.contains(where: { $0.contains(start) }) { return false }
+        let next = current + (t.x < 0 ? 1 : -1)
+        return next >= 0 && next < count
+    }
+
+    /// The page's scrolling waits until this has decided it is not a swipe
+    /// (which it does at the first movement), so the two never both move.
+    /// Where no swipe may start, nothing waits.
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+        return g === pan && allowed && other is UIPanGestureRecognizer && other.view is UIScrollView
+    }
+
+    @objc private func panned(_ g: UIPanGestureRecognizer) {
+        guard let page = page, let host = host else { return }
+        let w = page.bounds.width
+        let dx = g.translation(in: host).x
+        switch g.state {
+        case .began:
+            target = current + (dx < 0 ? 1 : -1)
+            let v: UIView
+            if let shot = shots[target] {
+                let iv = UIImageView(image: shot)
+                iv.contentMode = .scaleToFill
+                v = iv
+            } else {
+                v = UIView()
+            }
+            v.backgroundColor = pageColour
+            v.frame = page.frame
+            v.isUserInteractionEnabled = false
+            host.insertSubview(v, aboveSubview: page)
+            peek = v
+            move(dx)
+        case .changed:
+            move(dx)
+        case .ended, .cancelled, .failed:
+            let dir: CGFloat = target > current ? -1 : 1
+            let speed = g.velocity(in: host).x * dir
+            let gone = dx * dir
+            let go = g.state == .ended && gone > 0 && (gone > w / 3 || speed > 600)
+            let to: CGFloat = go ? dir * w : 0
+            let left = abs(to - clamp(dx))
+            let time = min(0.3, max(0.12, Double(left / max(abs(g.velocity(in: host).x), 900))))
+            UIView.animate(withDuration: time, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: {
+                self.place(to)
+            }, completion: { _ in self.finish(go) })
+        default:
+            break
+        }
+    }
+
+    /// Only towards the tab on that side; never past it.
+    private func clamp(_ dx: CGFloat) -> CGFloat {
+        guard let page = page else { return 0 }
+        let w = page.bounds.width
+        let dir: CGFloat = target > current ? -1 : 1
+        return dir < 0 ? min(0, max(-w, dx)) : max(0, min(w, dx))
+    }
+
+    private func move(_ dx: CGFloat) { place(clamp(dx)) }
+
+    private func place(_ x: CGFloat) {
+        guard let page = page else { return }
+        let w = page.bounds.width
+        let dir: CGFloat = target > current ? -1 : 1
+        page.transform = CGAffineTransform(translationX: x, y: 0)
+        peek?.transform = CGAffineTransform(translationX: x - dir * w, y: 0)
+    }
+
+    private func finish(_ go: Bool) {
+        guard let page = page, let p = peek else { return }
+        peek = nil
+        if !go {
+            page.transform = .identity
+            p.removeFromSuperview()
+            return
+        }
+        // The picture of the tab stays over the page, which moves back
+        // under it and is told where to go.
+        p.transform = .identity
+        p.isUserInteractionEnabled = true
+        page.transform = .identity
+        cover = p
+        let index = target
+        coverTimer?.invalidate()
+        coverTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in self?.ready() }
+        plugin?.notifyListeners("swipe", data: ["index": index])
+    }
+}
+
+/// JS: Capacitor.Plugins.TabSwipe (components/AppTabSwipe.tsx, lib/native-app.ts)
+///   configure({ count, current, allowed, blocked: [x, y, w, h, ...] })
+///   snap({ index })   -- the page is at its top on that tab
+///   ready()           -- the tab swiped to is drawn
+///   addListener('swipe', ({ index }) => go to that tab)
+@objc(TabSwipePlugin)
+public class TabSwipePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "TabSwipePlugin"
+    public let jsName = "TabSwipe"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "configure", returnType: CAPPluginReturnNone),
+        CAPPluginMethod(name: "snap", returnType: CAPPluginReturnNone),
+        CAPPluginMethod(name: "ready", returnType: CAPPluginReturnNone)
+    ]
+
+    @objc func configure(_ call: CAPPluginCall) {
+        let count = call.getInt("count") ?? 0
+        let current = call.getInt("current") ?? -1
+        let allowed = call.getBool("allowed") ?? false
+        let flat: [CGFloat] = (call.getArray("blocked") ?? []).map { v in
+            if let n = v as? NSNumber { return CGFloat(truncating: n) }
+            return 0
+        }
+        var rects: [CGRect] = []
+        var i = 0
+        while i + 3 < flat.count {
+            rects.append(CGRect(x: flat[i], y: flat[i + 1], width: flat[i + 2], height: flat[i + 3]))
+            i += 4
+        }
+        DispatchQueue.main.async {
+            TabSwipe.shared?.plugin = self
+            TabSwipe.shared?.update(count: count, current: current, allowed: allowed, blocked: rects)
+        }
+        call.resolve()
+    }
+
+    @objc func snap(_ call: CAPPluginCall) {
+        let index = call.getInt("index") ?? -1
+        DispatchQueue.main.async { TabSwipe.shared?.snap(index) }
+        call.resolve()
+    }
+
+    @objc func ready(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { TabSwipe.shared?.ready() }
+        call.resolve()
     }
 }
