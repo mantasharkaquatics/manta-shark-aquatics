@@ -70,7 +70,7 @@ export const calendarAddPlugin = (): CalendarAddPlugin | null =>
    page to go to the tab swiped to; components/AppTabSwipe.tsx tells it
    where a swipe may start. Missing on Android and on older iPhone builds. */
 export interface TabSwipePlugin extends NativeListenable {
-  configure(opts: { count: number; current: number; allowed: boolean; blocked: number[] }): unknown
+  configure(opts: { count: number; current: number; allowed: boolean; blocked: number[]; why?: string }): unknown
   snap(opts: { index: number }): unknown
   ready(): unknown
 }

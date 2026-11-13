@@ -68,17 +68,32 @@ export default function AppTabSwipe({ tabs }: { tabs: string[] }) {
   // The tab a swipe went to, until it is drawn.
   const arriving = useRef<string | null>(null)
 
-  const allowedNow = () => current >= 0 && !arriving.current
-    && !document.documentElement.classList.contains('msa-kb') && !document.querySelector(OPEN)
+  /** Why a swipe may not start now ('' = it may), for the app's log. */
+  const whyNot = (): string => {
+    if (current < 0) return 'not a tab'
+    if (arriving.current) return 'arriving'
+    if (document.documentElement.classList.contains('msa-kb')) return 'keyboard'
+    const open = document.querySelector(OPEN)
+    if (open) return 'open: ' + (open.className || open.getAttribute('role') || open.tagName)
+    return ''
+  }
+  const allowedNow = () => whyNot() === ''
 
   // Tell the app, now and whenever the page changes.
   useEffect(() => {
     if (!plugin) return
     let timer: ReturnType<typeof setTimeout> | undefined
+    let last = ''
     const send = () => {
       try {
-        const allowed = allowedNow()
-        plugin.configure({ count: tabsRef.current.length, current, allowed, blocked: allowed ? blockedRects() : [] })
+        const why = whyNot()
+        const allowed = why === ''
+        const o = { count: tabsRef.current.length, current, allowed, blocked: allowed ? blockedRects() : [], why }
+        // Only when something changed: every call is a trip across the bridge.
+        const k = JSON.stringify(o)
+        if (k === last) return
+        last = k
+        plugin.configure(o)
       } catch { /* an older app: no swiping */ }
     }
     const soon = () => { clearTimeout(timer); timer = setTimeout(send, 120) }

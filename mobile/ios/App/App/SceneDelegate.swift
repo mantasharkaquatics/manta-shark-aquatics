@@ -223,7 +223,9 @@ final class TabSwipe: NSObject, UIGestureRecognizerDelegate {
         TabSwipe.shared = self
     }
 
-    func update(count: Int, current: Int, allowed: Bool, blocked: [CGRect]) {
+    func update(count: Int, current: Int, allowed: Bool, blocked: [CGRect], why: String) {
+        // In Xcode's console (filter: TabSwipe), while this is being tried out.
+        print("[TabSwipe] page says: tab \(current) of \(count), swipe \(allowed ? "allowed" : "not allowed: " + why), \(blocked.count) blocked areas")
         self.count = count
         self.current = current
         self.allowed = allowed
@@ -253,18 +255,28 @@ final class TabSwipe: NSObject, UIGestureRecognizerDelegate {
     // MARK: The finger
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        if g === pan, let page = page { start = touch.location(in: page) }
+        if g === pan, let page = page {
+            start = touch.location(in: page)
+            print("[TabSwipe] finger down at \(Int(start.x)),\(Int(start.y))")
+        }
         return true
     }
 
     func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
-        guard g === pan, let page = page, allowed, current >= 0, count > 1, cover == nil, peek == nil else { return false }
+        guard g === pan, let page = page else { return false }
         let t = pan.translation(in: page)
+        let no: String?
+        if !allowed || current < 0 || count < 2 { no = "the page does not allow it" }
+        else if cover != nil || peek != nil { no = "a swipe is still finishing" }
         // Sideways, clearly: anything else is the page's own scrolling.
-        guard abs(t.x) > abs(t.y) * 1.4 else { return false }
-        if blocked.contains(where: { $0.contains(start) }) { return false }
-        let next = current + (t.x < 0 ? 1 : -1)
-        return next >= 0 && next < count
+        else if abs(t.x) <= abs(t.y) * 1.4 { no = "not sideways (\(Int(t.x)),\(Int(t.y)))" }
+        else if blocked.contains(where: { $0.contains(start) }) { no = "started on something that moves sideways itself" }
+        else {
+            let next = current + (t.x < 0 ? 1 : -1)
+            no = next >= 0 && next < count ? nil : "no tab on that side"
+        }
+        print("[TabSwipe] swipe? " + (no ?? "yes"))
+        return no == nil
     }
 
     /// The page's scrolling waits until this has decided it is not a swipe
@@ -371,6 +383,7 @@ public class TabSwipePlugin: CAPPlugin, CAPBridgedPlugin {
         let count = call.getInt("count") ?? 0
         let current = call.getInt("current") ?? -1
         let allowed = call.getBool("allowed") ?? false
+        let why = call.getString("why") ?? ""
         let flat: [CGFloat] = (call.getArray("blocked") ?? []).map { v in
             if let n = v as? NSNumber { return CGFloat(truncating: n) }
             return 0
@@ -383,7 +396,8 @@ public class TabSwipePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         DispatchQueue.main.async {
             TabSwipe.shared?.plugin = self
-            TabSwipe.shared?.update(count: count, current: current, allowed: allowed, blocked: rects)
+            TabSwipe.shared?.update(count: count, current: current, allowed: allowed, blocked: rects, why: why)
+            if TabSwipe.shared == nil { print("[TabSwipe] not set up: no TabSwipe in SafeAreaContainer") }
         }
         call.resolve()
     }
