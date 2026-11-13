@@ -65,18 +65,6 @@ export interface CalendarAddPlugin {
 export const calendarAddPlugin = (): CalendarAddPlugin | null =>
   (cap()?.Plugins?.CalendarAdd as CalendarAddPlugin | undefined) ?? null
 
-/* Swiping between the tabs (owner, 2026-11-13): iOS follows the finger
-   itself (mobile/ios/App/App/SceneDelegate.swift, TabSwipe) and asks the
-   page to go to the tab swiped to; components/AppTabSwipe.tsx tells it
-   where a swipe may start. Missing on Android and on older iPhone builds. */
-export interface TabSwipePlugin extends NativeListenable {
-  configure(opts: { count: number; current: number; allowed: boolean; blocked: number[]; why?: string }): unknown
-  snap(opts: { index: number }): unknown
-  ready(): unknown
-}
-export const tabSwipePlugin = (): TabSwipePlugin | null =>
-  (cap()?.Plugins?.TabSwipe as TabSwipePlugin | undefined) ?? null
-
 /** The app's language button (components/AppShell) asks the website bar
  *  (components/Navbar), which stays mounted inside the app, to switch:
  *  detail = the Locale. */

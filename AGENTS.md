@@ -543,74 +543,46 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   one screen (the empty state is one row); on 帳號資料與孩子 each swimmer is
   one line -- name and birthday, the health answer as a chip (red not
   answered, green none, amber with the notes).
-- **Swiping between the tabs is native** (owner, 2026-11-13, "原生手勢＋
-  快照", after the in-page pager below failed on the iPhone). iOS follows
-  the finger outside the page (TabSwipe in mobile/ios/App/App/
-  SceneDelegate.swift, a UIPanGestureRecognizer on the web view that the
-  page's own scrolling waits on): the page slides away, the tab beside it
-  slides in as a picture taken the last time it was open at its top
-  (WKWebView.takeSnapshot), and once let go past a third (or flicked) the
-  page is told to go there (`swipe` event); the picture covers it until the
-  page says it is drawn (`ready`, at most 2 s) and fades. One web view, so
-  every plugin works on every tab. The page's side is
-  components/AppTabSwipe.tsx (mounted by AppShell): it sends, on every
-  change, the tab open, whether a swipe may start (a tab's own page, no
-  sheet or dialog -- the same list as the pager's -- no keyboard) and the
-  rectangles where it may not (anything scrolling sideways, found by a
-  scan; the swimmer's grab boxes; `[data-no-tab-swipe]`), and asks for a
-  picture when a tab has settled at its top. iPhone only: Android and
-  older iPhone builds have no swiping (tabSwipePlugin() is null). A tab
-  never opened slides in as the page colour.
-- **Switched off (owner, 2026-11-12, 選項 A): `PAGER_ON = false` in
-  components/TabPager.tsx.** On the iPhone, inside the side-by-side tabs,
-  預約 would not scroll up and down and the first swimmer would not turn;
-  three fixes made without an iPhone did not help. The app is one page per
-  tab again, changed with the tab bar. What follows describes the pager as
-  built, to switch on again once public/_diag/pager-test.html has shown on
-  an iPhone what it needs.
-- **The five tabs sit side by side and a swipe reveals the next one under
-  the finger** (owner, 2026-11-10, 選項 A: "slowly show 預約, bit by bit,
-  very smooth, no flicker" -- a swipe that loaded the next page afterwards,
-  even with a slide-in, was turned down). components/TabPager.tsx, wrapped
-  round the (public) layout's children: inside the app, on a tab's own
-  address, one sideways scroller (`.tp`, scroll-snap, moved by the phone
-  itself -- never by JavaScript) holds one panel per tab (`.tp-panel` >
-  `.tp-scroll`, each scrolling up and down on its own, with the top-bar
-  spacer as ::before). The tab on the address loads first; the others load
-  in the background, nearest first, once the address has no query. The
-  address follows the panel at rest (history.replaceState); a tab-bar tap,
-  link or router move to a tab jumps there, and one carrying a query or a
-  hash (/booking?student=…, #invites) loads that tab afresh, since pages
-  read those once at start. Other pages: the pager is hidden (kept, with
-  each panel's place) and the page shows as before; signing out drops it.
-  - **A page inside the pager**: `useTabPanel()` (lib/tab-panel.ts) says
-    which tab and whether it is on screen. The dashboard takes its view
-    from it, not the address. A page coming back on screen reads its data
-    again quietly (dashboard refreshRef, 我的 wallet/plans, 訊息 inbox); the
-    chat counts as seen / open only when on screen. Scroll the page with
-    pageScrollTo / pageOffsetTop / pageScrollHeight, never window.scrollTo
-    (the window does not scroll there: html.msa-pager).
-  - Each panel is its own containing block (contain: layout): a page's fixed bars
-    and sheets stay in it and move with it. A panel with a sheet, dialog,
-    the learning map or the chat is lifted over the app's bars (z 61, :has
-    list in globals.css -- add a new overlay class there), and the pager does
-    not move sideways while one is open or the keyboard is up.
-  - **The iPhone and the panels** (owner, 2026-11-10/12: 預約 would not
-    scroll up and down, the first swimmer would not turn -- both fine in
-    Chrome). iOS decides outside the page what a finger scrolls or turns.
-    Taking `inert` off the panels did not cure it; the panels were then
-    made containing blocks with `contain: layout` instead of their own
-    layer (`transform: translateZ(0)`) -- that did not cure it either. Now
-    the panel coming on screen (and again once its page has grown) gets its
-    scroller made again (overflow-y toggled, place kept), and the swimmer's
-    grab boxes are painted (an invisible background). Not confirmed on a
-    phone yet. public/_diag/pager-test.html has four small copies of the
-    structure (A as the app was, B with these cures, C as layers, D with
-    nothing arriving late), each showing whether it scrolled and turned;
-    delete it once this is settled. No inert, aria-hidden only.
-  - What already moves sideways keeps the finger: the swimmer deck and
-    我的方案 (overscroll-behavior-x: contain), a single swimmer card
-    (`.sw-deck.one`, touch-action: pan-y), the swimmer (`.sw-hold`).
+- **The five tabs are kept drawn and a finger moves between them**
+  (owner, 2026-11-10 選項 A, and 2026-11-13: "like one page, swiping left
+  and right -- find a way"). components/TabPager.tsx (TabHost, wrapped round
+  the (public) layout's children; only inside the app, on a tab's own
+  address). Every tab's page stays mounted (the others load in the
+  background, nearest first, once the address has no query).
+  - **The tab on screen is an ordinary page**: in the document, scrolled by
+    the window, exactly as a page outside the app. The others wait as
+    hidden fixed sheets the size of the screen (`.ts-layer` + `.ts-off`),
+    each showing its page where it was left (`.ts-in` moved with `top`,
+    never a transform: a transform there would become the frame for the
+    page's fixed bars).
+  - **A sideways swipe** (document touch listeners, all passive): once a
+    drag is clearly sideways (10px, 1.3x the vertical), the page on screen
+    becomes such a sheet too, at the same place, and its neighbours are
+    shown beside it; the finger moves the sheets (transforms in rAF, the 3D
+    swimmer rests: `msa:tab-swipe` event). Past a quarter of the screen or
+    a flick, the neighbour goes back into the document and the window is
+    put where it was left; history.replaceState follows. It never starts
+    on something that moves sideways itself (any element scrolling sideways,
+    found on the way up from the finger), on the swimmer's grab boxes, a
+    field or `[data-no-tab-swipe]`, with a sheet or dialog open on the page
+    on screen, or with the keyboard up. Past the first or last tab it gives
+    a little and springs back.
+  - A tab-bar tap, a link or a router move to a tab switches at once; one
+    carrying a query or a hash (/booking?student=…, #invites) starts that
+    tab afresh. Other pages: the tabs wait hidden, each where it was.
+    Signing out drops them; another account starts them afresh.
+  - `useTabPanel()` (lib/tab-panel.ts) says which tab a page is in and
+    whether it is on screen; a page coming back on screen reads its data
+    again quietly (dashboard, 我的, 訊息). pageScrollTo and friends now
+    always mean the window. PanelGuard keeps one failing tab to itself.
+  - **History -- two ways that failed on the iPhone; do not go back to
+    them.** (1) 2026-11-10..12: each page in its own up-and-down scroller
+    inside one sideways scroll-snap scroller -- smooth, but on the iPhone
+    預約 would not scroll and the first swimmer would not turn (fine in
+    Chrome; inert, contain and remaking the scroller did not cure it). (2)
+    2026-11-13: iOS following the finger natively (a pan recognizer on the
+    web view) with a picture of the next tab, the page loaded after --
+    worked one way only and the next tab took long to appear.
 - The tabs shrink while the page is scrolled down and come back on the way
   up (owner, "like Instagram"): html.msa-tabs-small, --app-tab-now.
 - **The look of the two bars** (owner, 2026-10-28). Top: the website's phone

@@ -251,6 +251,15 @@ export default function SwimmerDeck({ items, renderCard, renderOverlay, onLook, 
     return () => { ro.disconnect(); cancelAnimationFrame(raf) }
   }, [engine, items, placeHolds])
 
+  // While a finger moves the app's tabs sideways (TabPager), the swimmer
+  // rests, so nothing else is drawn on the way.
+  useEffect(() => {
+    if (!engine || engine === 'loading') return
+    const on = (e: Event) => engine.setMoving(!!(e as CustomEvent<{ moving?: boolean }>).detail?.moving)
+    window.addEventListener('msa:tab-swipe', on)
+    return () => window.removeEventListener('msa:tab-swipe', on)
+  }, [engine])
+
   // Dressing shows on the live swimmer straight away.
   useEffect(() => {
     if (!engine || engine === 'loading' || !draft || !editing) return

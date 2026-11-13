@@ -346,37 +346,20 @@ html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0
   --app-bar-h: 72px; --app-tab-h: calc(74px + var(--app-tab-gap)); --app-tab-now: var(--app-tab-h);
   --nav-space: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important;
   --nav-cover: calc(var(--app-bar-h) + var(--closure-h, 0px)) !important; }
-/* The app's five tabs side by side (components/TabPager, owner,
-   2026-11-10): one sideways scroller the phone moves itself, one panel per
-   tab, each scrolling up and down on its own. The window does not scroll
-   while it is shown (html.msa-pager). */
-html.msa-pager, html.msa-pager body { height: 100%; overflow: hidden; }
-html.msa-pager body { padding-bottom: 0; }
-.tp { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex;
-  overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior: contain;
-  scrollbar-width: none; }
-.tp[hidden] { display: none; }
-.tp::-webkit-scrollbar { display: none; }
-/* Its own containing block (contain: layout): a page's fixed bars and sheets
-   stay in its panel and move with it. Not transform: translateZ(0), which it
-   was until 2026-11-12: on the iPhone a panel that was its own layer inside
-   the sideways scroller did not take the finger -- 預約 would not scroll up
-   and down and the first swimmer would not turn (owner, 2026-11-12). */
-.tp-panel { position: relative; flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start;
-  scroll-snap-stop: always; contain: layout; overflow: hidden; }
-.tp-scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none;
-  display: flex; flex-direction: column; padding-bottom: var(--app-tab-h); background: #e9eff7; }
-/* The room under the top bar, as the website bar's spacer (.rn-space) leaves
-   it before <main>: pages pull their own background up into it. */
-.tp-scroll::before { content: ''; flex: 0 0 var(--nav-space); }
-/* A panel with a sheet, a dialog or the learning map open is lifted over
-   the top bar and the tabs, as the page's own layers were. (Not 訊息 itself:
-   it sits between the bars, owner 2026-11-12.) */
-.tp-panel:has(.msa-sheet-back, .msa-dlg-back, .mst-back, .msa-lsheet-wrap, .pc-view, .sw-scrim.on,
-  [aria-modal="true"]:not([aria-hidden="true"])) { z-index: 61; }
-/* Nothing sideways with something open over the page, or while typing. */
-.tp:has(.msa-sheet-back, .msa-dlg-back, .mst-back, .msa-lsheet-wrap, .pc-view, .sw-scrim.on,
-  [aria-modal="true"]:not([aria-hidden="true"])), html.msa-kb .tp { overflow-x: hidden; }
+/* The app's five tabs, kept drawn, and a finger that moves between them
+   (components/TabPager, owner, 2026-11-10 and 2026-11-13). The tab on
+   screen is an ordinary page in the document (the window scrolls it); the
+   others wait as hidden sheets the size of the screen (.ts-layer), each
+   showing its page where it was left. A sideways swipe turns the page on
+   screen into such a sheet too and the finger moves the sheets. The
+   transform makes each sheet the frame for its page's fixed bars. */
+.ts, .ts-p, .ts-in { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
+.ts[hidden] { display: none; }
+.ts-p.ts-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; z-index: 1;
+  background: #e9eff7; }
+.ts-p.ts-layer > .ts-in { position: relative; }
+.ts-p.ts-off { visibility: hidden; pointer-events: none; }
+.ts-p.ts-move { will-change: transform; }
 
 /* The keyboard is up (html.msa-kb, set by the iOS app, SceneDelegate.swift;
    owner, 2026-11-10): the web view now ends at the keyboard, so the tabs
@@ -388,10 +371,10 @@ html.msa-app.msa-kb .msa-tb { display: none !important; }
    folds, so the conversation runs from the top of the screen to the box on
    the keyboard. Keyed on the box having the focus too, for app builds that
    do not set msa-kb. */
-html.msa-app.msa-kb:not(.msa-pager):has(.ib) .msa-ab, html.msa-app.msa-kb:has(.tp-panel.on .ib) .msa-ab,
+html.msa-app.msa-kb:has(.ib:not(.ts-layer .ib)) .msa-ab,
 html.msa-app:has(.ib textarea:focus) .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
-html.msa-app.msa-kb:not(.msa-pager) .ib, html.msa-app.msa-kb .tp-panel.on .ib, html.msa-app .ib:has(textarea:focus) { padding-top: 0; }
-html.msa-app.msa-kb:not(.msa-pager) .ib-tabs, html.msa-app.msa-kb .tp-panel.on .ib-tabs, html.msa-app .ib:has(textarea:focus) .ib-tabs { display: none; }
+html.msa-app.msa-kb .ib, html.msa-app .ib:has(textarea:focus) { padding-top: 0; }
+html.msa-app.msa-kb .ib-tabs, html.msa-app .ib:has(textarea:focus) .ib-tabs { display: none; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }
