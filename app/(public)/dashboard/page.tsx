@@ -286,6 +286,11 @@ html[data-text-size] .msa-nextline-in { padding: 0 12px; margin: 0 }
 .msa-nextline-msg { padding: 0 14px 10px; font-size: 12.5px; line-height: 1.5; color: #8a5300 }
 .msa-nextline-qr { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: #12254a; text-decoration: underline; cursor: pointer }
 .msa-nextline-main:focus-visible, .msa-nextline-in:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
+/* 課表 in the app moves only when it has more than one screen of lessons
+   (owner, 2026-11-14: the month view moved a little though everything was
+   on screen). The room for the tabs is the page's own (body padding), so
+   the 40-64px under the last section only made a page that fits scroll. */
+html.msa-app [data-view="schedule"] .msa-main { padding-bottom: 0 }
 /* A short phone (iPhone SE): everything a little tighter, so the swimmer keeps what room there is. */
 @media (max-height: 700px) {
   html.msa-app [data-view="home"] .msa-hello-in { padding-top: 8px }
