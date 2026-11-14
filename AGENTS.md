@@ -421,6 +421,14 @@ lib/push-text.ts (the words), docs/migration-push.sql, components/AppBridge.tsx
   sender of those emails pushes for free; a new kind of notice needs an entry
   in PUSHED and its words in push.* (three languages). The lesson report has
   no email; review-progress calls pushReport.
+- **About an hour before each lesson, a push alone** (owner, 2026-11-14,
+  of four: push, not a calendar alert, so nothing rings twice):
+  lib/lesson-soon.ts, run by the 15-minute cleanup cron, for lessons
+  starting 60-80 minutes from now (LA wall clock). One per family per
+  lesson (siblings together; an hour lesson by its first half), stamped on
+  bookings.reminder_1h_sent_at before sending (docs/migration-reminder-1h.sql,
+  both projects; without it nothing is sent). kind 'reminder_1h', category
+  'reminders' (the 上課提醒 switch), no text or email.
 - **Push replaces the text, not the email.** familyUsesApp: the main account
   has a phone with the app, notifications allowed, opened within 60 days, and
   that switch on. Then the reminder cron, the school-cancel / closure texts

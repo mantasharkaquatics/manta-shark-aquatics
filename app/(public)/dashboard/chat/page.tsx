@@ -85,7 +85,7 @@ html.msa-app .pc-inp { padding-bottom: 11px; }
 `
 // Line icons by name (components/ui/Icon, 決定 10).
 const ICON: Record<string, string> = {
-  report: 'note', stage_up: 'medal', level_up: 'trophy', reminder_24h: 'clock', waitlist_offer: 'ticket', test: 'bell',
+  report: 'note', stage_up: 'medal', level_up: 'trophy', reminder_24h: 'clock', reminder_1h: 'clock', waitlist_offer: 'ticket', test: 'bell',
   block_cancellation_notice: 'warn', team_practice_cancelled: 'warn',
   booking_confirmed: 'calendar', booking_series_confirmed: 'calendar', booking_rescheduled: 'calendar', booking_cancelled: 'calendar',
 }

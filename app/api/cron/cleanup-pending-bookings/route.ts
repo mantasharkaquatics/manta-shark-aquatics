@@ -8,6 +8,7 @@ import { syncTrialBooking } from '@/lib/trial-booking'
 import { mailRescheduleNotMoved } from '@/lib/bookings/partner-reschedule-mail'
 import { requireCron } from '@/lib/cron-auth'
 import { getLocations, lessonLocationLine } from '@/lib/locations'
+import { sendSoonReminders } from '@/lib/lesson-soon'
 
 type ExpiryNotice = {
   to: string
@@ -252,5 +253,10 @@ export async function GET(req: NextRequest) {
     if (error && error.code !== '42P01' && error.code !== 'PGRST205') console.warn('cleanup-pending-bookings: push_log trim', error.message)
   } catch { /* next run */ }
 
-  return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed, waitlist })
+  // About an hour before each lesson: a push to phones with the app (owner,
+  // 2026-11-14; lib/lesson-soon.ts).
+  let soon: unknown = null
+  try { soon = await sendSoonReminders(supabase) } catch (err) { console.error('cleanup-pending-bookings: 1-hour reminders failed', err) }
+
+  return NextResponse.json({ deleted, checked: candidateIds.length, notified, reschedulesLapsed, trialsReleased, trialsConfirmed, waitlist, soon })
 }
