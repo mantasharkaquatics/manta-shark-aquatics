@@ -364,12 +364,23 @@ function Stage({ here }: { here: TabKey | null }) {
       if (!s || e.touches.length !== 1) return
       const t = e.touches[0]
       const dx = t.clientX - s.x0, dy = t.clientY - s.y0
+      /* The iPhone starts scrolling the page at the first movement and then
+         takes the finger from the page (touchcancel), so a sideways drag
+         never got here (owner, 2026-11-14: "cannot swipe to the next page";
+         Chrome does not do this). While the drag leans sideways the page's
+         scrolling is held back; once it is clearly up or down it is let go
+         and the page scrolls as ever. */
+      const hold = () => { if (e.cancelable) e.preventDefault() }
       if (!s.dir) {
-        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+          if (Math.abs(dx) >= Math.abs(dy)) hold()
+          return
+        }
         // Clearly sideways, or it is the page's own scrolling.
         if (Math.abs(dx) > Math.abs(dy) * 1.3) { s.dir = 'h'; s.x0 = t.clientX; begin(s) }
         else { swipe.current = null; return }
       }
+      hold()
       s.dx = t.clientX - s.x0
       s.t.push(e.timeStamp); s.xs.push(s.dx)
       if (s.t.length > 12) { s.t.shift(); s.xs.shift() }
@@ -384,7 +395,8 @@ function Stage({ here }: { here: TabKey | null }) {
       finish(s)
     }
     document.addEventListener('touchstart', onStart, { passive: true })
-    document.addEventListener('touchmove', onMove, { passive: true })
+    // Not passive: it may hold the page's scrolling back (above).
+    document.addEventListener('touchmove', onMove, { passive: false })
     document.addEventListener('touchend', onEnd, { passive: true })
     document.addEventListener('touchcancel', onEnd, { passive: true })
     return () => {

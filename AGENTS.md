@@ -555,7 +555,11 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
     each showing its page where it was left (`.ts-in` moved with `top`,
     never a transform: a transform there would become the frame for the
     page's fixed bars).
-  - **A sideways swipe** (document touch listeners, all passive): once a
+  - **A sideways swipe** (document touch listeners; touchmove is NOT
+    passive: on the iPhone the page starts scrolling at the first movement
+    and then takes the finger away with touchcancel, so while a drag leans
+    sideways it calls preventDefault, and `.ts` has touch-action: pan-y --
+    without both no swipe ever arrived, 2026-11-14): once a
     drag is clearly sideways (10px, 1.3x the vertical), the page on screen
     becomes such a sheet too, at the same place, and its neighbours are
     shown beside it; the finger moves the sheets (transforms in rAF, the 3D

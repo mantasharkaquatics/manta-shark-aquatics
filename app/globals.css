@@ -354,6 +354,9 @@ html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0
    screen into such a sheet too and the finger moves the sheets. The
    transform makes each sheet the frame for its page's fixed bars. */
 .ts, .ts-p, .ts-in { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
+/* Only up and down is the page's: sideways is the tabs' (things that scroll
+   sideways themselves keep it inside them). */
+.ts { touch-action: pan-y; }
 .ts[hidden] { display: none; }
 .ts-p.ts-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; z-index: 1;
   background: #e9eff7; }
