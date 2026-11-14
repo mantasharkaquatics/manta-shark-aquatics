@@ -38,6 +38,10 @@ export type PushMessage = {
   url: string
   /** The words, in the language of the phone's owner. */
   text: (lang: Locale) => PushText
+  /** Only the people of the family (auth user ids) this says yes to, e.g.
+   *  those who chose this reminder time (lib/lesson-soon.ts). Everyone when
+   *  left out. */
+  only?: (userId: string) => boolean
 }
 
 /** A family "has the app" when the main account's phone was seen this recently. */
@@ -185,7 +189,9 @@ export async function logFamily(svc: SupabaseClient, parentId: string, msg: Pick
 export async function pushFamily(svc: SupabaseClient, parentId: string, msg: PushMessage): Promise<number> {
   try {
     if (!parentId) return 0
-    const members = await familyMembers(svc, parentId)
+    const all = await familyMembers(svc, parentId)
+    const members = msg.only ? all.filter(m => msg.only!(m.userId)) : all
+    if (!members.length) return 0
     if (msg.log !== false) await logFamily(svc, parentId, msg, members)
     const sa = serviceAccount()
     if (!sa) return 0

@@ -4,22 +4,32 @@ import { joinList, type Locale } from '@/lib/i18n'
 import { courseIn } from '@/lib/email-family'
 import { pushFamily } from '@/lib/push'
 
-/* A push about an hour before each lesson (owner, 2026-11-14, of four:
-   "App 推播 1 小時前"). On top of the day-before reminder (sms-reminder),
-   to phones with the app only -- no text and no email, and nothing in the
-   family's calendar, so a lesson never rings twice at the same time. It
-   follows the 上課提醒 switch in 通知設定 (category 'reminders').
+/* A push shortly before each lesson (owner, 2026-11-14): on top of the
+   day-before reminder (sms-reminder), to phones with the app only -- no
+   text, no email, nothing in the family's calendar, so a lesson never rings
+   twice at the same time. Each person chooses in 通知設定 › 課前提醒: not
+   at all, 30 minutes or an hour before (push_settings.soon_minutes; none
+   chosen = an hour, owner's default). The 上課提醒 switch (category
+   'reminders') turns it off with the day-before one.
 
-   Run from the 15-minute cleanup cron. A lesson starting 60 to 80 minutes
-   from now (Los Angeles wall clock) gets it once: bookings.reminder_1h_sent_at
-   (docs/migration-reminder-1h.sql) is stamped on every row of the lesson
-   first, so two runs never push the same lesson. One push per family per
-   lesson: an hour lesson is two half-hour rows (lesson_group_id) and goes
-   by its first half; siblings on one session share a push. Before the
-   migration has run, nothing is sent (the column is missing). */
+   Run from the 15-minute cleanup cron, in two passes: lessons starting 60-80
+   minutes from now for the hour, 30-50 for the half hour (Los Angeles wall
+   clock). Each pass stamps its own column on every row of the lesson first
+   (bookings.reminder_1h_sent_at / reminder_30m_sent_at,
+   docs/migration-reminder-1h.sql and docs/migration-reminder-soon.sql), so
+   two runs never push the same lesson. One push per family per lesson: an
+   hour lesson is two half-hour rows (lesson_group_id) and goes by its first
+   half; siblings on one session share a push. A pass whose column is not
+   there yet sends nothing. */
 
-const FROM_MIN = 60
-const TO_MIN = 80
+type Pass = { minutes: 60 | 30; from: number; to: number; stamp: 'reminder_1h_sent_at' | 'reminder_30m_sent_at'; title: string }
+const PASSES: Pass[] = [
+  { minutes: 60, from: 60, to: 80, stamp: 'reminder_1h_sent_at', title: 'push.soon.title' },
+  { minutes: 30, from: 30, to: 50, stamp: 'reminder_30m_sent_at', title: 'push.soon30.title' },
+]
+/** What a person gets when they have not chosen (owner, 2026-11-14). */
+export const SOON_DEFAULT = 60
+export const SOON_CHOICES = [0, 30, 60] as const
 
 type Row = { id: string; class_session_id: string; student_id: string | null; parent_id: string; lesson_group_id: string | null }
 type Session = { id: string; session_date: string; start_time: string | null; course_type_id: string | null; coach_id: string | null }
@@ -38,9 +48,22 @@ function clock(t: string | null): string {
   return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 
-export async function sendSoonReminders(svc: SupabaseClient): Promise<{ lessons: number; pushed: number; note?: string }> {
+export async function sendSoonReminders(svc: SupabaseClient): Promise<Record<string, { lessons: number; pushed: number; note?: string }>> {
+  // Who chose what (no row, or no choice: the default).
+  const { data: prefs } = await svc.from('push_settings').select('*')
+  const chose = new Map(((prefs || []) as Record<string, unknown>[])
+    .filter(r => typeof r.soon_minutes === 'number').map(r => [r.auth_user_id as string, r.soon_minutes as number]))
+  const out: Record<string, { lessons: number; pushed: number; note?: string }> = {}
+  for (const pass of PASSES) {
+    try { out[pass.minutes + 'm'] = await runPass(svc, pass, u => (chose.get(u) ?? SOON_DEFAULT) === pass.minutes) }
+    catch (e) { console.error('lesson-soon:', pass.minutes, e instanceof Error ? e.message : e); out[pass.minutes + 'm'] = { lessons: 0, pushed: 0, note: 'failed' } }
+  }
+  return out
+}
+
+async function runPass(svc: SupabaseClient, pass: Pass, wants: (userId: string) => boolean): Promise<{ lessons: number; pushed: number; note?: string }> {
   const now = laWall(new Date())
-  const from = now + FROM_MIN * 60000, to = now + TO_MIN * 60000
+  const from = now + pass.from * 60000, to = now + pass.to * 60000
   const dates = [...new Set([from, to].map(t => new Date(t).toISOString().slice(0, 10)))]
   const { data: sess, error: sErr } = await svc.from('class_sessions')
     .select('id, session_date, start_time, course_type_id, coach_id').in('session_date', dates)
@@ -50,11 +73,11 @@ export async function sendSoonReminders(svc: SupabaseClient): Promise<{ lessons:
 
   const { data: rows, error: bErr } = await svc.from('bookings')
     .select('id, class_session_id, student_id, parent_id, lesson_group_id')
-    .eq('status', 'confirmed').is('block_notice_sent_at', null).is('reminder_1h_sent_at', null)
+    .eq('status', 'confirmed').is('block_notice_sent_at', null).is(pass.stamp, null)
     .in('class_session_id', soon.map(s => s.id))
   if (bErr) {
-    // Before docs/migration-reminder-1h.sql: say nothing rather than push twice.
-    if (/reminder_1h_sent_at/.test(bErr.message || '')) return { lessons: 0, pushed: 0, note: 'migration-reminder-1h.sql not run' }
+    // Before its migration: say nothing rather than push twice.
+    if ((bErr.message || '').includes(pass.stamp)) return { lessons: 0, pushed: 0, note: pass.stamp + ' missing' }
     console.error('lesson-soon: bookings', bErr.message)
     return { lessons: 0, pushed: 0, note: 'db error' }
   }
@@ -96,7 +119,7 @@ export async function sendSoonReminders(svc: SupabaseClient): Promise<{ lessons:
 
   // Stamp first, so a run that overlaps this one cannot send it again.
   const ids = found.map(r => r.id)
-  const { error: stErr } = await svc.from('bookings').update({ reminder_1h_sent_at: new Date().toISOString() }).in('id', ids).is('reminder_1h_sent_at', null)
+  const { error: stErr } = await svc.from('bookings').update({ [pass.stamp]: new Date().toISOString() }).in('id', ids).is(pass.stamp, null)
   if (stErr) { console.error('lesson-soon: stamp', stErr.message); return { lessons: 0, pushed: 0, note: 'db error' } }
 
   const uniq = (a: (string | null)[]) => [...new Set(a.filter(Boolean))] as string[]
@@ -117,13 +140,14 @@ export async function sendSoonReminders(svc: SupabaseClient): Promise<{ lessons:
     const course = l.session.course_type_id ? courseName.get(l.session.course_type_id) || '' : ''
     pushed += await pushFamily(svc, l.rows[0].parent_id, {
       category: 'reminders',
-      kind: 'reminder_1h',
+      kind: pass.minutes === 60 ? 'reminder_1h' : 'reminder_30m',
       viewerOk: true,
+      only: wants,
       url: '/dashboard/schedule',
       text: (L: Locale) => {
         const t = getT(L) as T
         const v = { who: names.length ? joinList(L, names) : t('push.yourSwimmer'), course: courseIn(L, t, course), coach, time: clock(l.session.start_time) }
-        return { title: t('push.soon.title'), body: t(coach ? 'push.soon.body' : 'push.soon.bodyNoCoach', v) }
+        return { title: t(pass.title), body: t(coach ? 'push.soon.body' : 'push.soon.bodyNoCoach', v) }
       },
     })
   }

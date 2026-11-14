@@ -15,6 +15,15 @@ import { isNativeApp, pushPlugin } from '@/lib/native-app'
 type Key = 'reports' | 'reminders' | 'bookings' | 'news'
 const KEYS: Key[] = ['reports', 'reminders', 'bookings', 'news']
 
+const SOON_CSS = `
+.ps-soon { display: flex; flex-direction: column; gap: 8px; margin: -2px 0 2px; padding: 10px 12px; border-radius: 12px; background: #f3f6fb; }
+.ps-soon b { font-size: 14px; color: #12254a; }
+.ps-seg { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: #e3e9f2; }
+.ps-seg button { flex: 1; min-height: 36px; padding: 6px 4px; border: 0; border-radius: 8px; background: transparent;
+  font: inherit; font-size: 14px; font-weight: 700; color: #56647d; cursor: pointer; }
+.ps-seg button[aria-pressed="true"] { background: #fff; color: #12254a; box-shadow: 0 1px 3px rgba(18,37,74,.14); }
+`
+
 export default function PushSettings() {
   const t = useT()
   const [phoneOff, setPhoneOff] = useState(false)
@@ -26,6 +35,9 @@ export default function PushSettings() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [tries, setTries] = useState(0)
   const [role, setRole] = useState<string | null>(null)
+  // How long before a lesson its push comes (owner, 2026-11-14): 0, 30, 60.
+  const [soon, setSoon] = useState(60)
+  const [soonSaving, setSoonSaving] = useState(false)
   useEffect(() => {
     if (!isNativeApp()) return
     // Inside a promise: whatever the bridge returns, a throw stays here.
@@ -33,7 +45,7 @@ export default function PushSettings() {
     fetch('/api/push/settings', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (d) { setLoadFailed(false); setRole(typeof d.role === 'string' ? d.role : null); setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) }
+        if (d) { setLoadFailed(false); setRole(typeof d.role === 'string' ? d.role : null); if (typeof d.soon === 'number') setSoon(d.soon); setOn({ reports: d.reports !== false, reminders: d.reminders !== false, bookings: d.bookings !== false, news: d.news === true }) }
         else setLoadFailed(true)
       })
       .catch(() => setLoadFailed(true))
@@ -64,8 +76,24 @@ export default function PushSettings() {
     }
   }
 
+  async function pickSoon(m: number) {
+    if (soonSaving || m === soon) return
+    const was = soon
+    setSoon(m); setSoonSaving(true); setError(false)
+    try {
+      const r = await fetch('/api/push/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ soon: m }) })
+      if (!r.ok) throw new Error()
+    } catch {
+      setSoon(was)
+      setError(true)
+    } finally {
+      setSoonSaving(false)
+    }
+  }
+
   return (
     <section className="ac-card">
+      <style>{SOON_CSS}</style>
       <p className="ac-label">{t('push.settings.title')}</p>
       {phoneOff && <div className="ac-err" style={{ marginBottom: 10 }}>{t('push.settings.phoneOff')}</div>}
       <div className="ac-stack" style={{ gap: 12 }}>
@@ -81,7 +109,19 @@ export default function PushSettings() {
               <span />
             </button>
           </div>
-        ))}
+        )).flatMap((row, i) => KEYS[i] === 'reminders' && on.reminders ? [row, (
+          // 課前提醒 (owner, 2026-11-14): each person picks when the push
+          // before a lesson comes; an hour unless changed.
+          <div key="soon" className="ps-soon">
+            <b id="ps-soon-h">{t('push.settings.soon')}</b>
+            <div className="ps-seg" role="group" aria-labelledby="ps-soon-h">
+              {[0, 30, 60].map(m => (
+                <button key={m} type="button" aria-pressed={soon === m} disabled={soonSaving} onClick={() => pickSoon(m)}
+                  className="tap-auto">{t('push.settings.soon.' + m)}</button>
+              ))}
+            </div>
+          </div>
+        )] : [row])}
       </div>
       {error && <div className="ac-err" role="alert" style={{ marginTop: 10 }}>{t('push.settings.error')}</div>}
       <p className="ac-note" style={{ marginTop: 12 }}>{t('push.settings.always')}</p>
