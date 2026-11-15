@@ -2589,6 +2589,7 @@
   "dash.invite.bannerOne": "有 1 个共同预约邀请等您回复",
   "dash.invite.banner": "有 {n} 个共同预约邀请等您回复",
   "booking.steps.label": "预约步骤",
+  "booking.steps.change": "更改{step}",
   "booking.steps.who": "帮谁",
   "booking.steps.course": "课程",
   "booking.steps.time": "时间",

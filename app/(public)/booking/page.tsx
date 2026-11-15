@@ -3012,7 +3012,16 @@ export default function BookingPage() {
             /* Four steps where "how" is asked (BK15); until the course is
                known, the four most families will see. */
             const all = (selectedCourse ? wayFlow : !isTrial) ? ['who', 'course', 'way', 'time'] : ['who', 'course', 'time']
-            return <StepBar steps={all} at={step === 0 ? 0 : step <= 2 ? 1 : all.length === 4 && askWay ? 2 : all.length - 1} />
+            // A step answered can be tapped to change it, as its 更改 does
+            // (owner, 2026-11-14).
+            const go = (i: number) => {
+              const k = all[i]
+              if (k === 'who') return isReschedule || makeUp || students.length <= 1 ? undefined : changeStudent
+              if (k === 'course') return isReschedule || makeUp ? undefined : () => { clearTime(); setStep(1) }
+              if (k === 'way') return wayFlow && way ? resetWay : undefined
+              return undefined
+            }
+            return <StepBar steps={all} go={go} at={step === 0 ? 0 : step <= 2 ? 1 : all.length === 4 && askWay ? 2 : all.length - 1} />
           })()}
           </>
         )}

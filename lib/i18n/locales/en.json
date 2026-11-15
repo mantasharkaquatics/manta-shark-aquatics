@@ -2589,6 +2589,7 @@
   "dash.invite.bannerOne": "A partner booking invitation is waiting for you",
   "dash.invite.banner": "{n} partner booking invitations are waiting for you",
   "booking.steps.label": "Booking steps",
+  "booking.steps.change": "Change {step}",
   "booking.steps.who": "Who",
   "booking.steps.course": "Lesson",
   "booking.steps.time": "Time",

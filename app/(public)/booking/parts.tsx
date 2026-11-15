@@ -118,20 +118,35 @@ export function SelectCard({ selected, onClick, color = GOLD, disabled = false, 
 /* Where the family is in the booking (owner, 2026-11-01, version 2): who,
    then which lesson, then how, then when. */
 const STEPS_CSS = `.bk-steps { display: flex; gap: 8px; list-style: none; margin: 0 0 22px; padding: 0 }
-.bk-steps li { flex: 1; text-align: center; padding: 0 0 8px; border-bottom: 3px solid #d3deec; font-size: 13.5px; font-weight: 800; color: #5f6b80 }
+.bk-steps li { flex: 1; display: flex; text-align: center; border-bottom: 3px solid #d3deec; font-size: 13.5px; font-weight: 800; color: #5f6b80 }
+.bk-steps li > span, .bk-steps li > button { flex: 1; padding: 0 0 8px; }
 .bk-steps li.done { color: #56647d; border-color: #9fb3d3 }
-.bk-steps li.on { color: #16294a; border-color: #f09800 }`
-export function StepBar({ steps, at }: { steps: string[]; at: number }) {
+.bk-steps li.on { color: #16294a; border-color: #f09800 }
+.bk-steps li > button { min-height: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent }
+.bk-steps li > button:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px; border-radius: 6px }
+@media (hover: hover) { .bk-steps li > button:hover { color: #1f5fbf } }
+.bk-steps li.later { opacity: .7 }`
+/* The steps of a booking. A step already answered can be tapped to go back
+   and change it -- as its 更改 does (owner, 2026-11-14); `go(i)` does that,
+   and returns nothing for a step that cannot be changed. A step not reached
+   yet cannot be tapped: nothing before it may be missing. */
+export function StepBar({ steps, at, go }: { steps: string[]; at: number; go?: (i: number) => (() => void) | undefined }) {
   const t = useT()
   return (
     <>
       <style>{STEPS_CSS}</style>
       <ol className="bk-steps" aria-label={t('booking.steps.label')}>
-        {steps.map((k, i) => (
-          <li key={k} className={i === at ? 'on' : i < at ? 'done' : undefined} aria-current={i === at ? 'step' : undefined}>
-            {i + 1} {t('booking.steps.' + k)}
-          </li>
-        ))}
+        {steps.map((k, i) => {
+          const label = `${i + 1} ${t('booking.steps.' + k)}`
+          const back = i < at ? go?.(i) : undefined
+          return (
+            <li key={k} className={i === at ? 'on' : i < at ? 'done' : 'later'} aria-current={i === at ? 'step' : undefined}>
+              {back
+                ? <button type="button" className="tap-auto" onClick={back} aria-label={t('booking.steps.change', { step: t('booking.steps.' + k) })}>{label}</button>
+                : <span>{label}</span>}
+            </li>
+          )
+        })}
       </ol>
     </>
   )

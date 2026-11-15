@@ -1086,6 +1086,12 @@ the contained problems were fixed the same day. What to keep doing:
   course cards (icon, minutes and size, points chip) and 每週固定／單次
   cards; with no times, 改選單次上課 and 傳訊息給我們. Change a piece there
   and both flows change.
+- **The step bar can be tapped** (owner, 2026-11-14): a step already
+  answered (幫誰, 課程, 怎麼上) goes back to it, exactly as its 更改 does
+  (StepBar `go(i)` in parts.tsx, wired in page.tsx and FamilyBooking). A
+  step not reached yet cannot be tapped, so nothing before it can be
+  missing; one that cannot be changed (a move, a make-up, a family with one
+  swimmer for 幫誰) is plain text.
 - **The booking's confirm step is one summary card** (owner, 2026-11-04,
   問題 7 選項 A): no answered lines above it; the swimmer, then course ·
   minutes · coach · pool, then when; a weekly plan's dates fold into one

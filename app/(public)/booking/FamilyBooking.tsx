@@ -384,7 +384,8 @@ export default function FamilyBooking({ kids, courses, location, balance, face, 
     <div>
       {/* As the one-child page looks (owner, 2026-11-04, 問題 6 選項 A): its step
           bar, answered lines, titles and cards (./parts). */}
-      <StepBar steps={['who', 'course', 'way', 'time']} at={!slug ? 1 : !way ? 2 : 3} />
+      <StepBar steps={['who', 'course', 'way', 'time']} at={!slug ? 1 : !way ? 2 : 3}
+        go={i => i === 0 ? onExit : i === 1 ? () => { setSlug(null); reset('slug') } : i === 2 ? () => { setWay(null); reset('way') } : undefined} />
       <div style={{ marginBottom: 20 }}>
         <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.swimmers')} value={joinList(locale, kids.map(k => k.full_name))} onChange={onExit} />
         {slug && <DoneRow changeLabel={t('booking.change')} label={t('booking.sum.course')} value={tDb(locale as never, 'course_types', course!.id, course!.name)} onChange={() => { setSlug(null); reset('slug') }} />}
