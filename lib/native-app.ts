@@ -65,6 +65,17 @@ export interface CalendarAddPlugin {
 export const calendarAddPlugin = (): CalendarAddPlugin | null =>
   (cap()?.Plugins?.CalendarAdd as CalendarAddPlugin | undefined) ?? null
 
+/* Adding a swimmer's check-in card to Apple Wallet (owner, 2026-11-17).
+   Native code in the iOS app (mobile/ios/App/App/WalletPass.swift) takes
+   the .pkpass as base64 and shows iOS's own "Add to Apple Wallet" screen:
+   the web view cannot open a .pkpass. Missing on Android (Apple only) and
+   on iPhone builds made before it. */
+export interface WalletPassPlugin {
+  add(opts: { data: string }): Promise<{ shown: boolean }>
+}
+export const walletPassPlugin = (): WalletPassPlugin | null =>
+  (cap()?.Plugins?.WalletPass as WalletPassPlugin | undefined) ?? null
+
 /** The app's language button (components/AppShell) asks the website bar
  *  (components/Navbar), which stays mounted inside the app, to switch:
  *  detail = the Locale. */

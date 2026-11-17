@@ -640,6 +640,32 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   keyboard and measures from the window, wrong in this container. Builds
   before this keep the old pushing.
 
+# The check-in QR in Apple Wallet (owner, 2026-11-17: Apple only)
+
+The 報到 sheet (app/(public)/dashboard/CheckinQr.tsx) has 加入 Apple 錢包
+under the code: one Wallet card per swimmer with the same fixed code
+(MSA:<base64 id>), the name, and no address (owner). lib/wallet-pass.ts makes
+the .pkpass (pass.json, the pictures in lib/wallet-pass-images.ts made from
+the app icon, manifest.json, and a detached PKCS #7 signature with node-forge,
+Apple's WWDR G4 in the chain; zipped with fflate); GET
+/api/parent/wallet-pass?student=&lang= serves it to the swimmer's own family
+(view-only members too).
+
+- **The certificate is the owner's**: Apple Developer › Identifiers › Pass
+  Type ID `pass.com.mantasharkaquatics.checkin` (team 86478NTHW4), its
+  certificate made from a CSR on his Mac (openssl), set in Vercel only as
+  PASS_CERT_PEM_BASE64 and PASS_KEY_PEM_BASE64 (base64 of the PEM files;
+  production, preview, development). Never ask for them in the chat.
+  ?ready=1 answers { ready, problem?, expires } -- the key matches, the
+  certificate is for this Pass Type ID, issued by WWDR G4, not expired --
+  without showing either; the button shows only when ready. The
+  certificate lasts about a year: renew it before `expires`.
+- **Inside the iPhone app** the web view cannot open a .pkpass: the page
+  fetches it and hands the bytes to WalletPassPlugin
+  (mobile/ios/App/App/WalletPass.swift, registered in AppViewController),
+  which shows iOS's own Add screen. Builds before it, and Android, show no
+  button. In a browser it is a plain link on an iPhone, iPad or Mac Safari.
+
 # Lessons in the family's calendar: a subscription (owner, 2026-11-02)
 
 The owner wanted every lesson in the calendar at once, kept up to date, never
@@ -718,16 +744,24 @@ at best, the iPhone as its settings say.
   then replaced by this the same day). /api/parent/calendar (one lesson's
   .ics) stays but nothing links to it.
 
-# The app's 訊息 screen (owner, 2026-10-28)
+# The app's 訊息 screen (owner, 2026-10-28; one conversation 2026-11-17)
 
-/dashboard/chat, the app's 訊息 tab: two tabs under a navy header, 通知
-then 客服, opening on 客服 (owner, 2026-10-28, who swapped them and dropped
-a third, 學校公告, folding it into 通知). The
-look is the school's own and kept quiet (owner, 2026-10-28, after a
-game-styled first version was "too much like a game"): a segmented control
-for the tabs, white bubbles, the family's own in navy, small round avatars,
-cards and event strips white with an amber left edge, a round amber send
-button. docs/migration-app-inbox.sql.
+/dashboard/chat, the app's 訊息 tab: **one conversation and a bell**
+(owner, 2026-11-17, 樣本 B of three; before, two tabs 通知｜客服). The
+conversation is the chat with the AI and the desk, with the school's notices
+laid across it by time (event strips); the bell holds the school's news and
+every notice. In the app the bell is in the top bar, beside the language
+button, on 訊息 only (components/AppShell `.msa-ab-bell`), with a red number
+of new ones (GET /api/app/inbox?summary=1 `count`); on the website it is in
+the navy header with its own number. A tap sends INBOX_OPEN_EVENT
+(lib/chat-open); the page opens its list (components/ui/Sheet, drawn into
+<body> with createPortal so it covers the app's bars), marks both kinds read
+on the server and sends INBOX_SEEN_EVENT, which clears the number and the 訊息
+tab's dot. ?tab=notices / ?tab=news opens the list. The look is the
+school's own and kept quiet (owner, 2026-10-28, after a game-styled first
+version was "too much like a game"): white bubbles, the family's own in
+navy, small round avatars, cards and event strips white with an amber left
+edge, a round amber send button. docs/migration-app-inbox.sql.
 
 - **客服** is the family's chat itself -- ChatWidget with variant 'page'.
   Inside the app the floating widget never opens: openChat() and ?chat=1 go
@@ -735,35 +769,33 @@ button. docs/migration-app-inbox.sql.
   this path. **In the app 訊息 is a tab like the others** (owner,
   2026-11-12, 版本 1 of five mockups): the app's top bar and tabs stay, the
   page sits between them (`html.msa-app .ib`: padding-top --nav-space, bottom
-  --app-tab-h), the navy header goes and 通知｜客服 is a light segmented
-  control; the box sits on the tabs, and on the keyboard once it is up
-  (msa-kb takes the tabs away). While typing there (msa-kb, or the box
-  focused) the top bar slides away and 通知｜客服 folds, so the conversation
+  --app-tab-h), the navy header goes; the box sits on the tabs, and on the
+  keyboard once it is up (msa-kb takes the tabs away). While typing there
+  (msa-kb, or the box focused) the top bar slides away, so the conversation
   runs from the top of the screen to the box (owner, 2026-11-12: "the top
   bar should fold so the conversation is bigger"). Outside the pager the page keeps its navy
   header and fills the screen. History: the bars used to step aside here,
   which made them pop on a swipe; kept under the 訊息 panel instead
   (選項 B, 11-10) the iPhone drew them OVER it and the box could not be
   typed in -- a panel's z-index does not lift it over the bars there.
-- **通知**, top down: active pool closures, what the desk posts on Admin >
+- **The bell's list**, top down: 學校公告 -- active pool closures, what the desk posts on Admin >
   公告 (lib/announcements.ts, pinned first, shown as typed), then push_log.
   "Also push" sends category 'news' (opens ?tab=notices; the old ?tab=news
   still works), which goes only to people who turned on 學校公告與活動 --
   the one switch that is OFF unless turned on (Apple 4.5.4). The page asks
-  once, the first time 通知 is opened in the app. push_log is written by
+  once, the first time the list is opened in the app (under 最近: push_log). push_log is written by
   pushFamily for every person with the app (whether or not that kind of
   push is switched off), in their phone's language, kept 90 days (cleanup
   cron); announcements are not logged there (they are listed above it).
   logFamily writes without pushing: stage-ups (review-progress) and
   level-ups (setStudentLevel, not an assessment's first level). A new kind
   needs an icon in both lists. One red dot covers all three.
-- **Red dots** (owner, 2026-10-28): on 通知 when anything there is newer
-  than the last look, on 客服 when a desk or AI reply is unread (from
-  chat_threads.parent_last_read_at), each at the word's top right corner.
-  The 訊息 tab in the bottom bar shows the unread replies as a number,
-  else a dot for 通知 -- from GET /api/app/inbox?summary=1, asked on every
-  page, when the app comes back to the front and every minute
-  (components/AppShell).
+- **Red marks**: the bell's number is everything new since the list was
+  last opened (notices, announcements, closures never seen). The 訊息 tab in
+  the bottom bar shows unread desk or AI replies as a number (from
+  chat_threads.parent_last_read_at), else a dot while the bell has new ones
+  -- from GET /api/app/inbox?summary=1, asked on every page, when the app
+  comes back to the front and every minute (components/AppShell).
 - **Event strips**: the same push_log rows of the kinds in CHAT_EVENT_KINDS
   (reports, stage/level ups, closures, booking changes) laid across the chat
   by time.

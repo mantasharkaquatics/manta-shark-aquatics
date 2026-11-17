@@ -370,14 +370,12 @@ html.msa-app { --app-sab: max(env(safe-area-inset-bottom, 0px), var(--msa-sab, 0
    home-indicator band, which the keyboard covers. */
 html.msa-app.msa-kb { --app-sab: 0px; --app-tab-h: 0px; --app-tab-now: 0px; }
 html.msa-app.msa-kb .msa-tb { display: none !important; }
-/* Typing in 訊息 (owner, 2026-11-12): the top bar slides away and 通知｜客服
-   folds, so the conversation runs from the top of the screen to the box on
+/* Typing in 訊息 (owner, 2026-11-12): the top bar slides away, so the conversation runs from the top of the screen to the box on
    the keyboard. Keyed on the box having the focus too, for app builds that
    do not set msa-kb. */
 html.msa-app.msa-kb:has(.ib:not(.ts-layer .ib)) .msa-ab,
 html.msa-app:has(.ib textarea:focus) .msa-ab { transform: translateY(calc(-100% - 16px)); opacity: 0; box-shadow: none; pointer-events: none; }
 html.msa-app.msa-kb .ib, html.msa-app .ib:has(textarea:focus) { padding-top: 0; }
-html.msa-app.msa-kb .ib-tabs, html.msa-app .ib:has(textarea:focus) .ib-tabs { display: none; }
 html.msa-app .rn-bar, html.msa-app .rn-scrim, html.msa-app .skip-link,
 html.msa-app .msa-web-only, html.msa-app [data-chat-toggle],
 html.msa-app .ac-back { display: none !important; }

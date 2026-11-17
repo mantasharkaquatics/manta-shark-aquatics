@@ -1008,7 +1008,7 @@ export default function ChatWidget({ parentId, lift = 0, variant = 'float', even
             const key = it.k === 'm' ? it.m.id : 'e-' + it.e.id
             if (it.k === 'e') {
               const e = it.e
-              const inner = <><span aria-hidden="true"><Icon name={EVENT_ICON[e.kind] || 'bell'} /></span><b>{e.title}</b>{e.url && <u>{t('chat.event.open')}</u>}</>
+              const inner = <><span aria-hidden="true"><Icon name={EVENT_ICON[e.kind] || 'bell'} /></span><b>{String(e.title || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '')}</b>{e.url && <u>{t('chat.event.open')}</u>}</>
               return (
                 <Fragment key={key}>
                   {pill && <div className="pc-pill">{pillText}</div>}

@@ -8,12 +8,47 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { joinList } from '@/lib/i18n'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
-import { appLook } from '@/lib/native-app'
+import { appLook, appPlatform, walletPassPlugin } from '@/lib/native-app'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
 const NAVY = BRAND.navy
 const GOLD = BRAND.blue
 const AMBER = BRAND.amber
+
+/* 加入 Apple 錢包 (owner, 2026-11-17: Apple only): inside the iPhone app
+   through its WalletPass plugin, in a browser on an iPhone, iPad or Mac as a
+   plain link (Safari opens a .pkpass itself). Shown only once the school's
+   Wallet certificate is set (app/api/parent/wallet-pass ?ready=1, asked
+   once per visit). */
+let walletReadyAsk: Promise<boolean> | null = null
+function walletReady(): Promise<boolean> {
+  walletReadyAsk ??= fetch('/api/parent/wallet-pass?ready=1').then(r => (r.ok ? r.json() : null)).then(d => !!d?.ready).catch(() => { walletReadyAsk = null; return false })
+  return walletReadyAsk
+}
+function walletWay(): 'app' | 'link' | null {
+  if (appLook()) return appPlatform() === 'ios' && walletPassPlugin() ? 'app' : null
+  const ua = navigator.userAgent
+  if (/iPhone|iPad|iPod/.test(ua)) return 'link'
+  if (/Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg|Firefox/.test(ua)) return 'link'
+  return null
+}
+const WALLET_CSS = `
+.qr-wallet { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 12px;
+  border: 0; background: #000; color: #fff; font: inherit; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.qr-wallet:disabled { opacity: .6; }
+.qr-wallet:focus-visible { outline: 3px solid #f7b733; outline-offset: 2px; }
+.qr-wallet svg { width: 26px; height: 20px; flex: none; }
+`
+// A wallet with its cards, in Wallet's colours.
+const WALLET_MARK = (
+  <svg viewBox="0 0 26 20" aria-hidden="true">
+    <rect x="1" y="1" width="24" height="18" rx="3.5" fill="#d8d8d8" />
+    <rect x="3" y="3" width="20" height="4" rx="1.5" fill="#2fa5e1" />
+    <rect x="3" y="5.5" width="20" height="4" rx="1.5" fill="#f6b81f" />
+    <rect x="3" y="8" width="20" height="4" rx="1.5" fill="#ef5446" />
+    <path d="M1 11h7.5c.8 0 1.4.5 1.7 1.2.5 1.4 1.5 2.3 2.8 2.3s2.3-.9 2.8-2.3c.3-.7.9-1.2 1.7-1.2H25v4.5a3.5 3.5 0 0 1-3.5 3.5h-17A3.5 3.5 0 0 1 1 15.5z" fill="#fff" />
+  </svg>
+)
 
 const QR_OPTS = { width: 280, margin: 2, color: { dark: '#1a2744', light: '#ffffff' }, errorCorrectionLevel: 'H' as const }
 
@@ -76,6 +111,33 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
     return () => { live = false; window.removeEventListener('online', again) }
   }, [student.id, tries])
 
+  // 加入 Apple 錢包: the way this phone takes it, once the school can make cards.
+  const [wallet, setWallet] = useState<'app' | 'link' | null>(null)
+  const [walletBusy, setWalletBusy] = useState(false)
+  const [walletErr, setWalletErr] = useState(false)
+  useEffect(() => {
+    const way = walletWay()
+    if (!way) return
+    let live = true
+    walletReady().then(ok => { if (live && ok) setWallet(way) })
+    return () => { live = false }
+  }, [])
+  const passUrl = `/api/parent/wallet-pass?student=${encodeURIComponent(student.id)}&lang=${encodeURIComponent(locale)}`
+  const addToWallet = async () => {
+    const plugin = walletPassPlugin()
+    if (!plugin || walletBusy) return
+    setWalletBusy(true); setWalletErr(false)
+    try {
+      const r = await fetch(passUrl, { cache: 'no-store' })
+      if (!r.ok) throw new Error(String(r.status))
+      const bytes = new Uint8Array(await r.arrayBuffer())
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+      await plugin.add({ data: btoa(bin) })
+    } catch { setWalletErr(true) }
+    setWalletBusy(false)
+  }
+
   const handleDownload = () => {
     if (!qrDataUrl) return
     const a = document.createElement('a')
@@ -87,6 +149,7 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
   // Pop-up kind ①, a sheet (決定 9): the title is the swimmer, the ✕ top right.
   return (
     <div className="msa-sheet-back" onClick={onClose}>
+      <style>{WALLET_CSS}</style>
       <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={t('dash.qr.eyebrow')} style={{ background: '#fff', textAlign: 'center' }}>
         <div className="msa-sheet-head" style={{ background: '#fff' }}>
@@ -117,6 +180,15 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
           {lesson ? <>{t('dash.qr.help')}{t('dash.qr.window')}</> : t('dash.qr.noLesson', { name: student.full_name })}
           {others.length > 0 && <><br /><b style={{ color: '#9a5b00' }}>{t(others.length > 1 ? 'dash.qr.othersMany' : 'dash.qr.others', { names: joinList(locale, others) })}</b></>}
         </p>
+
+        {wallet && (
+          <div style={{ margin: '-6px 0 16px' }}>
+            {wallet === 'app'
+              ? <button type="button" className="tap-auto qr-wallet" onClick={addToWallet} disabled={walletBusy}>{WALLET_MARK}{walletBusy ? t('wallet.adding') : t('wallet.add')}</button>
+              : <a className="qr-wallet" href={passUrl}>{WALLET_MARK}{t('wallet.add')}</a>}
+            {walletErr && <p role="alert" style={{ margin: '8px 0 0', fontSize: '13px', color: '#9a3412' }}>{t('wallet.failed')}</p>}
+          </div>
+        )}
 
         {/* Download button. Not in the app: the iPhone web view cannot save
             a download, so it did nothing (2026-11-04) -- the code is shown

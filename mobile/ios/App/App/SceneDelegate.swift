@@ -145,11 +145,13 @@ class SafeAreaContainer: UIViewController {
 
 /// The Capacitor bridge, with the app's own plugins: the chat's
 /// photo-library picker (PhotoPicker.swift) and subscribing the iPhone
-/// calendar to the family's lessons (CalendarAdd.swift).
+/// calendar to the family's lessons (CalendarAdd.swift) and adding a
+/// swimmer's check-in card to Apple Wallet (WalletPass.swift).
 class AppViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(PhotoPickerPlugin())
         bridge?.registerPluginInstance(CalendarAddPlugin())
+        bridge?.registerPluginInstance(WalletPassPlugin())
     }
 
     /// The page lays itself out around the home indicator (viewport-fit=cover

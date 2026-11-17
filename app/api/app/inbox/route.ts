@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic'
    strips, which are the same notices.
 
    GET  -> { announcements, closures, notices, seen: { announcements, notices }, chat }
-   GET ?summary=1 -> { notices: boolean, chat: number } -- just the red dots,
-        for the app's 訊息 tab on every page (components/AppShell).
+   GET ?summary=1 -> { notices: boolean, count: number, chat: number } -- just
+        the red marks, for the app's 訊息 tab on every page and the bell on
+        訊息 (components/AppShell): count is how many are new.
    POST { mark: 'announcements' | 'notices' } -> that tab looked at now. */
 
 const KEEP_DAYS = 90
@@ -50,10 +51,10 @@ export async function GET(req: NextRequest) {
     if (seen?.notices_seen_at) nq = nq.gt('created_at', seen.notices_seen_at)
     const { count: newNotices } = await nq
     const annSeen = seen?.announcements_seen_at ?? null
-    const notices = (newNotices || 0) > 0
-      || (announcements as { created_at: string }[]).some(a => !annSeen || a.created_at > annSeen)
-      || ((closures as unknown[]).length > 0 && !annSeen)
-    return NextResponse.json({ notices, chat })
+    const count = (newNotices || 0)
+      + (announcements as { created_at: string }[]).filter(a => !annSeen || a.created_at > annSeen).length
+      + (annSeen ? 0 : (closures as unknown[]).length)
+    return NextResponse.json({ notices: count > 0, count, chat })
   }
 
   const [announcements, closures, notices, seen] = await Promise.all([

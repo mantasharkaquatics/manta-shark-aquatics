@@ -9,7 +9,7 @@ import { LOCALES, type Locale } from '@/lib/i18n'
 import { appLook, coverViewport, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
 import { useFamilyRole } from '@/lib/use-viewer'
-import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT } from '@/lib/chat-open'
+import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT, INBOX_OPEN_EVENT, INBOX_SEEN_EVENT } from '@/lib/chat-open'
 import { BRAND, FONT_BODY } from '@/lib/brand'
 
 /* The phone app's own frame (owner, 2026-10-27): a top bar and five tabs --
@@ -77,7 +77,13 @@ const css = `
     padding: 10px 12px; border-radius: 8px; border: 0; background: none; text-align: left; font: inherit; font-weight: 700; font-size: 15px;
     color: ${BRAND.ink}; cursor: pointer; }
   .msa-ab-menu button[aria-pressed="true"] { color: ${BRAND.blue}; }
-  .msa-ab-back:focus-visible, .msa-ab-word:focus-visible, .msa-ab-lang button:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
+  .msa-ab-back:focus-visible, .msa-ab-word:focus-visible, .msa-ab-lang button:focus-visible, .msa-ab-bell:focus-visible { outline: 2px solid ${BRAND.blue}; outline-offset: 2px; }
+  /* 訊息's bell (owner, 2026-11-17, 樣本 B): school news and every notice, a
+     red number while some are new. */
+  .msa-ab-bell { position: relative; flex-shrink: 0; width: 40px; height: 40px; min-height: 0; border-radius: 50%; border: 0; background: #eef1f6;
+    color: ${BRAND.navy}; display: grid; place-items: center; cursor: pointer; }
+  .msa-ab-bell i { position: absolute; top: -2px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e5484d;
+    color: #fff; font-style: normal; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px #fff; }
 
   /* The tabs: a floating white capsule (owner, 2026-10-28, "like Instagram",
      with the names kept). Small while the page is scrolled down, full size
@@ -167,19 +173,22 @@ export default function AppShell() {
      replies, else a dot when 通知 has something newer than the last look.
      Asked of the server on every page, when the app comes back to the
      front, and every minute; the chat widget's own count is used too. */
-  const [inbox, setInbox] = useState<{ notices: boolean; chat: number }>({ notices: false, chat: 0 })
+  const [inbox, setInbox] = useState<{ notices: boolean; count: number; chat: number }>({ notices: false, count: 0, chat: 0 })
   useEffect(() => {
     if (!app || !signedIn) return
     let live = true
     const ask = () => {
       if (document.visibilityState === 'hidden') return
       fetch('/api/app/inbox?summary=1', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null))
-        .then(d => { if (live && d) setInbox({ notices: !!d.notices, chat: Number(d.chat) || 0 }) }).catch(() => {})
+        .then(d => { if (live && d) setInbox({ notices: !!d.notices, count: Number(d.count) || (d.notices ? 1 : 0), chat: Number(d.chat) || 0 }) }).catch(() => {})
     }
     ask()
     const id = setInterval(ask, 60000)
     document.addEventListener('visibilitychange', ask)
-    return () => { live = false; clearInterval(id); document.removeEventListener('visibilitychange', ask) }
+    // The bell's list was opened (app/(public)/dashboard/chat): all read.
+    const seen = () => setInbox(i => ({ ...i, notices: false, count: 0 }))
+    window.addEventListener(INBOX_SEEN_EVENT, seen)
+    return () => { live = false; clearInterval(id); document.removeEventListener('visibilitychange', ask); window.removeEventListener(INBOX_SEEN_EVENT, seen) }
   }, [app, signedIn, pathname])
 
   /* Down a little: the tabs small and the top bar gone. Up a little, or back
@@ -343,6 +352,13 @@ export default function AppShell() {
             <path d="M2.5 1.5 L9 7 L2.5 12.5" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
+        {signedIn && pathname === '/dashboard/chat' && (
+          <button type="button" className="msa-ab-bell tap-auto" onClick={() => window.dispatchEvent(new Event(INBOX_OPEN_EVENT))}
+            aria-label={inbox.count > 0 ? t('inbox.bell.n', { n: inbox.count }) : t('inbox.bell')}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+            {inbox.count > 0 && <i aria-hidden="true">{inbox.count > 9 ? '9+' : inbox.count}</i>}
+          </button>
+        )}
         <div className="msa-ab-lang" ref={langRef}>
           <button ref={langBtnRef} type="button" className="tap-auto" aria-label={t('nav.language')} aria-expanded={langOpen}
             onClick={() => setLangOpen(o => !o)}>

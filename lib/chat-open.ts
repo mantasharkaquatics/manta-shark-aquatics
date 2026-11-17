@@ -108,3 +108,9 @@ export function chatUnread(): number {
   if (typeof window === 'undefined') return 0
   return (window as unknown as Record<string, number | undefined>)[UNREAD_KEY] || 0
 }
+
+/** 訊息's bell (owner, 2026-11-17): the app's top bar (components/AppShell)
+ *  asks the 訊息 screen to open its list of school news and notices, and the
+ *  screen says when that list was looked at, so the red number goes. */
+export const INBOX_OPEN_EVENT = 'msa:inbox-open'
+export const INBOX_SEEN_EVENT = 'msa:inbox-seen'
