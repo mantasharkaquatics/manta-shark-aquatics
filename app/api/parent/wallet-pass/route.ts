@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getT } from '@/lib/i18n/all'
-import { LOCALES, type Locale } from '@/lib/i18n'
 import { ART, THUMB, buildCheckinPass, checkedPng, walletCheck } from '@/lib/wallet-pass'
 
 export const runtime = 'nodejs'
@@ -40,8 +39,9 @@ async function make(id: string, langIn: string, pics: { art: Buffer; thumb: Buff
   const { data: kid } = await auth.svc.from('students').select('id, full_name')
     .eq('id', id).eq('parent_id', auth.parent.id).maybeSingle()
   if (!kid) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const lang = (LOCALES as readonly string[]).includes(langIn) ? langIn as Locale : 'en'
-  const t = getT(lang) as (k: string, v?: Record<string, string | number>) => string
+  // The card is in English only (owner, 2026-11-17), whatever the family reads.
+  void langIn
+  const t = getT('en') as (k: string, v?: Record<string, string | number>) => string
   try {
     const file = buildCheckinPass({ id: kid.id, full_name: String(kid.full_name || '').trim() }, {
       card: t('wallet.pass.card'), student: t('wallet.pass.student'), school: t('wallet.pass.school'), how: t('wallet.pass.how'),

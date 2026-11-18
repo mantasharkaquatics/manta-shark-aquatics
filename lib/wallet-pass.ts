@@ -124,7 +124,8 @@ export function checkedPng(b64: unknown, w: number, h: number): Buffer | null {
 /** The .pkpass for one swimmer (owner, 2026-11-17, 樣式 4「我的游泳小人」).
     iOS 27 and later show the poster card: the swimmer the family dressed,
     standing in its pool, across the whole card, with the name in bold and
-    the QR on Wallet's frosted strip. Older iPhones show the plain card
+    the QR alone on Wallet's frosted strip (no footer). Always in English
+    (owner, 2026-11-17), whatever language the family reads. Older iPhones show the plain card
     (generic): the same sky colour, the name and a square of the swimmer.
     Both come from one pass.json (posterGeneric beside generic). The
     pictures come from the phone (art, thumb); without them, the swimmer in
@@ -155,7 +156,7 @@ export function buildCheckinPass(student: { id: string; full_name: string }, tex
       headerFields: header,
       // No label: Wallet writes the name as the card's bold title.
       primaryFields: [{ key: 'student', value: name }],
-      footerFields: [{ key: 'school', value: 'Manta Shark Aquatics' }],
+      // No footer (owner, 2026-11-17): the QR alone on the strip.
       backFields: back,
     },
     generic: {

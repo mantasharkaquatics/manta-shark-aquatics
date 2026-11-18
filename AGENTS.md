@@ -693,8 +693,10 @@ Apple's WWDR G4 in the chain; zipped with fflate); GET
   「我的游泳小人」 of five poster designs, after a navy card, five colour
   cards and five certificate-style cards were turned down). iOS 27's
   poster card (`posterGeneric`: artwork across the whole card, the name as
-  the bold title -- a primary field with no label -- MANTA SHARK 報到卡 as
-  the header, the school as the footer, the QR on Wallet's frosted strip),
+  the bold title -- a primary field with no label -- MANTA SHARK /
+  Check-in card as the header, no footer, the QR alone on Wallet's frosted
+  strip; where Wallet puts it is Wallet's), always in English (owner,
+  2026-11-17: the card is English only; the lang the page sends is ignored),
   with a `generic` copy for older iPhones (the same sky colour, the name and
   a square of the swimmer as the thumbnail). The picture is drawn on the
   phone when 加入 Apple 錢包 is pressed: lib/wallet-art.ts asks the 3D
