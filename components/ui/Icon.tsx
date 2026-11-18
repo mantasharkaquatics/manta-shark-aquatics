@@ -37,6 +37,7 @@ const P: Record<string, React.ReactNode> = {
   check: <><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.8 2.8L16.5 9.5" /></>,
   warn: <><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4.5M12 17.5v.01" /></>,
   megaphone: <><path d="M4 10v4h3l8 4V6L7 10z" /><path d="M18 9.5a3.5 3.5 0 0 1 0 5M7 14l1 5h2.5l-1-5" /></>,
+  stopwatch: <><circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.5 1.8M10 2.5h4M12 2.5V6M18.5 6.5l1.5-1.5" /></>,
   clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
   star: <path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" />,
   rotate: <><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" /><path d="M19.5 4v4h-4" /></>,

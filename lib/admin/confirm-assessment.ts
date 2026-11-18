@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { approveLessonTimes } from '@/lib/swim-times-server'
 import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { isLevelNumber } from '@/lib/levels'
 import { setStudentLevel } from '@/lib/level-change'
@@ -336,6 +337,9 @@ export async function confirmAssessment(svc: any, adminId: string, input: Confir
     }
     if (!sent) await svc.from('student_assessments').update({ emailed_at: null }).eq('student_id', rec.student_id)
   }
+
+  // Any 測驗秒數 sent with the assessment go live with it (成績, 2026-11-17).
+  await approveLessonTimes(svc, { studentId: rec.student_id, lessonKey: hist.lesson_key, adminId })
 
   return { status: 200, body: { ok: true } }
 }

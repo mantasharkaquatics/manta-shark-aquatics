@@ -8,6 +8,7 @@ import { formatTime12h, getNowMinutesLA } from '@/lib/date'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import LessonNoteCapture, { type Capture } from './LessonNoteCapture'
+import SwimTimesInput, { timesToSend, type TimeRow } from './SwimTimesInput'
 import SkillTree from '@/app/(public)/dashboard/SkillTree'
 import { LEVEL_COLORS, LEVEL_NUMBERS, STAGES } from '@/lib/levels'
 import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, masteryKey } from '@/lib/mastery'
@@ -86,6 +87,8 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
   const [locked, setLocked] = useState(false)
   const [captureMap, setCaptureMap] = useState<Record<string, Capture | null>>({})
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
+  // 測驗秒數 per lesson card (成績, 2026-11-17).
+  const [timesMap, setTimesMap] = useState<Record<string, TimeRow[]>>({})
   // Which stage is unfolded, per student. Unset means "follow the swimmer" --
   // the stage they are actually in opens, and the other two stay shut, so a
   // coach lands on the right list without scrolling past work that is locked.
@@ -265,6 +268,11 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       setErrorMap(prev => ({ ...prev, [entryKey]: t('coach.note.tooLong') }))
       return
     }
+    const times = timesToSend(timesMap[entryKey])
+    if (times === 'bad') {
+      setErrorMap(prev => ({ ...prev, [entryKey]: t('coach.times.bad') }))
+      return
+    }
     setSavingMap(prev => ({ ...prev, [entryKey]: true }))
     setErrorMap(prev => ({ ...prev, [entryKey]: '' }))
     const progress = { ...(studentDataMap[entryKey]?.progress || {}), ...(editsMap[entryKey] || {}) }
@@ -278,6 +286,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
     form.append('language', capture.language)
     form.append('seconds', String(capture.seconds))
     form.append('progress', JSON.stringify(progress))
+    if (times.length) form.append('times', JSON.stringify(times))
     const data = studentDataMap[entryKey]
     if (data?.assessment && data.assessedLevel) form.append('recommended_level', String(data.assessedLevel))
 
@@ -300,6 +309,7 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
       }))
       setEditsMap(prev => { const n = { ...prev }; delete n[entryKey]; return n })
       setCaptureMap(prev => ({ ...prev, [entryKey]: null }))
+      setTimesMap(prev => { const n = { ...prev }; delete n[entryKey]; return n })
     }
     setSavingMap(prev => ({ ...prev, [entryKey]: false }))
   }
@@ -607,6 +617,10 @@ export default function CoachProgressClient({ coach, sessions, today, completedK
                                 card is overflow-clip rather than overflow-hidden
                                 for this: hidden would make the card its own scroll
                                 box and the button would never stick. */}
+                            {!isCompleted && (
+                              <SwimTimesInput rows={timesMap[s.entryKey] || []} disabled={locked || saving}
+                                onChange={rows => setTimesMap(prev => ({ ...prev, [s.entryKey]: rows }))} />
+                            )}
                             <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[#111d38]/95 backdrop-blur border-t border-[#1e3a6e]">
                               {errorMap[s.entryKey] && (
                                 <p className="text-red-400 text-xs mb-2">{errorMap[s.entryKey]}</p>

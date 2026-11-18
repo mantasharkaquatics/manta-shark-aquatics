@@ -4,6 +4,7 @@ import { refreshNoteTranslations } from '@/lib/ai/translate-note'
 import { readJson, badRequest } from '@/lib/http'
 import { cleanSnapshot, syncApprovedSkills } from '@/lib/skill-progress-sync'
 import { logProgress, pushReport } from '@/lib/push-text'
+import { approveLessonTimes } from '@/lib/swim-times-server'
 
 /**
  * Confirms a lesson report: the skill scores and the note, as one card.
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
 
     await refreshNoteTranslations(supabase, note_id)
   }
+
+  // The 測驗秒數 sent with this report go live with it (成績, 2026-11-17).
+  await approveLessonTimes(supabase, { studentId: histRow.student_id, lessonKey: histRow.lesson_key, adminId: admin_id })
 
   // "CC has a new lesson report" on the family's phones (owner, 2026-10-27).
   // There is no email for it; the dashboard shows a red dot as well.

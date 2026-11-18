@@ -24,6 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/curriculum', labelKey: 'admin.nav.curriculum', desc: 'Every level, skill and prerequisite', icon: <svg {...S}><circle cx="12" cy="5" r="2.5" /><circle cx="6" cy="19" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="M12 7.5v4M12 11.5H6.5a.5.5 0 0 0-.5.5v4.5M12 11.5h5.5a.5.5 0 0 1 .5.5v4.5" /></svg> },
       { href: '/admin/upgrades', labelKey: 'admin.nav.levels', desc: 'Assign levels and skills', icon: <svg {...S}><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg> },
       { href: '/admin/certificates', labelKey: 'admin.nav.certificates', desc: 'Level-up certificates to print and hand over', icon: <svg {...S}><circle cx="12" cy="9" r="5" /><path d="M8.5 13 7 22l5-3 5 3-1.5-9" /></svg> },
+      { href: '/admin/swim-times', labelKey: 'admin.nav.swimTimes', desc: 'Meet results: link swimmers, show them to families', icon: <svg {...S}><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2M10 2h4M12 2v3" /></svg> },
     ],
   },
   {

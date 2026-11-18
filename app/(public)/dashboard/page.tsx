@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTabPanel } from '@/lib/tab-panel'
+import { TIMES_SEEN_KEY } from '@/lib/swim-times'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import { getTodayLA, getNowMinutesLA, formatTime12h } from '@/lib/date'
@@ -1333,7 +1334,8 @@ export default function DashboardPage() {
   // Inside the app's pager (components/TabPager) each copy knows its own tab;
   // the address there is whichever tab is on screen.
   const panel = useTabPanel()
-  const pathView = usePathname() === '/dashboard/schedule' ? 'schedule' : 'home'
+  const pathNow = usePathname()
+  const pathView = pathNow === '/dashboard/schedule' ? 'schedule' : 'home'
   const view = panel ? (panel.tab === 'schedule' ? 'schedule' : 'home') : pathView
 
   /* Assessment reports come back in the page's language (the coach's note and
@@ -1564,6 +1566,24 @@ export default function DashboardPage() {
   useEffect(() => {
     try { const raw = localStorage.getItem(MONTHLY_SEEN); if (raw) setMonthlySeen(JSON.parse(raw)) } catch { /* none */ }
   }, [])
+  /* 成績 (owner, 2026-11-17): the tile shows once a swimmer has a time;
+     a dot while there are more than this phone has seen on the page
+     (lib/swim-times.ts). Read again whenever 首頁 comes back on screen,
+     also from the 成績 page itself (a page outside the tabs). */
+  const [timeCounts, setTimeCounts] = useState<Record<string, number>>({})
+  const [timesSeen, setTimesSeen] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!(panel?.active ?? true)) return
+    let live = true
+    fetch('/api/parent/swim-times', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(d => {
+      if (!live || !d?.counts) return
+      setTimeCounts(d.counts)
+      const seen: Record<string, number> = {}
+      for (const id of Object.keys(d.counts)) { try { seen[id] = Number(localStorage.getItem(TIMES_SEEN_KEY + id)) || 0 } catch { seen[id] = 0 } }
+      setTimesSeen(seen)
+    }).catch(() => {})
+    return () => { live = false }
+  }, [panel?.active, pathNow])
   const openMonthly = (student: Student, id: string) => {
     setMonthlyFor({ student, id })
     setMonthlySeen(list => {
@@ -3961,7 +3981,7 @@ export default function DashboardPage() {
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
                   {stage}
-                  {(hasLevel || hasPast || monthly.length > 0 || trialB) && (
+                  {(hasLevel || hasPast || monthly.length > 0 || trialB || !!timeCounts[student.id]) && (
                     <div className="msa-mcard-tiles">
                       {hasLevel && (
                         <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
@@ -3978,6 +3998,12 @@ export default function DashboardPage() {
                           <i aria-hidden="true"><Icon name="note" /></i>
                           <span>{t('monthly.cardLine', { month: fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
                           <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
+                        </button>
+                      )}
+                      {!!timeCounts[student.id] && (
+                        <button type="button" className="tap-auto" onClick={() => router.push('/dashboard/swim-times?student=' + encodeURIComponent(student.id))}>
+                          <i aria-hidden="true"><Icon name="stopwatch" /></i><span>{t('times.tile')}</span>
+                          <NewDot n={Math.max(0, timeCounts[student.id] - (timesSeen[student.id] || 0))} />
                         </button>
                       )}
                       {hasLevel && report && (

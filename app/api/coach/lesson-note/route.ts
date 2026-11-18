@@ -26,6 +26,7 @@ const BEING_CONFIRMED = 'An admin is confirming this report right now. Wait a mi
 const CONFIRM_LEASE_MS = 90_000
 
 import { FINAL_TAG_INSTRUCTION, finalText } from '@/lib/ai/final-text'
+import { cleanLessonTimes, saveLessonTimes } from '@/lib/swim-times-server'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -73,6 +74,11 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Bad progress payload' }, { status: 400 })
   }
+
+  // 測驗秒數 (owner, 2026-11-17): optional, with the report; they wait with
+  // it and go live when an admin confirms it (lib/swim-times-server.ts).
+  let times: ReturnType<typeof cleanLessonTimes> = []
+  try { times = cleanLessonTimes(JSON.parse(String(form.get('times') || '[]'))) } catch { times = [] }
 
   if (!audio || !studentId || !classSessionId || !sessionDate) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -426,6 +432,10 @@ export async function POST(req: NextRequest) {
     // recording (the note row points at it) and tell the coach.
     console.warn(`lesson-note: progress for ${studentId} / ${lessonKey} was approved while the coach resent it`)
     return NextResponse.json({ error: SCORES_APPROVED_MEANWHILE }, { status: 409 })
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(sessionDate)) {
+    await saveLessonTimes(svc, { studentId, lessonKey, coachId: coach.id, on: sessionDate, times })
   }
 
   return NextResponse.json({ ok: true, note })

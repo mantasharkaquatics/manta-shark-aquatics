@@ -13,6 +13,7 @@ import { MASTERY_LEVELS, MASTERY_VALUE, MASTERY_COLOR, MASTERY_FILL, masteryOf, 
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { tDb, dateTag, type Locale, type TFunction } from '@/lib/i18n'
 import { levelChangeNotes } from '@/lib/level-change-notes'
+import { eventLabel, fmtTime, type Stroke } from '@/lib/swim-times'
 import type { TimeOffActionItem } from '@/lib/time-off'
 import type { MonthlyQuestionItem } from '@/lib/admin/review-queues'
 
@@ -726,6 +727,18 @@ export default function AdminReviewsClient({ adminId, levels, skills, recommenda
             rec={assessRec[p.id] || { note: '' }}
             onRec={next => setAssessRec(prev => ({ ...prev, [p.id]: next }))}
           />
+        )}
+        {((p as any).times || []).length > 0 && (
+          <div className="mt-3 rounded-lg border border-[#c9a84c]/30 bg-[#c9a84c]/5 px-3 py-2">
+            <p className="text-[11px] font-semibold text-[#c9a84c] mb-1">{t('admin.times.onReport')}</p>
+            <ul className="space-y-0.5">
+              {((p as any).times as { distance: number; stroke: Stroke; cs: number }[]).map((x, i) => (
+                <li key={i} className="flex justify-between gap-3 text-xs text-gray-200">
+                  <span>{eventLabel(t, { ...x, unit: 'yd' })}</span><b className="tabular-nums">{fmtTime(x.cs)}</b>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {(p as any).note && (
           <AdminLessonNoteReview

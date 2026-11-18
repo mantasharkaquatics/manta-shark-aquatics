@@ -640,6 +640,35 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   keyboard and measures from the window, wrong in this container. Builds
   before this keep the old pushing.
 
+# 成績: a swimmer's timed swims (owner, 2026-11-17)
+
+lib/swim-times.ts (shared: events, labels, parse/format, best per event),
+lib/swim-times-server.ts, docs/migration-swim-times.sql (both projects;
+server only, RLS on, no policies). Two sources, one parent page:
+
+- **課堂測驗**: the coach's lesson recorder has 測驗秒數（選填） under the
+  skills (app/coach/progress/SwimTimesInput.tsx): an event (yards; the
+  list is COACH_EVENTS) and a time, 24.56 or 1:03.05. Sent as `times`
+  with the report; /api/coach/lesson-note saves them to swim_times as
+  pending, keyed like the report (student, lesson_key), replacing what a
+  resend of it sent. They go live only when the report is confirmed
+  (review-progress and confirmAssessment call approveLessonTimes); the
+  Reviews card lists them. A sent-back report leaves them pending, and the
+  resend replaces them.
+- **比賽**: the meet_* tables (the 2026-11-16 meet, archived from manta-meet;
+  meet_events now carry distance / unit / stroke, read from the names).
+  Admin > 成績 (/admin/swim-times, /api/admin/meets) links each meet
+  swimmer to a student (suggestions: same birth date, then the name) and
+  publishes the meet (meet_meets.published); families see a meet only once
+  it is published, and only their linked swimmers' results.
+- **The family**: a 成績 tile on the swimmer's home card, only once the
+  swimmer has a time (GET /api/parent/swim-times counts), with a dot while
+  there are more than this phone has seen (localStorage msa_times_seen:<id>,
+  cleared on sign-out). /dashboard/swim-times?student= (AppInfoPage):
+  best per event (green ↓ when it beat the first), the chosen event's line
+  (lower = faster; the best amber, a meet a ring), every time newest first,
+  tagged 課堂測驗 / 比賽. View-only members see it too.
+
 # The check-in QR in Apple Wallet (owner, 2026-11-17: Apple only)
 
 The 報到 sheet (app/(public)/dashboard/CheckinQr.tsx) has 加入 Apple 錢包

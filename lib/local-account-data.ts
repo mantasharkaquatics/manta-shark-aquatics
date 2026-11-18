@@ -8,7 +8,7 @@ import { forgetFamilyRole } from '@/lib/my-parent'
 const SESSION_KEYS = ['msa_chat_draft', 'msa_chat_open', 'msa_chat_about', 'msa_suggest_draft', 'msa.booking.resume', 'msa.booking.family.resume', 'msa_safety_draft']
 const SESSION_PREFIXES = ['msa_scroll:']
 const LOCAL_KEYS = ['msa_cal_device', 'msa_cal_card_seen', 'msa_celebrated', 'msa_monthly_seen']
-const LOCAL_PREFIXES = ['msa_qr_v1:']
+const LOCAL_PREFIXES = ['msa_qr_v1:', 'msa_times_seen:']
 
 function sweep(store: Storage, keys: string[], prefixes: string[]) {
   for (const k of keys) store.removeItem(k)

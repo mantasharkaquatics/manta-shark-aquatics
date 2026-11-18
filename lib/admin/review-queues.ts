@@ -12,6 +12,7 @@
  * fine on every admin page, which is why the badge fetches this from the
  * client after paint and the route caches the answer.
  */
+import { pendingLessonTimes } from '@/lib/swim-times-server'
 import { getTodayLA, getNowMinutesLA, laWallTimeToUtcMs } from '@/lib/date'
 import { levelThenFromMoves } from '@/lib/level-change'
 import { timeOffNeedingAction, type TimeOffActionItem } from '@/lib/time-off'
@@ -638,9 +639,15 @@ export async function loadReviewQueues(
         }
       }
     }
+    // 測驗秒數 sent with the report (成績, 2026-11-17): shown on the card,
+    // confirmed with it.
+    const timesByPair = withDetails
+      ? await pendingLessonTimes(svc, (enriched as any[]).map(p => ({ studentId: p.student_id, lessonKey: p.lesson_key })))
+      : new Map()
     for (const p of enriched as any[]) {
       // Older rows predate the merge and have no note; the card copes with null.
       p.note = noteByPair[`${p.student_id}|${p.lesson_key}`] || null
+      p.times = timesByPair.get(`${p.student_id}|${p.lesson_key}`) || []
     }
 
     /* An assessment is one report with a level attached: the coach's pending
