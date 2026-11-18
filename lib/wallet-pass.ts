@@ -86,7 +86,7 @@ export function walletCheck(): { ready: boolean; problem?: string; expires?: str
 /** The code on the card: what the 報到 sheet's QR says. */
 export const checkinCode = (studentId: string) => 'MSA:' + Buffer.from(studentId, 'utf8').toString('base64')
 
-export type PassText = { student: string; school: string; how: string; help: string; description: string }
+export type PassText = { card: string; student: string; school: string; how: string; help: string; description: string }
 
 function signManifest(manifest: Buffer): Buffer {
   const cert = forge.pki.certificateFromPem(pem('PASS_CERT_PEM_BASE64'))
@@ -108,37 +108,81 @@ function signManifest(manifest: Buffer): Buffer {
   return Buffer.from(forge.asn1.toDer(p7.toAsn1()).getBytes(), 'binary')
 }
 
-/** The .pkpass for one swimmer. */
-export function buildCheckinPass(student: { id: string; full_name: string }, text: PassText): Buffer {
+/** The picture sizes the phone sends (lib/wallet-art.ts). */
+export const ART = { w: 716, h: 896 }, THUMB = 180
+
+/** A PNG of exactly this size, small enough, or null. Read from the file's
+ *  own header: the phone sends it, so nothing else about it is trusted. */
+export function checkedPng(b64: unknown, w: number, h: number): Buffer | null {
+  if (typeof b64 !== 'string' || b64.length > 3_000_000) return null
+  const buf = Buffer.from(b64, 'base64')
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  if (buf.length < 33 || sig.some((v, i) => buf[i] !== v) || buf.toString('latin1', 12, 16) !== 'IHDR') return null
+  return buf.readUInt32BE(16) === w && buf.readUInt32BE(20) === h ? buf : null
+}
+
+/** The .pkpass for one swimmer (owner, 2026-11-17, 樣式 4「我的游泳小人」).
+    iOS 27 and later show the poster card: the swimmer the family dressed,
+    standing in its pool, across the whole card, with the name in bold and
+    the QR on Wallet's frosted strip. Older iPhones show the plain card
+    (generic): the same sky colour, the name and a square of the swimmer.
+    Both come from one pass.json (posterGeneric beside generic). The
+    pictures come from the phone (art, thumb); without them, the swimmer in
+    a swim cap the school drew (PASS_IMAGES artwork-default). */
+export function buildCheckinPass(student: { id: string; full_name: string }, text: PassText,
+  pics?: { art: Buffer; thumb: Buffer } | null): Buffer {
   const code = checkinCode(student.id)
+  const name = student.full_name
+  const header = [{ key: 'card', label: 'MANTA SHARK', value: text.card }]
+  const back = [{ key: 'how', label: text.how, value: text.help }]
   const pass = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_ID,
     teamIdentifier: TEAM_ID,
-    serialNumber: 'checkin-' + student.id,
+    // v2: the poster card. A new number, so the first (navy) card is not
+    // mistaken for it; the family removes that one themselves.
+    serialNumber: 'checkin-v2-' + student.id,
     organizationName: 'Manta Shark Aquatics',
     description: text.description,
     logoText: 'Manta Shark',
-    backgroundColor: 'rgb(18, 37, 74)',
-    foregroundColor: 'rgb(255, 255, 255)',
-    labelColor: 'rgb(247, 183, 51)',
+    backgroundColor: 'rgb(217, 238, 252)',
+    foregroundColor: 'rgb(18, 37, 74)',
+    labelColor: 'rgb(32, 80, 160)',
     sharingProhibited: true,
-    barcodes: [{ format: 'PKBarcodeFormatQR', message: code, messageEncoding: 'iso-8859-1', altText: student.full_name }],
-    barcode: { format: 'PKBarcodeFormatQR', message: code, messageEncoding: 'iso-8859-1', altText: student.full_name },
+    barcodes: [{ format: 'PKBarcodeFormatQR', message: code, messageEncoding: 'iso-8859-1', altText: name }],
+    barcode: { format: 'PKBarcodeFormatQR', message: code, messageEncoding: 'iso-8859-1', altText: name },
+    posterGeneric: {
+      headerFields: header,
+      // No label: Wallet writes the name as the card's bold title.
+      primaryFields: [{ key: 'student', value: name }],
+      footerFields: [{ key: 'school', value: 'Manta Shark Aquatics' }],
+      backFields: back,
+    },
     generic: {
-      primaryFields: [{ key: 'student', label: text.student, value: student.full_name }],
+      headerFields: header,
+      primaryFields: [{ key: 'student', label: text.student, value: name }],
       secondaryFields: [{ key: 'school', label: text.school, value: 'Manta Shark Aquatics' }],
-      backFields: [{ key: 'how', label: text.how, value: text.help }],
+      backFields: back,
     },
   }
-  const files: Record<string, Buffer> = { 'pass.json': Buffer.from(JSON.stringify(pass), 'utf8') }
-  for (const [name, b64] of Object.entries(PASS_IMAGES)) files[name] = Buffer.from(b64, 'base64')
+  const img = (k: string) => Buffer.from(PASS_IMAGES[k], 'base64')
+  const art = pics?.art ?? img('artwork-default')
+  const thumb = pics?.thumb ?? img('thumbnail-default')
+  const files: Record<string, Buffer> = {
+    'pass.json': Buffer.from(JSON.stringify(pass), 'utf8'),
+    'icon.png': img('icon.png'), 'icon@2x.png': img('icon@2x.png'), 'icon@3x.png': img('icon@3x.png'),
+    'logo.png': img('logo.png'), 'logo@2x.png': img('logo@2x.png'), 'logo@3x.png': img('logo@3x.png'),
+    'primaryLogo.png': img('logo.png'), 'primaryLogo@2x.png': img('logo@2x.png'), 'primaryLogo@3x.png': img('logo@3x.png'),
+    // The picture is 2x (716 x 896 for 358 x 448 points); Wallet scales it.
+    'artwork.png': art, 'artwork@2x.png': art,
+    'thumbnail.png': thumb, 'thumbnail@2x.png': thumb,
+  }
   const manifest: Record<string, string> = {}
-  for (const [name, buf] of Object.entries(files)) manifest[name] = createHash('sha1').update(buf).digest('hex')
+  for (const [n, buf] of Object.entries(files)) manifest[n] = createHash('sha1').update(buf).digest('hex')
   const manifestBuf = Buffer.from(JSON.stringify(manifest), 'utf8')
   files['manifest.json'] = manifestBuf
   files['signature'] = signManifest(manifestBuf)
   const zip: Record<string, Uint8Array> = {}
-  for (const [name, buf] of Object.entries(files)) zip[name] = new Uint8Array(buf)
+  for (const [n, buf] of Object.entries(files)) zip[n] = new Uint8Array(buf)
   return Buffer.from(zipSync(zip, { level: 6 }))
 }

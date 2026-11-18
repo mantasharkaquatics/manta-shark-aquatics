@@ -22,7 +22,7 @@ import { useT } from '@/lib/i18n/provider'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import Icon from '@/components/ui/Icon'
 import {
-  GEAR_COLORS, HAIR_COLORS, SKINS, SUIT_COLORS, type SwimmerLook,
+  GEAR_COLORS, HAIR_COLORS, NEUTRAL_LOOK, SKINS, SUIT_COLORS, type SwimmerLook,
 } from '@/lib/swimmer-look'
 import type { Character, Engine } from './engine'
 
@@ -30,10 +30,7 @@ export interface DeckItem { id: string; name: string; look: SwimmerLook | null }
 
 /* What a swimmer with no look yet wears: a swim cap hides the hair, so it is
    neither a boy nor a girl. */
-const NEUTRAL: SwimmerLook = {
-  gender: 'boy', skin: SKINS[1], hair: 'short', hairColor: HAIR_COLORS[0], suit: 'jammer', suitColor: SUIT_COLORS[1],
-  goggles: 'forehead', goggleColor: GEAR_COLORS[0], cap: true, capColor: GEAR_COLORS[1], fins: false, finColor: GEAR_COLORS[3],
-}
+const NEUTRAL: SwimmerLook = NEUTRAL_LOOK
 const lookKey = (l: SwimmerLook) => JSON.stringify(l)
 
 const CSS = `

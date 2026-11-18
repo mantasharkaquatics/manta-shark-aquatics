@@ -21,6 +21,7 @@ import { useFamilyRole } from '@/lib/use-viewer'
 import Sheet from '@/components/ui/Sheet'
 import Icon from '@/components/ui/Icon'
 import LoadFailed from '@/components/LoadFailed'
+import { lookOf } from '@/lib/swimmer-look'
 
 /* 我的, the app's last tab (owner, 2026-10-27): everything about the family
    that is not a lesson -- the account, points and receipts, notifications,
@@ -132,7 +133,7 @@ type Wallet = WalletSummary
 type Fixed = { id: string; weekday: number; time: string; coachName: string; left: number; total?: number; last: string | null; renewOpen: boolean; studentNames: string[] }
 type Voucher = { id: string; studentId: string; student2Id: string | null; studentNames: string[]; expiresOn: string }
 type Team = { id: string; student_id: string; student_name?: string; tier_name?: string; team_tier_id?: string | null; status?: string; is_prepaid?: boolean; expires_at?: string | null; cancels_at?: string | null; invoices?: { period_end: string | null }[] }
-type Kid = { id: string; full_name: string; current_level: number | null }
+type Kid = { id: string; full_name: string; current_level: number | null; gender?: string | null; avatar_look?: unknown }
 
 const todayLA = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 const plusDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
@@ -202,7 +203,7 @@ export default function MePage() {
       if (pid) {
         const [{ data }, { data: st }] = await Promise.all([
           supabase.from('parents').select('first_name, last_name').eq('id', pid).maybeSingle(),
-          supabase.from('students').select('id, full_name, current_level').eq('parent_id', pid).eq('is_active', true).order('sort_order'),
+          supabase.from('students').select('id, full_name, current_level, gender, avatar_look').eq('parent_id', pid).eq('is_active', true).order('sort_order'),
         ])
         name = [data?.first_name, data?.last_name].filter(Boolean).join(' ')
         familyFirst = String(data?.first_name || '')
@@ -436,7 +437,7 @@ export default function MePage() {
       )}
       {sheet === 'suggest' && <SuggestionSheet onClose={() => setSheet(null)} />}
       {/* A decision: kind ② (決定 9), the way out left, 登出 right. */}
-      {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} lesson={lessonOf(qrKid.id)}
+      {qrKid && <QRModal student={qrKid} onClose={() => setQrKid(null)} lesson={lessonOf(qrKid.id)} look={lookOf(qrKid)}
         others={kids.filter(k => k.id !== qrKid.id && lessonOf(k.id)).map(k => k.full_name)} />}
       {/* Whose code: a choice to look at, kind ① (決定 9). */}
       {pickQr && (

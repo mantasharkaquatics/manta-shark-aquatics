@@ -572,6 +572,7 @@
   "wallet.pass.how": "報到",
   "wallet.pass.help": "到了以後在櫃台出示這個 QR code，櫃台掃描就完成報到。",
   "wallet.pass.description": "Manta Shark 報到卡",
+  "wallet.pass.card": "報到卡",
   "dash.qr.eyebrow": "報到 QR Code",
   "dash.qr.help": "到櫃台出示這個 QR Code，就能為今天的課報到。",
   "dash.qrAlt": "報到 QR Code",

@@ -73,6 +73,10 @@ export interface Engine {
   spin(dx: number): void
   fling(velocity: number): void
   setDragging(on: boolean): void
+  /** One still picture of a swimmer in this look standing in its pool, on a
+   *  see-through background, w x h pixels (the Apple Wallet card's artwork,
+   *  lib/wallet-art.ts). Null when the phone cannot draw it. */
+  portrait(look: SwimmerLook, w: number, h: number): HTMLCanvasElement | null
   dispose(): void
 }
 
@@ -407,6 +411,28 @@ export async function createEngine(): Promise<Engine | null> {
     },
     fling(v) { if (active) active.vel = Math.max(-SWIMMER_FLING_MAX, Math.min(SWIMMER_FLING_MAX, v * 5)) },
     setDragging(on) { dragging = on; if (on) { if (active) active.vel = 0; spunAt = performance.now() } },
+    portrait(look, w, h) {
+      let renderer: T.WebGLRenderer
+      try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }) } catch { return null }
+      try {
+        renderer.setPixelRatio(1)
+        renderer.setSize(w, h, false)
+        const { scene, cam } = makeScene()
+        const ch = make(look)
+        chars.delete(ch)
+        ch.holder.rotation.y = REST_YAW
+        scene.add(ch.holder)
+        // Framed as the home card frames it (size() above).
+        const aspect = w / h, tanV = Math.tan(THREE.MathUtils.degToRad(FOV / 2))
+        cam.aspect = aspect
+        cam.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.max(tanV, Math.tan(THREE.MathUtils.degToRad(14)) * (331 / 300) * 0.86 / aspect)))
+        cam.updateProjectionMatrix()
+        renderer.render(scene, cam)
+        const out = document.createElement('canvas'); out.width = w; out.height = h
+        out.getContext('2d')!.drawImage(renderer.domElement, 0, 0)
+        return out
+      } catch { return null } finally { renderer.dispose(); renderer.forceContextLoss() }
+    },
     dispose() {
       cancelAnimationFrame(raf); io.disconnect(); ro.disconnect()
       for (const ch of chars) unmount(ch)

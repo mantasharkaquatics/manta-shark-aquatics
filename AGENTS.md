@@ -689,6 +689,23 @@ Apple's WWDR G4 in the chain; zipped with fflate); GET
   certificate is for this Pass Type ID, issued by WWDR G4, not expired --
   without showing either; the button shows only when ready. The
   certificate lasts about a year: renew it before `expires`.
+- **The card is the family's own swimmer** (owner, 2026-11-17, 樣式 4
+  「我的游泳小人」 of five poster designs, after a navy card, five colour
+  cards and five certificate-style cards were turned down). iOS 27's
+  poster card (`posterGeneric`: artwork across the whole card, the name as
+  the bold title -- a primary field with no label -- MANTA SHARK 報到卡 as
+  the header, the school as the footer, the QR on Wallet's frosted strip),
+  with a `generic` copy for older iPhones (the same sky colour, the name and
+  a square of the swimmer as the thumbnail). The picture is drawn on the
+  phone when 加入 Apple 錢包 is pressed: lib/wallet-art.ts asks the 3D
+  engine for `portrait(look)` (the home card's swimmer in its pool, on a
+  see-through background) and lays it on the home card's sky, 716 x 896,
+  plus a 180 x 180 square; POST /api/parent/wallet-pass carries both, and
+  the server keeps them only if they are PNGs of exactly those sizes
+  (checkedPng). Without them -- a browser's plain link, a phone that
+  cannot draw -- the swimmer in a cap (PASS_IMAGES artwork-default). The
+  serial is checkin-v2-<id>, so the first navy card stays until the family
+  deletes it. A changed look needs the card added again.
 - **Inside the iPhone app** the web view cannot open a .pkpass: the page
   fetches it and hands the bytes to WalletPassPlugin
   (mobile/ios/App/App/WalletPass.swift, registered in AppViewController),

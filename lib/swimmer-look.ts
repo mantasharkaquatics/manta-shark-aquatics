@@ -47,6 +47,13 @@ function seed(id: string) {
 }
 
 /** The look a swimmer starts with, or null when there is no gender to start from. */
+/** What a swimmer with no look yet wears (components/swimmer/SwimmerDeck):
+ *  a swim cap hides the hair, so it is neither a boy nor a girl. */
+export const NEUTRAL_LOOK: SwimmerLook = {
+  gender: 'boy', skin: SKINS[1], hair: 'short', hairColor: HAIR_COLORS[0], suit: 'jammer', suitColor: SUIT_COLORS[1],
+  goggles: 'forehead', goggleColor: GEAR_COLORS[0], cap: true, capColor: GEAR_COLORS[1], fins: false, finColor: GEAR_COLORS[3],
+}
+
 export function defaultLook(id: string, gender: string | null | undefined): SwimmerLook | null {
   if (!isGender(gender)) return null
   const s = seed(id)

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getT } from '@/lib/i18n/all'
 import { LOCALES, type Locale } from '@/lib/i18n'
-import { buildCheckinPass, walletCheck } from '@/lib/wallet-pass'
+import { ART, THUMB, buildCheckinPass, checkedPng, walletCheck } from '@/lib/wallet-pass'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,26 +11,42 @@ export const dynamic = 'force-dynamic'
    GET ?ready=1 -> { ready, problem?, expires? } -- are the school's
        certificate and key set and good (the 報到 sheet shows 加入 Apple 錢包
        only then); never shows either.
-   GET ?student=<id>&lang=<locale> -> the .pkpass, for a swimmer of this
-       family (view-only members too: they bring the children as well). */
+   GET ?student=<id>&lang=<locale> -> the .pkpass with the swimmer the school
+       drew (a browser's plain link).
+   POST { student, lang, art, thumb } -> the .pkpass with the family's own
+       swimmer, drawn on the phone (lib/wallet-art.ts; PNGs as base64, sizes
+       checked). Bad pictures are left out, not refused.
+   For a swimmer of this family (view-only members too: they bring the
+   children as well). */
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams
   const check = walletCheck()
   if (q.get('ready')) return NextResponse.json(check)
+  return make(q.get('student') || '', q.get('lang') || '', null)
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null) as { student?: unknown; lang?: unknown; art?: unknown; thumb?: unknown } | null
+  if (!body) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+  const art = checkedPng(body.art, ART.w, ART.h)
+  const thumb = checkedPng(body.thumb, THUMB, THUMB)
+  return make(String(body.student || ''), String(body.lang || ''), art && thumb ? { art, thumb } : null)
+}
+
+async function make(id: string, langIn: string, pics: { art: Buffer; thumb: Buffer } | null) {
   const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!check.ready) return NextResponse.json({ error: 'Not set up' }, { status: 503 })
-  const id = q.get('student') || ''
+  if (!walletCheck().ready) return NextResponse.json({ error: 'Not set up' }, { status: 503 })
   const { data: kid } = await auth.svc.from('students').select('id, full_name')
     .eq('id', id).eq('parent_id', auth.parent.id).maybeSingle()
   if (!kid) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const lang = (LOCALES as readonly string[]).includes(q.get('lang') || '') ? q.get('lang') as Locale : 'en'
+  const lang = (LOCALES as readonly string[]).includes(langIn) ? langIn as Locale : 'en'
   const t = getT(lang) as (k: string, v?: Record<string, string | number>) => string
   try {
     const file = buildCheckinPass({ id: kid.id, full_name: String(kid.full_name || '').trim() }, {
-      student: t('wallet.pass.student'), school: t('wallet.pass.school'), how: t('wallet.pass.how'),
+      card: t('wallet.pass.card'), student: t('wallet.pass.student'), school: t('wallet.pass.school'), how: t('wallet.pass.how'),
       help: t('wallet.pass.help'), description: t('wallet.pass.description'),
-    })
+    }, pics)
     return new NextResponse(new Uint8Array(file), { headers: {
       'Content-Type': 'application/vnd.apple.pkpass',
       'Content-Disposition': 'attachment; filename="manta-shark-checkin.pkpass"',

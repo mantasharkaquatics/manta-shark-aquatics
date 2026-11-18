@@ -9,6 +9,8 @@ import { useLocale, useT } from '@/lib/i18n/provider'
 import { joinList } from '@/lib/i18n'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { appLook, appPlatform, walletPassPlugin } from '@/lib/native-app'
+import { makeWalletArt } from '@/lib/wallet-art'
+import type { SwimmerLook } from '@/lib/swimmer-look'
 import { BRAND, FONT_DISPLAY } from '@/lib/brand'
 
 const NAVY = BRAND.navy
@@ -82,7 +84,7 @@ function cachedQr(studentId: string): string {
    Mitch"), so the desk can see it is the right one; others: the family's
    other swimmers with a lesson today, who need their own code (50-role test,
    2026-11-05). */
-export default function QRModal({ student, onClose, lesson, others = [] }: { student: { id: string; full_name: string }; onClose: () => void; lesson?: string | null; others?: string[] }) {
+export default function QRModal({ student, onClose, lesson, others = [], look }: { student: { id: string; full_name: string }; onClose: () => void; lesson?: string | null; others?: string[]; look?: SwimmerLook | null }) {
   const t = useT()
   const locale = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -128,7 +130,13 @@ export default function QRModal({ student, onClose, lesson, others = [] }: { stu
     if (!plugin || walletBusy) return
     setWalletBusy(true); setWalletErr(false)
     try {
-      const r = await fetch(passUrl, { cache: 'no-store' })
+      // The card shows the swimmer the family dressed (樣式 4), drawn here;
+      // if this phone cannot draw it, the school's swimmer in a cap.
+      const pics = await makeWalletArt(look ?? null).catch(() => null)
+      const r = await fetch('/api/parent/wallet-pass', {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student: student.id, lang: locale, art: pics?.art, thumb: pics?.thumb }),
+      })
       if (!r.ok) throw new Error(String(r.status))
       const bytes = new Uint8Array(await r.arrayBuffer())
       let bin = ''

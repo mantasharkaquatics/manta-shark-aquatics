@@ -572,6 +572,7 @@
   "wallet.pass.how": "Check in",
   "wallet.pass.help": "Show this code at the front desk when you arrive. The desk scans it to check your swimmer in.",
   "wallet.pass.description": "Manta Shark check-in card",
+  "wallet.pass.card": "Check-in card",
   "dash.qr.eyebrow": "Check-in QR code",
   "dash.qr.help": "Show this QR code at the front desk to check in for today's lesson.",
   "dash.qrAlt": "Check-in QR code",

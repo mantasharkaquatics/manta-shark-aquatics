@@ -3515,7 +3515,7 @@ export default function DashboardPage() {
         const todays = upcomingBookings.filter(b => b.session_date === tdy && b.status === 'confirmed' && !b.checked_in)
         const mineB = todays.find(b => b.student_id === qrStudent.id || b._group?.some(x => x.student_id === qrStudent.id))
         const others = [...new Set(todays.flatMap(b => (b._group || [b]).filter(x => x.student_id !== qrStudent.id && !x.checked_in).map(x => x.student_name || '')))].filter(Boolean)
-        return <QRModal student={qrStudent} onClose={() => setQrStudent(null)} others={others}
+        return <QRModal student={qrStudent} onClose={() => setQrStudent(null)} others={others} look={lookOf(qrStudent)}
           lesson={mineB ? [formatTime(mineB.start_time), mineB.coach_name ? t('dash.up.coach', { name: mineB.coach_name }) : null].filter(Boolean).join(' · ') : null} />
       })()}
 
