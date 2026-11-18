@@ -697,15 +697,19 @@ Apple's WWDR G4 in the chain; zipped with fflate); GET
   Check-in card as the header, no footer, the QR alone on Wallet's frosted
   strip; where Wallet puts it is Wallet's), always in English (owner,
   2026-11-17: the card is English only; the lang the page sends is ignored),
-  with a `generic` copy for older iPhones (the same sky colour, the name and
-  a square of the swimmer as the thumbnail). The picture is drawn on the
+  with a `storeCard` copy for older iPhones (owner, 2026-11-17: the plain
+  generic copy -- name, a small square of the swimmer, the school -- was
+  "so ugly"): the logo line, a wide strip with the name over its sky and
+  the swimmer on its right, and the QR. The picture is drawn on the
   phone when 加入 Apple 錢包 is pressed: lib/wallet-art.ts asks the 3D
   engine for `portrait(look)` (the home card's swimmer in its pool, on a
   see-through background) and lays it on the home card's sky, 716 x 896,
-  plus a 180 x 180 square; POST /api/parent/wallet-pass carries both, and
+  plus the 750 x 288 strip (STRIP_FROM of it, on its own left edge
+  stretched across, so no seam); POST /api/parent/wallet-pass carries both, and
   the server keeps them only if they are PNGs of exactly those sizes
   (checkedPng). Without them -- a browser's plain link, a phone that
-  cannot draw -- the swimmer in a cap (PASS_IMAGES artwork-default). The
+  cannot draw -- the swimmer in a cap (PASS_IMAGES artwork-default,
+  strip-default). The
   serial is checkin-v2-<id>, so the first navy card stays until the family
   deletes it. A changed look needs the card added again.
 - **Inside the iPhone app** the web view cannot open a .pkpass: the page

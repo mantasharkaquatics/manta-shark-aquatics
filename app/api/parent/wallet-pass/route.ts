@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { getT } from '@/lib/i18n/all'
-import { ART, THUMB, buildCheckinPass, checkedPng, walletCheck } from '@/lib/wallet-pass'
+import { ART, STRIP, buildCheckinPass, checkedPng, walletCheck } from '@/lib/wallet-pass'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
        only then); never shows either.
    GET ?student=<id>&lang=<locale> -> the .pkpass with the swimmer the school
        drew (a browser's plain link).
-   POST { student, lang, art, thumb } -> the .pkpass with the family's own
+   POST { student, art, strip } -> the .pkpass with the family's own
        swimmer, drawn on the phone (lib/wallet-art.ts; PNGs as base64, sizes
        checked). Bad pictures are left out, not refused.
    For a swimmer of this family (view-only members too: they bring the
@@ -25,14 +25,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as { student?: unknown; lang?: unknown; art?: unknown; thumb?: unknown } | null
+  const body = await req.json().catch(() => null) as { student?: unknown; lang?: unknown; art?: unknown; strip?: unknown } | null
   if (!body) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
   const art = checkedPng(body.art, ART.w, ART.h)
-  const thumb = checkedPng(body.thumb, THUMB, THUMB)
-  return make(String(body.student || ''), String(body.lang || ''), art && thumb ? { art, thumb } : null)
+  const strip = checkedPng(body.strip, STRIP.w, STRIP.h)
+  return make(String(body.student || ''), String(body.lang || ''), art && strip ? { art, strip } : null)
 }
 
-async function make(id: string, langIn: string, pics: { art: Buffer; thumb: Buffer } | null) {
+async function make(id: string, langIn: string, pics: { art: Buffer; strip: Buffer } | null) {
   const auth = await requireParent({ viewer: true })
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!walletCheck().ready) return NextResponse.json({ error: 'Not set up' }, { status: 503 })

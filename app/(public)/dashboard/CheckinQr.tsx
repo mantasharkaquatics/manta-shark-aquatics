@@ -135,7 +135,7 @@ export default function QRModal({ student, onClose, lesson, others = [], look }:
       const pics = await makeWalletArt(look ?? null).catch(() => null)
       const r = await fetch('/api/parent/wallet-pass', {
         method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student: student.id, lang: locale, art: pics?.art, thumb: pics?.thumb }),
+        body: JSON.stringify({ student: student.id, lang: locale, art: pics?.art, strip: pics?.strip }),
       })
       if (!r.ok) throw new Error(String(r.status))
       const bytes = new Uint8Array(await r.arrayBuffer())

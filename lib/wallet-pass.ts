@@ -109,7 +109,7 @@ function signManifest(manifest: Buffer): Buffer {
 }
 
 /** The picture sizes the phone sends (lib/wallet-art.ts). */
-export const ART = { w: 716, h: 896 }, THUMB = 180
+export const ART = { w: 716, h: 896 }, STRIP = { w: 750, h: 288 }
 
 /** A PNG of exactly this size, small enough, or null. Read from the file's
  *  own header: the phone sends it, so nothing else about it is trusted. */
@@ -125,13 +125,15 @@ export function checkedPng(b64: unknown, w: number, h: number): Buffer | null {
     iOS 27 and later show the poster card: the swimmer the family dressed,
     standing in its pool, across the whole card, with the name in bold and
     the QR alone on Wallet's frosted strip (no footer). Always in English
-    (owner, 2026-11-17), whatever language the family reads. Older iPhones show the plain card
-    (generic): the same sky colour, the name and a square of the swimmer.
-    Both come from one pass.json (posterGeneric beside generic). The
-    pictures come from the phone (art, thumb); without them, the swimmer in
-    a swim cap the school drew (PASS_IMAGES artwork-default). */
+    (owner, 2026-11-17), whatever language the family reads.
+    Older iPhones show a store card: the logo line, a wide picture of the
+    same swimmer with the name over its left side, the QR below (owner,
+    2026-11-17: the plain generic card with a small square was "so ugly").
+    Both come from one pass.json (posterGeneric beside storeCard). The
+    pictures come from the phone (art, strip); without them, the swimmer in
+    a swim cap the school drew (PASS_IMAGES artwork-default, strip-default). */
 export function buildCheckinPass(student: { id: string; full_name: string }, text: PassText,
-  pics?: { art: Buffer; thumb: Buffer } | null): Buffer {
+  pics?: { art: Buffer; strip: Buffer } | null): Buffer {
   const code = checkinCode(student.id)
   const name = student.full_name
   const header = [{ key: 'card', label: 'MANTA SHARK', value: text.card }]
@@ -145,7 +147,6 @@ export function buildCheckinPass(student: { id: string; full_name: string }, tex
     serialNumber: 'checkin-v2-' + student.id,
     organizationName: 'Manta Shark Aquatics',
     description: text.description,
-    logoText: 'Manta Shark',
     backgroundColor: 'rgb(217, 238, 252)',
     foregroundColor: 'rgb(18, 37, 74)',
     labelColor: 'rgb(32, 80, 160)',
@@ -159,24 +160,26 @@ export function buildCheckinPass(student: { id: string; full_name: string }, tex
       // No footer (owner, 2026-11-17): the QR alone on the strip.
       backFields: back,
     },
-    generic: {
+    storeCard: {
       headerFields: header,
-      primaryFields: [{ key: 'student', label: text.student, value: name }],
-      secondaryFields: [{ key: 'school', label: text.school, value: 'Manta Shark Aquatics' }],
+      // Over the left of the picture, where the sky is.
+      primaryFields: [{ key: 'student', value: name }],
       backFields: back,
     },
   }
   const img = (k: string) => Buffer.from(PASS_IMAGES[k], 'base64')
   const art = pics?.art ?? img('artwork-default')
-  const thumb = pics?.thumb ?? img('thumbnail-default')
+  const strip = pics?.strip ?? img('strip-default')
   const files: Record<string, Buffer> = {
     'pass.json': Buffer.from(JSON.stringify(pass), 'utf8'),
     'icon.png': img('icon.png'), 'icon@2x.png': img('icon@2x.png'), 'icon@3x.png': img('icon@3x.png'),
     'logo.png': img('logo.png'), 'logo@2x.png': img('logo@2x.png'), 'logo@3x.png': img('logo@3x.png'),
     'primaryLogo.png': img('logo.png'), 'primaryLogo@2x.png': img('logo@2x.png'), 'primaryLogo@3x.png': img('logo@3x.png'),
-    // The picture is 2x (716 x 896 for 358 x 448 points); Wallet scales it.
+    // 2x pictures (716 x 896 for 358 x 448 points; 750 x 288 for 375 x 144);
+    // Wallet scales them. The poster may read either name for its picture.
     'artwork.png': art, 'artwork@2x.png': art,
-    'thumbnail.png': thumb, 'thumbnail@2x.png': thumb,
+    'background.png': art, 'background@2x.png': art,
+    'strip.png': strip, 'strip@2x.png': strip,
   }
   const manifest: Record<string, string> = {}
   for (const [n, buf] of Object.entries(files)) manifest[n] = createHash('sha1').update(buf).digest('hex')
