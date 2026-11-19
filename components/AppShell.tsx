@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useT, useLocale } from '@/lib/i18n/provider'
 import { LOCALES, type Locale } from '@/lib/i18n'
-import { appLook, coverViewport, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
+import { appLook, coverViewport, appBadgePlugin, APP_SET_LOCALE_EVENT } from '@/lib/native-app'
 import { myFamilyRole } from '@/lib/my-parent'
 import { useFamilyRole } from '@/lib/use-viewer'
 import { chatIsOpen, onChatStateChange, chatUnread, CHAT_UNREAD_EVENT, INBOX_OPEN_EVENT, INBOX_SEEN_EVENT } from '@/lib/chat-open'
@@ -174,13 +174,15 @@ export default function AppShell() {
      Asked of the server on every page, when the app comes back to the
      front, and every minute; the chat widget's own count is used too. */
   const [inbox, setInbox] = useState<{ notices: boolean; count: number; chat: number }>({ notices: false, count: 0, chat: 0 })
+  // The server has answered at least once: until then the icon's number is left alone.
+  const [inboxRead, setInboxRead] = useState(false)
   useEffect(() => {
     if (!app || !signedIn) return
     let live = true
     const ask = () => {
       if (document.visibilityState === 'hidden') return
       fetch('/api/app/inbox?summary=1', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null))
-        .then(d => { if (live && d) setInbox({ notices: !!d.notices, count: Number(d.count) || (d.notices ? 1 : 0), chat: Number(d.chat) || 0 }) }).catch(() => {})
+        .then(d => { if (live && d) { setInbox({ notices: !!d.notices, count: Number(d.count) || (d.notices ? 1 : 0), chat: Number(d.chat) || 0 }); setInboxRead(true) } }).catch(() => {})
     }
     ask()
     const id = setInterval(ask, 60000)
@@ -190,6 +192,21 @@ export default function AppShell() {
     window.addEventListener(INBOX_SEEN_EVENT, seen)
     return () => { live = false; clearInterval(id); document.removeEventListener('visibilitychange', ask); window.removeEventListener(INBOX_SEEN_EVENT, seen) }
   }, [app, signedIn, pathname])
+
+  /* The number on the app's icon (owner, 2026-11-19: "the same as in the
+     app"): the bell's new ones plus the unread replies -- what the bell and
+     the 訊息 tab show. A push sets it (lib/push.ts); this keeps it true as
+     things are read here, and clears it on signing out. iPhone builds from
+     2026-11-19 on (AppBadge.swift); others have no plugin and skip this. */
+  const iconCount = inbox.count + Math.max(unread, inbox.chat)
+  useEffect(() => {
+    if (!app) return
+    const badge = appBadgePlugin()
+    if (!badge) return
+    if (!signedIn) { badge.set({ count: 0 }).catch(() => {}); return }
+    if (!inboxRead) return
+    badge.set({ count: iconCount }).catch(() => {})
+  }, [app, signedIn, inboxRead, iconCount])
 
   /* Down a little: the tabs small and the top bar gone. Up a little, or back
      near the top: both back.

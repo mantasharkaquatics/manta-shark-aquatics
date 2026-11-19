@@ -76,6 +76,14 @@ export interface WalletPassPlugin {
 export const walletPassPlugin = (): WalletPassPlugin | null =>
   (cap()?.Plugins?.WalletPass as WalletPassPlugin | undefined) ?? null
 
+/** The red number on the app's icon (mobile/ios/App/App/AppBadge.swift);
+ *  count 0 clears it. iPhone builds from 2026-11-19 on; null elsewhere. */
+export interface AppBadgePlugin {
+  set(opts: { count: number }): Promise<void>
+}
+export const appBadgePlugin = (): AppBadgePlugin | null =>
+  (cap()?.Plugins?.AppBadge as AppBadgePlugin | undefined) ?? null
+
 /** The app's language button (components/AppShell) asks the website bar
  *  (components/Navbar), which stays mounted inside the app, to switch:
  *  detail = the Locale. */

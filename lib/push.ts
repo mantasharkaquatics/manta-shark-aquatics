@@ -95,7 +95,10 @@ async function accessToken(sa: ServiceAccount): Promise<string | null> {
 }
 
 /** 'ok' delivered to Firebase; 'gone' the token no longer exists (app removed). */
-async function sendOne(sa: ServiceAccount, bearer: string, token: string, text: PushText, url: string): Promise<'ok' | 'gone' | 'error'> {
+/* badge: the number for the app's icon (owner, 2026-11-19), the same as
+   the app's own red marks (lib/app-inbox-count.ts iconBadge). Left out when
+   it could not be worked out, so the icon keeps what it had. */
+async function sendOne(sa: ServiceAccount, bearer: string, token: string, text: PushText, url: string, badge?: number): Promise<'ok' | 'gone' | 'error'> {
   try {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
       method: 'POST',
@@ -105,8 +108,8 @@ async function sendOne(sa: ServiceAccount, bearer: string, token: string, text: 
           token,
           notification: { title: text.title, body: text.body },
           data: { url },
-          android: { priority: 'HIGH', notification: { sound: 'default' } },
-          apns: { payload: { aps: { sound: 'default' } } },
+          android: { priority: 'HIGH', notification: { sound: 'default', ...(badge !== undefined ? { notification_count: badge } : {}) } },
+          apns: { payload: { aps: { sound: 'default', ...(badge !== undefined ? { badge } : {}) } } },
         },
       }),
     })
@@ -210,10 +213,20 @@ export async function pushFamily(svc: SupabaseClient, parentId: string, msg: Pus
     if (!targets.length) return 0
     const bearer = await accessToken(sa)
     if (!bearer) return 0
+    // Each person's icon number, counted after this notice was logged above.
+    const badges = new Map<string, number>()
+    try {
+      const { iconBadge } = await import('@/lib/app-inbox-count')
+      await Promise.all([...new Set(targets.map(d => d.auth_user_id))].map(async u => {
+        badges.set(u, await iconBadge(svc, u, parentId))
+      }))
+    } catch (e) {
+      console.warn('push: icon number not counted', e instanceof Error ? e.message : '')
+    }
     let sent = 0
     const gone: string[] = []
     await Promise.all(targets.map(async d => {
-      const r = await sendOne(sa, bearer, d.token, msg.text(toLocale(d.lang)), msg.url)
+      const r = await sendOne(sa, bearer, d.token, msg.text(toLocale(d.lang)), msg.url, badges.get(d.auth_user_id))
       if (r === 'ok') sent++
       else if (r === 'gone') gone.push(d.token)
     }))

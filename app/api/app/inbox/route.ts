@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { activeAnnouncements } from '@/lib/announcements'
 import { bannerClosures } from '@/lib/closures'
+import { chatUnread, inboxCounts, INBOX_KEEP_DAYS } from '@/lib/app-inbox-count'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,20 +19,7 @@ export const dynamic = 'force-dynamic'
         訊息 (components/AppShell): count is how many are new.
    POST { mark: 'announcements' | 'notices' } -> that tab looked at now. */
 
-const KEEP_DAYS = 90
-
-/** Desk and AI replies in the family's chat newer than the family last read it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function chatUnread(svc: any, parentId: string): Promise<number> {
-  const { data: th, error } = await svc.from('chat_threads').select('id, parent_last_read_at')
-    .eq('parent_id', parentId).order('created_at', { ascending: true }).limit(1).maybeSingle()
-  if (error || !th) return 0
-  let q = svc.from('chat_messages').select('id', { count: 'exact', head: true })
-    .eq('thread_id', th.id).in('sender_type', ['admin', 'ai']).is('recalled_at', null)
-  if (th.parent_last_read_at) q = q.gt('created_at', th.parent_last_read_at)
-  const { count } = await q
-  return count || 0
-}
+const KEEP_DAYS = INBOX_KEEP_DAYS
 
 export async function GET(req: NextRequest) {
   const auth = await requireParent({ viewer: true })
@@ -40,20 +28,7 @@ export async function GET(req: NextRequest) {
   const since = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString()
 
   if (req.nextUrl.searchParams.get('summary')) {
-    const [seen, closures, announcements, chat] = await Promise.all([
-      svc.from('app_inbox_seen').select('announcements_seen_at, notices_seen_at').eq('auth_user_id', user.id).maybeSingle()
-        .then(r => (r.error ? null : r.data)),
-      bannerClosures(svc).catch(() => []),
-      activeAnnouncements(svc).catch(() => []),
-      chatUnread(svc, auth.parent.id).catch(() => 0),
-    ])
-    let nq = svc.from('push_log').select('id', { count: 'exact', head: true }).eq('auth_user_id', user.id).gte('created_at', since)
-    if (seen?.notices_seen_at) nq = nq.gt('created_at', seen.notices_seen_at)
-    const { count: newNotices } = await nq
-    const annSeen = seen?.announcements_seen_at ?? null
-    const count = (newNotices || 0)
-      + (announcements as { created_at: string }[]).filter(a => !annSeen || a.created_at > annSeen).length
-      + (annSeen ? 0 : (closures as unknown[]).length)
+    const { count, chat } = await inboxCounts(svc, user.id, auth.parent.id)
     return NextResponse.json({ notices: count > 0, count, chat })
   }
 

@@ -441,6 +441,15 @@ lib/push-text.ts (the words), docs/migration-push.sql, components/AppBridge.tsx
   VIEWER_COPY). Each person has three switches (reports / reminders /
   bookings) in My Account, shown only inside the app; closures and school
   cancellations ('always') have none.
+- **The number on the app's icon** (owner, 2026-11-19: "the same as in the
+  app"): the bell's new ones plus unread desk/AI replies --
+  lib/app-inbox-count.ts (`inboxCounts`, `iconBadge`, shared with GET
+  /api/app/inbox?summary=1). pushFamily counts it per person after logging
+  the notice and sends it as aps.badge / android notification_count; the
+  app sets it again whenever it reads the count, so reading things takes it
+  down at once, and clears it on sign-out (components/AppShell,
+  appBadgePlugin → mobile/ios/App/App/AppBadge.swift). iPhone builds before
+  it only get the number from pushes.
 - Never put the pool's address in a push (it shows on a locked screen).
 - Nothing is sent until FCM_SERVICE_ACCOUNT (the Firebase service account
   JSON, as is or base64) is set; without it every family keeps its texts.
