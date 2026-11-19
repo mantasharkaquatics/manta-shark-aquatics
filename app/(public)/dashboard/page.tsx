@@ -4807,13 +4807,15 @@ export default function DashboardPage() {
           onClose={() => setMonthlyFor(null)}
           onFeedback={(id, feedback, comment) => setMonthlyReports(list => list.map(m => m.id === id ? { ...m, feedback, feedbackComment: comment || null } : m))} />
       )}
-      {hubFor && (() => {
+      {hubFor && !recordsFor && !monthlyFor && !reportFor && !treeFor && (() => {
         /* 「<name> 的學習」: everything to read about one swimmer, each row
            with what it holds and 新 (owner, 2026-11-19, proposal A). A row
-           closes this sheet and opens its own. */
+           opens its own sheet over this one: this one steps aside while it
+           is open and is back when it closes (owner, 2026-11-19: closing
+           the records closed everything). */
         const items = learnItems(hubFor)
         const row = (it: LearnItem) => (
-          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={() => { setHubFor(null); it.open() }}>
+          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={it.open}>
             <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
             <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
             {it.fresh && <span className="pill">{t('dash.newTag')}</span>}

@@ -954,7 +954,9 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   「<name> 的學習 ›」 (`.msa-mcard-door`, always at the foot of the card,
   with "N 個新"), opens a sheet listing everything to read about the
   swimmer -- 上課紀錄, 月報 (常用); 學習地圖, 成績, 評估報告 (進度) -- each
-  with a one-line summary and 新. Above it, only while something is new,
+  with a one-line summary and 新; a row's own sheet opens over it and
+  closing that sheet comes back to the list (owner, 2026-11-19), which
+  steps aside while it is open. Above it, only while something is new,
   one white line (`.msa-mcard-news`) for the first new thing (a lesson
   report, then the monthly report, then a time) that opens it directly.
   Both come from `learnItems()` in the dashboard page: a new kind of thing
