@@ -262,8 +262,10 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 /* 「<name> 的學習」 sheet: one row per thing to read. */
 /* A sheet opened from it lies on top of it with no second dim: the page
    stays at one shade and nothing behind the list changes (owner,
-   2026-11-19: "no flash"). */
-html:has(.msa-hub) .msa-sheet-back:not(:has(> .msa-hub)), html:has(.msa-hub) .mst-back { background: transparent !important }
+   2026-11-19: "no flash"). A class on <html> (set while the list is open),
+   not :has() -- a :has() on the root makes the phone re-check the whole
+   page on every change, and opening the learning map stuttered. */
+html.msa-hub-open .msa-sheet-back:not(.msa-hub-back), html.msa-hub-open .mst-back { background: transparent !important }
 .msa-hub-grp { margin: 10px 4px 6px; font-size: 12.5px; font-weight: 800; color: #6b7690 }
 .msa-sheet-head + .msa-hub-grp { margin-top: 2px }
 .msa-hub-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 11px 12px; border: 1px solid #e3e8f0; border-radius: 14px;
@@ -1859,6 +1861,22 @@ export default function DashboardPage() {
      all (hubFor) with a one-line summary and 新. A new kind of thing to
      read is added here, never as another button on the card. */
   const [hubFor, setHubFor] = useState<Student | null>(null)
+  /* While the list is open: the class its sheets' dim keys on, the 3D
+     swimmer behind the dim rests (the event TabPager sends during a swipe),
+     and the sheets its rows open are fetched now, so opening one only draws
+     it (owner, 2026-11-19: opening the learning map stuttered). */
+  useEffect(() => {
+    if (!hubFor) return
+    const root = document.documentElement
+    root.classList.add('msa-hub-open')
+    window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: true } }))
+    import('./SkillTree').catch(() => {})
+    import('./MonthlyReportSheet').catch(() => {})
+    return () => {
+      root.classList.remove('msa-hub-open')
+      window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: false } }))
+    }
+  }, [hubFor])
   type LearnItem = { key: string; group: 'often' | 'progress'; icon: string; label: string; sub: string; fresh: boolean; news?: string; open: () => void }
   const learnItems = (student: Student): LearnItem[] => {
     const hasLevel = !!student.current_level && Number(student.current_level) >= 1
@@ -3634,7 +3652,7 @@ export default function DashboardPage() {
         )
         const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
         return (
-          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub">
+          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub" backClassName="msa-hub-back">
             {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
             {often.map(row)}
             {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}

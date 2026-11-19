@@ -968,7 +968,12 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   2026-11-19). The list stays mounted the whole time -- taking it away
   and drawing it again replayed its rise, a flash the owner refused -- and
   is drawn before those sheets in the page, so they lie above it and the
-  Android back button closes them first. Above it, only while something is new,
+  Android back button closes them first. While it is open (owner,
+  2026-11-19: opening the learning map stuttered): <html> carries
+  `msa-hub-open` -- the class the sheets' clear dim keys on; never a
+  :has() on the root, which makes the phone re-check the whole page on
+  every change -- the 3D swimmer behind the dim rests (the msa:tab-swipe
+  event), and SkillTree / MonthlyReportSheet are fetched ahead. Above it, only while something is new,
   one white line (`.msa-mcard-news`) for the first new thing (a lesson
   report, then the monthly report, then a time) that opens it directly.
   Both come from `learnItems()` in the dashboard page: a new kind of thing

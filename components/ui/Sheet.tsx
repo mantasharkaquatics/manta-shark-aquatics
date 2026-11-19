@@ -8,20 +8,22 @@ import { useDialogFocus } from '@/lib/use-dialog-focus'
    phone it rises from the bottom with a grab bar, and pulling the head
    down closes it (components/SheetSwipe); a tap on the dim area, Esc and
    the Android back button close it too. Styles: app/globals.css. */
-export default function Sheet({ title, label, onClose, children, className, headExtra }: {
+export default function Sheet({ title, label, onClose, children, className, backClassName, headExtra }: {
   title?: React.ReactNode
   /** The accessible name when the title is not plain text. */
   label?: string
   onClose: () => void
   children: React.ReactNode
   className?: string
+  /** A class on the dim area behind it too. */
+  backClassName?: string
   /** Something beside the title (a small link or badge). */
   headExtra?: React.ReactNode
 }) {
   const t = useT()
   const box = useDialogFocus(true, onClose)
   return (
-    <div className="msa-sheet-back" onClick={onClose}>
+    <div className={'msa-sheet-back' + (backClassName ? ' ' + backClassName : '')} onClick={onClose}>
       <div ref={box} className={'msa-sheet' + (className ? ' ' + className : '')} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={label || (typeof title === 'string' ? title : undefined)}>
         <div className="msa-sheet-head">
