@@ -661,9 +661,9 @@ server only, RLS on, no policies). Two sources, one parent page:
   swimmer to a student (suggestions: same birth date, then the name) and
   publishes the meet (meet_meets.published); families see a meet only once
   it is published, and only their linked swimmers' results.
-- **The family**: a 成績 tile on the swimmer's home card, only once the
-  swimmer has a time (GET /api/parent/swim-times counts), with a dot while
-  there are more than this phone has seen (localStorage msa_times_seen:<id>,
+- **The family**: a 成績 row in 「<name> 的學習」 (the home card's door),
+  only once the swimmer has a time (GET /api/parent/swim-times counts),
+  marked 新 while there are more than this phone has seen (localStorage msa_times_seen:<id>,
   cleared on sign-out). /dashboard/swim-times?student= (AppInfoPage):
   best per event (green ↓ when it beat the first), the chosen event's line
   (lower = faster; the best amber, a meet a ring), every time newest first,
@@ -948,10 +948,21 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
 - **Each tab does one job, and every button sits where its reason is**
   (owner, 2026-11-01, version 2 of five whole-app layouts). 首頁 = the
   children: the card has name and level over the picture (`renderOverlay`
-  → deckOverlay), 換造型 top left, the spin hint top right, and one row of
-  tiles (學習地圖, 上課紀錄, the monthly report, the assessment report; a new
-  swimmer gets "book the assessment") -- no progress bar, stage name or
-  percentage (the learning map says that). Under the cards one line, the
+  → deckOverlay), 換造型 top left, the spin hint top right, and under the
+  picture **one door and at most one reminder** (owner, 2026-11-19,
+  proposal A「一扇門＋一個提醒」: five tiles were too many). The door,
+  「<name> 的學習 ›」 (`.msa-mcard-door`, always at the foot of the card,
+  with "N 個新"), opens a sheet listing everything to read about the
+  swimmer -- 上課紀錄, 月報 (常用); 學習地圖, 成績, 評估報告 (進度) -- each
+  with a one-line summary and 新. Above it, only while something is new,
+  one white line (`.msa-mcard-news`) for the first new thing (a lesson
+  report, then the monthly report, then a time) that opens it directly.
+  Both come from `learnItems()` in the dashboard page: a new kind of thing
+  to read goes there, never as another button on the card. The app no
+  longer shows the "N new reports" banner above the cards (the card says
+  it; the website keeps it). A new swimmer gets "book the assessment" as
+  before -- no progress bar, stage name or percentage (the learning map
+  says that). Under the cards one line, the
   family's next lesson (`.msa-nextline`): plain on other days, amber with
   **報到** on the day of the lesson -- check-in belongs to a lesson, not to a
   child, so the card has no 報到 any more (the button shows the swimmer's QR,
