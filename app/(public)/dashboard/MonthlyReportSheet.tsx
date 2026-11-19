@@ -64,7 +64,9 @@ const FbIcon = ({ kind, size = 30 }: { kind: 'up' | 'down'; size?: number }) => 
 /* The family's answer is "clear" or "I have a question" -- the owner swapped the
    thumbs-down for a question on 2026-09-30, so a family with a doubt says so
    instead of grading us. Stored as 'up' / 'down'. */
-export default function MonthlyReportSheet({ studentName, reports, initialId, onClose, onFeedback, previewLang }: {
+export default function MonthlyReportSheet({ studentName, reports, initialId, onClose, onFeedback, previewLang, embedded = false }: {
+  /** Inside the app's 「的學習」 (owner, 2026-11-19): only the content; that sheet has the title, ‹ and ✕. */
+  embedded?: boolean
   studentName: string
   reports: MonthlyReport[]
   initialId: string
@@ -85,12 +87,13 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
   const [comment, setComment] = useState('')
   const [fbState, setFbState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   useEffect(() => {
+    if (embedded) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, embedded])
   // Focus into the sheet as it opens and back after (found 2026-10-15).
-  const box = useDialogFocus(true)
+  const box = useDialogFocus(!embedded)
   const r = reports.find(x => x.id === id) || reports[0]
   if (!r) return null
   const d = r.data
@@ -119,13 +122,14 @@ export default function MonthlyReportSheet({ studentName, reports, initialId, on
   // was typed. ✕ and Escape still close it on purpose.
   const keep = !!comment.trim() && fbState !== 'done'
   return (
-    <div className="msa-sheet-back" onClick={() => { if (!keep) onClose() }}>
-      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
-        aria-label={t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}>
-        <div className="msa-sheet-head">
+    <div className={embedded ? undefined : 'msa-sheet-back'} onClick={embedded ? undefined : () => { if (!keep) onClose() }}>
+      <div ref={embedded ? undefined : box} className={embedded ? undefined : 'msa-sheet'} onClick={e => e.stopPropagation()}
+        role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true}
+        aria-label={embedded ? undefined : t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}>
+        {!embedded && <div className="msa-sheet-head">
           <b>{t('monthly.sheetTitle', { name: studentName, month: monthName(r.month, false) })}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-        </div>
+        </div>}
         {preview && (
           <p style={{ margin: '-6px 0 12px', fontSize: '12px', color: '#8a5a00', background: '#fff3d6', border: '1px solid #f3d491', borderRadius: '8px', padding: '6px 10px' }}>
             Manager preview: this is the sheet the family opens once the month is sent. The answer buttons do nothing here.

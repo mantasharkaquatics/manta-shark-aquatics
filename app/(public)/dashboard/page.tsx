@@ -23,7 +23,6 @@ import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import Sheet from '@/components/ui/Sheet'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
 import { MascotEmpty } from '@/components/MascotHelper'
@@ -260,12 +259,34 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 .msa-mcard-news:focus-visible, .msa-mcard-door:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
 @media (hover: hover) { .msa-mcard-door:hover { background: rgba(255,255,255,0.24) } }
 /* 「<name> 的學習」 sheet: one row per thing to read. */
-/* A sheet opened from it lies on top of it with no second dim: the page
-   stays at one shade and nothing behind the list changes (owner,
-   2026-11-19: "no flash"). A class on <html> (set while the list is open),
-   not :has() -- a :has() on the root makes the phone re-check the whole
-   page on every change, and opening the learning map stuttered. */
-html.msa-hub-open .msa-sheet-back:not(.msa-hub-back), html.msa-hub-open .mst-back { background: transparent !important }
+/* One sheet whose pages slide inside it (owner, 2026-11-19, 方案 A): the
+   same height from the first frame, so nothing around the content moves. */
+.msa-sheet.msa-hub { height: 86vh; height: 86dvh; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0 }
+@media (max-width: 640px) { .msa-sheet.msa-hub { height: 88vh; height: 88dvh; padding-bottom: 0 } }
+.msa-hub-head { flex: none; position: relative; top: 0; margin-bottom: 0; z-index: 3 }
+.msa-hub-head h2 { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-hub-head.on-page h2 { text-align: center }
+.msa-hub-back { flex: 0 1 auto; max-width: 38%; display: inline-flex; align-items: center; gap: 2px; padding: 4px 6px 4px 0; border: 0; background: none;
+  color: #2050a0; font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer; min-width: 0 }
+.msa-hub-back span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-hub-back svg { flex: none; width: 18px; height: 18px }
+/* On a page: ‹ back left, the title in the middle, ✕ right. */
+.msa-hub-head.on-page { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px }
+.msa-hub-head.on-page .msa-hub-back { justify-self: start; max-width: 100% }
+.msa-hub-head.on-page h2 { max-width: 46vw }
+.msa-hub-head.on-page .msa-sheet-x { justify-self: end }
+.msa-hub-body { position: relative; flex: 1; min-height: 0; margin: 0 -20px; overflow: hidden }
+.msa-hub-pane { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 14px 20px calc(24px + env(safe-area-inset-bottom)); background: #f6f9fd }
+.msa-hub-list { transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .26s, visibility 0s }
+.msa-hub-list.away { transform: translateX(-28%); opacity: .4; visibility: hidden;
+  transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .26s, visibility 0s .26s }
+.msa-hub-page { z-index: 1; box-shadow: -8px 0 24px rgba(14,29,59,.08) }
+.msa-hub-page.in { animation: msa-hub-in .26s cubic-bezier(.2,.8,.2,1) }
+.msa-hub-page.out { animation: msa-hub-out .26s cubic-bezier(.4,0,.6,1) forwards; pointer-events: none }
+@keyframes msa-hub-in { from { transform: translateX(100%) } to { transform: none } }
+@keyframes msa-hub-out { from { transform: none } to { transform: translateX(100%) } }
+@media (prefers-reduced-motion: reduce) { .msa-hub-list, .msa-hub-list.away { transition: none } .msa-hub-page.in, .msa-hub-page.out { animation: none } }
 .msa-hub-grp { margin: 10px 4px 6px; font-size: 12.5px; font-weight: 800; color: #6b7690 }
 .msa-sheet-head + .msa-hub-grp { margin-top: 2px }
 .msa-hub-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 11px 12px; border: 1px solid #e3e8f0; border-radius: 14px;
@@ -749,7 +770,9 @@ function NewDot({ n }: { n: number }) {
  * does not line up takes the only unmatched lesson on its date. Anything still
  * left over is listed on its own rather than dropped -- losing a coach's note
  * would be worse than showing a lesson twice. */
-function RecordsSheet({ student, past, records, newSince, page, setPage, onClose }: {
+function RecordsSheet({ student, past, records, newSince, page, setPage, onClose, embedded = false }: {
+  /** Inside 「的學習」 (owner, 2026-11-19): only the content; that sheet has the title, ‹ and ✕. */
+  embedded?: boolean
   student: Student
   past: Booking[]
   records: ProgressRecord[]
@@ -764,7 +787,7 @@ function RecordsSheet({ student, past, records, newSince, page, setPage, onClose
   const locale = useLocale()
   const [open, setOpen] = useState<Record<string, boolean>>({})
   // Focus into the sheet as it opens (found 2026-10-15: it stayed on the opener).
-  const box = useDialogFocus(true)
+  const box = useDialogFocus(!embedded)
   // Reports the coach has written that a manager has not approved yet
   // (owner, 2026-10-22): "recorded, under review" instead of nothing.
   const [pendingReports, setPendingReports] = useState<{ date: string; start: string | null }[]>([])
@@ -803,13 +826,14 @@ function RecordsSheet({ student, past, records, newSince, page, setPage, onClose
   const dateFmt = locale === 'en' ? 'en-US' : locale === 'zh-Hans' ? 'zh-CN' : 'zh-TW'
 
   return (
-    <div className="msa-sheet-back" onClick={onClose}>
-      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
-        aria-label={t('dash.recordsOf', { name: student.full_name })}>
-        <div className="msa-sheet-head">
+    <div className={embedded ? undefined : 'msa-sheet-back'} onClick={embedded ? undefined : onClose}>
+      <div ref={embedded ? undefined : box} className={embedded ? undefined : 'msa-sheet'} onClick={e => e.stopPropagation()}
+        role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true}
+        aria-label={embedded ? undefined : t('dash.recordsOf', { name: student.full_name })}>
+        {!embedded && <div className="msa-sheet-head">
           <b>{t('dash.recordsOf', { name: student.full_name })}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-        </div>
+        </div>}
         {rows.length === 0 && <MascotEmpty small text={t('dash.noRecordsYet')} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {shown.map(r => {
@@ -892,6 +916,108 @@ function RecordsSheet({ student, past, records, newSince, page, setPage, onClose
   )
 }
 
+/* 「<name> 的學習」 (owner, 2026-11-19, proposal A, then 方案 A of three:
+   "one sheet, its pages slide inside it" -- after sheets stacked on sheets
+   kept flashing). One sheet, the same height throughout; a row slides its
+   page in from the right (records, monthly report, learning map, assessment
+   report, drawn with `embedded`), ‹ or a swipe from the left edge slides
+   back to the list, ✕ / the dim area / a pull on the head close it all.
+   Nothing but the content moves: no second sheet, no second dim. A row
+   without a page (成績) does what it always did. */
+type LearnItem = {
+  key: string; group: 'often' | 'progress'; icon: string; label: string; sub: string; fresh: boolean; news?: string
+  /** Opens it on its own: the card's reminder line, and rows without a page. */
+  open: () => void
+  /** Its page inside 「的學習」; `back` returns to the list. */
+  view?: (back: () => void) => React.ReactNode
+  /** What opening it marks (seen, new since). */
+  enter?: () => void
+}
+const HUB_SLIDE_MS = 260
+function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; onClose: () => void }) {
+  const t = useT()
+  const [page, setPage] = useState<string | null>(null)
+  // The page sliding out after ‹, kept drawn until it is gone.
+  const [leaving, setLeaving] = useState<string | null>(null)
+  const pageRef = useRef<string | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const backBtn = useRef<HTMLButtonElement | null>(null)
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const back = useCallback(() => {
+    const p = pageRef.current
+    if (!p) return
+    pageRef.current = null
+    setPage(null); setLeaving(p)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => setLeaving(null), HUB_SLIDE_MS)
+    requestAnimationFrame(() => rowRefs.current[p]?.focus({ preventScroll: true }))
+  }, [])
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  // Esc and the Android back button: a page goes back to the list first.
+  const box = useDialogFocus(true, () => (pageRef.current ? back() : onClose()))
+  const go = (it: LearnItem) => {
+    if (!it.view) { it.open(); return }
+    it.enter?.()
+    if (timer.current) clearTimeout(timer.current)
+    setLeaving(null)
+    pageRef.current = it.key
+    setPage(it.key)
+    requestAnimationFrame(() => backBtn.current?.focus({ preventScroll: true }))
+  }
+  // A swipe that starts at the left edge of a page goes back, as on iOS.
+  const edge = useRef<{ x: number; y: number } | null>(null)
+  const onTouchStart = (e: React.TouchEvent) => {
+    const tch = e.touches[0]
+    const left = (e.currentTarget as HTMLElement).getBoundingClientRect().left
+    edge.current = tch.clientX - left < 28 ? { x: tch.clientX, y: tch.clientY } : null
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s0 = edge.current; edge.current = null
+    const tch = e.changedTouches[0]
+    if (s0 && tch && tch.clientX - s0.x > 70 && Math.abs(tch.clientY - s0.y) < 60) back()
+  }
+  const current = items.find(i => i.key === (page || leaving))
+  const row = (it: LearnItem) => (
+    <button key={it.key} ref={el => { rowRefs.current[it.key] = el }} type="button" className="tap-auto msa-hub-row" onClick={() => go(it)}>
+      <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
+      <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
+      {it.fresh && <span className="pill">{t('dash.newTag')}</span>}
+      <i aria-hidden="true">›</i>
+    </button>
+  )
+  const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
+  const title = t('hub.door', { name })
+  return (
+    <div className="msa-sheet-back" onClick={onClose}>
+      <div ref={box} className="msa-sheet msa-hub" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+        <div className={'msa-sheet-head msa-hub-head' + (page ? ' on-page' : '')}>
+          {page && current ? <>
+            <button ref={backBtn} type="button" className="tap-auto msa-hub-back" onClick={back} aria-label={t('app.back')}>
+              <Icon name="back" /><span>{title}</span>
+            </button>
+            <h2>{current.label}</h2>
+          </> : <h2>{title}</h2>}
+          <button type="button" className="msa-sheet-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
+        </div>
+        <div className="msa-hub-body">
+          <div className={'msa-hub-pane msa-hub-list' + (page ? ' away' : '')} aria-hidden={page ? true : undefined} inert={page ? true : undefined}>
+            {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
+            {often.map(row)}
+            {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}
+            {progress.map(row)}
+          </div>
+          {current?.view && (page || leaving) && (
+            <div key={current.key} className={'msa-hub-pane msa-hub-page' + (page ? ' in' : ' out')}
+              onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+              {current.view(back)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** A Swim Assessment report, as the family reads it (lib/assessments). */
 type AssessmentReport = {
   studentId: string
@@ -910,15 +1036,18 @@ type AssessmentReport = {
 /** The credit is worth showing while it can still be earned, and once it has been. */
 const creditLive = (r: AssessmentReport) => r.credit.status === 'pending' && r.credit.daysLeft > 0
 
-function AssessmentSheet({ student, report: r, onClose }: { student: Student; report: AssessmentReport; onClose: () => void }) {
+function AssessmentSheet({ student, report: r, onClose, embedded = false }: { student: Student; report: AssessmentReport; onClose: () => void
+  /** Inside 「的學習」 (owner, 2026-11-19): only the content; that sheet has the title, ‹ and ✕. */
+  embedded?: boolean }) {
   const t = useT()
   const locale = useLocale()
   useEffect(() => {
+    if (embedded) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  const box = useDialogFocus(true)
+  }, [onClose, embedded])
+  const box = useDialogFocus(!embedded)
 
   const longDate = (d: string) => fmtDate(new Date(d + 'T12:00:00'), intlOf(locale), { year: 'numeric', month: 'long', day: 'numeric' })
   const skillName = (s: { id: string; name: string }) => tDb(locale, 'skills', s.id, s.name)
@@ -944,13 +1073,14 @@ function AssessmentSheet({ student, report: r, onClose }: { student: Student; re
   const h: React.CSSProperties = { fontSize: '14px', fontWeight: 800, color: '#12254a', margin: '0 0 10px' }
 
   return (
-    <div className="msa-sheet-back" onClick={onClose}>
-      <div ref={box} className="msa-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true"
-        aria-label={t('assess.report.sheetTitle', { name: student.full_name })}>
-        <div className="msa-sheet-head">
+    <div className={embedded ? undefined : 'msa-sheet-back'} onClick={embedded ? undefined : onClose}>
+      <div ref={embedded ? undefined : box} className={embedded ? undefined : 'msa-sheet'} onClick={e => e.stopPropagation()}
+        role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true}
+        aria-label={embedded ? undefined : t('assess.report.sheetTitle', { name: student.full_name })}>
+        {!embedded && <div className="msa-sheet-head">
           <b>{t('assess.report.sheetTitle', { name: student.full_name })}</b>
           <button className="msa-sheet-x" onClick={onClose} aria-label={t('common.close')}>✕</button>
-        </div>
+        </div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div className="msa-report-hero">
             <div className="msa-report-eyebrow">MANTA SHARK AQUATICS · {t('assess.report.eyebrow')}</div>
@@ -1623,14 +1753,17 @@ export default function DashboardPage() {
     }).catch(() => {})
     return () => { live = false }
   }, [panel?.active, pathNow])
-  const openMonthly = (student: Student, id: string) => {
-    setMonthlyFor({ student, id })
+  const markMonthlySeen = (id: string) => {
     setMonthlySeen(list => {
       if (list.includes(id)) return list
       const next = [...list, id].slice(-60)
       try { localStorage.setItem(MONTHLY_SEEN, JSON.stringify(next)) } catch { /* fine */ }
       return next
     })
+  }
+  const openMonthly = (student: Student, id: string) => {
+    setMonthlyFor({ student, id })
+    markMonthlySeen(id)
   }
   // 我的方案 folded into one line (owner, 2026-10-26); null = not touched
   // yet, which opens it when something there needs the family.
@@ -1801,14 +1934,19 @@ export default function DashboardPage() {
     const seen = seenNow[st.id] ?? st.reports_seen_at ?? null
     return (studentProgressMap[st.id]?.records || []).filter(r => r.reviewed_at && (seen === null || r.reviewed_at > seen)).length
   }
-  const openRecords = (st: Student) => {
+  /* The records are being opened (on their own or inside 「的學習」): note what
+     was new, clear the red mark, tell the server. */
+  const markRecordsSeen = (st: Student) => {
     setRecordsNewSince(newReportCount(st) > 0 ? (seenNow[st.id] ?? st.reports_seen_at ?? null) : undefined)
-    setRecordsFor(st)
     setRecordsPage(0)
     if (newReportCount(st) > 0) {
       setSeenNow(m => ({ ...m, [st.id]: new Date().toISOString() }))
       fetch('/api/parent/reports-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: st.id }) }).catch(() => {})
     }
+  }
+  const openRecords = (st: Student) => {
+    markRecordsSeen(st)
+    setRecordsFor(st)
   }
   // A lesson-report push opens the dashboard on that swimmer's records
   // (?records=<student id>, lib/push-text.ts), once.
@@ -1861,23 +1999,17 @@ export default function DashboardPage() {
      all (hubFor) with a one-line summary and 新. A new kind of thing to
      read is added here, never as another button on the card. */
   const [hubFor, setHubFor] = useState<Student | null>(null)
-  /* While the list is open: the class its sheets' dim keys on, the 3D
-     swimmer behind the dim rests (the event TabPager sends during a swipe),
-     and the sheets its rows open are fetched now, so opening one only draws
-     it (owner, 2026-11-19: opening the learning map stuttered). */
+  /* While the list is open the 3D swimmer behind the dim rests (the event
+     TabPager sends during a swipe), and the pages its rows open are fetched
+     now, so opening one only draws it (owner, 2026-11-19: opening the
+     learning map stuttered). */
   useEffect(() => {
     if (!hubFor) return
-    const root = document.documentElement
-    root.classList.add('msa-hub-open')
     window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: true } }))
     import('./SkillTree').catch(() => {})
     import('./MonthlyReportSheet').catch(() => {})
-    return () => {
-      root.classList.remove('msa-hub-open')
-      window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: false } }))
-    }
+    return () => { window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: false } })) }
   }, [hubFor])
-  type LearnItem = { key: string; group: 'often' | 'progress'; icon: string; label: string; sub: string; fresh: boolean; news?: string; open: () => void }
   const learnItems = (student: Student): LearnItem[] => {
     const hasLevel = !!student.current_level && Number(student.current_level) >= 1
     const hasPast = pastBookings.some(b => b.student_id === student.id)
@@ -1899,19 +2031,32 @@ export default function DashboardPage() {
       out.push({ key: 'records', group: 'often', icon: 'clipboard', label: t('dash.records'),
         sub: latest ? [md(latest.session_date), latest.course_name].filter(Boolean).join(' · ') : t('hub.records.empty'),
         fresh: n > 0, news: newest ? t('hub.news.report', { date: md(newest.session_date) }) : undefined,
-        open: () => openRecords(student) })
+        open: () => openRecords(student),
+        enter: () => markRecordsSeen(student),
+        view: back => (
+          <RecordsSheet embedded student={student} past={pastBookings.filter(b => b.student_id === student.id)}
+            records={prog.records} newSince={recordsNewSince} page={recordsPage} setPage={setRecordsPage} onClose={back} />
+        ) })
     }
     const monthly = monthlyReports.filter(m => m.studentId === student.id)
     if (monthly.length > 0) {
       const month = fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' })
       const fresh = !monthlySeen.includes(monthly[0].id)
       out.push({ key: 'monthly', group: 'often', icon: 'note', label: t('monthly.cardLine', { month }), sub: t('hub.monthly.sub'),
-        fresh, news: fresh ? t('hub.news.monthly', { month }) : undefined, open: () => openMonthly(student, monthly[0].id) })
+        fresh, news: fresh ? t('hub.news.monthly', { month }) : undefined, open: () => openMonthly(student, monthly[0].id),
+        enter: () => markMonthlySeen(monthly[0].id),
+        view: back => (
+          <MonthlyReportSheet embedded studentName={student.full_name} initialId={monthly[0].id} reports={monthly} onClose={back}
+            onFeedback={(id, feedback, comment) => setMonthlyReports(list => list.map(m => m.id === id ? { ...m, feedback, feedbackComment: comment || null } : m))} />
+        ) })
     }
     if (hasLevel) {
       out.push({ key: 'map', group: 'progress', icon: 'map', label: t('dash.skillTree'),
         sub: `${t('level.badge', { n: lvl, name: t(`level.${lvl}.name`) })} · ${t('dash.stageN', { n: curStage })} · ${curPct}%`,
-        fresh: false, open: () => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents }) })
+        fresh: false, open: () => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents }),
+        view: back => (
+          <SkillTree embedded studentName={student.full_name} currentLevel={lvl} currentStage={curStage} percentBySkillId={prog.allPercents} onClose={back} />
+        ) })
     }
     const times = timeCounts[student.id] || 0
     if (times > 0) {
@@ -1923,7 +2068,8 @@ export default function DashboardPage() {
     const report = assessReports[student.id]
     if (hasLevel && report) {
       out.push({ key: 'report', group: 'progress', icon: 'medal', label: t('assess.report.button'),
-        sub: t('hub.report.sub', { date: md(report.assessedOn) }), fresh: false, open: () => setReportFor(student) })
+        sub: t('hub.report.sub', { date: md(report.assessedOn) }), fresh: false, open: () => setReportFor(student),
+        view: back => <AssessmentSheet embedded student={student} report={report} onClose={back} /> })
     }
     return out
   }
@@ -3631,35 +3777,7 @@ export default function DashboardPage() {
           lesson={mineB ? [formatTime(mineB.start_time), mineB.coach_name ? t('dash.up.coach', { name: mineB.coach_name }) : null].filter(Boolean).join(' · ') : null} />
       })()}
 
-      {hubFor && (() => {
-        /* 「<name> 的學習」: everything to read about one swimmer, each row
-           with what it holds and 新 (owner, 2026-11-19, proposal A). A row
-           opens its own sheet over this one, and this one stays open
-           underneath, so closing that sheet shows it again (owner,
-           2026-11-19: closing the records closed everything; then "no
-           flash" -- taking it away and drawing it again replayed its
-           rise). It is drawn before every sheet a row opens, so those lie
-           on top of it (same z-index: later in the page is on top) and the
-           Android back button closes them first. */
-        const items = learnItems(hubFor)
-        const row = (it: LearnItem) => (
-          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={it.open}>
-            <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
-            <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
-            {it.fresh && <span className="pill">{t('dash.newTag')}</span>}
-            <i aria-hidden="true">›</i>
-          </button>
-        )
-        const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
-        return (
-          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub" backClassName="msa-hub-back">
-            {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
-            {often.map(row)}
-            {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}
-            {progress.map(row)}
-          </Sheet>
-        )
-      })()}
+      {hubFor && <LearnHub name={hubFor.full_name} items={learnItems(hubFor)} onClose={() => setHubFor(null)} />}
       {recordsFor && (
         <RecordsSheet
           student={recordsFor}

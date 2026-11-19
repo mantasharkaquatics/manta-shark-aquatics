@@ -71,6 +71,10 @@ type Props = {
   /** Every recorded value for this student, keyed by skill id, all levels. */
   percentBySkillId: Record<string, number>
   onClose: () => void
+  /** Drawn inside another sheet (the app's 「的學習」, owner 2026-11-19): no
+   *  backdrop, frame, back or ✕ of its own, and no student name -- the
+   *  sheet around it says those. */
+  embedded?: boolean
   /** Coaches see the pass standard and what each skill waits on. Families do not. */
   forCoach?: boolean
   /** Teaching notes, keyed by skill id, from docs/coaching-content.json. Only
@@ -173,6 +177,16 @@ html.msa-app .mst-back-btn { display: none }
 .mst-x { display: none !important }
 html.msa-app .mst-x { display: inline-flex !important; position: absolute; top: 20px; right: 16px }
 @media (prefers-reduced-motion: reduce) { html.msa-app .mst-panel { animation: none } }
+/* Inside 「的學習」 (embedded): just the content; the sheet around it scrolls
+   and has the title, ‹ back and ✕. */
+.mst-embed { display: block }
+html .mst-panel.embedded, html.msa-app .mst-panel.embedded { max-height: none; overflow: visible; border-radius: 0; box-shadow: none;
+  border: 0; margin: 0 -20px; width: auto; max-width: none; padding-bottom: 0; animation: none; background: transparent }
+html .mst-panel.embedded .mst-head, html.msa-app .mst-panel.embedded .mst-head { padding: 2px 20px 10px !important; border-radius: 0;
+  background: #f6f9fd; touch-action: auto; top: 0 }
+html.msa-app .mst-panel.embedded .mst-head::before { content: none }
+html .mst-panel.embedded .mst-back-btn, html.msa-app .mst-panel.embedded .mst-x { display: none !important }
+html .mst-panel.embedded .mst-stats { margin-top: 0 }
 .mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px }
 .mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.1;
   font-variant-numeric: tabular-nums }
@@ -389,7 +403,7 @@ html.msa-app .mst-x { display: inline-flex !important; position: absolute; top: 
 
 export default function SkillTree({
   studentName, currentLevel, currentStage, percentBySkillId, onClose, forCoach = false,
-  notes, allPassed = false,
+  notes, allPassed = false, embedded = false,
 }: Props) {
   const supabase = createClient()
   const locale = useLocale()
@@ -409,13 +423,14 @@ export default function SkillTree({
   const [badge, setBadge] = useState<{ level: number; stage: number } | null>(null)
   const [card, setCard] = useState<string | null>(null)
   // Focus into the map as it opens and back after (found 2026-10-15).
-  const dialogRef = useDialogFocus(true)
+  const dialogRef = useDialogFocus(!embedded)
   // In the app the tabs stay under the map (決定 9): tapping one leaves it.
   useEffect(() => {
+    if (embedded) return
     const onTab = (e: MouseEvent) => { if (e.target instanceof Element && e.target.closest('.msa-tb a, .msa-tb button')) onClose() }
     document.addEventListener('click', onTab, true)
     return () => document.removeEventListener('click', onTab, true)
-  }, [onClose])
+  }, [onClose, embedded])
 
   useEffect(() => {
     let alive = true
@@ -643,21 +658,24 @@ export default function SkillTree({
   const color = LEVEL_COLORS[String(lv)] || GOLD
 
   return (
-    <div ref={dialogRef} className="mst-back" role="dialog" aria-modal="true" aria-label={t('tree.title')}
-      onClick={onClose}>
+    <div ref={embedded ? undefined : dialogRef} className={embedded ? 'mst-embed' : 'mst-back'} role={embedded ? undefined : 'dialog'}
+      aria-modal={embedded ? undefined : true} aria-label={embedded ? undefined : t('tree.title')}
+      onClick={embedded ? undefined : onClose}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="mst-panel" onClick={e => e.stopPropagation()}>
+      <div className={'mst-panel' + (embedded ? ' embedded' : '')} onClick={e => e.stopPropagation()}>
         <div className="mst-head">
           {/* Pop-up kind ③, a whole page (決定 9): ‹ back at the top left. */}
           <button className="mst-back-btn tap-auto" onClick={onClose} aria-label={t('app.back')}><Icon name="back" /></button>
           {/* In the app it is a sheet instead: a round ✕ on the right. */}
           <button className="msa-sheet-x mst-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
+          {!embedded && <>
           <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>
           <div style={{ fontSize: '20px', fontWeight: 800, color: '#12254a', marginTop: '2px' }}>
             {studentName}
           </div>
+          </>}
           <div className="mst-stats">
             <div className="mst-stat">
               <b style={{ color: LEVEL_COLORS[String(currentLevel)] || GOLD }}>{currentLevel}</b>

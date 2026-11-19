@@ -963,17 +963,19 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   「<name> 的學習 ›」 (`.msa-mcard-door`, always at the foot of the card,
   with "N 個新"), opens a sheet listing everything to read about the
   swimmer -- 上課紀錄, 月報 (常用); 學習地圖, 成績, 評估報告 (進度) -- each
-  with a one-line summary and 新; a row's own sheet opens on top of it
-  (no second dim) and closing that sheet shows the list again (owner,
-  2026-11-19). The list stays mounted the whole time -- taking it away
-  and drawing it again replayed its rise, a flash the owner refused -- and
-  is drawn before those sheets in the page, so they lie above it and the
-  Android back button closes them first. While it is open (owner,
-  2026-11-19: opening the learning map stuttered): <html> carries
-  `msa-hub-open` -- the class the sheets' clear dim keys on; never a
-  :has() on the root, which makes the phone re-check the whole page on
-  every change -- the 3D swimmer behind the dim rests (the msa:tab-swipe
-  event), and SkillTree / MonthlyReportSheet are fetched ahead. Above it, only while something is new,
+  with a one-line summary and 新. **It is one sheet whose pages slide
+  inside it** (owner, 2026-11-19, 方案 A, after a sheet stacked on the list
+  kept flashing however it was tuned): `LearnHub` in the dashboard page, the
+  same height (88dvh) from the first frame; a row slides its page in from
+  the right -- RecordsSheet, MonthlyReportSheet, SkillTree and
+  AssessmentSheet drawn with `embedded` (content only: no dim, frame, head
+  or ✕ of their own) -- and the head turns into ‹ <name> 的學習 · title · ✕.
+  ‹, Esc, the Android back button and a swipe from the left edge slide
+  back to the list; ✕, the dim area and a pull on the head close it all. A
+  row with no page (成績) navigates as before. Do not go back to opening a
+  second sheet over the list. While it is open the 3D swimmer behind the dim
+  rests (the msa:tab-swipe event) and SkillTree / MonthlyReportSheet are
+  fetched ahead. Above it, only while something is new,
   one white line (`.msa-mcard-news`) for the first new thing (a lesson
   report, then the monthly report, then a time) that opens it directly.
   Both come from `learnItems()` in the dashboard page: a new kind of thing
@@ -1402,9 +1404,8 @@ the contained problems were fixed the same day. What to keep doing:
     (`.msa-dlg-yes`, `.danger` for red) right; short forms (changing the
     phone or email) are centred too. ③ a lot to read is a page with ‹ back
     top left: the learning map on the website. Inside the app the learning
-    map is a sheet too (owner, 2026-11-19: "not full screen"): 88% of the
-    screen from the bottom, grab bar, round ✕ (`.mst-x`, a .msa-sheet-x, so
-    SheetSwipe pulls it closed). The styles live in
+    map is a page of 「的學習」 (owner, 2026-11-19: "not full screen"); on
+    its own it is a sheet (88% of the screen, grab bar, round ✕ `.mst-x`). The styles live in
     app/globals.css. The check-in QR, the lesson detail, the vouchers, a
     day of the month view and the booking page's "not open yet" are sheets;
     登出 (帳號與孩子) is a ConfirmDialog; 我的's 'whose QR' is a Sheet.
