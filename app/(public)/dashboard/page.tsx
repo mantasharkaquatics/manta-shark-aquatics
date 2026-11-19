@@ -260,6 +260,10 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 .msa-mcard-news:focus-visible, .msa-mcard-door:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
 @media (hover: hover) { .msa-mcard-door:hover { background: rgba(255,255,255,0.24) } }
 /* 「<name> 的學習」 sheet: one row per thing to read. */
+/* A sheet opened from it lies on top of it with no second dim: the page
+   stays at one shade and nothing behind the list changes (owner,
+   2026-11-19: "no flash"). */
+html:has(.msa-hub) .msa-sheet-back:not(:has(> .msa-hub)), html:has(.msa-hub) .mst-back { background: transparent !important }
 .msa-hub-grp { margin: 10px 4px 6px; font-size: 12.5px; font-weight: 800; color: #6b7690 }
 .msa-sheet-head + .msa-hub-grp { margin-top: 2px }
 .msa-hub-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 11px 12px; border: 1px solid #e3e8f0; border-radius: 14px;
@@ -3609,6 +3613,35 @@ export default function DashboardPage() {
           lesson={mineB ? [formatTime(mineB.start_time), mineB.coach_name ? t('dash.up.coach', { name: mineB.coach_name }) : null].filter(Boolean).join(' · ') : null} />
       })()}
 
+      {hubFor && (() => {
+        /* 「<name> 的學習」: everything to read about one swimmer, each row
+           with what it holds and 新 (owner, 2026-11-19, proposal A). A row
+           opens its own sheet over this one, and this one stays open
+           underneath, so closing that sheet shows it again (owner,
+           2026-11-19: closing the records closed everything; then "no
+           flash" -- taking it away and drawing it again replayed its
+           rise). It is drawn before every sheet a row opens, so those lie
+           on top of it (same z-index: later in the page is on top) and the
+           Android back button closes them first. */
+        const items = learnItems(hubFor)
+        const row = (it: LearnItem) => (
+          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={it.open}>
+            <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
+            <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
+            {it.fresh && <span className="pill">{t('dash.newTag')}</span>}
+            <i aria-hidden="true">›</i>
+          </button>
+        )
+        const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
+        return (
+          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub">
+            {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
+            {often.map(row)}
+            {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}
+            {progress.map(row)}
+          </Sheet>
+        )
+      })()}
       {recordsFor && (
         <RecordsSheet
           student={recordsFor}
@@ -4807,31 +4840,6 @@ export default function DashboardPage() {
           onClose={() => setMonthlyFor(null)}
           onFeedback={(id, feedback, comment) => setMonthlyReports(list => list.map(m => m.id === id ? { ...m, feedback, feedbackComment: comment || null } : m))} />
       )}
-      {hubFor && !recordsFor && !monthlyFor && !reportFor && !treeFor && (() => {
-        /* 「<name> 的學習」: everything to read about one swimmer, each row
-           with what it holds and 新 (owner, 2026-11-19, proposal A). A row
-           opens its own sheet over this one: this one steps aside while it
-           is open and is back when it closes (owner, 2026-11-19: closing
-           the records closed everything). */
-        const items = learnItems(hubFor)
-        const row = (it: LearnItem) => (
-          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={it.open}>
-            <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
-            <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
-            {it.fresh && <span className="pill">{t('dash.newTag')}</span>}
-            <i aria-hidden="true">›</i>
-          </button>
-        )
-        const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
-        return (
-          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub">
-            {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
-            {often.map(row)}
-            {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}
-            {progress.map(row)}
-          </Sheet>
-        )
-      })()}
       {reportFor && assessReports[reportFor.id] && (
         <AssessmentSheet student={reportFor} report={assessReports[reportFor.id]} onClose={() => setReportFor(null)} />
       )}
