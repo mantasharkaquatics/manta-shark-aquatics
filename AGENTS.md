@@ -1384,8 +1384,10 @@ the contained problems were fixed the same day. What to keep doing:
     `.msa-dlg-acts`: the way out (`.msa-dlg-no`) left, the action
     (`.msa-dlg-yes`, `.danger` for red) right; short forms (changing the
     phone or email) are centred too. ③ a lot to read is a page with ‹ back
-    top left: the learning map, which inside the app covers the top bar
-    and ends above the tabs (a tab tapped leaves it). The styles live in
+    top left: the learning map on the website. Inside the app the learning
+    map is a sheet too (owner, 2026-11-19: "not full screen"): 88% of the
+    screen from the bottom, grab bar, round ✕ (`.mst-x`, a .msa-sheet-x, so
+    SheetSwipe pulls it closed). The styles live in
     app/globals.css. The check-in QR, the lesson detail, the vouchers, a
     day of the month view and the booking page's "not open yet" are sheets;
     登出 (帳號與孩子) is a ConfirmDialog; 我的's 'whose QR' is a Sheet.

@@ -157,9 +157,22 @@ const CSS = `
 .mst-back-btn { position: absolute; top: 12px; left: 10px; width: 40px; height: 40px; border: none; border-radius: 50%;
   background: #eef3f9; color: #12254a; font-size: 26px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 3px }
 .mst-head { padding-left: 60px !important }
-/* Inside the app the map is a page of its own over the top bar, ending
-   above the tabs, which stay (決定 9). */
-html.msa-app .mst-back { bottom: var(--app-tab-now, 0px); background: #fff; backdrop-filter: none; z-index: 61 }
+/* Inside the app the map is a sheet like the others (owner, 2026-11-19:
+   "not full screen"): it rises from the bottom over a dimmed page, up to
+   88% of the screen, with the grab bar and a round ✕ (.msa-sheet-x, so
+   components/SheetSwipe closes it on a pull down). The website keeps the
+   whole page with ‹ back. */
+html.msa-app .mst-back { inset: 0; background: rgba(14,29,59,0.55); backdrop-filter: none; z-index: 1000; align-items: flex-end;
+  animation: msa-sheet-guard .35s }
+html.msa-app .mst-panel { max-height: 88vh; max-height: 88dvh; border-radius: 18px 18px 0 0; overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom); animation: msa-sheet-up .22s ease-out }
+html.msa-app .mst-head { border-radius: 18px 18px 0 0; padding: 24px 58px 12px 20px !important; touch-action: none }
+html.msa-app .mst-head::before { content: ''; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px;
+  border-radius: 9px; background: #cfd8e6 }
+html.msa-app .mst-back-btn { display: none }
+.mst-x { display: none !important }
+html.msa-app .mst-x { display: inline-flex !important; position: absolute; top: 20px; right: 16px }
+@media (prefers-reduced-motion: reduce) { html.msa-app .mst-panel { animation: none } }
 .mst-stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px }
 .mst-stat b { display: block; font-size: 19px; font-weight: 800; line-height: 1.1;
   font-variant-numeric: tabular-nums }
@@ -637,6 +650,8 @@ export default function SkillTree({
         <div className="mst-head">
           {/* Pop-up kind ③, a whole page (決定 9): ‹ back at the top left. */}
           <button className="mst-back-btn tap-auto" onClick={onClose} aria-label={t('app.back')}><Icon name="back" /></button>
+          {/* In the app it is a sheet instead: a round ✕ on the right. */}
+          <button className="msa-sheet-x mst-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
           <div style={{ fontSize: '10px', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#2050a0', fontWeight: 700 }}>
             {t('tree.title')}
           </div>
