@@ -23,6 +23,7 @@ import { errorKey, errorKeyFor } from '@/lib/i18n/errors'
 import { loadDict } from '@/lib/i18n/load'
 import NoticeModal from '@/components/NoticeModal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import Sheet from '@/components/ui/Sheet'
 import { LEVEL_COLORS, stageProgress, resolveStage, stageNameKey, type StageProgress } from '@/lib/levels'
 import { REPORT_SHEET_CSS } from './report-sheet-css'
 import { MascotEmpty } from '@/components/MascotHelper'
@@ -241,6 +242,36 @@ html[data-text-size] .msa-deck-name .msa-mcard-lv i { display: inline-block; mar
 html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px }
 /* The card's own row of small tiles. */
 .msa-mcard-tiles { display: flex; gap: 6px; margin-top: 10px }
+.msa-mcard-news, .msa-mcard-door { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; border: 0; border-radius: 12px;
+  font-family: inherit; text-align: left; cursor: pointer }
+.sw-stage + .msa-mcard-news { margin-top: 0 }
+/* The one reminder: white on the navy card, so it is the first thing read. */
+.msa-mcard-news { min-height: 42px; margin-bottom: 8px; padding: 8px 12px; background: #fff; color: #12254a; font-size: 14px; font-weight: 800 }
+.msa-mcard-news .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #e05a4a }
+.msa-mcard-news .tx { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-mcard-news b { flex: none; color: #2050a0; font-weight: 900 }
+/* The door: quiet when there is nothing new, a touch stronger under a reminder.
+   Always at the foot of the card, so it sits in the same place on every card. */
+.msa-mcard-door { margin-top: auto; min-height: 46px; padding: 0 14px; background: rgba(255,255,255,0.12); color: #fff; font-size: 15px; font-weight: 900 }
+.msa-mcard-door.strong { background: rgba(255,255,255,0.2) }
+.msa-mcard-door .tx { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-mcard-door em { flex: none; font-style: normal; font-size: 12px; font-weight: 900; padding: 2px 8px; border-radius: 999px; background: #e05a4a; color: #fff }
+.msa-mcard-door i { flex: none; font-style: normal; font-size: 20px; line-height: 1; opacity: .8 }
+.msa-mcard-news:focus-visible, .msa-mcard-door:focus-visible { outline: 2px solid #f7b733; outline-offset: 2px }
+@media (hover: hover) { .msa-mcard-door:hover { background: rgba(255,255,255,0.24) } }
+/* 「<name> 的學習」 sheet: one row per thing to read. */
+.msa-hub-grp { margin: 10px 4px 6px; font-size: 12.5px; font-weight: 800; color: #6b7690 }
+.msa-sheet-head + .msa-hub-grp { margin-top: 2px }
+.msa-hub-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; padding: 11px 12px; border: 1px solid #e3e8f0; border-radius: 14px;
+  background: #fff; color: #12254a; font-family: inherit; text-align: left; cursor: pointer }
+.msa-hub-row .ic { flex: none; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 11px; background: #e8f0fb; color: #2050a0; font-size: 19px }
+.msa-hub-row .tx { flex: 1; min-width: 0 }
+.msa-hub-row b { display: block; font-size: 15px; font-weight: 900 }
+.msa-hub-row small { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 600; color: #6b7690; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.msa-hub-row .pill { flex: none; padding: 2px 8px; border-radius: 999px; background: #e05a4a; color: #fff; font-size: 11.5px; font-weight: 900 }
+.msa-hub-row i { flex: none; font-style: normal; font-size: 20px; color: #a8b1c2 }
+.msa-hub-row:focus-visible { outline: 2px solid #2050a0; outline-offset: 2px }
+@media (hover: hover) { .msa-hub-row:hover { background: #f6f9fd } }
 .sw-stage + .msa-mcard-tiles { margin-top: 0 }
 .msa-mcard-tiles button { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   min-height: 54px; padding: 6px 3px; border: 0; border-radius: 12px; background: rgba(255,255,255,0.12); color: #fff; font-family: inherit;
@@ -298,6 +329,8 @@ html.msa-app [data-view="schedule"] .msa-main { padding-bottom: 0 }
   html.msa-app [data-view="home"] .msa-main { padding-top: 8px; padding-bottom: 8px }
   .msa-mcard-tiles button { min-height: 48px; padding: 4px 3px }
   .msa-mcard-tiles i { font-size: 16px }
+  .msa-mcard-news { min-height: 38px }
+  .msa-mcard-door { min-height: 42px }
 }
 .msa-mcard { position: relative; overflow: hidden; border-radius: 20px; padding: 20px; color: #fff; min-height: 212px;
   background: linear-gradient(145deg, #1d3f7c, #12254a 65%); box-shadow: 0 16px 34px rgba(18,37,74,0.28);
@@ -1815,6 +1848,63 @@ export default function DashboardPage() {
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
   const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
+  /* The app's swimmer card has one door and at most one reminder (owner,
+     2026-11-19, proposal A 「一扇門＋一個提醒」: five tiles were too many).
+     learnItems lists everything there is to read about a swimmer -- the
+     card shows the first new one as a line, and 「<name> 的學習」 opens them
+     all (hubFor) with a one-line summary and 新. A new kind of thing to
+     read is added here, never as another button on the card. */
+  const [hubFor, setHubFor] = useState<Student | null>(null)
+  type LearnItem = { key: string; group: 'often' | 'progress'; icon: string; label: string; sub: string; fresh: boolean; news?: string; open: () => void }
+  const learnItems = (student: Student): LearnItem[] => {
+    const hasLevel = !!student.current_level && Number(student.current_level) >= 1
+    const hasPast = pastBookings.some(b => b.student_id === student.id)
+    const lvl = Number(student.current_level)
+    const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [], allPercents: {} }
+    const stages: StageProgress[] = prog.stages.length === 3
+      ? prog.stages
+      : [1, 2, 3].map(n => ({ stage: n as 1 | 2 | 3, percent: 0, complete: false, skillCount: 0 }))
+    const curStage = resolveStage(student.current_stage, stages)
+    const curPct = stages[curStage - 1]?.percent ?? 0
+    const md = (d: string) => fmtDate(new Date(d.slice(0, 10) + 'T12:00:00Z'), intlOf(locale), { month: 'numeric', day: 'numeric', timeZone: 'UTC' })
+    const out: LearnItem[] = []
+    if (hasLevel || hasPast) {
+      const latest = [...prog.records].sort((a, b) => b.session_date.localeCompare(a.session_date))[0]
+      const n = newReportCount(student)
+      const seen = seenNow[student.id] ?? student.reports_seen_at ?? null
+      const newest = n > 0 ? [...prog.records].filter(r => r.reviewed_at && (seen === null || r.reviewed_at > seen))
+        .sort((a, b) => b.session_date.localeCompare(a.session_date))[0] : undefined
+      out.push({ key: 'records', group: 'often', icon: 'clipboard', label: t('dash.records'),
+        sub: latest ? [md(latest.session_date), latest.course_name].filter(Boolean).join(' · ') : t('hub.records.empty'),
+        fresh: n > 0, news: newest ? t('hub.news.report', { date: md(newest.session_date) }) : undefined,
+        open: () => openRecords(student) })
+    }
+    const monthly = monthlyReports.filter(m => m.studentId === student.id)
+    if (monthly.length > 0) {
+      const month = fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' })
+      const fresh = !monthlySeen.includes(monthly[0].id)
+      out.push({ key: 'monthly', group: 'often', icon: 'note', label: t('monthly.cardLine', { month }), sub: t('hub.monthly.sub'),
+        fresh, news: fresh ? t('hub.news.monthly', { month }) : undefined, open: () => openMonthly(student, monthly[0].id) })
+    }
+    if (hasLevel) {
+      out.push({ key: 'map', group: 'progress', icon: 'map', label: t('dash.skillTree'),
+        sub: `${t('level.badge', { n: lvl, name: t(`level.${lvl}.name`) })} · ${t('dash.stageN', { n: curStage })} · ${curPct}%`,
+        fresh: false, open: () => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents }) })
+    }
+    const times = timeCounts[student.id] || 0
+    if (times > 0) {
+      const fresh = times > (timesSeen[student.id] || 0)
+      out.push({ key: 'times', group: 'progress', icon: 'stopwatch', label: t('times.tile'), sub: t(times === 1 ? 'times.subOne' : 'times.sub', { n: times }),
+        fresh, news: fresh ? t('hub.news.times') : undefined,
+        open: () => router.push('/dashboard/swim-times?student=' + encodeURIComponent(student.id)) })
+    }
+    const report = assessReports[student.id]
+    if (hasLevel && report) {
+      out.push({ key: 'report', group: 'progress', icon: 'medal', label: t('assess.report.button'),
+        sub: t('hub.report.sub', { date: md(report.assessedOn) }), fresh: false, open: () => setReportFor(student) })
+    }
+    return out
+  }
   // Esc closes the dialog on top, as it already did for the records and points
   // sheets. Without it the only ways out were the X or a click on the backdrop,
   // and that click also landed on whatever sat underneath.
@@ -3787,7 +3877,9 @@ export default function DashboardPage() {
         {/* No heading (owner, 2026-10-31): the cards say what they are. */}
         <section className="msa-home msa-kids" aria-label={t('dash.mySwimmers')}>
           {students.filter(s => newReportCount(s) > 0).map(s => (
-            <button key={s.id} type="button" className="tap-auto msa-newrep" onClick={() => openRecords(s)}>
+            /* Website only: in the app the swimmer's card says it itself
+               (msa-mcard-news, owner 2026-11-19), so it is not said twice. */
+            <button key={s.id} type="button" className="tap-auto msa-newrep msa-web-only" onClick={() => openRecords(s)}>
               <span aria-hidden="true"><Icon name="clipboard" /></span>
               <span style={{ flex: 1, minWidth: 0 }}>{t(newReportCount(s) === 1 ? 'dash.newReportsOne' : 'dash.newReports', { name: s.full_name, n: newReportCount(s) })}</span>
               <b>{t('dash.newReportsView')} ›</b>
@@ -3938,10 +4030,10 @@ export default function DashboardPage() {
             }
             /* The app's home card (owner, 2026-10-31, version C): the swimmer's
                picture as big as the screen allows, the name, level and
-               check-in laid over it (deckOverlay), and under it only the
-               progress bar and one row of small tiles -- next lesson,
-               learning map, records, the monthly report, the assessment
-               report. The website keeps studentCard above. */
+               check-in laid over it (deckOverlay), and under it at most one
+               line for what is new and the one door, 「<name> 的學習」
+               (owner, 2026-11-19, proposal A; learnItems). The website keeps
+               studentCard above. */
             const levelOf = (student: Student) => {
               const hasLevel = !!student.current_level && Number(student.current_level) >= 1
               const prog: StudentProgress = studentProgressMap[student.id] || { student_id: student.id, records: [], stages: [], stageSkills: [], allPercents: {} }
@@ -3968,11 +4060,14 @@ export default function DashboardPage() {
               )
             }
             const deckCard = (student: Student, stage: React.ReactNode) => {
-              const { hasLevel, lvl, prog, curStage } = levelOf(student)
+              const { hasLevel } = levelOf(student)
               const levelColor = hasLevel ? (LEVEL_COLORS[String(student.current_level)] || GOLD) : '#c9d3e3'
               const report = assessReports[student.id]
-              const monthly = monthlyReports.filter(m => m.studentId === student.id)
               const hasPast = pastBookings.some(b => b.student_id === student.id)
+              // One door, one reminder (owner, 2026-11-19): see learnItems.
+              const items = learnItems(student)
+              const news = items.find(i => i.news)
+              const freshN = items.filter(i => i.fresh).length
               const mine = (b: Booking) => b.student_id === student.id || !!b._group?.some(x => x.student_id === student.id)
               const booked = upcomingBookings.some(b => mine(b) && b.status !== 'cancelled')
               // A new swimmer whose assessment is booked: say when, instead of
@@ -3981,36 +4076,20 @@ export default function DashboardPage() {
               return (
                 <div key={student.id} className="msa-mcard" style={{ ['--lv' as string]: levelColor } as React.CSSProperties}>
                   {stage}
-                  {(hasLevel || hasPast || monthly.length > 0 || trialB || !!timeCounts[student.id]) && (
+                  {news && (
+                    <button type="button" className="tap-auto msa-mcard-news" onClick={news.open}>
+                      <span className="dot" aria-hidden="true" /><span className="tx">{news.news}</span><b>{t('hub.open')} ›</b>
+                    </button>
+                  )}
+                  {items.length > 0 && (
+                    <button type="button" className={'tap-auto msa-mcard-door' + (news ? ' strong' : '')} aria-haspopup="dialog" onClick={() => setHubFor(student)}>
+                      <span className="tx">{t('hub.door', { name: student.full_name })}</span>
+                      {freshN > 0 && <em>{t('hub.newN', { n: freshN })}</em>}
+                      <i aria-hidden="true">›</i>
+                    </button>
+                  )}
+                  {trialB && (
                     <div className="msa-mcard-tiles">
-                      {hasLevel && (
-                        <button type="button" className="tap-auto" onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
-                          <i aria-hidden="true"><Icon name="map" /></i><span>{t('dash.skillTree')}</span>
-                        </button>
-                      )}
-                      {(hasLevel || hasPast) && (
-                        <button type="button" className="tap-auto" onClick={() => openRecords(student)}>
-                          <i aria-hidden="true"><Icon name="clipboard" /></i><span>{t('dash.records')}</span><NewDot n={newReportCount(student)} />
-                        </button>
-                      )}
-                      {monthly.length > 0 && (
-                        <button type="button" className="tap-auto" onClick={() => openMonthly(student, monthly[0].id)}>
-                          <i aria-hidden="true"><Icon name="note" /></i>
-                          <span>{t('monthly.cardLine', { month: fmtDate(new Date(monthly[0].month + 'T12:00:00Z'), intlOf(locale), { month: 'short', timeZone: 'UTC' }) })}</span>
-                          <NewDot n={monthlySeen.includes(monthly[0].id) ? 0 : 1} />
-                        </button>
-                      )}
-                      {!!timeCounts[student.id] && (
-                        <button type="button" className="tap-auto" onClick={() => router.push('/dashboard/swim-times?student=' + encodeURIComponent(student.id))}>
-                          <i aria-hidden="true"><Icon name="stopwatch" /></i><span>{t('times.tile')}</span>
-                          <NewDot n={Math.max(0, timeCounts[student.id] - (timesSeen[student.id] || 0))} />
-                        </button>
-                      )}
-                      {hasLevel && report && (
-                        <button type="button" className="tap-auto" onClick={() => setReportFor(student)}>
-                          <i aria-hidden="true"><Icon name="medal" /></i><span>{t('assess.report.button')}</span>
-                        </button>
-                      )}
                       {/* Booked: opens the lesson right here (J42). Held for
                           payment: says so, with the time left, and pays (J04). */}
                       {trialB && trialB.status === 'pending_payment' ? (
@@ -4728,6 +4807,29 @@ export default function DashboardPage() {
           onClose={() => setMonthlyFor(null)}
           onFeedback={(id, feedback, comment) => setMonthlyReports(list => list.map(m => m.id === id ? { ...m, feedback, feedbackComment: comment || null } : m))} />
       )}
+      {hubFor && (() => {
+        /* 「<name> 的學習」: everything to read about one swimmer, each row
+           with what it holds and 新 (owner, 2026-11-19, proposal A). A row
+           closes this sheet and opens its own. */
+        const items = learnItems(hubFor)
+        const row = (it: LearnItem) => (
+          <button key={it.key} type="button" className="tap-auto msa-hub-row" onClick={() => { setHubFor(null); it.open() }}>
+            <span className="ic" aria-hidden="true"><Icon name={it.icon} /></span>
+            <span className="tx"><b>{it.label}</b><small>{it.sub}</small></span>
+            {it.fresh && <span className="pill">{t('dash.newTag')}</span>}
+            <i aria-hidden="true">›</i>
+          </button>
+        )
+        const often = items.filter(i => i.group === 'often'), progress = items.filter(i => i.group === 'progress')
+        return (
+          <Sheet title={t('hub.door', { name: hubFor.full_name })} onClose={() => setHubFor(null)} className="msa-hub">
+            {often.length > 0 && <div className="msa-hub-grp">{t('hub.grp.often')}</div>}
+            {often.map(row)}
+            {progress.length > 0 && <div className="msa-hub-grp">{t('hub.grp.progress')}</div>}
+            {progress.map(row)}
+          </Sheet>
+        )
+      })()}
       {reportFor && assessReports[reportFor.id] && (
         <AssessmentSheet student={reportFor} report={assessReports[reportFor.id]} onClose={() => setReportFor(null)} />
       )}

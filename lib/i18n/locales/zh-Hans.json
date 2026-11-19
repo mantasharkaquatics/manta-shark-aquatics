@@ -2869,5 +2869,16 @@
   "times.tag.lesson": "课堂测验",
   "times.tag.meet": "比赛",
   "times.chartLabel": "{event} 的秒数，越低越快",
-  "times.empty": "还没有秒数。上课测验或比赛之后，秒数会出现在这里。"
+  "times.empty": "还没有秒数。上课测验或比赛之后，秒数会出现在这里。",
+  "hub.door": "{name} 的学习",
+  "hub.newN": "{n} 个新",
+  "hub.open": "看",
+  "hub.grp.often": "常用",
+  "hub.grp.progress": "进度",
+  "hub.news.report": "新的上课报告 · {date}",
+  "hub.news.monthly": "{month}的月报出来了",
+  "hub.news.times": "有新的成绩",
+  "hub.records.empty": "每堂课后，教练会写在这里",
+  "hub.monthly.sub": "每个月的学习总结",
+  "hub.report.sub": "{date} 游泳评估"
 }

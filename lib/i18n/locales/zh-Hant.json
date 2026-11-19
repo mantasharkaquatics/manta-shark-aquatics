@@ -2869,5 +2869,16 @@
   "times.tag.lesson": "課堂測驗",
   "times.tag.meet": "比賽",
   "times.chartLabel": "{event} 的秒數，越低越快",
-  "times.empty": "還沒有秒數。上課測驗或比賽之後，秒數會出現在這裡。"
+  "times.empty": "還沒有秒數。上課測驗或比賽之後，秒數會出現在這裡。",
+  "hub.door": "{name} 的學習",
+  "hub.newN": "{n} 個新",
+  "hub.open": "看",
+  "hub.grp.often": "常用",
+  "hub.grp.progress": "進度",
+  "hub.news.report": "新的上課報告 · {date}",
+  "hub.news.monthly": "{month}的月報出來了",
+  "hub.news.times": "有新的成績",
+  "hub.records.empty": "每堂課後，教練會寫在這裡",
+  "hub.monthly.sub": "每個月的學習總結",
+  "hub.report.sub": "{date} 游泳評估"
 }

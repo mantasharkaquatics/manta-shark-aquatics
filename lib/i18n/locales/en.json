@@ -2869,5 +2869,16 @@
   "times.tag.lesson": "Lesson test",
   "times.tag.meet": "Meet",
   "times.chartLabel": "Times for {event}, lower is faster",
-  "times.empty": "No times yet. They show here after a timed test in a lesson or a meet."
+  "times.empty": "No times yet. They show here after a timed test in a lesson or a meet.",
+  "hub.door": "{name}'s learning",
+  "hub.newN": "{n} new",
+  "hub.open": "View",
+  "hub.grp.often": "Most used",
+  "hub.grp.progress": "Progress",
+  "hub.news.report": "New lesson report · {date}",
+  "hub.news.monthly": "Your {month} report is ready",
+  "hub.news.times": "A new swim time",
+  "hub.records.empty": "Your coach writes here after each lesson",
+  "hub.monthly.sub": "A summary of each month",
+  "hub.report.sub": "Swim Assessment · {date}"
 }
