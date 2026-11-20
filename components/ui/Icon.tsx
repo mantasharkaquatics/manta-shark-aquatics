@@ -37,6 +37,13 @@ const P: Record<string, React.ReactNode> = {
   check: <><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.8 2.8L16.5 9.5" /></>,
   warn: <><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4.5M12 17.5v.01" /></>,
   megaphone: <><path d="M4 10v4h3l8 4V6L7 10z" /><path d="M18 9.5a3.5 3.5 0 0 1 0 5M7 14l1 5h2.5l-1-5" /></>,
+  /* The four strokes and water safety, for the parent learning map (owner,
+     2026-11-20): a swimmer over a wave line. */
+  'swim-fr': <><circle cx="17.5" cy="10.5" r="1.9" /><path d="M15.5 12.6 6 13.6M13 12.4Q15.5 5.5 21.5 8.2M2 18.5q2.5-2 5 0t5 0 5 0 5 0" /></>,
+  'swim-bk': <><circle cx="5.5" cy="12" r="1.9" /><path d="M7.6 12.6 18 13.6M10 12.6Q11.5 4.5 3.5 6.5M2 18.5q2.5-2 5 0t5 0 5 0 5 0" /></>,
+  'swim-br': <><circle cx="12" cy="9.6" r="1.9" /><path d="M12 12 5.5 13.6M12 12l6.5 1.6M2 18.5q2.5-2 5 0t5 0 5 0 5 0" /></>,
+  'swim-fl': <><circle cx="12" cy="11.2" r="1.9" /><path d="M11 13Q7 3.5 2.5 9.2M13 13q4-9.5 8.5-3.8M2 18.5q2.5-2 5 0t5 0 5 0 5 0" /></>,
+  shield: <><path d="M12 3 19 6v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M9 11.5l2.2 2.1L15 9.6" /></>,
   stopwatch: <><circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.5 1.8M10 2.5h4M12 2.5V6M18.5 6.5l1.5-1.5" /></>,
   clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
   star: <path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" />,

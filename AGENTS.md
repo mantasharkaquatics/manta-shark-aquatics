@@ -77,6 +77,45 @@ two rounds because the same mistake was made twice.
   line, the carousel dots into 8x44 slivers. `.tap-auto` opts out. When adding a
   rule like this, check what it *distorted*, not only what it enlarged.
 
+# What a family sees of the curriculum: four strokes, not stages (owner, 2026-11-20)
+
+The owner found the skill tree too hard for families. After research into the
+Red Cross, YMCA, Swim England, Lifesaving Society, USA Swimming and the
+coaching books (Lawton, Rushall, Total Immersion, Swim Wales), a family's
+learning map is one table: the four strokes as rows, the same 8 steps as
+columns -- body position, kick, arms + breathing, swims a short way, 25, 50,
+100 yd, the timed standard -- and water safety as 5 boxes above (the Red
+Cross water-competency order). app/(public)/dashboard/StrokeMap.tsx draws it;
+lib/stroke-map.ts says which track and step every skill belongs to and which
+skill finishes each step (★).
+
+- **Every active skill is in exactly one track and step in lib/stroke-map.ts.**
+  A new skill must be added there or no family will see it. The three medley
+  skills belong to no stroke and are listed apart.
+- A step is done when its key skill(s) read 100 -- the same bar as a stage
+  (owner, 2026-11-20: "學會了才打勾"), so the table and the promotions agree.
+  A skill below the swimmer's level with nothing on file counts as passed, as
+  in the skill tree.
+- The strokes start at different levels (freestyle and backstroke L1,
+  butterfly L3, breaststroke L4) and run side by side; a stroke not reached
+  yet reads "N 級開始", not an empty row. Breaststroke's first step is
+  freestyle's streamline push-off, so it starts with one box done.
+- The look is the owner's: the table he liked, kept grown-up. No stickers,
+  stars or game feel (he turned a sticker book down: "這app是給家長看的");
+  the only playful thing is the swimmer's own face (SwimmerFace) in the box
+  being practised. A tap on a row opens that stroke's steps with every skill
+  and the coach's mark.
+- Coaches and the admin keep SkillTree. The sentence on top and each row's
+  line are built from smap.* keys (three languages).
+- The 2026-11-20 curriculum changes that went with it (docs/
+  migration-curriculum-best-order.sql, then the regenerated
+  migration-skill-prerequisites.sql, both projects): side breathing from L2
+  (扶牆側轉換氣 10 次; the L3 kicks breathe to the side), treading water back
+  (30 s L3, 1 min L4, 2 min L6), backstroke drills moved before the distance
+  swims (L4), breaststroke arms with breathing before breaststroke (L5), and
+  the L3 test in the Red Cross water-competency order. 85 -> 90 skills.
+  Dives stay off: the pools are too shallow.
+
 # The curriculum is 7 levels x 3 stages
 
 `lib/levels.ts` is the single source for level names, colours and the stage
@@ -967,14 +1006,14 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   inside it** (owner, 2026-11-19, 方案 A, after a sheet stacked on the list
   kept flashing however it was tuned): `LearnHub` in the dashboard page, the
   same height (88dvh) from the first frame; a row slides its page in from
-  the right -- RecordsSheet, MonthlyReportSheet, SkillTree and
+  the right -- RecordsSheet, MonthlyReportSheet, StrokeMap and
   AssessmentSheet drawn with `embedded` (content only: no dim, frame, head
   or ✕ of their own) -- and the head turns into ‹ <name> 的學習 · title · ✕.
   ‹, Esc, the Android back button and a swipe from the left edge slide
   back to the list; ✕, the dim area and a pull on the head close it all. A
   row with no page (成績) navigates as before. Do not go back to opening a
   second sheet over the list. While it is open the 3D swimmer behind the dim
-  rests (the msa:tab-swipe event) and SkillTree / MonthlyReportSheet are
+  rests (the msa:tab-swipe event) and StrokeMap / MonthlyReportSheet are
   fetched ahead. Above it, only while something is new,
   one white line (`.msa-mcard-news`) for the first new thing (a lesson
   report, then the monthly report, then a time) that opens it directly.
@@ -1403,9 +1442,9 @@ the contained problems were fixed the same day. What to keep doing:
     `.msa-dlg-acts`: the way out (`.msa-dlg-no`) left, the action
     (`.msa-dlg-yes`, `.danger` for red) right; short forms (changing the
     phone or email) are centred too. ③ a lot to read is a page with ‹ back
-    top left: the learning map on the website. Inside the app the learning
-    map is a page of 「的學習」 (owner, 2026-11-19: "not full screen"); on
-    its own it is a sheet (88% of the screen, grab bar, round ✕ `.mst-x`). The styles live in
+    top left: the skill tree coaches and the admin open. A family's learning
+    map (StrokeMap) is a page of 「的學習」 in the app and a Sheet on the
+    website (owner, 2026-11-19: "not full screen"). The styles live in
     app/globals.css. The check-in QR, the lesson detail, the vouchers, a
     day of the month view and the booking page's "not open yet" are sheets;
     登出 (帳號與孩子) is a ConfirmDialog; 我的's 'whose QR' is a Sheet.

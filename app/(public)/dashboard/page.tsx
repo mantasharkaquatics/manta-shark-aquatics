@@ -31,7 +31,7 @@ import type { MonthlyReport } from './MonthlyReportSheet'
 // Opened from a button, never on first paint: fetched the first time a family
 // opens them rather than with the page (2026-10-05). The skill map alone is
 // ~740 lines; the QR library loads the same way, inside QRModal.
-const SkillTree = dynamic(() => import('./SkillTree'), { ssr: false })
+const StrokeMap = dynamic(() => import('./StrokeMap'), { ssr: false })
 const Celebration = dynamic(() => import('./Celebration'), { ssr: false })
 const MonthlyReportSheet = dynamic(() => import('./MonthlyReportSheet'), { ssr: false })
 // The app's 3D swimmer cards (owner, 2026-10-29): three.js and the model load
@@ -1991,7 +1991,7 @@ export default function DashboardPage() {
   }, [recordsFor, pointsOpen])
   /* The tree is a whole-curriculum view, so it opens over the page rather than
      inside a 280px card. One at a time: it is a reading surface, not a panel. */
-  const [treeFor, setTreeFor] = useState<{ name: string; level: number; stage: number; percents: Record<string, number> } | null>(null)
+  const [treeFor, setTreeFor] = useState<{ name: string; look: SwimmerLook | null; level: number; percents: Record<string, number> } | null>(null)
   /* The app's swimmer card has one door and at most one reminder (owner,
      2026-11-19, proposal A 「一扇門＋一個提醒」: five tiles were too many).
      learnItems lists everything there is to read about a swimmer -- the
@@ -2006,7 +2006,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!hubFor) return
     window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: true } }))
-    import('./SkillTree').catch(() => {})
+    import('./StrokeMap').catch(() => {})
     import('./MonthlyReportSheet').catch(() => {})
     return () => { window.dispatchEvent(new CustomEvent('msa:tab-swipe', { detail: { moving: false } })) }
   }, [hubFor])
@@ -2053,9 +2053,9 @@ export default function DashboardPage() {
     if (hasLevel) {
       out.push({ key: 'map', group: 'progress', icon: 'map', label: t('dash.skillTree'),
         sub: `${t('level.badge', { n: lvl, name: t(`level.${lvl}.name`) })} · ${t('dash.stageN', { n: curStage })} · ${curPct}%`,
-        fresh: false, open: () => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents }),
+        fresh: false, open: () => setTreeFor({ name: student.full_name, look: lookOf(student), level: lvl, percents: prog.allPercents }),
         view: back => (
-          <SkillTree embedded studentName={student.full_name} currentLevel={lvl} currentStage={curStage} percentBySkillId={prog.allPercents} onClose={back} />
+          <StrokeMap embedded studentName={student.full_name} look={lookOf(student)} currentLevel={lvl} percentBySkillId={prog.allPercents} onClose={back} />
         ) })
     }
     const times = timeCounts[student.id] || 0
@@ -4168,7 +4168,7 @@ export default function DashboardPage() {
                         )}
                         <div className="msa-mcard-btns msa-mcard-end">
                           <button className="tap-auto"
-                            onClick={() => setTreeFor({ name: student.full_name, level: lvl, stage: curStage, percents: prog.allPercents })}>
+                            onClick={() => setTreeFor({ name: student.full_name, look: lookOf(student), level: lvl, percents: prog.allPercents })}>
                             {t('dash.skillTree')}
                           </button>
                           <button className="tap-auto" onClick={() => openRecords(student)}>
@@ -4980,10 +4980,10 @@ export default function DashboardPage() {
         <AssessmentSheet student={reportFor} report={assessReports[reportFor.id]} onClose={() => setReportFor(null)} />
       )}
       {treeFor && (
-        <SkillTree
+        <StrokeMap
           studentName={treeFor.name}
+          look={treeFor.look}
           currentLevel={treeFor.level}
-          currentStage={treeFor.stage}
           percentBySkillId={treeFor.percents}
           onClose={() => setTreeFor(null)}
         />

@@ -98,8 +98,8 @@
       "en_name": "Independent Movement",
       "zh_name": "獨立前進",
       "intro": {
-        "zh-Hant": "第一次「自己一個人游得動」。浮板拿掉、換氣加進來、深水不再是要避開的地方。這一級以一次完整的水域安全測驗收尾——跳進深水到爬上岸，七個動作一次做完。",
-        "en": "The first time they get anywhere on their own. The board comes away, the breath goes in, and deep water stops being the part to avoid. The level closes with one complete water safety test — seven moves from the jump to the climb out, in a single run."
+        "zh-Hant": "第一次「自己一個人游得動」。浮板拿掉、換氣加進來、深水不再是要避開的地方。這一級以一次完整的水域安全測驗收尾——跳進深水到爬上岸，五個步驟一次做完。",
+        "en": "The first time they get anywhere on their own. The board comes away, the breath goes in, and deep water stops being the part to avoid. The level closes with one complete water safety test — five steps from the jump to the climb out, in a single run."
       },
       "hours": "15–18",
       "plan": [
@@ -107,8 +107,8 @@
           "stage": 1,
           "lessons": "4–5",
           "what": {
-            "zh-Hant": "打水 25 碼加抬頭換氣、流線蹬牆",
-            "en": "25 yards of kicking with a head-up breath, and the streamline push-off"
+            "zh-Hant": "打水 25 碼加側轉換氣、流線蹬牆",
+            "en": "25 yards of kicking with a side breath, and the streamline push-off"
           }
         },
         {
@@ -300,7 +300,7 @@
     "0ff7355f-2cef-42b9-afa2-0749603d6c33": {
       "level": 5,
       "stage": 3,
-      "sort": 5,
+      "sort": 3,
       "teach": {
         "zh-Hant": "平轉身四式都用得到，蛙式和蝶式比賽只准這種轉身，翻滾失敗時它也是退路。先教觸壁的兩隻手，再教轉的身體。排在 蛙式 10 碼 後面：要先游得出蛙式，才有東西可以轉。蝶式要到 L6 才游得出來，轉身現在先學起來，到時候直接用，不必重教。",
         "en": "The open turn is used in all four strokes, it is the only legal turn in breaststroke and butterfly, and it is the fallback when a flip goes wrong. Teach the two hands on the wall first, then the body. It sits after the 10-yard breaststroke because there has to be a stroke before there is a turn. Butterfly does not arrive until L6 — the turn is learned here so that it is ready and needs no reteaching."
@@ -396,7 +396,7 @@
     "327265d2-e212-4917-90d9-21daa2a5520e": {
       "level": 4,
       "stage": 3,
-      "sort": 5,
+      "sort": 6,
       "col": 3,
       "teach": {
         "zh-Hant": "25 碼海豚腿是蝶式的體能基礎。上下幅度要平均，不是只有下踢。",
@@ -703,12 +703,12 @@
       "stage": 3,
       "sort": 5,
       "teach": {
-        "zh-Hant": "Level 3 的綜合驗收，前面所有技能都是為了它。七個動作一次接完，中間不站起來、不扶牆、教練不出手。把玩具交給教練那一下是唯一可以喘的地方。最難的不是任何單一動作，是撿完玩具之後從直立轉成仰漂——先單獨練這個銜接。五個吐泡跳是在水中央做的，練習時可以扶牆，測驗不行。",
-        "en": "The Level 3 checkpoint; everything before it exists for this. Seven moves in one unbroken run: no standing up, no holding the wall, no hand from the coach. Handing over the toy is the only breath. The hard part is not any single move but going from upright to a back float after the retrieval -- drill that transition on its own. The five bobs are done off the wall: holding on is for practice, not for the test."
+        "zh-Hant": "Level 3 的綜合驗收，照紅十字會「水中自保」的五步排：跳下浮上、仰漂或踩水 1 分鐘、轉一圈找出口、游到出口、自己上岸。中間不站起來、不扶牆、教練不出手。最難的是從漂浮轉成往前游——先單獨練這個銜接。紅十字會的距離是 25 碼，3 級先做 15 碼，25 碼在 4 級的自由式 25 碼完成。",
+        "en": "The Level 3 checkpoint, in the order of the Red Cross water competency sequence: jump in and surface, float or tread a minute, turn a full circle and find the exit, swim to it, climb out. No standing, no wall, no hand from the coach. The hard part is going from the float into swimming -- drill that transition on its own. The Red Cross distance is 25 yards; Level 3 asks 15 and the 25 comes with Freestyle 25 yd in Level 4."
       },
       "err": {
-        "zh-Hant": "分開練都很好，接起來就亂——通常是撿完玩具急著站起來。通過之前至少完整做三次，中間不給任何提示。",
-        "en": "Every piece clean on its own and a mess joined up -- usually standing up after the retrieval. Three complete runs with no prompting before it is signed off."
+        "zh-Hant": "分開練都很好，接起來就亂——通常是漂完急著找牆。通過之前至少完整做三次，中間不給任何提示。",
+        "en": "Every piece clean on its own and a mess joined up -- usually reaching for the wall after the float. Three complete runs with no prompting before it is signed off."
       }
     },
     "9f37e0f9-68d5-4bae-8349-c9d2d99d8225": {
@@ -849,7 +849,7 @@
     "c7022acb-3075-471f-8c45-4d5330139369": {
       "level": 2,
       "stage": 3,
-      "sort": 3,
+      "sort": 4,
       "teach": {
         "zh-Hant": "過頭深時先扶牆做，安全感來自牆。這是深水恐懼的過渡練習。最後三次一定要放手，因為 L3 的水域安全測驗那五個吐泡跳不能扶牆 —— 不要讓孩子在測驗當天第一次放手。",
         "en": "Over head-deep, start holding the wall — the wall is where the courage comes from. This is the bridge into deep water. The last three must let go, because the five bobs in the L3 water-safety test are done without the wall — test day should not be the first time they let go."
@@ -932,12 +932,12 @@
       "stage": 1,
       "sort": 1,
       "teach": {
-        "zh-Hant": "換氣先教抬頭：抬頭吸一口，臉馬上回水裡，腳不准停。側轉換氣不在這裡教——那是階段 2 的 側邊打水 和 階段 3 的 側轉換氣游 的事。先把抬頭換氣練到不慌，再去轉身體。",
-        "en": "Head-up breathing first: lift, one breath, face straight back in, kick never stopping. Side breathing is not taught here -- that is Side Kick in stage 2 and Roll-and-Breathe in stage 3. Get the head-up breath calm before turning the body."
+        "zh-Hant": "換氣一開始就用側轉，不教抬頭：一手扶板、一手貼大腿，頭往貼身那一側轉，一邊耳朵留在水裡吸一口，再轉回臉朝下。2 級扶牆練過的動作，這裡加上打水。",
+        "en": "Side breathing from the start, not head-up: one hand on the board, the other at the thigh, the head rolls toward the thigh side with one ear in the water for the breath, then back face-down. The wall drill from Level 2, now with a kick."
       },
       "err": {
-        "zh-Hant": "用浮板把上半身撐起來換氣，整個人變成坐著推板子，腿就沉了。",
-        "en": "Pushing down on the board to lift the chest for the breath, which turns the swim into sitting and pushing a board, and the legs drop."
+        "zh-Hant": "頭抬起來往前看著吸氣，屁股就掉下去；或轉頭時連身體一起翻過去、扶板那隻手壓板。",
+        "en": "Lifting the head forward to breathe, so the hips drop; or the whole body rolling over with the head and the board hand pushing down."
       }
     },
     "e9f7b834-3e50-446f-a775-33d547ba776b": {
@@ -971,7 +971,7 @@
     "ed0e69e4-3edb-4668-84d8-a39064fe2425": {
       "level": 2,
       "stage": 3,
-      "sort": 2,
+      "sort": 3,
       "teach": {
         "zh-Hant": "第一次讓他睜眼在水下找東西。放在他看得到的位置，不要為難他。",
         "en": "Their first time looking for something underwater with their eyes open. Put it where they can see it; do not make it hard."
@@ -1090,7 +1090,7 @@
     "63f1fc23-f60a-4417-86e1-2d4dd2d191c3": {
       "level": 2,
       "stage": 3,
-      "sort": 4,
+      "sort": 5,
       "teach": {
         "zh-Hant": "跳進深水是水域安全測驗的第一個動作。先坐著、再蹲著、最後才站著跳。每一次都要他自己浮起來回到池壁，教練接住他等於少練一次。",
         "en": "Jumping into deep water is the first move of the water safety test. Sitting, then crouching, then standing. Every time he comes back to the wall himself; catching him is one repetition lost."
@@ -1105,12 +1105,12 @@
       "stage": 2,
       "sort": 1,
       "teach": {
-        "zh-Hant": "浮板拿掉以後，手要自己撐住身體那條線。抬頭換氣一定會掉屁股，所以吸完氣馬上把臉放回水裡，不要停在抬頭的姿勢。",
-        "en": "Without the board the arms have to hold the line themselves. Lifting the head always drops the hips, so the face goes straight back in after the breath."
+        "zh-Hant": "浮板拿掉以後，前面那隻手要自己撐住身體那條線。換氣還是側轉，只是沒有板子可以靠——頭轉，身體跟著轉一點點，吸完馬上回來。",
+        "en": "Without the board the front arm holds the line by itself. The breath is still to the side, only now there is nothing to lean on: the head turns, the body follows a little, and it comes straight back after the breath."
       },
       "err": {
-        "zh-Hant": "換完氣還一直抬著頭游，身體變成坐著的，腳也停了。",
-        "en": "Swimming on with the head up after the breath, so the body sits down and the kick stops."
+        "zh-Hant": "前面那隻手往下壓水換氣，身體變成斜的，腳也停了。",
+        "en": "Pressing down with the front hand to get the breath, so the body tilts and the kick stops."
       }
     },
     "6d8d921a-e413-4bf9-81d6-a1930dab3404": {
@@ -1129,7 +1129,7 @@
     "6bf527f0-5e39-48bb-b975-6e29829b5d7c": {
       "level": 4,
       "stage": 3,
-      "sort": 4,
+      "sort": 5,
       "col": 2,
       "teach": {
         "zh-Hant": "距離拉長之後，考的是後半段動作會不會垮，還有能不能游直。教他用天花板的一個定點或水道線當參考，每五碼確認一次。",
@@ -1143,7 +1143,7 @@
     "c820d2cd-86af-4412-a6bb-06f70a23ac22": {
       "level": 4,
       "stage": 1,
-      "sort": 4,
+      "sort": 5,
       "teach": {
         "zh-Hant": "蛙腿最難的是「翻腳掌」。先扶牆做，讓他自己看得到腳。分成「收、翻、蹬、併」四拍，一拍一拍喊，不要急著連起來。",
         "en": "The hard part of a breaststroke kick is turning the feet out. Start at the wall where he can see them. Four counts -- heels up, feet out, drive, together -- called one at a time, not joined up."
@@ -1252,13 +1252,12 @@
       }
     },
     "4093e9eb-c077-4efa-9dc7-2a8378163b2b": {
-      "level": 5,
+      "level": 4,
       "stage": 3,
-      "sort": 2,
-      "col": 1,
+      "sort": 4,
       "teach": {
-        "zh-Hant": "一隻手貼著大腿完全不動，只用另一隻手游。重點還是肩膀——划的那一邊要轉出水面，身體跟著滾。L4 的分解游是抱著浮板做的，這裡拿掉浮板，他要自己撐住那條線。左右都要練。",
-        "en": "One arm stays pinned at the thigh and only the other swims. The point is still the shoulder: the working side rolls clear and the body turns with it. The Level 4 drill had a board; here the board is gone and he holds the line himself. Both sides."
+        "zh-Hant": "一隻手貼著大腿完全不動，只用另一隻手游。重點還是肩膀——划的那一邊要轉出水面，身體跟著滾。段 1 的分解游是抱著浮板做的，這裡拿掉浮板，他要自己撐住那條線。左右都要練。",
+        "en": "One arm stays pinned at the thigh and only the other swims. The point is still the shoulder: the working side rolls clear and the body turns with it. The stage 1 drill had a board; here the board is gone and he holds the line himself. Both sides."
       },
       "err": {
         "zh-Hant": "只有手臂在動、身體是平的；或是貼大腿那隻手偷偷幫忙划水。",
@@ -1268,7 +1267,7 @@
     "59628c84-eead-4393-9e2e-5774670383ca": {
       "level": 5,
       "stage": 3,
-      "sort": 3,
+      "sort": 2,
       "col": 2,
       "teach": {
         "zh-Hant": "兩手同時從頭頂入水、同時推到大腿，完全不轉肩，把「抓水」和「屁股不掉」單獨拿出來練。配蝶式打水做，合起來就是完整的反蝶。很累，短距離就好。",
@@ -1280,10 +1279,9 @@
       }
     },
     "d6b2ba7b-5a81-4247-8532-d9eb078f71bd": {
-      "level": 5,
-      "stage": 3,
+      "level": 4,
+      "stage": 1,
       "sort": 4,
-      "col": 3,
       "teach": {
         "zh-Hant": "仰式最大的問題是身體平板不轉。側躺打水六下、划一下換到另一邊，強迫他每一次划手都轉到底。頭不動、眼睛盯天花板同一個點，只有身體在滾。",
         "en": "The biggest fault in backstroke is a flat body. Six kicks on the side, one stroke to switch: it forces the rotation to go all the way every time. Head still, eyes on one point on the ceiling, only the body rolling."
@@ -1417,6 +1415,71 @@
       "err": {
         "zh-Hant": "累了變成剪刀腳或多踢一下海豚腿。一累就慢下來，把動作找回來再繼續。",
         "en": "Tiredness turning the kick into a scissor, or an extra dolphin kick sneaking in. Slow down the moment it happens and put the stroke back together."
+      }
+    },
+    "a35fa45c-35d8-4a9c-a5bf-bbba46bc1357": {
+      "level": 2,
+      "stage": 3,
+      "sort": 2,
+      "teach": {
+        "zh-Hant": "側換氣第一步，在牆邊就教，3 級的打水換氣直接用它，不先學抬頭。吐氣在水裡吐完，頭轉過去只做吸氣；下面那隻耳朵泡在水裡，眼睛看側邊的牆。",
+        "en": "The first step of side breathing, taught at the wall so the Level 3 kick sets can use it -- no head-up breath first. Breathe out in the water, turn only to breathe in; the lower ear stays wet, the eyes look along the wall."
+      },
+      "err": {
+        "zh-Hant": "頭抬起來往前看，或整個轉成仰躺；到水面上才開始吐氣，就沒時間吸。",
+        "en": "Lifting the head forward, or rolling all the way onto the back; starting to breathe out only at the surface, so there is no time to breathe in."
+      }
+    },
+    "c69275d3-d60d-45a4-b3ef-6577d1c97eb2": {
+      "level": 5,
+      "stage": 1,
+      "sort": 5,
+      "teach": {
+        "zh-Hant": "蛙式最難的是手、呼吸、腳的時機，所以先把手和呼吸配好，再接上蛙腿。手往內收的那一下抬下巴吸氣，手往前伸的時候臉回去——腳先用自由式打水或夾浮板，不用想。",
+        "en": "The hard part of breaststroke is the timing of arms, breath and kick, so arms and breath are paired first and the kick joins after. Breathe as the hands sweep in, face down as they shoot forward -- the legs flutter or hold a buoy and need no thought."
+      },
+      "err": {
+        "zh-Hant": "手划太大、划到肩膀後面；或手往前伸的時候還抬著頭。",
+        "en": "Pulling too wide, past the shoulders; or keeping the head up while the hands go forward."
+      }
+    },
+    "4dd3928b-8433-40c4-8057-29b454ce5a03": {
+      "level": 3,
+      "stage": 2,
+      "sort": 5,
+      "teach": {
+        "zh-Hant": "踩水是孩子在深水裡不靠牆也能停下來的能力。手在水面下左右划、腳用蛙腳或打蛋腳，下巴剛好在水面上，越放鬆越省力。",
+        "en": "Treading is what lets a child stop in deep water without a wall. Hands scull side to side under the surface, legs do a breaststroke or eggbeater kick, chin just clear; the calmer, the cheaper."
+      },
+      "err": {
+        "zh-Hant": "手拍水面、身體往前傾變成在游；或下巴抬太高，很快就累。",
+        "en": "Slapping the surface, or leaning forward into a swim; or holding the chin too high and tiring fast."
+      }
+    },
+    "b4e9ff8e-535c-4e5e-bc9a-8ceb9c252113": {
+      "level": 4,
+      "stage": 2,
+      "sort": 5,
+      "teach": {
+        "zh-Hant": "從 30 秒到 1 分鐘，最後 10 秒雙手離開水面——只靠腳。1 分鐘是紅十字會「水中自保」要的時間。",
+        "en": "From 30 seconds to a minute, the last ten with the hands out -- legs only. A minute is what the Red Cross water competency asks for."
+      },
+      "err": {
+        "zh-Hant": "雙手一離開水就沉：腳只是在踢，沒有往下壓水。",
+        "en": "Sinking as soon as the hands come out: the legs are kicking, not pressing down."
+      }
+    },
+    "3c01a30f-147d-4880-9738-75c245fc3325": {
+      "level": 6,
+      "stage": 2,
+      "sort": 5,
+      "teach": {
+        "zh-Hant": "兩分鐘、最後 30 秒雙手離水。用打蛋腳（兩腳輪流畫圈），之後水球、救生用的也是這個腳。",
+        "en": "Two minutes, the last thirty hands out. Eggbeater -- the legs circling in turn -- the kick water polo and lifesaving use later."
+      },
+      "err": {
+        "zh-Hant": "兩腳同時踢，身體一上一下起伏。",
+        "en": "Both legs kicking together, so the body bobs up and down."
       }
     }
   },
