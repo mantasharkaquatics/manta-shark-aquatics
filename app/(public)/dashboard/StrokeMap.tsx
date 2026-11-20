@@ -16,7 +16,7 @@
  * stars or game feel; the only playful thing is the child's own swimmer.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale, useT } from '@/lib/i18n/provider'
 import { joinList, tDb } from '@/lib/i18n'
@@ -37,6 +37,9 @@ type Props = {
   onClose: () => void
   /** Drawn inside 「的學習」: no sheet of its own. */
   embedded?: boolean
+  /** Inside 「的學習」 the head's ‹ leaves a stroke (no ‹ of our own:
+      owner, 2026-11-20, two back buttons one under the other). */
+  onInner?: (step: { back: () => void; title: string } | null) => void
 }
 
 type SkillRow = { id: string; name: string; level: number; stage: number; sort: number }
@@ -75,10 +78,11 @@ button.smp-card, .smp-row { cursor: pointer; -webkit-tap-highlight-color: transp
 .smp-hint { text-align: center; font-size: 12px; color: #8f9ab0; font-weight: 700 }
 /* one stroke */
 .smp-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; border: 0; background: #e8eef7; color: #2050a0;
-  font: inherit; font-size: 13px; font-weight: 800; border-radius: 999px; padding: 6px 12px 6px 8px; cursor: pointer }
+  font: inherit; font-size: 14px; font-weight: 800; border-radius: 999px; min-height: 40px; padding: 8px 16px 8px 10px; cursor: pointer }
 .smp-big { display: flex; align-items: center; gap: 10px }
 .smp-big b { display: block; font-size: 20px; font-weight: 900 }
 .smp-big small { font-size: 12.5px; color: #56647d; font-weight: 700 }
+.smp-big small.only { font-size: 15px; color: #12254a; font-weight: 800 }
 .smp-steps { background: #fff; border-radius: 18px; padding: 6px 12px }
 .smp-st { display: grid; grid-template-columns: 24px 1fr; gap: 10px; padding: 9px 0; position: relative }
 .smp-st:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 33px; bottom: -9px; width: 2px; background: #e3e8f0 }
@@ -95,7 +99,7 @@ button.smp-card, .smp-row { cursor: pointer; -webkit-tap-highlight-color: transp
 @media (prefers-reduced-motion: no-preference) { .smp-c.now { transition: box-shadow .2s } }
 `
 
-export default function StrokeMap({ studentName, look, currentLevel, percentBySkillId, onClose, embedded }: Props) {
+export default function StrokeMap({ studentName, look, currentLevel, percentBySkillId, onClose, embedded, onInner }: Props) {
   const t = useT()
   const locale = useLocale()
   const supabase = useMemo(() => createClient(), [])
@@ -103,6 +107,32 @@ export default function StrokeMap({ studentName, look, currentLevel, percentBySk
   const [failed, setFailed] = useState(false)
   const [tries, setTries] = useState(0)
   const [open, setOpen] = useState<TrackId | null>(null)
+  const wrap = useRef<HTMLDivElement | null>(null)
+  const savedTop = useRef(0)
+  const scroller = () => wrap.current?.closest<HTMLElement>('.msa-hub-pane, .msa-sheet') ?? null
+  const lastOpen = useRef<TrackId | null>(null)
+  const openTrack = (id: TrackId) => { savedTop.current = scroller()?.scrollTop ?? 0; lastOpen.current = id; setOpen(id) }
+  // A stroke opens at its top; the table comes back where it was left.
+  // Focus follows (the row it was opened from is gone): to the ‹ that
+  // leaves the stroke, then back to that row -- so Esc and the keyboard
+  // keep working inside the dialog.
+  const first = useRef(true)
+  useLayoutEffect(() => {
+    if (first.current) { first.current = false; return }
+    const sc = scroller()
+    if (sc) sc.scrollTop = open ? 0 : savedTop.current
+    const root = wrap.current
+    const to = open
+      ? root?.closest('[role="dialog"]')?.querySelector<HTMLElement>('.msa-hub-back') || root?.querySelector<HTMLElement>('.smp-back')
+      : root?.querySelector<HTMLElement>(`[data-track="${lastOpen.current}"]`)
+    to?.focus({ preventScroll: true })
+  }, [open])
+  const hubStep = !!(embedded && onInner)
+  useEffect(() => {
+    if (!onInner) return
+    onInner(open ? { back: () => setOpen(null), title: t('smap.track.' + open) } : null)
+  }, [open, onInner, t])
+  useEffect(() => () => onInner?.(null), [onInner])
 
   useEffect(() => {
     let alive = true
@@ -181,10 +211,11 @@ export default function StrokeMap({ studentName, look, currentLevel, percentBySk
     const titleOf = (i: number) => open === 'sf' ? t('smap.safe.' + (i + 1)) : t('smap.step.' + (i + 1))
     body = (
       <div className="smp">
-        <button type="button" className="smp-back tap-auto" onClick={() => setOpen(null)}><Icon name="back" size={16} />{t('smap.back')}</button>
+        {!hubStep && <button type="button" className="smp-back tap-auto" onClick={() => setOpen(null)}><Icon name="back" size={16} />{t('smap.back')}</button>}
         <div className="smp-big" style={{ color: TRACK_COLOR[open] }}>
           <Icon name={TRACK_ICON[open]} size={34} />
-          <div><b>{name(open)}</b><small>{rowLine(r) || (r.waitLevel ? t('smap.wait', { n: r.waitLevel }) : '')}</small></div>
+          {/* in 「的學習」 the head already names the stroke */}
+          <div>{!hubStep && <b>{name(open)}</b>}<small className={hubStep ? 'only' : undefined}>{rowLine(r) || (r.waitLevel ? t('smap.wait', { n: r.waitLevel }) : '')}</small></div>
         </div>
         <div className="smp-steps" style={{ ['--k' as string]: TRACK_COLOR[open] }}>
           {steps.map((st, i) => {
@@ -228,7 +259,7 @@ export default function StrokeMap({ studentName, look, currentLevel, percentBySk
             <p>{summary(rows)}</p>
           </div>
         </div>
-        <button type="button" className="smp-card tap-auto" onClick={() => setOpen('sf')}
+        <button type="button" className="smp-card tap-auto" data-track="sf" onClick={() => openTrack('sf')}
           aria-label={t('smap.openRow', { name: name('sf'), status: rowLine(sf) })}>
           <div className="smp-sh">
             <span style={{ color: TRACK_COLOR.sf }}><Icon name="shield" size={18} />{name('sf')}</span>
@@ -243,7 +274,7 @@ export default function StrokeMap({ studentName, look, currentLevel, percentBySk
             const r = rows[id]
             const line = r.waitLevel ? t('smap.wait', { n: r.waitLevel }) : rowLine(r)
             return (
-              <button key={id} type="button" className="smp-row tap-auto" onClick={() => setOpen(id)}
+              <button key={id} type="button" className="smp-row tap-auto" data-track={id} onClick={() => openTrack(id)}
                 aria-label={t('smap.openRow', { name: name(id), status: line })}>
                 <span className="smp-nm" style={{ color: TRACK_COLOR[id] }}><Icon name={TRACK_ICON[id]} size={18} />{t('smap.short.' + id)}</span>
                 {r.waitLevel ? <span className="smp-wait">{line}</span> : <span className="smp-cells">{cells(r)}</span>}
@@ -262,7 +293,7 @@ export default function StrokeMap({ studentName, look, currentLevel, percentBySk
     )
   }
 
-  const content = <><style>{CSS}</style>{body}</>
+  const content = <div ref={wrap}><style>{CSS}</style>{body}</div>
   if (embedded) return content
   return <Sheet title={t('dash.skillTree')} onClose={onClose} className="smp-sheet">{content}</Sheet>
 }

@@ -1009,6 +1009,12 @@ visible neck) and asked for no wave/cheer actions -- only a slow breathing.
   the right -- RecordsSheet, MonthlyReportSheet, StrokeMap and
   AssessmentSheet drawn with `embedded` (content only: no dim, frame, head
   or ✕ of their own) -- and the head turns into ‹ <name> 的學習 · title · ✕.
+  **One ‹ only** (owner, 2026-11-20: the learning map's own "‹ 四式" sat
+  right under the head's ‹): a page with a step inside it hands that step
+  to the hub through `view(back, inner)` -- StrokeMap's `onInner` -- and
+  the head reads ‹ 學習地圖 · 自由式 · ✕; the head's ‹, Esc, Android back
+  and the edge swipe leave the step first. Never put a second back button
+  inside a hub page. The ‹ is 44px tall.
   ‹, Esc, the Android back button and a swipe from the left edge slide
   back to the list; ✕, the dim area and a pull on the head close it all. A
   row with no page (成績) navigates as before. Do not go back to opening a
@@ -1435,7 +1441,10 @@ the contained problems were fixed the same day. What to keep doing:
     `.msa-sheet-back > .msa-sheet > .msa-sheet-head` classes (title, round
     ✕ `.msa-sheet-x`); on a phone it rises from the bottom with a grab bar,
     and pulling the head down closes it (`components/SheetSwipe`, mounted
-    in the (public) layout; it also knows the lesson sheet and 換造型). No
+    in the (public) layout; it also knows the lesson sheet and 換造型) --
+    only a long pull (40% of the sheet, at least 180px) or a quick flick
+    (0.6px/ms over the last 100ms, at least 40px); anything less springs
+    back (owner, 2026-11-20: a small pull closed it). No
     關閉 / 完成 / 知道了 buttons at the foot: the ✕, the dim area, the pull,
     Esc and Android back. ② a decision is a centred dialog --
     `components/ui/ConfirmDialog` or `.msa-dlg-back > .msa-dlg` with

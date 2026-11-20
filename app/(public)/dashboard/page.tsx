@@ -266,7 +266,7 @@ html.msa-app[data-text-size] [data-view="home"] .msa-hello h1 { font-size: 17px 
 .msa-hub-head { flex: none; position: relative; top: 0; margin-bottom: 0; z-index: 3 }
 .msa-hub-head h2 { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .msa-hub-head.on-page h2 { text-align: center }
-.msa-hub-back { flex: 0 1 auto; max-width: 38%; display: inline-flex; align-items: center; gap: 2px; padding: 4px 6px 4px 0; border: 0; background: none;
+.msa-hub-back { flex: 0 1 auto; max-width: 38%; display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 8px 12px 8px 0; margin: -6px 0; border: 0; background: none;
   color: #2050a0; font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer; min-width: 0 }
 .msa-hub-back span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .msa-hub-back svg { flex: none; width: 18px; height: 18px }
@@ -928,11 +928,14 @@ type LearnItem = {
   key: string; group: 'often' | 'progress'; icon: string; label: string; sub: string; fresh: boolean; news?: string
   /** Opens it on its own: the card's reminder line, and rows without a page. */
   open: () => void
-  /** Its page inside 「的學習」; `back` returns to the list. */
-  view?: (back: () => void) => React.ReactNode
+  /** Its page inside 「的學習」; `back` returns to the list. A page with a
+      step of its own (a stroke of the learning map) hands it to `inner`, so
+      the head's one ‹ leaves that step first. */
+  view?: (back: () => void, inner: (step: HubInner | null) => void) => React.ReactNode
   /** What opening it marks (seen, new since). */
   enter?: () => void
 }
+type HubInner = { back: () => void; title: string }
 const HUB_SLIDE_MS = 260
 function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; onClose: () => void }) {
   const t = useT()
@@ -943,18 +946,30 @@ function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backBtn = useRef<HTMLButtonElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  // A step inside the page (owner, 2026-11-20: the page's own ‹ sat right
+  // under the head's -- two back buttons on top of each other). One ‹ only:
+  // it, Esc, Android back and the edge swipe leave the step first.
+  const [inner, setInner] = useState<HubInner | null>(null)
+  const innerRef = useRef<HubInner | null>(null)
+  useEffect(() => { innerRef.current = inner }, [inner])
   const back = useCallback(() => {
     const p = pageRef.current
     if (!p) return
     pageRef.current = null
+    innerRef.current = null; setInner(null)
     setPage(null); setLeaving(p)
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => setLeaving(null), HUB_SLIDE_MS)
     requestAnimationFrame(() => rowRefs.current[p]?.focus({ preventScroll: true }))
   }, [])
+  const goBack = useCallback(() => {
+    const step = innerRef.current
+    if (step) { innerRef.current = null; step.back(); return }
+    back()
+  }, [back])
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
   // Esc and the Android back button: a page goes back to the list first.
-  const box = useDialogFocus(true, () => (pageRef.current ? back() : onClose()))
+  const box = useDialogFocus(true, () => (pageRef.current ? goBack() : onClose()))
   const go = (it: LearnItem) => {
     if (!it.view) { it.open(); return }
     it.enter?.()
@@ -974,7 +989,7 @@ function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; 
   const onTouchEnd = (e: React.TouchEvent) => {
     const s0 = edge.current; edge.current = null
     const tch = e.changedTouches[0]
-    if (s0 && tch && tch.clientX - s0.x > 70 && Math.abs(tch.clientY - s0.y) < 60) back()
+    if (s0 && tch && tch.clientX - s0.x > 70 && Math.abs(tch.clientY - s0.y) < 60) goBack()
   }
   const current = items.find(i => i.key === (page || leaving))
   const row = (it: LearnItem) => (
@@ -992,10 +1007,10 @@ function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; 
       <div ref={box} className="msa-sheet msa-hub" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
         <div className={'msa-sheet-head msa-hub-head' + (page ? ' on-page' : '')}>
           {page && current ? <>
-            <button ref={backBtn} type="button" className="tap-auto msa-hub-back" onClick={back} aria-label={t('app.back')}>
-              <Icon name="back" /><span>{title}</span>
+            <button ref={backBtn} type="button" className="tap-auto msa-hub-back" onClick={goBack} aria-label={t('app.back')}>
+              <Icon name="back" /><span>{inner ? current.label : title}</span>
             </button>
-            <h2>{current.label}</h2>
+            <h2>{inner ? inner.title : current.label}</h2>
           </> : <h2>{title}</h2>}
           <button type="button" className="msa-sheet-x tap-auto" onClick={onClose} aria-label={t('common.close')}><span aria-hidden="true">✕</span></button>
         </div>
@@ -1009,7 +1024,7 @@ function LearnHub({ name, items, onClose }: { name: string; items: LearnItem[]; 
           {current?.view && (page || leaving) && (
             <div key={current.key} className={'msa-hub-pane msa-hub-page' + (page ? ' in' : ' out')}
               onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-              {current.view(back)}
+              {current.view(back, setInner)}
             </div>
           )}
         </div>
@@ -2054,8 +2069,8 @@ export default function DashboardPage() {
       out.push({ key: 'map', group: 'progress', icon: 'map', label: t('dash.skillTree'),
         sub: `${t('level.badge', { n: lvl, name: t(`level.${lvl}.name`) })} · ${t('dash.stageN', { n: curStage })} · ${curPct}%`,
         fresh: false, open: () => setTreeFor({ name: student.full_name, look: lookOf(student), level: lvl, percents: prog.allPercents }),
-        view: back => (
-          <StrokeMap embedded studentName={student.full_name} look={lookOf(student)} currentLevel={lvl} percentBySkillId={prog.allPercents} onClose={back} />
+        view: (back, inner) => (
+          <StrokeMap embedded onInner={inner} studentName={student.full_name} look={lookOf(student)} currentLevel={lvl} percentBySkillId={prog.allPercents} onClose={back} />
         ) })
     }
     const times = timeCounts[student.id] || 0
