@@ -492,6 +492,12 @@ html.msa-app [data-view="schedule"] .msa-main { padding-bottom: 0 }
 .msa-lsheet .msa-lesson-actions > button::after, .msa-lsheet .msa-lesson-actions > a::after { content: none }
 /* 取消 is the last button and stands a little apart from 改期. */
 .msa-lsheet .msa-lesson-actions > :last-child:not(:first-child) { margin-top: 10px }
+/* 請假 / 取消 is there when needed, never the thing the sheet offers
+   (owner, 2026-11-20: a big red 請假 read like an invitation to take
+   leave): small grey text, no frame, under the rest. The confirm that
+   follows still says what it costs. */
+.msa-lsheet .msa-lesson-actions > button.msa-quiet-x { align-self: center; border: 0 !important; background: none !important; color: #6b778c !important;
+  font-size: 14px !important; font-weight: 600 !important; padding: 10px 18px !important; min-height: 44px !important }
 .msa-lsheet-more { display: flex; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e3ebf6 }
 .msa-lsheet-more button { flex: 1; min-height: 46px; border: 0; border-radius: 12px; background: #eef3fa; color: #2050a0; font: inherit;
   font-size: 15px; font-weight: 800; cursor: pointer }
@@ -3463,9 +3469,9 @@ export default function DashboardPage() {
                           {cancellingId === m.id ? '...' : t('dash.up.withdraw')}
                         </button>
                       ) : cEnabled ? (
-                        <button
+                        <button className="msa-quiet-x"
                           onClick={() => openCancel({ ...m, student_name: pairNames || m.student_name }, late, ck, refundPts)}
-                          style={{ padding: '4px 10px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
+                          style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#6b778c', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>
                           {cancellingId === m.id ? '...' : cancelLabel(m, late)}
                         </button>
                       ) : late ? (
@@ -3716,9 +3722,9 @@ export default function DashboardPage() {
               const ck = cancelKindOf(booking, late)
               const enabled = ck !== 'pair' && ck !== 'noGrace' && cancellingId !== booking.id && booking.status !== 'pending_partner'
               return enabled ? (
-                <button
+                <button className="msa-quiet-x"
                   onClick={() => openCancel(booking, late, ck, (booking.points_charged ?? 0) * (booking._hour ? 2 : 1))}
-                  style={{ padding: '6px 12px', borderRadius: '8px', border: late ? '1px solid #f3cfae' : '1px solid #f5c2bd', background: 'transparent', color: late ? '#c2621a' : '#c0392b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e3ebf6', background: 'transparent', color: '#6b778c', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                   {cancellingId === booking.id ? '...' : cancelLabel(booking, late)}
                 </button>
               ) : late ? (

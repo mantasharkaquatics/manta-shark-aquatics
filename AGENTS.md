@@ -511,8 +511,11 @@ bubble; a top bar and five tabs instead -- 首頁 /dashboard, 預約 /booking,
   parents tapped the card and nothing happened; 改期/取消 were small and side
   by side). In the app the whole card (`.msa-lesson-tap`, with a › button for
   keyboards) opens `lessonSheet`: the date, then the same card drawn by
-  `renderLesson(b, true)` with its buttons full width, 取消 last and set
-  apart, then 傳訊息給我們 / 關閉. The list hides the card's buttons, except
+  `renderLesson(b, true)` with its buttons full width, then 傳訊息給我們 /
+  關閉. 請假 / 取消 is last and quiet (owner, 2026-11-20: a big red 請假
+  "好像要促使家長請假"): small grey text with no frame (`.msa-quiet-x`), and
+  grey, not red, on the list cards too; the confirm after it keeps its
+  red 確定 button. The list hides the card's buttons, except
   on a move waiting for an answer (`.waiting`). Any button in the sheet's
   card closes the sheet, since it opens its own dialog. The website's cards
   are unchanged.
